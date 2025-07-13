@@ -8,6 +8,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from ..base import SchemaGenerator
+from ...models import NotNullConstraint
 
 if TYPE_CHECKING:
     from ...models import Column
@@ -94,7 +95,7 @@ class PySparkSchemaGenerator(SchemaGenerator):
             )
             return self.pyspark_types["string"]
 
-    def _get_pyspark_field(self, col: Column) -> "StructField":
+    def _get_pyspark_field(self, col: "Column") -> "StructField":
         """
         Creates a StructField from a column specification.
 
@@ -106,7 +107,8 @@ class PySparkSchemaGenerator(SchemaGenerator):
         """
         col_name = col.get("name", "")
         col_type = self._get_pyspark_type(col)
-        nullable = col.get("nullable", True)
+        is_not_null = any(isinstance(c, NotNullConstraint) for c in col.constraints)
+        nullable = not is_not_null
         return self.StructField(col_name, col_type, nullable)
 
     def generate(self) -> "StructType":

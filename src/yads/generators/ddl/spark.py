@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ..base import SchemaGenerator
+from ...models import NotNullConstraint
 
 if TYPE_CHECKING:
     from ...specifications import TableSpecification
@@ -46,7 +47,8 @@ class SparkDDLGenerator(SchemaGenerator):
             col_type = col.type
             if col_type == "array":
                 col_type = f"array<{col.element_type}>"
-            nullable_str = "NOT NULL" if not col.get("nullable") else ""
+            is_not_null = any(isinstance(c, NotNullConstraint) for c in col.constraints)
+            nullable_str = "NOT NULL" if is_not_null else ""
             column_defs.append(
                 "  " + f"`{col.name}` {col_type.upper()} {nullable_str}".strip()
             )
