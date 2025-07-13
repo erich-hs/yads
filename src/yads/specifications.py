@@ -6,7 +6,9 @@ import yaml
 from typing import Any, List, IO
 
 from .base import BaseObject
-from .resources import Column
+from .generators.ddl.spark import SparkDDLGenerator
+from .generators.formats.pyspark import PySparkSchemaGenerator
+from .models import Column
 
 
 class Specification(BaseObject):
@@ -82,51 +84,19 @@ class TableSpecification(Specification):
         """
         if dialect.lower() != "spark":
             raise NotImplementedError(f"Dialect '{dialect}' is not yet supported.")
+        return SparkDDLGenerator(self).generate()
 
-        table_name = f"{self.database}.{self.table_name}"
+    def to_spark_schema(self) -> Any:
+        """
+        Generates a PySpark StructType for the table.
 
-        # Column definitions
-        column_defs = []
-        for col in self.schema:
-            col_type = col.type
-            if col_type == "array":
-                col_type = f"array<{col.element_type}>"
-            nullable_str = "NOT NULL" if not col.get("nullable") else ""
-            column_defs.append(
-                "  " + f"`{col.name}` {col_type.upper()} {nullable_str}".strip()
-            )
+        Returns:
+            A PySpark StructType.
+        """
+        return PySparkSchemaGenerator(self).generate()
 
-        columns_str = ",\n".join(column_defs)
-
-        # Start DDL statement
-        ddl = f"CREATE OR REPLACE TABLE {table_name} (\n{columns_str}\n)"
-
-        # Add table format
-        if self.get("properties", {}).get("table_type", "").lower() == "iceberg":
-            ddl += "\nUSING ICEBERG"
-
-        # Partitioning
-        if self.get("partitioning"):
-            partition_defs = []
-            for part in self.partitioning:
-                strategy = part.get("strategy")
-                column = part.get("column")
-                if column:
-                    if strategy:
-                        partition_defs.append(f"{strategy.lower()}(`{column}`)")
-                    else:
-                        partition_defs.append(f"`{column}`")
-            if partition_defs:
-                ddl += f"\nPARTITIONED BY ({', '.join(partition_defs)})"
-
-        # Location
-        if self.get("location"):
-            ddl += f"\nLOCATION '{self.location}'"
-
-        # Table Properties
-        if self.get("properties"):
-            prop_defs = [f"'{k}' = '{v}'" for k, v in self.properties.items()]
-            if prop_defs:
-                ddl += f"\nTBLPROPERTIES (\n  {',\n  '.join(prop_defs)}\n)"
-
-        return ddl + ";"
+    def to_spark_df_schema(self) -> Any:
+        """
+        Alias for to_spark_schema.
+        """
+        return self.to_spark_schema()
