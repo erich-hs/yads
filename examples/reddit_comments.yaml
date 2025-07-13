@@ -1,0 +1,141 @@
+table_name: "reddit_comments"
+database: "raw"
+description: "Raw comments data from Reddit, ingested from S3."
+layer: "raw"
+table_type: "staging"
+owner: "data_engineering"
+version: "1.0.0"
+retention_days: null
+
+location: "s3://dl-dev-s3bucket-datalakehouse01/raw/reddit_comments"
+partitioning:
+  - strategy: "month"
+    column: "_created_date"
+
+properties:
+  table_type: "ICEBERG"
+  format: "parquet"
+  write_compression: "snappy"
+
+schema:
+  - name: "archived"
+    type: "boolean"
+    nullable: true
+  - name: "author_fullname"
+    type: "string"
+    nullable: true
+  - name: "author_flair_css_class"
+    type: "string"
+    nullable: true
+  - name: "author_flair_text"
+    type: "string"
+    nullable: true
+  - name: "awarders"
+    type: "array"
+    element_type: "string"
+    nullable: true
+  - name: "body"
+    type: "string"
+    nullable: true
+  - name: "body_html"
+    type: "string"
+    nullable: true
+  - name: "collapsed"
+    type: "boolean"
+    nullable: true
+  - name: "collapsed_reason"
+    type: "string"
+    nullable: true
+  - name: "collapsed_reason_code"
+    type: "string"
+    nullable: true
+  - name: "controversiality"
+    type: "integer"
+    nullable: true
+  - name: "created_utc"
+    type: "double"
+    nullable: true
+  - name: "distinguished"
+    type: "string"
+    nullable: true
+  - name: "downs"
+    type: "integer"
+    nullable: true
+  - name: "edited"
+    type: "string"
+    nullable: true
+  - name: "gilded"
+    type: "integer"
+    nullable: true
+  - name: "gildings"
+    type: "map"
+    key_type: "string"
+    value_type: "integer"
+    nullable: true
+  - name: "id"
+    type: "string"
+    nullable: true
+  - name: "is_submitter"
+    type: "boolean"
+    nullable: true
+  - name: "link_id"
+    type: "string"
+    nullable: true
+  - name: "locked"
+    type: "boolean"
+    nullable: true
+  - name: "name"
+    type: "string"
+    nullable: true
+  - name: "no_follow"
+    type: "boolean"
+    nullable: true
+  - name: "parent_id"
+    type: "string"
+    nullable: true
+  - name: "permalink"
+    type: "string"
+    nullable: true
+  - name: "score"
+    type: "integer"
+    nullable: true
+  - name: "score_hidden"
+    type: "boolean"
+    nullable: true
+  - name: "send_replies"
+    type: "boolean"
+    nullable: true
+  - name: "stickied"
+    type: "boolean"
+    nullable: true
+  - name: "subreddit_id"
+    type: "string"
+    nullable: true
+  - name: "subreddit_name_prefixed"
+    type: "string"
+    nullable: true
+  - name: "subreddit_type"
+    type: "string"
+    nullable: true
+  - name: "total_awards_received"
+    type: "integer"
+    nullable: true
+  - name: "treatment_tags"
+    type: "array"
+    element_type: "string"
+    nullable: true
+  - name: "ups"
+    type: "integer"
+    nullable: true
+  - name: "_fetched_date"
+    type: "date"
+    nullable: true
+  - name: "_fetched_iso_utc"
+    type: "string"
+    nullable: true
+  - name: "_created_date"
+    type: "date"
+    nullable: false
+  - name: "_loaded_ts_utc"
+    type: "timestamp"
+    nullable: false 

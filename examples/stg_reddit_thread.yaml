@@ -1,0 +1,94 @@
+table_name: "stg_reddit_thread"
+database: "staging"
+description: "Staged data for Reddit threads, combining submissions and comments into a threaded structure."
+layer: "staging"
+table_type: "staging"
+owner: "data_engineering"
+version: "1.0.0"
+retention_days: null
+
+location: "s3://dl-dev-s3bucket-datalakehouse01/staging/stg_reddit_thread"
+partitioning:
+  - strategy: "month"
+    column: "node_created_date"
+
+properties:
+  table_type: "ICEBERG"
+  format: "parquet"
+  write_compression: "snappy"
+
+schema:
+  - name: "thread_key"
+    type: "string"
+    nullable: true
+  - name: "thread_id"
+    type: "string"
+    nullable: true
+  - name: "node_key"
+    type: "string"
+    nullable: true
+  - name: "node_id"
+    type: "string"
+    nullable: true
+  - name: "parent_node_id"
+    type: "string"
+    nullable: true
+  - name: "thread_path_so_far"
+    type: "array"
+    element_type: "string"
+    nullable: true
+  - name: "subreddit_id"
+    type: "string"
+    nullable: true
+  - name: "submission_id"
+    type: "string"
+    nullable: true
+  - name: "submission_title"
+    type: "string"
+    nullable: true
+  - name: "submission_author_fullname"
+    type: "string"
+    nullable: true
+  - name: "node_author_fullname"
+    type: "string"
+    nullable: true
+  - name: "node_is_root_submission"
+    type: "boolean"
+    nullable: true
+  - name: "node_is_comment"
+    type: "boolean"
+    nullable: true
+  - name: "node_is_op_comment"
+    type: "boolean"
+    nullable: true
+  - name: "node_comment_id"
+    type: "string"
+    nullable: true
+  - name: "node_comment_order"
+    type: "integer"
+    nullable: true
+  - name: "node_depth"
+    type: "integer"
+    nullable: true
+  - name: "node_body"
+    type: "string"
+    nullable: true
+  - name: "node_ups"
+    type: "integer"
+    nullable: true
+  - name: "thread_ups_so_far"
+    type: "array"
+    element_type: "integer"
+    nullable: true
+  - name: "node_created_utc"
+    type: "double"
+    nullable: true
+  - name: "node_created_date"
+    type: "date"
+    nullable: false
+  - name: "_updated_ts_utc"
+    type: "timestamp"
+    nullable: false
+  - name: "_source_loaded_ts_utc"
+    type: "timestamp"
+    nullable: false
