@@ -40,6 +40,16 @@ owner: "data_engineering"
 version: "1.0.0"
 scd_type: 2
 
+location: "s3://lakehouse/dm_product_performance/curated/dim_user"
+partitioning:
+  - column: "created_date"
+    strategy: "month"
+
+properties:
+  table_type: "ICEBERG"
+  format: "parquet"
+  write_compression: "snappy"
+
 table_schema:
   - name: "id"
     type: "integer"
@@ -78,9 +88,29 @@ from yads import TableSpecification
 spec = TableSpecification("specs/dim_user.yaml")
 
 # Generate the DDL
-ddl = spec.to_ddl()
+ddl = spec.to_ddl(dialect="spark")
 
 print(ddl)
+```
+
+
+```stdout
+CREATE OR REPLACE TABLE dm_product_performance.curated.dim_user (
+  `id` INTEGER NOT NULL,
+  `username` STRING NOT NULL,
+  `email` STRING NOT NULL,
+  `preferences` MAP<STRING, STRING>,
+  `created_at` TIMESTAMP NOT NULL
+)
+USING ICEBERG
+PARTITIONED BY (month(`created_date`))
+LOCATION 's3://lakehouse/dm_product_performance/curated/dim_user'
+TBLPROPERTIES (
+  'table_type' = 'ICEBERG',
+  'format' = 'parquet',
+  'write_compression' = 'snappy'
+);
+>>>
 ```
 
 ### Generating a PySpark DataFrame Schema
@@ -101,6 +131,18 @@ spark_schema = spec.to_spark_schema()
 
 df = spark.createDataFrame([], schema=spark_schema)
 df.printSchema()
+```
+
+```stdout
+root
+ |-- id: integer (nullable = false)
+ |-- username: string (nullable = false)
+ |-- email: string (nullable = false)
+ |-- preferences: map (nullable = true)
+ |    |-- key: string
+ |    |-- value: string (valueContainsNull = true)
+ |-- created_at: timestamp (nullable = false)
+>>>
 ```
 
 ## Contributing
