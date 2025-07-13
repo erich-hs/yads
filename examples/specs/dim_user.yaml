@@ -1,6 +1,6 @@
 table_name: "dim_user"
 database: "dm_product_performance"
-schema: "curated"
+database_schema: "curated"
 description: "Dimension table for users, storing current and historical user information."
 dimensional_table_type: "dimension"
 owner: "data_engineering"
@@ -16,7 +16,7 @@ properties:
   format: "parquet"
   write_compression: "snappy"
 
-schema:
+table_schema:
   - name: "user_key"
     type: "string"
     nullable: false

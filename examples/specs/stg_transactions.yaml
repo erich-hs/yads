@@ -1,6 +1,6 @@
 table_name: "stg_transactions"
 database: "dm_product_performance"
-schema: "staging"
+database_schema: "staging"
 description: "Staging table for raw transaction data from a payment processor."
 dimensional_table_type: "staging"
 owner: "data_engineering"
@@ -16,7 +16,7 @@ properties:
   format: "parquet"
   write_compression: "snappy"
 
-schema:
+table_schema:
   - name: "transaction_id"
     type: "string"
     nullable: false

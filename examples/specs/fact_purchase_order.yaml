@@ -1,6 +1,6 @@
 table_name: "fact_purchase_order"
 database: "dm_product_performance"
-schema: "curated"
+database_schema: "curated"
 description: "Transactional fact table for purchase orders."
 dimensional_table_type: "fact"
 owner: "data_engineering"
@@ -17,7 +17,7 @@ properties:
   format: "parquet"
   write_compression: "snappy"
 
-schema:
+table_schema:
   - name: "purchase_order_key"
     type: "string"
     nullable: false

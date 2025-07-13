@@ -13,7 +13,7 @@ def main():
     """
     # Construct the path to the YAML file relative to this script
     current_dir = os.path.dirname(__file__)
-    yaml_path = os.path.join(current_dir, "fact_purchase_order.yaml")
+    yaml_path = os.path.join(current_dir, "specs", "fact_purchase_order.yaml")
 
     # Load the table specification from the YAML file
     table_spec = TableSpecification(yaml_path)
