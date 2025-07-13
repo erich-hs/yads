@@ -6,8 +6,9 @@ import yaml
 from typing import Any, List, IO
 
 from .base import BaseObject
-from .resources import Column
-from .translators import PySparkSchemaTranslator, SparkDDLTranslator
+from .generators.ddl.spark import SparkDDLGenerator
+from .generators.formats.pyspark import PySparkSchemaGenerator
+from .models import Column
 
 
 class Specification(BaseObject):
@@ -83,7 +84,7 @@ class TableSpecification(Specification):
         """
         if dialect.lower() != "spark":
             raise NotImplementedError(f"Dialect '{dialect}' is not yet supported.")
-        return SparkDDLTranslator(self).translate()
+        return SparkDDLGenerator(self).generate()
 
     def to_spark_schema(self) -> Any:
         """
@@ -92,7 +93,7 @@ class TableSpecification(Specification):
         Returns:
             A PySpark StructType.
         """
-        return PySparkSchemaTranslator(self).translate()
+        return PySparkSchemaGenerator(self).generate()
 
     def to_spark_df_schema(self) -> Any:
         """
