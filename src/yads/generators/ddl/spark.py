@@ -47,6 +47,8 @@ class SparkDDLGenerator(SchemaGenerator):
             col_type = col.type
             if col_type == "array":
                 col_type = f"array<{col.element_type}>"
+            elif col_type == "map":
+                col_type = f"map<{col.key_type}, {col.value_type}>"
             is_not_null = any(isinstance(c, NotNullConstraint) for c in col.constraints)
             nullable_str = "NOT NULL" if is_not_null else ""
             column_defs.append(
