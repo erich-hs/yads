@@ -1,0 +1,16 @@
+repos:
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: 'v0.11.12'
+    hooks:
+    -   id: ruff
+        args:
+          - --fix
+    -   id: ruff-format
+
+-   repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.7.9
+    hooks:
+      - id: uv-export
+        name: main dependencies
+        args: [--no-dev, --no-hashes, -o, requirements.txt]
+        files: pyproject.toml
