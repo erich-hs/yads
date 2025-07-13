@@ -1,6 +1,6 @@
-# yads - YAML-Augmented Data Specification
+# yads
 
-`yads` is a Python library for managing data specifications using YAML. It helps you define and manage your data warehouse tables, schemas, and documentation in a structured, version-controlled way. With `yads`, you can define your data assets once in YAML and then generate various outputs like DDL statements for different databases, data schemas for tools like Avro or PyArrow, and human-readable, LLM-ready documentation.
+`yads`: _~~Yet Another Data Spec~~_ **YAML-Augmented Data Specification** is a Python library for managing data specs using YAML. It helps you define and manage your data warehouse tables, schemas, and documentation in a structured, version-controlled way. With `yads`, you can define your data assets once in YAML and then generate various outputs like DDL statements for different databases, data schemas for tools like Avro or PyArrow, and human-readable, LLM-ready documentation.
 
 ## Why yads?
 
