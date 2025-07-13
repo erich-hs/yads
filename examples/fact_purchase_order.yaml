@@ -1,0 +1,66 @@
+table_name: "fact_purchase_order"
+database: "dm_product_performance"
+schema: "curated"
+description: "Transactional fact table for purchase orders."
+dimensional_table_type: "fact"
+owner: "data_engineering"
+version: "1.0.0"
+retention_days: 3650
+
+location: "s3://lakehouse/dm_product_performance/curated/fact_purchase_order"
+partitioning:
+  - column: "order_date"
+    strategy: "month"
+
+properties:
+  table_type: "ICEBERG"
+  format: "parquet"
+  write_compression: "snappy"
+
+schema:
+  - name: "purchase_order_key"
+    type: "string"
+    nullable: false
+  - name: "purchase_order_id"
+    type: "string"
+    nullable: false
+  - name: "user_key"
+    type: "string"
+    nullable: false
+  - name: "product_key"
+    type: "string"
+    nullable: false
+  - name: "order_date_key"
+    type: "integer"
+    nullable: false
+  - name: "order_date"
+    type: "date"
+    nullable: false
+  - name: "quantity"
+    type: "integer"
+    nullable: false
+  - name: "unit_price"
+    type: "double"
+    nullable: false
+  - name: "total_amount"
+    type: "double"
+    nullable: false
+  - name: "tax_amount"
+    type: "double"
+    nullable: false
+  - name: "currency"
+    type: "string"
+    nullable: true
+  - name: "shipping_address"
+    type: "string"
+    nullable: true
+  - name: "tags"
+    type: "array"
+    element_type: "string"
+    nullable: true
+  - name: "_updated_ts_utc"
+    type: "timestamp"
+    nullable: false
+  - name: "_source_loaded_ts_utc"
+    type: "timestamp"
+    nullable: false 

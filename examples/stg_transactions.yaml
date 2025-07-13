@@ -1,0 +1,58 @@
+table_name: "stg_transactions"
+database: "dm_product_performance"
+schema: "staging"
+description: "Staging table for raw transaction data from a payment processor."
+dimensional_table_type: "staging"
+owner: "data_engineering"
+version: "1.0.0"
+retention_days: 90
+
+location: "s3://lakehouse/dm_product_performance/staging/stg_transactions"
+partitioning:
+  - column: "transaction_date"
+
+properties:
+  table_type: "ICEBERG"
+  format: "parquet"
+  write_compression: "snappy"
+
+schema:
+  - name: "transaction_id"
+    type: "string"
+    nullable: false
+  - name: "purchase_order_id"
+    type: "string"
+    nullable: true
+  - name: "user_id"
+    type: "string"
+    nullable: true
+  - name: "product_id"
+    type: "string"
+    nullable: true
+  - name: "transaction_timestamp"
+    type: "timestamp"
+    nullable: false
+  - name: "transaction_date"
+    type: "date"
+    nullable: false
+  - name: "amount"
+    type: "double"
+    nullable: false
+  - name: "currency"
+    type: "string"
+    nullable: false
+  - name: "payment_method"
+    type: "string"
+    nullable: true
+  - name: "status"
+    type: "string"
+    nullable: false
+  - name: "raw_payload"
+    type: "string"
+    nullable: true
+  - name: "_updated_ts_utc"
+    type: "timestamp"
+    nullable: false
+  - name: "_source_loaded_ts_utc"
+    type: "timestamp"
+    nullable: false 

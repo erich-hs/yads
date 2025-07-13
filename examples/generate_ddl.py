@@ -12,7 +12,7 @@ def main():
     """
     # Construct the path to the YAML file relative to this script
     current_dir = os.path.dirname(__file__)
-    yaml_path = os.path.join(current_dir, "stg_reddit_thread.yaml")
+    yaml_path = os.path.join(current_dir, "dim_user.yaml")
 
     # Load the table specification from the YAML file
     table_spec = TableSpecification(yaml_path)
