@@ -29,42 +29,40 @@ pip install 'yads[pyspark]'
 Create a YAML file to define your table schema and properties. For example, `users.yaml`:
 
 ```yaml
-table_name: users
-database: raw
-description: User information table
-layer: raw
-dimensional_table_type: raw
-owner: data_engineering
-version: 1.0.0
-retention_days: null
+# specs/dim_user.yaml
 
-schema:
-  - name: id
-    type: integer
-    description: Unique identifier for the user
-    constraints:
-      - unique: true
-      - not_null: true
-  - name: username
-    type: string
-    description: Username for the user
-    constraints:
-      - unique: true
-      - not_null: true
-  - name: email
-    type: string
-    description: Email address for the user
-    constraints:
-      - unique: true
-      - not_null: true
-  - name: created_at
-    type: timestamp
-    description: Timestamp of user creation
+table_name: "dim_user"
+database: "dm_product_performance"
+database_schema: "curated"
+description: "Dimension table for users."
+dimensional_table_type: "dimension"
+owner: "data_engineering"
+version: "1.0.0"
+scd_type: 2
+
+table_schema:
+  - name: "id"
+    type: "integer"
+    description: "Unique identifier for the user"
     constraints:
       - not_null: true
-  - name: updated_at
-    type: timestamp
-    description: Timestamp of last user update
+  - name: "username"
+    type: "string"
+    description: "Username for the user"
+    constraints:
+      - not_null: true
+  - name: "email"
+    type: "string"
+    description: "Email address for the user"
+    constraints:
+      - not_null: true
+  - name: "preferences"
+    type: "map"
+    key_type: "string"
+    value_type: "string"
+  - name: "created_at"
+    type: "timestamp"
+    description: "Timestamp of user creation"
     constraints:
       - not_null: true
 ```
@@ -77,7 +75,7 @@ You can generate a Spark DDL `CREATE TABLE` statement from the specification:
 from yads import TableSpecification
 
 # Load the specification
-spec = TableSpecification.from_yaml("users.yaml")
+spec = TableSpecification("specs/dim_user.yaml")
 
 # Generate the DDL
 ddl = spec.to_ddl()
@@ -96,7 +94,7 @@ from pyspark.sql import SparkSession
 spark = SparkSession.builder.getOrCreate()
 
 # Load the specification
-spec = TableSpecification.from_yaml("users.yaml")
+spec = TableSpecification("specs/dim_user.yaml")
 
 # Generate the PySpark schema
 spark_schema = spec.to_spark_schema()
