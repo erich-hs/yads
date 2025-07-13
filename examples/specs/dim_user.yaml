@@ -19,51 +19,51 @@ properties:
 table_schema:
   - name: "user_key"
     type: "string"
-    nullable: false
+    constraints:
+      - not_null: true
   - name: "user_id"
     type: "string"
-    nullable: false
+    constraints:
+      - not_null: true
   - name: "username"
     type: "string"
-    nullable: true
   - name: "email"
     type: "string"
-    nullable: true
   - name: "first_name"
     type: "string"
-    nullable: true
   - name: "last_name"
     type: "string"
-    nullable: true
   - name: "address"
     type: "string"
-    nullable: true
   - name: "country_code"
     type: "string"
-    nullable: true
   - name: "is_active"
     type: "boolean"
-    nullable: false
+    constraints:
+      - not_null: true
   - name: "valid_from_ts"
     type: "timestamp"
-    nullable: false
+    constraints:
+      - not_null: true
   - name: "valid_to_ts"
     type: "timestamp"
-    nullable: true
   - name: "is_current"
     type: "boolean"
-    nullable: false
+    constraints:
+      - not_null: true
   - name: "preferences"
     type: "map"
     key_type: "string"
     value_type: "string"
-    nullable: true
   - name: "created_date"
     type: "date"
-    nullable: false
+    constraints:
+      - not_null: true
   - name: "_updated_ts_utc"
     type: "timestamp"
-    nullable: false
+    constraints:
+      - not_null: true
   - name: "_source_loaded_ts_utc"
     type: "timestamp"
-    nullable: false 
+    constraints:
+      - not_null: true 

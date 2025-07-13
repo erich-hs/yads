@@ -20,47 +20,56 @@ properties:
 table_schema:
   - name: "purchase_order_key"
     type: "string"
-    nullable: false
+    constraints:
+      - not_null: true
   - name: "purchase_order_id"
     type: "string"
-    nullable: false
+    constraints:
+      - not_null: true
   - name: "user_key"
     type: "string"
-    nullable: false
+    constraints:
+      - not_null: true
   - name: "product_key"
     type: "string"
-    nullable: false
+    constraints:
+      - not_null: true
   - name: "order_date_key"
     type: "integer"
-    nullable: false
+    constraints:
+      - not_null: true
   - name: "order_date"
     type: "date"
-    nullable: false
+    constraints:
+      - not_null: true
   - name: "quantity"
     type: "integer"
-    nullable: false
+    constraints:
+      - not_null: true
   - name: "unit_price"
     type: "double"
-    nullable: false
+    constraints:
+      - not_null: true
   - name: "total_amount"
     type: "double"
-    nullable: false
+    constraints:
+      - not_null: true
   - name: "tax_amount"
     type: "double"
-    nullable: false
+    constraints:
+      - not_null: true
   - name: "currency"
     type: "string"
-    nullable: true
   - name: "shipping_address"
     type: "string"
-    nullable: true
   - name: "tags"
     type: "array"
     element_type: "string"
-    nullable: true
   - name: "_updated_ts_utc"
     type: "timestamp"
-    nullable: false
+    constraints:
+      - not_null: true
   - name: "_source_loaded_ts_utc"
     type: "timestamp"
-    nullable: false 
+    constraints:
+      - not_null: true 
