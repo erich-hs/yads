@@ -2,7 +2,7 @@ table_name: "reddit_comments"
 database: "raw"
 description: "Raw comments data from Reddit, ingested from S3."
 layer: "raw"
-table_type: "staging"
+dimensional_table_type: "raw"
 owner: "data_engineering"
 version: "1.0.0"
 retention_days: null

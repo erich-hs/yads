@@ -2,7 +2,7 @@ table_name: "stg_reddit_thread"
 database: "staging"
 description: "Staged data for Reddit threads, combining submissions and comments into a threaded structure."
 layer: "staging"
-table_type: "staging"
+dimensional_table_type: "staging"
 owner: "data_engineering"
 version: "1.0.0"
 retention_days: null
