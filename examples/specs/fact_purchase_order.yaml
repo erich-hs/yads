@@ -1,0 +1,75 @@
+table_name: "fact_purchase_order"
+database: "dm_product_performance"
+database_schema: "curated"
+description: "Transactional fact table for purchase orders."
+dimensional_table_type: "fact"
+owner: "data_engineering"
+version: "1.0.0"
+retention_days: 3650
+
+location: "s3://lakehouse/dm_product_performance/curated/fact_purchase_order"
+partitioning:
+  - column: "order_date"
+    strategy: "month"
+
+properties:
+  table_type: "ICEBERG"
+  format: "parquet"
+  write_compression: "snappy"
+
+table_schema:
+  - name: "purchase_order_key"
+    type: "string"
+    constraints:
+      - not_null: true
+  - name: "purchase_order_id"
+    type: "string"
+    constraints:
+      - not_null: true
+  - name: "user_key"
+    type: "string"
+    constraints:
+      - not_null: true
+  - name: "product_key"
+    type: "string"
+    constraints:
+      - not_null: true
+  - name: "order_date_key"
+    type: "integer"
+    constraints:
+      - not_null: true
+  - name: "order_date"
+    type: "date"
+    constraints:
+      - not_null: true
+  - name: "quantity"
+    type: "integer"
+    constraints:
+      - not_null: true
+  - name: "unit_price"
+    type: "double"
+    constraints:
+      - not_null: true
+  - name: "total_amount"
+    type: "double"
+    constraints:
+      - not_null: true
+  - name: "tax_amount"
+    type: "double"
+    constraints:
+      - not_null: true
+  - name: "currency"
+    type: "string"
+  - name: "shipping_address"
+    type: "string"
+  - name: "tags"
+    type: "array"
+    element_type: "string"
+  - name: "_updated_ts_utc"
+    type: "timestamp"
+    constraints:
+      - not_null: true
+  - name: "_source_loaded_ts_utc"
+    type: "timestamp"
+    constraints:
+      - not_null: true 

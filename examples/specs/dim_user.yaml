@@ -1,0 +1,69 @@
+table_name: "dim_user"
+database: "dm_product_performance"
+database_schema: "curated"
+description: "Dimension table for users, storing current and historical user information."
+dimensional_table_type: "dimension"
+owner: "data_engineering"
+version: "1.0.0"
+scd_type: 2
+
+location: "s3://lakehouse/dm_product_performance/curated/dim_user"
+partitioning:
+  - column: "created_date"
+
+properties:
+  table_type: "ICEBERG"
+  format: "parquet"
+  write_compression: "snappy"
+
+table_schema:
+  - name: "user_key"
+    type: "string"
+    constraints:
+      - not_null: true
+  - name: "user_id"
+    type: "string"
+    constraints:
+      - not_null: true
+  - name: "username"
+    type: "string"
+  - name: "email"
+    type: "string"
+  - name: "first_name"
+    type: "string"
+  - name: "last_name"
+    type: "string"
+  - name: "address"
+    type: "string"
+  - name: "country_code"
+    type: "string"
+  - name: "is_active"
+    type: "boolean"
+    constraints:
+      - not_null: true
+  - name: "valid_from_ts"
+    type: "timestamp"
+    constraints:
+      - not_null: true
+  - name: "valid_to_ts"
+    type: "timestamp"
+  - name: "is_current"
+    type: "boolean"
+    constraints:
+      - not_null: true
+  - name: "preferences"
+    type: "map"
+    key_type: "string"
+    value_type: "string"
+  - name: "created_date"
+    type: "date"
+    constraints:
+      - not_null: true
+  - name: "_updated_ts_utc"
+    type: "timestamp"
+    constraints:
+      - not_null: true
+  - name: "_source_loaded_ts_utc"
+    type: "timestamp"
+    constraints:
+      - not_null: true 
