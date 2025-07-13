@@ -7,8 +7,18 @@ authors = [
     { name = "Erich Silva", email = "erich.hs13@gmail.com" }
 ]
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "pyyaml>=6.0.2",
+]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "ipykernel>=6.29.5",
+    "pre-commit>=4.2.0",
+    "ruff>=0.12.3",
+    "types-pyyaml>=6.0.12.20250516",
+]
