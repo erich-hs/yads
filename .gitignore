@@ -6,8 +6,18 @@ dist/
 wheels/
 *.egg-info
 
+# Cache files
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.coverage
+.coverage.*
+.coverage.xml
+
 # Virtual environments
 .venv
 
 # Local development
 .local_dev/
+.cursor/
+.vscode/
