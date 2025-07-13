@@ -64,17 +64,28 @@ class TableSpecification(Specification):
             else:
                 loaded_data = yaml.safe_load(source)
             super().__init__(**loaded_data)
-        else:
+        elif data:
             super().__init__(**data)
-        self.schema = [Column(**col) for col in self._data.get("schema", [])]
+        else:
+            raise ValueError(
+                "Either 'source' or a dictionary of data must be provided."
+            )
+        self.schema = [Column(**col) for col in self._data.get("table_schema", [])]
 
-    def to_ddl(self, dialect: str = "spark") -> str:
+    def to_ddl(
+        self,
+        dialect: str = "spark",
+        with_database: bool = True,
+        with_schema: bool = True,
+    ) -> str:
         """
         Generates a Data Definition Language (DDL) string for the table.
 
         Args:
             dialect: The SQL dialect to target. Currently, only "spark" is
                      supported for Iceberg tables.
+            with_database: If True, prepends the database name.
+            with_schema: If True, prepends the table schema name.
 
         Returns:
             A string containing the CREATE TABLE statement.
@@ -84,7 +95,9 @@ class TableSpecification(Specification):
         """
         if dialect.lower() != "spark":
             raise NotImplementedError(f"Dialect '{dialect}' is not yet supported.")
-        return SparkDDLGenerator(self).generate()
+        return SparkDDLGenerator(self).generate(
+            with_database=with_database, with_schema=with_schema
+        )
 
     def to_spark_schema(self) -> Any:
         """

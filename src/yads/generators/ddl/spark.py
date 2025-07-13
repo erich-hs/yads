@@ -20,14 +20,25 @@ class SparkDDLGenerator(SchemaGenerator):
     def __init__(self, table_spec: "TableSpecification"):
         super().__init__(table_spec)
 
-    def generate(self) -> str:
+    def generate(self, with_database: bool = True, with_schema: bool = True) -> str:
         """
         Generates a Data Definition Language (DDL) string for the table.
+
+        Args:
+            with_database: If True, prepends the database name.
+            with_schema: If True, prepends the table schema name.
 
         Returns:
             A string containing the CREATE TABLE statement.
         """
-        table_name = f"{self.table_spec.database}.{self.table_spec.table_name}"
+        namespace = []
+        if with_database:
+            namespace.append(self.table_spec.database)
+        if with_schema and self.table_spec.get("database_schema"):
+            namespace.append(self.table_spec.database_schema)
+        namespace.append(self.table_spec.table_name)
+
+        table_name = ".".join(namespace)
 
         # Column definitions
         column_defs = []
@@ -55,9 +66,9 @@ class SparkDDLGenerator(SchemaGenerator):
         # Partitioning
         if self.table_spec.get("partitioning"):
             partition_defs = []
-            for part in self.table_spec.partitioning:
-                strategy = part.get("strategy")
-                column = part.get("column")
+            for partition in self.table_spec.partitioning:
+                strategy = partition.get("strategy")
+                column = partition.get("column")
                 if column:
                     if strategy:
                         partition_defs.append(f"{strategy.lower()}(`{column}`)")
