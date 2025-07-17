@@ -1,6 +1,8 @@
 import yaml
-from sqlglot import exp
+from sqlglot import exp, parse_one
 from typing import Dict, Any, List
+
+DIALECT = "redshift"
 
 
 class YadsSqlglotConverter:
@@ -18,6 +20,12 @@ class YadsSqlglotConverter:
         "array": exp.DataType.Type.ARRAY,
         "struct": exp.DataType.Type.STRUCT,
         "map": exp.DataType.Type.MAP,
+    }
+
+    _YADS_TO_SQLGLOT_TRANSFORM_MAP: Dict[str, type[exp.Func]] = {
+        "month": exp.Month,
+        "year": exp.Year,
+        "day": exp.Day,
     }
 
     def __init__(self, spec: Dict[str, Any]):
@@ -38,10 +46,17 @@ class YadsSqlglotConverter:
         """
         table_name = self.spec["name"]
         columns = self._build_column_definitions()
+        options = self.spec.get("options", {})
+        properties = self._build_properties()
+
+        table = parse_one(table_name, into=exp.Table)
 
         return exp.Create(
-            this=exp.Schema(this=exp.Identifier(this=table_name), expressions=columns),
+            this=exp.Schema(this=table, expressions=columns),
             kind="TABLE",
+            exists=options.get("if_not_exists", False),
+            replace=options.get("or_replace", False),
+            properties=exp.Properties(expressions=properties),
         )
 
     def _build_column_definitions(self) -> List[exp.ColumnDef]:
@@ -63,6 +78,65 @@ class YadsSqlglotConverter:
                 )
             )
         return columns
+
+    def _build_properties(self) -> List[exp.Property]:
+        """Builds a list of sqlglot Property expressions from the spec."""
+        properties: List[exp.Property] = []
+        spec_properties = self.spec.get("properties", {})
+
+        if "using" in spec_properties:
+            properties.append(
+                exp.FileFormatProperty(
+                    this=exp.Identifier(this=spec_properties["using"])
+                )
+            )
+
+        if "location" in spec_properties:
+            properties.append(
+                exp.LocationProperty(
+                    this=exp.Literal.string(spec_properties["location"])
+                )
+            )
+
+        if "partitioned_by" in spec_properties:
+            partition_expressions = [
+                self._build_partition_expression(p)
+                for p in spec_properties["partitioned_by"]
+            ]
+            properties.append(
+                exp.PartitionedByProperty(
+                    this=exp.Tuple(expressions=partition_expressions)
+                )
+            )
+
+        return properties
+
+    def _build_partition_expression(self, partition_def: Any) -> exp.Expression:
+        """
+        Builds a sqlglot Expression for a partition definition.
+        Args:
+            partition_def: A dictionary representing the partition.
+        Returns:
+            A sqlglot Expression.
+        """
+        if not isinstance(partition_def, dict):
+            raise TypeError(
+                f"Unsupported partition definition type: {type(partition_def)}"
+            )
+
+        column = partition_def.get("column")
+        if not column:
+            raise ValueError("Partition definition must have a 'column' key.")
+
+        transform = partition_def.get("transform")
+        if not transform:
+            return exp.Identifier(this=column)
+
+        transform_class = self._YADS_TO_SQLGLOT_TRANSFORM_MAP.get(transform.lower())
+        if not transform_class:
+            raise ValueError(f"Unsupported partition transform: {transform}")
+
+        return transform_class(this=exp.Identifier(this=column))
 
     def _yads_to_sqlglot_type(self, yads_type: Dict[str, Any]) -> exp.DataType:
         """Converts a YADS type definition to a sqlglot DataType expression."""
@@ -131,7 +205,8 @@ def main() -> None:
     """
     Main entry point for the script.
     """
-    run_conversion("examples/specs/yads_spec.yaml", "duckdb", pretty=True)
+    print(f"Dialect: {DIALECT}")
+    run_conversion("examples/specs/yads_spec.yaml", DIALECT, pretty=True)
 
 
 if __name__ == "__main__":
