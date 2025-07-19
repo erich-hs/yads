@@ -20,116 +20,7 @@ pip install yads
 
 ### Defining a Specification
 
-Create a YAML file to define your table schema and properties. For example, `customer_orders.yaml`:
-
-```yaml
-name: "warehouse.orders.customer_orders"
-version: "2.1.0"
-description: "Represents a single customer order, including line items and shipping details."
-
-options:
-  if_not_exists: false
-  or_replace: true
-
-properties:
-  partitioned_by:
-    - column: "order_date"
-    - column: "created_at"
-      transform: "month"
-  location: "/warehouse/orders/customer_orders"
-  table_type: "iceberg"
-  format: "parquet"
-  write_compression: "snappy"
-
-metadata:
-  owner: "sales-engineering"
-  retention_days: 90
-  granularity: "One order per customer"
-
-columns:
-  - name: "order_id"
-    type: "uuid"
-    description: "The unique identifier for the order (PK)."
-    constraints:
-      not_null: true
-      primary_key: true
-
-  - name: "customer_id"
-    type: "integer"
-    description: "The ID of the customer who placed the order."
-    constraints:
-      not_null: true
-
-  - name: "order_date"
-    type: "date"
-    description: "The date the order was placed."
-    constraints:
-      not_null: true
-
-  - name: "order_total"
-    type: "decimal"
-    params:
-      precision: 10
-      scale: 2
-    description: "Total monetary value of the order."
-    constraints:
-      not_null: true
-      default: 0.5
-
-  - name: "shipping_address"
-    type: "string"
-    params:
-      length: 255
-    description: "The full shipping address."
-
-  - name: "line_items"
-    type: "array"
-    element:
-      type: "struct"
-      fields:
-        - name: "product_id"
-          type: "integer"
-          constraints:
-            not_null: true
-        - name: "quantity"
-          type: "integer"
-          constraints:
-            not_null: true
-        - name: "price"
-          type: "decimal"
-          params:
-            precision: 8
-            scale: 2
-          constraints:
-            not_null: true
-    description: "A list of products included in the order."
-
-  - name: "tags"
-    type: "array"
-    element:
-      type: "string"
-    description: "A list of tags for the order."
-
-  - name: "metadata_tags"
-    type: "map"
-    key:
-      type: "string"
-      params:
-        length: 50
-    value:
-      type: "string"
-      params:
-        length: 255
-    description: "A map of metadata tags for the order."
-
-  - name: "created_at"
-    type: "timestamp_tz"
-    description: "The timestamp when the order record was created in the system."
-    constraints:
-      not_null: true
-    metadata:
-      source: "system_generated"
-```
+Create a YAML file to define your table schema and properties. See the latest version of the [`yads` Specification](https://github.com/erich-hs/yads/blob/refactor/examples/specs/yads_spec.yaml) for an example.
 
 ### Generating Spark DDL
 
@@ -137,13 +28,13 @@ You can generate a Spark DDL `CREATE TABLE` statement from the specification:
 
 ```python
 import yads
-from yads.converters.sql import SqlglotConverter
+from yads.converters.sql import SqlConverter
 
-converter = SqlglotConverter()
 spec = yads.from_yaml("examples/specs/yads_spec.yaml")
+spark_sql_converter = SqlConverter(dialect="spark")
 
 # Generate the DDL
-ddl = converter.convert(spec).sql(dialect="spark", pretty=True)
+ddl = spark_sql_converter.convert(spec, pretty=True)
 
 print(ddl)
 ```
@@ -156,11 +47,14 @@ CREATE OR REPLACE TABLE warehouse.orders.customer_orders (
   order_total DECIMAL(10, 2) NOT NULL DEFAULT 0.5,
   shipping_address VARCHAR(255),
   line_items ARRAY<STRUCT<product_id INT NOT NULL, quantity INT NOT NULL, price DECIMAL(8, 2) NOT NULL>>,
-  tags ARRAY<TEXT>,
+  tags ARRAY<STRING>,
   metadata_tags MAP<VARCHAR(50), VARCHAR(255)>,
   created_at TIMESTAMPTZ NOT NULL
 )
-PARTITIONED BY (order_date, MONTH(created_at))
+PARTITIONED BY (
+  order_date,
+  MONTH(created_at)
+)
 LOCATION '/warehouse/orders/customer_orders'
 TBLPROPERTIES (
   'table_type' = 'iceberg',
@@ -171,7 +65,7 @@ TBLPROPERTIES (
 
 ### Available Converters
 
-Currently, `yads` only supports generating SQL DDL statements via the `SqlglotConverter`. Support for other output formats, such as PySpark or PyArrow schemas, is planned for future releases.
+Currently, `yads` supports generating SQL DDL statements via the `SqlConverter`. Support for other output formats, such as PySpark or PyArrow schemas, is planned for future releases.
 
 ## Contributing
 
