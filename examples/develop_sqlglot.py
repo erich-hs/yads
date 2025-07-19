@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any
+
 import yaml
-from typing import Dict, Callable, Any
 from sqlglot import exp, parse_one
 from sqlglot.expressions import convert
 
@@ -9,7 +11,7 @@ from sqlglot.expressions import convert
 # %% Loading YADS spec
 
 
-_YADS_TO_SQLGLOT_TYPE_MAP: Dict[str, exp.DataType.Type] = {
+_YADS_TO_SQLGLOT_TYPE_MAP: dict[str, exp.DataType.Type] = {
     "uuid": exp.DataType.Type.UUID,
     "integer": exp.DataType.Type.INT,
     "date": exp.DataType.Type.DATE,
@@ -21,13 +23,13 @@ _YADS_TO_SQLGLOT_TYPE_MAP: Dict[str, exp.DataType.Type] = {
     "map": exp.DataType.Type.MAP,
 }
 
-_YADS_TO_SQLGLOT_TRANSFORM_MAP: Dict[str, type[exp.Func]] = {
+_YADS_TO_SQLGLOT_TRANSFORM_MAP: dict[str, type[exp.Func]] = {
     "month": exp.Month,
     "year": exp.Year,
     "day": exp.Day,
 }
 
-_YADS_TO_SQLGLOT_CONSTRAINT_MAP: Dict[str, type[exp.ColumnConstraintKind]] = {
+_YADS_TO_SQLGLOT_CONSTRAINT_MAP: dict[str, type[exp.ColumnConstraintKind]] = {
     "not_null": exp.NotNullColumnConstraint,
     "primary_key": exp.PrimaryKeyColumnConstraint,
     "default": exp.DefaultColumnConstraint,
@@ -47,8 +49,8 @@ def yads_to_sqlglot_ast(spec: dict) -> exp.Create:
     # Namespace
     namespace = spec["name"].split(".")
     table_name = namespace[-1]
-    database_name = namespace[-2]
-    catalog_name = namespace[-3]
+    db_name = namespace[-2] if len(namespace) > 1 else None
+    catalog_name = namespace[-3] if len(namespace) > 2 else None
 
     # Options
     options = spec.get("options", {})
@@ -59,12 +61,12 @@ def yads_to_sqlglot_ast(spec: dict) -> exp.Create:
     # Columns
     columns = spec.get("columns", [])
 
-    ast_from_spec = exp.Create(
+    return exp.Create(
         this=exp.Schema(
             this=exp.Table(
                 this=exp.Identifier(this=table_name),
-                db=exp.Identifier(this=database_name),
-                catalog=exp.Identifier(this=catalog_name),
+                db=exp.Identifier(this=db_name) if db_name else None,
+                catalog=exp.Identifier(this=catalog_name) if catalog_name else None,
             ),
             expressions=[_parse_column_def(col) for col in columns],
         ),
@@ -77,41 +79,26 @@ def yads_to_sqlglot_ast(spec: dict) -> exp.Create:
             else None
         ),
     )
-    return ast_from_spec
 
 
-# %% Base SQL DDL
-
-
-# %% AST from spec
-
-## Property handlers
+# Property handlers
 PropertyHandler = Callable[[Any], exp.Property]
 
 
 def _create_partition_expression(col_spec: dict) -> exp.Expression:
     column_identifier = exp.Identifier(this=col_spec["column"])
-    transform_name = col_spec.get("transform")
-    if transform_name:
+    if transform_name := col_spec.get("transform"):
         transform_func = _YADS_TO_SQLGLOT_TRANSFORM_MAP[transform_name]
         return transform_func(this=exp.Column(this=column_identifier))
     return column_identifier
 
 
-def _handle_partitioned_by_property(value: Any) -> exp.PartitionedByProperty:
-    if not isinstance(value, list):
-        raise TypeError(
-            f"Expected a list for 'partitioned_by', but got {type(value).__name__}"
-        )
+def _handle_partitioned_by_property(value: list) -> exp.PartitionedByProperty:
     schema_expressions = [_create_partition_expression(col) for col in value]
     return exp.PartitionedByProperty(this=exp.Schema(expressions=schema_expressions))
 
 
-def _handle_location_property(value: Any) -> exp.LocationProperty:
-    if not isinstance(value, str):
-        raise TypeError(
-            f"Expected a string for 'location', but got {type(value).__name__}"
-        )
+def _handle_location_property(value: str) -> exp.LocationProperty:
     return exp.LocationProperty(this=exp.Literal(this=value, is_string=True))
 
 
@@ -127,35 +114,46 @@ def _parse_properties(properties: dict) -> list[exp.Property]:
         "partitioned_by": _handle_partitioned_by_property,
         "location": _handle_location_property,
     }
+
     properties_expressions = []
     for key, value in properties.items():
-        handler = property_handlers.get(key)
-        if handler:
-            expression = handler(value)
+        if handler := property_handlers.get(key):
+            try:
+                expression = handler(value)
+            except TypeError as e:
+                raise ValueError(f"Invalid type for property '{key}': {e}") from e
         else:
             expression = _handle_generic_property(key, value)
         properties_expressions.append(expression)
+
     return properties_expressions
 
 
-## Column definition handlers
+# Column definition handlers
 def _handle_struct_column_data_type(col_spec: dict) -> exp.DataType:
     """Handles struct column data type."""
-    assert "fields" in col_spec, "Struct column must have fields"
+    try:
+        fields = col_spec["fields"]
+    except KeyError as e:
+        raise ValueError("Struct column must have 'fields'") from e
+
     return exp.DataType(
         this=exp.DataType.Type.STRUCT,
-        expressions=[_parse_column_def(field) for field in col_spec["fields"]],
+        expressions=[_parse_column_def(field) for field in fields],
         nested=exp.DataType.Type.STRUCT in exp.DataType.NESTED_TYPES,
     )
 
 
 def _handle_map_column_data_type(col_spec: dict) -> exp.DataType:
     """Handles map column data type."""
-    assert "key" in col_spec and "value" in col_spec, (
-        "Map column must have key and value"
-    )
-    key_type = _handle_column_data_type(col_spec["key"])
-    value_type = _handle_column_data_type(col_spec["value"])
+    try:
+        key_spec = col_spec["key"]
+        value_spec = col_spec["value"]
+    except KeyError as e:
+        raise ValueError("Map column must have 'key' and 'value'") from e
+
+    key_type = _handle_column_data_type(key_spec)
+    value_type = _handle_column_data_type(value_spec)
     return exp.DataType(
         this=exp.DataType.Type.MAP,
         expressions=[key_type, value_type],
@@ -164,8 +162,12 @@ def _handle_map_column_data_type(col_spec: dict) -> exp.DataType:
 
 
 def _handle_array_column_data_type(col_spec: dict) -> exp.DataType:
-    assert "element" in col_spec, "Array column must have an element"
-    element_type = _handle_column_data_type(col_spec["element"])
+    """Handles array column data type."""
+    try:
+        element_spec = col_spec["element"]
+    except KeyError as e:
+        raise ValueError("Array column must have an 'element'") from e
+    element_type = _handle_column_data_type(element_spec)
     return exp.DataType(
         this=exp.DataType.Type.ARRAY,
         expressions=[element_type],
@@ -177,24 +179,22 @@ def _handle_column_data_type(col_spec: dict) -> exp.DataType:
     yads_type_str = col_spec["type"]
     params = col_spec.get("params", {})
 
-    if yads_type_str == "array":
-        return _handle_array_column_data_type(col_spec)
-    if yads_type_str == "struct":
-        return _handle_struct_column_data_type(col_spec)
-    if yads_type_str == "map":
-        return _handle_map_column_data_type(col_spec)
+    type_handlers = {
+        "array": _handle_array_column_data_type,
+        "struct": _handle_struct_column_data_type,
+        "map": _handle_map_column_data_type,
+    }
+    if handler := type_handlers.get(yads_type_str):
+        return handler(col_spec)
 
     # For primitive types
     sqlglot_type = _YADS_TO_SQLGLOT_TYPE_MAP[yads_type_str]
     if yads_type_str == "string" and "length" in params:
         sqlglot_type = exp.DataType.Type.VARCHAR
 
-    data_type_expressions = []
-    if params:
-        for _, value in params.items():
-            data_type_expressions.append(
-                exp.DataTypeParam(this=convert(value)),
-            )
+    data_type_expressions = [
+        exp.DataTypeParam(this=convert(value)) for value in params.values()
+    ]
 
     return exp.DataType(
         this=sqlglot_type,
@@ -219,13 +219,11 @@ def _handle_default_column_constraint(value: Any) -> exp.ColumnConstraint:
 
 def _parse_column_constraints(constraints: dict) -> list[exp.ColumnConstraint]:
     column_constraints: list[exp.ColumnConstraint] = []
-    for constraint in constraints:
+    for constraint, value in constraints.items():
         constraint_class = _YADS_TO_SQLGLOT_CONSTRAINT_MAP[constraint]
         if constraint_class == exp.DefaultColumnConstraint:
-            column_constraints.append(
-                _handle_default_column_constraint(constraints[constraint])
-            )
-        else:
+            column_constraints.append(_handle_default_column_constraint(value))
+        elif value:  # value for a boolean constraint is always True
             column_constraints.append(exp.ColumnConstraint(kind=constraint_class()))
     return column_constraints
 
