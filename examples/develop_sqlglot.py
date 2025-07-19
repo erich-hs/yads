@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import yaml
 from typing import Dict, Callable, Any
 from sqlglot import exp, parse_one
@@ -5,10 +7,7 @@ from sqlglot.expressions import convert
 
 
 # %% Loading YADS spec
-yaml_file = "examples/specs/yads_spec.yaml"
 
-with open(yaml_file, "r") as f:
-    spec = yaml.safe_load(f)
 
 _YADS_TO_SQLGLOT_TYPE_MAP: Dict[str, exp.DataType.Type] = {
     "uuid": exp.DataType.Type.UUID,
@@ -34,40 +33,54 @@ _YADS_TO_SQLGLOT_CONSTRAINT_MAP: Dict[str, type[exp.ColumnConstraintKind]] = {
     "default": exp.DefaultColumnConstraint,
 }
 
-# Namespace
-namespace = spec["name"].split(".")
-table_name = namespace[-1]
-database_name = namespace[-2]
-catalog_name = namespace[-3]
 
-# Options
-options = spec.get("options", {})
+def yads_to_sqlglot_ast(spec: dict) -> exp.Create:
+    """
+    Converts a YADS spec dictionary into a sqlglot Create AST.
 
-# Properties
-properties = spec.get("properties", {})
+    Args:
+        spec: The YADS specification as a dictionary.
 
-# Metadata
-metadata = spec.get("metadata", {})
+    Returns:
+        A sqlglot Create expression.
+    """
+    # Namespace
+    namespace = spec["name"].split(".")
+    table_name = namespace[-1]
+    database_name = namespace[-2]
+    catalog_name = namespace[-3]
 
-# Columns
-columns = spec.get("columns", [])
+    # Options
+    options = spec.get("options", {})
+
+    # Properties
+    properties = spec.get("properties", {})
+
+    # Columns
+    columns = spec.get("columns", [])
+
+    ast_from_spec = exp.Create(
+        this=exp.Schema(
+            this=exp.Table(
+                this=exp.Identifier(this=table_name),
+                db=exp.Identifier(this=database_name),
+                catalog=exp.Identifier(this=catalog_name),
+            ),
+            expressions=[_parse_column_def(col) for col in columns],
+        ),
+        kind="TABLE",
+        exists=options.get("if_not_exists", False),
+        replace=options.get("or_replace", False),
+        properties=(
+            exp.Properties(expressions=_parse_properties(properties))
+            if properties
+            else None
+        ),
+    )
+    return ast_from_spec
 
 
 # %% Base SQL DDL
-sql_ddl = """
-CREATE TABLE warehouse.orders.customer_orders (
-    tags ARRAY<STRING>
-)
-"""
-# PARTITIONED BY (order_date, MONTH(created_at))
-# LOCATION '/warehouse/orders/customer_orders'
-# TBLPROPERTIES (
-#     'table_type'='iceberg',
-#     'format'='parquet',
-#     'write_compression'='snappy'
-# )
-
-ast_from_sql = parse_one(sql_ddl)
 
 
 # %% AST from spec
@@ -126,6 +139,30 @@ def _parse_properties(properties: dict) -> list[exp.Property]:
 
 
 ## Column definition handlers
+def _handle_struct_column_data_type(col_spec: dict) -> exp.DataType:
+    """Handles struct column data type."""
+    assert "fields" in col_spec, "Struct column must have fields"
+    return exp.DataType(
+        this=exp.DataType.Type.STRUCT,
+        expressions=[_parse_column_def(field) for field in col_spec["fields"]],
+        nested=exp.DataType.Type.STRUCT in exp.DataType.NESTED_TYPES,
+    )
+
+
+def _handle_map_column_data_type(col_spec: dict) -> exp.DataType:
+    """Handles map column data type."""
+    assert "key" in col_spec and "value" in col_spec, (
+        "Map column must have key and value"
+    )
+    key_type = _handle_column_data_type(col_spec["key"])
+    value_type = _handle_column_data_type(col_spec["value"])
+    return exp.DataType(
+        this=exp.DataType.Type.MAP,
+        expressions=[key_type, value_type],
+        nested=exp.DataType.Type.MAP in exp.DataType.NESTED_TYPES,
+    )
+
+
 def _handle_array_column_data_type(col_spec: dict) -> exp.DataType:
     assert "element" in col_spec, "Array column must have an element"
     element_type = _handle_column_data_type(col_spec["element"])
@@ -137,19 +174,32 @@ def _handle_array_column_data_type(col_spec: dict) -> exp.DataType:
 
 
 def _handle_column_data_type(col_spec: dict) -> exp.DataType:
-    if _YADS_TO_SQLGLOT_TYPE_MAP.get(col_spec["type"]) == exp.DataType.Type.ARRAY:
+    yads_type_str = col_spec["type"]
+    params = col_spec.get("params", {})
+
+    if yads_type_str == "array":
         return _handle_array_column_data_type(col_spec)
+    if yads_type_str == "struct":
+        return _handle_struct_column_data_type(col_spec)
+    if yads_type_str == "map":
+        return _handle_map_column_data_type(col_spec)
+
+    # For primitive types
+    sqlglot_type = _YADS_TO_SQLGLOT_TYPE_MAP[yads_type_str]
+    if yads_type_str == "string" and "length" in params:
+        sqlglot_type = exp.DataType.Type.VARCHAR
 
     data_type_expressions = []
-    if "params" in col_spec:
-        for _, value in col_spec["params"].items():
+    if params:
+        for _, value in params.items():
             data_type_expressions.append(
                 exp.DataTypeParam(this=convert(value)),
             )
+
     return exp.DataType(
-        this=_YADS_TO_SQLGLOT_TYPE_MAP[col_spec["type"]],
+        this=sqlglot_type,
         expressions=data_type_expressions if data_type_expressions else None,
-        nested=_YADS_TO_SQLGLOT_TYPE_MAP[col_spec["type"]] in exp.DataType.NESTED_TYPES,
+        nested=sqlglot_type in exp.DataType.NESTED_TYPES,
     )
 
 
@@ -180,40 +230,52 @@ def _parse_column_constraints(constraints: dict) -> list[exp.ColumnConstraint]:
     return column_constraints
 
 
-## AST from spec
-ast_from_spec = exp.Create(
-    this=exp.Schema(
-        this=exp.Table(
-            this=exp.Identifier(this=table_name),
-            db=exp.Identifier(this=database_name),
-            catalog=exp.Identifier(this=catalog_name),
-        ),
-        expressions=[_parse_column_def(col) for col in columns],
-    ),
-    kind="TABLE",
-    # exists=options.get("if_not_exists", False),
-    # replace=options.get("or_replace", False),
-    properties=(
-        exp.Properties(expressions=_parse_properties(properties))
-        if properties
-        else None
-    ),
+# %% AST from spec
+# This section is for interactive development and will be skipped when imported.
+if __name__ == "__main__":
+    sql_ddl = """
+CREATE TABLE warehouse.orders.customer_orders (
+    order_id UUID
 )
+PARTITIONED BY (order_date, MONTH(created_at))
+LOCATION '/warehouse/orders/customer_orders'
+TBLPROPERTIES (
+    'table_type'='iceberg',
+    'format'='parquet',
+    'write_compression'='snappy'
+)
+"""
+    # PARTITIONED BY (order_date, MONTH(created_at))
+    # LOCATION '/warehouse/orders/customer_orders'
+    # TBLPROPERTIES (
+    #     'table_type'='iceberg',
+    #     'format'='parquet',
+    #     'write_compression'='snappy'
+    # )
 
-# %% Validate
-print("AST from SQL:")
-print(repr(ast_from_sql))
-print("\n" + "=" * 60)
+    ast_from_sql = parse_one(sql_ddl)
 
-print("AST from spec:")
-print(repr(ast_from_spec))
-print("\n" + "=" * 60)
+    yaml_file = "examples/specs/yads_spec.yaml"
 
-print(f"AST are equal: {ast_from_sql == ast_from_spec}")
-print("\n" + "=" * 60)
+    with open(yaml_file, "r") as f:
+        spec = yaml.safe_load(f)
 
-print("SQL from AST:\n")
-for dialect in ["athena", "spark"]:
-    print(f"Dialect: {dialect}\n")
-    print(ast_from_spec.sql(dialect=dialect, pretty=True))
-    print("\n" + "-" * 60)
+    ast_from_spec = yads_to_sqlglot_ast(spec)
+
+    # %% Validate
+    # print("AST from SQL:")
+    # print(repr(ast_from_sql))
+    # print("\n" + "=" * 60)
+
+    print("AST from spec:")
+    print(repr(ast_from_spec))
+    print("\n" + "=" * 60)
+
+    # print(f"AST are equal: {ast_from_sql == ast_from_spec}")
+    # print("\n" + "=" * 60)
+
+    print("SQL from AST:\n")
+    for dialect in [None, "spark"]:
+        print(f"Dialect: {dialect or 'sqlglot'}\n")
+        print(ast_from_spec.sql(dialect=dialect, pretty=True))
+        print("\n" + "-" * 60)
