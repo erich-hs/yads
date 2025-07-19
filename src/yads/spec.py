@@ -8,21 +8,15 @@ from .constraints import BaseConstraint
 from .types import Type
 
 
-def _format_dict_as_kwargs(d: dict[str, Any]) -> str:
+def _format_dict_as_kwargs(d: dict[str, Any], multiline: bool = False) -> str:
     """Formats a dictionary as a string of key-value pairs, like kwargs."""
     if not d:
         return "{}"
     items = [f"{k}={v!r}" for k, v in d.items()]
+    if multiline:
+        pretty_items = ",\n".join(items)
+        return f"{{\n{textwrap.indent(pretty_items, '  ')}\n}}"
     return f"{{{', '.join(items)}}}"
-
-
-def _format_multiline_dict_as_kwargs(d: dict[str, Any]) -> str:
-    """Formats a dictionary as a multiline string of key-value pairs."""
-    if not d:
-        return "{}"
-    items = [f"{k}={v!r}" for k, v in d.items()]
-    pretty_items = ",\n".join(items)
-    return f"{{\n{textwrap.indent(pretty_items, '  ')}\n}}"
 
 
 @dataclass(frozen=True)
@@ -160,7 +154,9 @@ class SchemaSpec:
         if self.description:
             parts.append(f"description={self.description!r}")
         if self.metadata:
-            parts.append(f"metadata={_format_multiline_dict_as_kwargs(self.metadata)}")
+            parts.append(
+                f"metadata={_format_dict_as_kwargs(self.metadata, multiline=True)}"
+            )
         if self.options.is_defined():
             parts.append(f"options={self.options}")
         if self.properties.is_defined():
