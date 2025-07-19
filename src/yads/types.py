@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import textwrap
 from abc import ABC
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -120,8 +121,9 @@ class Struct(Type):
 
     def __str__(self) -> str:
         """Returns a string representation of the struct type."""
-        fields_str = ", ".join(str(field) for field in self.fields)
-        return f"struct<{fields_str}>"
+        fields_str = ",\n".join(str(field) for field in self.fields)
+        indented_fields = textwrap.indent(fields_str, "  ")
+        return f"struct<\n{indented_fields}\n>"
 
 
 @dataclass(frozen=True)
