@@ -28,7 +28,7 @@ from yads.types import (
 
 class SqlglotConverter(BaseConverter):
     """
-    Converts a YADS SchemaSpec object into a sqlglot Create Abstract
+    Converts a yads SchemaSpec object into a sqlglot Abstract
     Syntax Tree (AST).
     """
 
@@ -61,13 +61,14 @@ class SqlglotConverter(BaseConverter):
 
     def convert(self, spec: SchemaSpec) -> exp.Create:
         """
-        Converts a YADS SchemaSpec object into a sqlglot Create AST.
+        Converts a yads SchemaSpec object into a sqlglot Create AST.
 
         Args:
-            spec: The YADS specification as a SchemaSpec object.
+            spec: The yads specification as a SchemaSpec object.
 
         Returns:
-            A sqlglot Create expression.
+            A sqlglot Create Abstract Syntax Tree (AST).
+            https://sqlglot.com/sqlglot/expressions.html#Create
         """
         namespace = spec.name.split(".")
         table_name = namespace[-1]
