@@ -8,14 +8,6 @@ from .constraints import BaseConstraint
 from .types import Type
 
 
-def _build_details_str(details: list[str]) -> str:
-    """Builds a details string if there are any details."""
-    if not details:
-        return ""
-    pretty_items = ",\n".join(details)
-    return f"(\n{textwrap.indent(pretty_items, '  ')}\n)"
-
-
 def _format_dict_as_kwargs(d: dict[str, Any]) -> str:
     """Formats a dictionary as a string of key-value pairs, like kwargs."""
     if not d:
@@ -43,8 +35,8 @@ class Field:
     constraints: list[BaseConstraint] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
 
-    def _get_details(self) -> list[str]:
-        """Returns a list of details for the field."""
+    def _build_details_repr(self) -> str:
+        """Builds the string representation of the field's details."""
         details = []
         if self.description:
             details.append(f"description={self.description!r}")
@@ -53,12 +45,17 @@ class Field:
             details.append(f"constraints=[{constraints_str}]")
         if self.metadata:
             details.append(f"metadata={_format_dict_as_kwargs(self.metadata)}")
-        return details
+
+        if not details:
+            return ""
+
+        pretty_details = ",\n".join(details)
+        return f"(\n{textwrap.indent(pretty_details, '  ')}\n)"
 
     def __str__(self) -> str:
         """Returns a string representation of the field."""
-        details_str = _build_details_str(self._get_details())
-        return f"{self.name}: {self.type}{details_str}"
+        details_repr = self._build_details_repr()
+        return f"{self.name}: {self.type}{details_repr}"
 
 
 @dataclass(frozen=True)
@@ -153,11 +150,11 @@ class SchemaSpec:
     properties: Properties = field(default_factory=Properties)
     metadata: dict[str, Any] = field(default_factory=dict)
 
-    def _build_header(self) -> str:
+    def _build_header_str(self) -> str:
         """Builds the header section of the schema string representation."""
         return f"schema {self.name}(version={self.version!r})"
 
-    def _build_body(self) -> str:
+    def _build_body_str(self) -> str:
         """Builds the body section of the schema string representation."""
         parts = []
         if self.description:
@@ -176,5 +173,5 @@ class SchemaSpec:
 
     def __str__(self) -> str:
         """Returns a pretty-printed string representation of the schema."""
-        body = textwrap.indent(self._build_body(), "  ")
-        return f"{self._build_header()}(\n{body}\n)"
+        body = textwrap.indent(self._build_body_str(), "  ")
+        return f"{self._build_header_str()}(\n{body}\n)"
