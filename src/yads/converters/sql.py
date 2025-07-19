@@ -26,6 +26,51 @@ from yads.types import (
 )
 
 
+class SqlConverter:
+    """Converts a SchemaSpec into a SQL DDL string for a specific dialect.
+
+    High-level convenience converter that uses a core converter
+    (e.g. SqlglotConverter) to generate an Abstract Syntax Tree (AST)
+    before serializing it to a SQL DDL string.
+    """
+
+    def __init__(
+        self,
+        dialect: str,
+        ast_converter: BaseConverter | None = None,
+        **convert_options: Any,
+    ):
+        """
+        Args:
+            dialect: The target SQL dialect (e.g., "spark", "snowflake", "duckdb").
+            ast_converter: Optional. An AST converter to use. If None, a default
+                           SqlglotConverter will be used.
+            convert_options: Keyword arguments to be passed to the AST converter.
+                             These can be overridden in the `convert` method.
+                             https://sqlglot.com/sqlglot/generator.html#Generator
+        """
+        self._ast_converter = ast_converter or SqlglotConverter()
+        self._dialect = dialect
+        self._convert_options = convert_options
+
+    def convert(self, spec: SchemaSpec, **kwargs: Any) -> str:
+        """
+        Converts a yads SchemaSpec object into a SQL DDL string.
+
+        Args:
+            spec: The yads specification as a SchemaSpec object.
+            kwargs: Additional keyword arguments to be passed to the AST converter,
+                    overriding any options set during initialization.
+                    https://sqlglot.com/sqlglot/generator.html#Generator
+
+        Returns:
+            A SQL DDL string formatted for the specified dialect.
+        """
+        ast = self._ast_converter.convert(spec)
+        options = {**self._convert_options, **kwargs}
+        return ast.sql(dialect=self._dialect, **options)
+
+
 class SqlglotConverter(BaseConverter):
     """
     Converts a yads SchemaSpec object into a sqlglot Abstract
@@ -44,10 +89,10 @@ class SqlglotConverter(BaseConverter):
             Struct: self._handle_struct_type,
             Map: self._handle_map_type,
         }
-        self._constraint_handlers: dict[str, Callable[[Any], exp.ColumnConstraint]] = {
-            "not_null": self._handle_not_null_constraint,
-            "primary_key": self._handle_primary_key_constraint,
-            "default": self._handle_default_constraint,
+        self._constraint_handlers: dict[type, Callable[[Any], exp.ColumnConstraint]] = {
+            NotNullConstraint: self._handle_not_null_constraint,
+            PrimaryKeyConstraint: self._handle_primary_key_constraint,
+            DefaultConstraint: self._handle_default_constraint,
         }
         self._property_handlers: dict[str, Callable[..., exp.Property]] = {
             "partitioned_by": self._handle_partitioned_by_property,
@@ -193,12 +238,13 @@ class SqlglotConverter(BaseConverter):
     def _convert_field(self, field: Field) -> exp.ColumnDef:
         constraints = []
         for constraint in field.constraints:
-            if isinstance(constraint, NotNullConstraint):
-                constraints.append(self._handle_not_null_constraint(constraint))
-            elif isinstance(constraint, PrimaryKeyConstraint):
-                constraints.append(self._handle_primary_key_constraint(constraint))
-            elif isinstance(constraint, DefaultConstraint):
-                constraints.append(self._handle_default_constraint(constraint))
+            if handler := self._constraint_handlers.get(type(constraint)):
+                constraints.append(handler(constraint))
+            else:
+                # TODO: Revisit this after implementing a global setting to either
+                # raise or warn when the spec is more expressive than the handlers
+                # available in a core converter.
+                pass
 
         return exp.ColumnDef(
             this=exp.Identifier(this=field.name),
