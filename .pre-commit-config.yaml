@@ -14,3 +14,12 @@ repos:
         name: main dependencies
         args: [--no-dev, --no-hashes, -o, requirements.txt]
         files: pyproject.toml
+
+-   repo: local
+    hooks:
+      - id: validate-yads-spec
+        name: "Validate example yads spec file"
+        entry: check-jsonschema
+        language: python
+        args: ["--schemafile", "spec/yads_spec_latest.json", "examples/specs/yads_spec.yaml"]
+        files: ^(examples/specs/yads_spec\.yaml|spec/yads_spec_latest\.json)$
