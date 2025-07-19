@@ -121,8 +121,11 @@ def _parse_constraints(
 
     if constraints_def.get("not_null"):
         constraints.append(NotNullConstraint())
-    if constraints_def.get("primary_key"):
-        constraints.append(PrimaryKeyConstraint())
+    if pk_def := constraints_def.get("primary_key"):
+        if isinstance(pk_def, dict):
+            constraints.append(PrimaryKeyConstraint(name=pk_def.get("name")))
+        else:
+            constraints.append(PrimaryKeyConstraint())
     if "default" in constraints_def:
         constraints.append(DefaultConstraint(constraints_def["default"]))
 

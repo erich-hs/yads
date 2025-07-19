@@ -1,5 +1,5 @@
 CREATE TABLE warehouse.orders.customer_orders (
-    order_id UUID NOT NULL PRIMARY KEY,
+    order_id UUID NOT NULL CONSTRAINT orders_pk PRIMARY KEY,
     customer_id INTEGER NOT NULL,
     order_date DATE NOT NULL,
     order_total DECIMAL(10, 2) NOT NULL DEFAULT 0.5,

@@ -260,7 +260,10 @@ class SqlglotConverter(BaseConverter):
     def _handle_primary_key_constraint(
         self, constraint: PrimaryKeyConstraint
     ) -> exp.ColumnConstraint:
-        return exp.ColumnConstraint(kind=exp.PrimaryKeyColumnConstraint())
+        return exp.ColumnConstraint(
+            this=exp.Identifier(this=constraint.name) if constraint.name else None,
+            kind=exp.PrimaryKeyColumnConstraint(),
+        )
 
     def _handle_default_constraint(
         self, constraint: DefaultConstraint

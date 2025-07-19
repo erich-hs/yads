@@ -27,7 +27,8 @@ columns:
     description: "The unique identifier for the order (PK)."
     constraints:
       not_null: true
-      primary_key: true
+      primary_key:
+        name: "orders_pk"
 
   - name: "customer_id"
     type: "integer"

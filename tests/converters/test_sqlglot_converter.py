@@ -239,6 +239,25 @@ columns:
     assert_ast_equal(spec_yaml, sql)
 
 
+def test_create_table_with_named_primary_key_constraint():
+    """
+    Tests creating a table with a named PRIMARY KEY constraint.
+    """
+    spec_yaml = """
+name: "orders"
+version: "1.0"
+columns:
+  - name: "orderid"
+    type: "integer"
+    constraints:
+      not_null: true
+      primary_key:
+        name: "orders_pk"
+"""
+    sql = "CREATE TABLE orders(orderid INT NOT NULL CONSTRAINT orders_pk PRIMARY KEY)"
+    assert_ast_equal(spec_yaml, sql)
+
+
 def test_create_table_with_default_value_constraint():
     """
     Tests creating a table with a DEFAULT value constraint.
