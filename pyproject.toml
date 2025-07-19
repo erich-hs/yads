@@ -9,6 +9,7 @@ authors = [
 requires-python = ">=3.9"
 dependencies = [
     "pyyaml>=6.0.2",
+    "sqlglot>=27.0.0",
 ]
 
 [build-system]
@@ -19,6 +20,7 @@ build-backend = "hatchling.build"
 dev = [
     "ipykernel>=6.29.5",
     "pre-commit>=4.2.0",
+    "pytest>=8.4.1",
     "ruff>=0.12.3",
     "types-pyyaml>=6.0.12.20250516",
 ]

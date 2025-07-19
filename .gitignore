@@ -21,3 +21,4 @@ wheels/
 .local_dev/
 .cursor/
 .vscode/
+SPECIFICATION.md
