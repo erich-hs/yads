@@ -4,8 +4,13 @@ from __future__ import annotations
 import yaml
 from typing import Any, Callable
 
-from .constraints import BaseConstraint, NotNullConstraint
-from .spec import Field, SchemaSpec
+from .constraints import (
+    BaseConstraint,
+    DefaultConstraint,
+    NotNullConstraint,
+    PrimaryKeyConstraint,
+)
+from .spec import Field, Options, PartitionColumn, Properties, SchemaSpec
 from .types import (
     Array,
     Binary,
@@ -113,8 +118,16 @@ def _parse_constraints(
 ) -> list[BaseConstraint]:
     """Parses constraint definitions, returning a list of constraint objects."""
     constraints: list[BaseConstraint] = []
-    if constraints_def and constraints_def.get("not_null"):
+    if not constraints_def:
+        return constraints
+
+    if constraints_def.get("not_null"):
         constraints.append(NotNullConstraint())
+    if constraints_def.get("primary_key"):
+        constraints.append(PrimaryKeyConstraint())
+    if "default" in constraints_def:
+        constraints.append(DefaultConstraint(constraints_def["default"]))
+
     return constraints
 
 
@@ -139,6 +152,26 @@ def _parse_column(col_def: dict[str, Any]) -> Field:
     )
 
 
+def _parse_options(options_def: dict[str, Any] | None) -> Options:
+    """Parses the options dictionary and returns an Options object."""
+    if not options_def:
+        return Options()
+    return Options(**options_def)
+
+
+def _parse_properties(properties_def: dict[str, Any] | None) -> Properties:
+    """Parses the properties dictionary and returns a Properties object."""
+    if not properties_def:
+        return Properties()
+
+    if "partitioned_by" in properties_def:
+        properties_def["partitioned_by"] = [
+            PartitionColumn(**pc) for pc in properties_def["partitioned_by"]
+        ]
+
+    return Properties(**properties_def)
+
+
 def from_dict(data: dict[str, Any]) -> SchemaSpec:
     """Instantiates a SchemaSpec from a pre-parsed Python dictionary."""
     for required_field in ("name", "version", "columns"):
@@ -148,6 +181,8 @@ def from_dict(data: dict[str, Any]) -> SchemaSpec:
         name=data["name"],
         version=data["version"],
         description=data.get("description"),
+        options=_parse_options(data.get("options")),
+        properties=_parse_properties(data.get("properties")),
         metadata=data.get("metadata", {}),
         columns=[_parse_column(c) for c in data["columns"]],
     )
