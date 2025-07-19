@@ -1,4 +1,3 @@
-# src/yads/loader.py
 from __future__ import annotations
 
 import yaml
@@ -105,7 +104,6 @@ def _parse_map_type(type_def: TypeDef) -> dict[str, Any]:
     }
 
 
-# A dictionary mapping complex type names to their parser functions.
 _COMPLEX_TYPE_PARSERS: dict[str, Callable[[TypeDef], dict[str, Any]]] = {
     "array": _parse_array_type,
     "struct": _parse_struct_type,
