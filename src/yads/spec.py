@@ -4,7 +4,7 @@ import textwrap
 from dataclasses import dataclass, field
 from typing import Any
 
-from .constraints import BaseConstraint, TableConstraint
+from .constraints import ColumnConstraint, TableConstraint
 from .types import Type
 
 
@@ -26,7 +26,7 @@ class Field:
     name: str
     type: Type
     description: str | None = None
-    constraints: list[BaseConstraint] = field(default_factory=list)
+    constraints: list[ColumnConstraint] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def _build_details_repr(self) -> str:

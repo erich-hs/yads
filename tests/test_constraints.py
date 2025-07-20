@@ -5,7 +5,8 @@ from typing import Any, Type
 import pytest
 
 from yads.constraints import (
-    BaseConstraint,
+    CONSTRAINT_EQUIVALENTS,
+    ColumnConstraint,
     DefaultConstraint,
     NotNullConstraint,
     PrimaryKeyConstraint,
@@ -15,26 +16,26 @@ from yads.constraints import (
 
 
 @pytest.mark.parametrize(
-    ("constraint", "expected_repr"),
+    ("constraint", "expected_str"),
     [
         (NotNullConstraint(), "NotNullConstraint()"),
         (PrimaryKeyConstraint(), "PrimaryKeyConstraint()"),
         (DefaultConstraint(value=1), "DefaultConstraint(value=1)"),
         (
             PrimaryKeyTableConstraint(columns=["id", "name"], name="pk_table"),
-            "PrimaryKeyTableConstraint(columns=['id', 'name'], name='pk_table')",
+            "PrimaryKeyTableConstraint(\n  name='pk_table',\n  columns=[\n    'id',\n    'name'\n  ]\n)",
         ),
         (
             PrimaryKeyTableConstraint(columns=["id"]),
-            "PrimaryKeyTableConstraint(columns=['id'], name=None)",
+            "PrimaryKeyTableConstraint(\n  columns=[\n    'id'\n  ]\n)",
         ),
     ],
 )
-def test_constraint_repr(
-    constraint: BaseConstraint | TableConstraint, expected_repr: str
+def test_constraint_str(
+    constraint: ColumnConstraint | TableConstraint, expected_str: str
 ) -> None:
-    """Tests the __repr__ of constraint objects."""
-    assert repr(constraint) == expected_repr
+    """Tests the __str__ of constraint objects."""
+    assert str(constraint) == expected_str
 
 
 @pytest.mark.parametrize(
@@ -50,7 +51,7 @@ def test_constraint_repr(
     ],
 )
 def test_constraint_attributes(
-    constraint_class: Type[BaseConstraint | TableConstraint],
+    constraint_class: Type[ColumnConstraint | TableConstraint],
     init_args: dict[str, Any],
     expected_attrs: dict[str, Any],
 ) -> None:
@@ -58,3 +59,14 @@ def test_constraint_attributes(
     constraint = constraint_class(**init_args)
     for attr_name, expected_value in expected_attrs.items():
         assert getattr(constraint, attr_name) == expected_value
+
+
+def test_get_constrained_columns():
+    """Tests that get_constrained_columns returns the correct columns."""
+    constraint = PrimaryKeyTableConstraint(columns=["id", "name"], name="pk")
+    assert constraint.get_constrained_columns() == ["id", "name"]
+
+
+def test_constraint_equivalents():
+    """Tests the constraint equivalents mapping."""
+    assert CONSTRAINT_EQUIVALENTS == {PrimaryKeyConstraint: PrimaryKeyTableConstraint}

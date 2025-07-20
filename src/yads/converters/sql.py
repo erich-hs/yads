@@ -254,7 +254,9 @@ class SqlglotConverter(BaseConverter):
                 # TODO: Revisit this after implementing a global setting to either
                 # raise or warn when the spec is more expressive than the handlers
                 # available in a core converter.
-                pass
+                raise NotImplementedError(
+                    f"No handler implemented for constraint: {type(constraint)}"
+                )
 
         return exp.ColumnDef(
             this=exp.Identifier(this=field.name),

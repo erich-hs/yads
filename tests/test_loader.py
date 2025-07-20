@@ -373,3 +373,71 @@ def test_from_string_with_table_constraints():
     assert isinstance(pk_constraint, PrimaryKeyTableConstraint)
     assert pk_constraint.name == "test_pk"
     assert pk_constraint.columns == ["id", "name"]
+
+
+def test_duplicate_pk_constraint_warning():
+    """Tests that a warning is issued for duplicate primary key constraints."""
+    yaml_content = """
+    name: "duplicate.pk.schema"
+    version: "1.0.0"
+    table_constraints:
+      - type: "primary_key"
+        name: "pk_table"
+        columns:
+          - "id"
+    columns:
+      - name: "id"
+        type: "integer"
+        constraints:
+          primary_key: true
+      - name: "name"
+        type: "string"
+    """
+    with pytest.warns(
+        UserWarning, match=r"Columns \['id'\] have a PrimaryKeyConstraint"
+    ):
+        from_string(yaml_content)
+
+
+def test_undefined_columns_in_table_constraint_warning():
+    """Tests that a warning is issued for table constraints on undefined columns."""
+    yaml_content = """
+    name: "undefined.columns.schema"
+    version: "1.0.0"
+    table_constraints:
+      - type: "primary_key"
+        name: "pk_table"
+        columns:
+          - "id"
+          - "non_existent_col"
+    columns:
+      - name: "id"
+        type: "integer"
+    """
+    with pytest.warns(
+        UserWarning,
+        match=r"Table constraint 'pk_table' references undefined columns: \['non_existent_col'\]",
+    ):
+        from_string(yaml_content)
+
+
+def test_no_duplicate_pk_constraint_no_warning(recwarn):
+    """Tests that no warning is issued when there are no duplicate constraints."""
+    yaml_content = """
+    name: "no.duplicate.pk.schema"
+    version: "1.0.0"
+    table_constraints:
+      - type: "primary_key"
+        name: "pk_table"
+        columns:
+          - "id"
+    columns:
+      - name: "id"
+        type: "integer"
+        constraints:
+          not_null: true
+      - name: "name"
+        type: "string"
+    """
+    from_string(yaml_content)
+    assert len(recwarn) == 0

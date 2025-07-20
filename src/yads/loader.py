@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import yaml
+import warnings
 from typing import Any, Callable
 
 from .constraints import (
-    BaseConstraint,
+    CONSTRAINT_EQUIVALENTS,
+    ColumnConstraint,
     DefaultConstraint,
     NotNullConstraint,
     PrimaryKeyConstraint,
@@ -113,20 +115,45 @@ _COMPLEX_TYPE_PARSERS: dict[str, Callable[[TypeDef], dict[str, Any]]] = {
 }
 
 
+def _parse_not_null_constraint(value: Any) -> NotNullConstraint:
+    """Parses a not null constraint."""
+    if not isinstance(value, bool):
+        raise ValueError("The 'not_null' constraint expects a boolean value")
+    return NotNullConstraint()
+
+
+def _parse_primary_key_constraint(value: Any) -> PrimaryKeyConstraint:
+    """Parses a primary key constraint."""
+    if not isinstance(value, bool):
+        raise ValueError("The 'primary_key' constraint expects a boolean value")
+    return PrimaryKeyConstraint()
+
+
+def _parse_default_constraint(value: Any) -> DefaultConstraint:
+    """Parses a default constraint."""
+    return DefaultConstraint(value=value)
+
+
+_COLUMN_CONSTRAINT_PARSERS: dict[str, Callable[[Any], ColumnConstraint]] = {
+    "not_null": _parse_not_null_constraint,
+    "primary_key": _parse_primary_key_constraint,
+    "default": _parse_default_constraint,
+}
+
+
 def _parse_constraints(
     constraints_def: dict[str, Any] | None,
-) -> list[BaseConstraint]:
+) -> list[ColumnConstraint]:
     """Parses constraint definitions, returning a list of constraint objects."""
-    constraints: list[BaseConstraint] = []
+    constraints: list[ColumnConstraint] = []
     if not constraints_def:
         return constraints
 
-    if constraints_def.get("not_null"):
-        constraints.append(NotNullConstraint())
-    if constraints_def.get("primary_key"):
-        constraints.append(PrimaryKeyConstraint())
-    if "default" in constraints_def:
-        constraints.append(DefaultConstraint(constraints_def["default"]))
+    for key, value in constraints_def.items():
+        if key in _COLUMN_CONSTRAINT_PARSERS:
+            constraints.append(_COLUMN_CONSTRAINT_PARSERS[key](value))
+        else:
+            raise ValueError(f"Unknown column constraint: {key}")
 
     return constraints
 
@@ -152,6 +179,22 @@ def _parse_column(col_def: dict[str, Any]) -> Field:
     )
 
 
+def _parse_primary_key_table_constraint(
+    const_def: dict[str, Any],
+) -> PrimaryKeyTableConstraint:
+    """Parses a primary key table constraint."""
+    if "columns" not in const_def:
+        raise ValueError("Primary key table constraint must specify 'columns'")
+    return PrimaryKeyTableConstraint(
+        columns=const_def["columns"], name=const_def.get("name")
+    )
+
+
+_TABLE_CONSTRAINT_PARSERS: dict[str, Callable[[Any], TableConstraint]] = {
+    "primary_key": _parse_primary_key_table_constraint,
+}
+
+
 def _parse_table_constraints(
     table_constraints_def: list[dict[str, Any]] | None,
 ) -> list[TableConstraint]:
@@ -161,16 +204,14 @@ def _parse_table_constraints(
 
     constraints: list[TableConstraint] = []
     for const_def in table_constraints_def:
-        if const_def.get("type") == "primary_key":
-            if "columns" not in const_def:
-                raise ValueError("Primary key table constraint must specify 'columns'")
-            constraints.append(
-                PrimaryKeyTableConstraint(
-                    columns=const_def["columns"], name=const_def.get("name")
-                )
-            )
+        constraint_type = const_def.get("type")
+        if not constraint_type:
+            raise ValueError("Table constraint definition must have a 'type'")
+
+        if parser := _TABLE_CONSTRAINT_PARSERS.get(constraint_type):
+            constraints.append(parser(const_def))
         else:
-            raise ValueError(f"Unknown table constraint type: {const_def.get('type')}")
+            raise ValueError(f"Unknown table constraint type: {constraint_type}")
     return constraints
 
 
@@ -194,12 +235,68 @@ def _parse_properties(properties_def: dict[str, Any] | None) -> Properties:
     return Properties(**properties_def)
 
 
+def _check_for_duplicate_constraint_definitions(spec: SchemaSpec) -> None:
+    """
+    Warns if equivalent constraints are defined at both the column and table levels.
+
+    This function iterates through a mapping of equivalent constraint types and
+    checks for columns that have both types of constraints applied.
+    """
+    for col_const_type, tbl_const_type in CONSTRAINT_EQUIVALENTS.items():
+        # Get columns with the specified column-level constraint
+        constrained_cols = {
+            c.name
+            for c in spec.columns
+            if any(isinstance(const, col_const_type) for const in c.constraints)
+        }
+
+        # Get columns with the equivalent table-level constraint
+        table_constrained_cols = set()
+        for const in spec.table_constraints:
+            if isinstance(const, tbl_const_type):
+                table_constrained_cols.update(const.get_constrained_columns())
+
+        # Find and warn about duplicates
+        if duplicates := constrained_cols.intersection(table_constrained_cols):
+            warnings.warn(
+                f"Columns {sorted(list(duplicates))} have a "
+                f"{col_const_type.__name__} defined at both the column and table "
+                "level.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+
+def _check_for_undefined_columns_in_table_constraints(spec: SchemaSpec) -> None:
+    """
+    Warns if table constraints reference columns that are not defined in the spec.
+
+    This function iterates through all table constraints and checks if the columns
+    they apply to exist in the list of defined columns in the schema.
+    """
+    defined_columns = {c.name for c in spec.columns}
+    for constraint in spec.table_constraints:
+        constrained_columns = set(constraint.get_constrained_columns())
+        if not_defined := constrained_columns - defined_columns:
+            constraint_name = (
+                getattr(constraint, "name", None)
+                or f"of type {type(constraint).__name__}"
+            )
+            warnings.warn(
+                f"Table constraint '{constraint_name}' references undefined columns: "
+                f"{sorted(list(not_defined))}",
+                UserWarning,
+                stacklevel=2,
+            )
+
+
 def from_dict(data: dict[str, Any]) -> SchemaSpec:
     """Instantiates a SchemaSpec from a pre-parsed Python dictionary."""
     for required_field in ("name", "version", "columns"):
         if required_field not in data:
             raise ValueError(f"'{required_field}' is a required field")
-    return SchemaSpec(
+
+    spec = SchemaSpec(
         name=data["name"],
         version=data["version"],
         description=data.get("description"),
@@ -209,6 +306,9 @@ def from_dict(data: dict[str, Any]) -> SchemaSpec:
         metadata=data.get("metadata", {}),
         columns=[_parse_column(c) for c in data["columns"]],
     )
+    _check_for_duplicate_constraint_definitions(spec)
+    _check_for_undefined_columns_in_table_constraints(spec)
+    return spec
 
 
 def from_string(content: str) -> SchemaSpec:
