@@ -80,10 +80,10 @@ class SqlglotConverter(BaseConverter):
 
     def __init__(self) -> None:
         self._type_handlers: dict[type[Type], Callable[[Any], exp.DataType]] = {
-            UUID: lambda t: exp.DataType(this=exp.DataType.Type.UUID),
-            Integer: lambda t: exp.DataType(this=exp.DataType.Type.INT),
-            Date: lambda t: exp.DataType(this=exp.DataType.Type.DATE),
-            TimestampTZ: lambda t: exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ),
+            UUID: self._handle_uuid_type,
+            Integer: self._handle_integer_type,
+            Date: self._handle_date_type,
+            TimestampTZ: self._handle_timestamptz_type,
             Decimal: self._handle_decimal_type,
             String: self._handle_string_type,
             Array: self._handle_array_type,
@@ -95,7 +95,7 @@ class SqlglotConverter(BaseConverter):
             PrimaryKeyConstraint: self._handle_primary_key_constraint,
             DefaultConstraint: self._handle_default_constraint,
         }
-        self._table_constraint_handlers: dict[type, Callable[[Any], exp.Constraint]] = {
+        self._table_constraint_handlers: dict[type, Callable[[Any], exp.Expression]] = {
             PrimaryKeyTableConstraint: self._handle_primary_key_table_constraint,
         }
         self._property_handlers: dict[str, Callable[..., exp.Property]] = {
@@ -155,6 +155,18 @@ class SqlglotConverter(BaseConverter):
                 f"No handler implemented for type: {type(yads_type)}"
             )
         return handler(yads_type)
+
+    def _handle_uuid_type(self, yads_type: UUID) -> exp.DataType:
+        return exp.DataType(this=exp.DataType.Type.UUID)
+
+    def _handle_integer_type(self, yads_type: Integer) -> exp.DataType:
+        return exp.DataType(this=exp.DataType.Type.INT)
+
+    def _handle_date_type(self, yads_type: Date) -> exp.DataType:
+        return exp.DataType(this=exp.DataType.Type.DATE)
+
+    def _handle_timestamptz_type(self, yads_type: TimestampTZ) -> exp.DataType:
+        return exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ)
 
     def _handle_decimal_type(self, yads_type: Decimal) -> exp.DataType:
         return exp.DataType(
@@ -283,18 +295,18 @@ class SqlglotConverter(BaseConverter):
 
     def _handle_primary_key_table_constraint(
         self, constraint: PrimaryKeyTableConstraint
-    ) -> exp.Constraint:
-        return exp.Constraint(
-            this=exp.Identifier(this=constraint.name) if constraint.name else None,
+    ) -> exp.Expression:
+        pk_expression = exp.PrimaryKey(
             expressions=[
-                exp.PrimaryKey(
-                    expressions=[
-                        exp.Ordered(
-                            this=exp.Column(this=exp.Identifier(this=c)),
-                            nulls_first=True,
-                        )
-                        for c in constraint.columns
-                    ]
+                exp.Ordered(
+                    this=exp.Column(this=exp.Identifier(this=c)),
+                    nulls_first=True,
                 )
-            ],
+                for c in constraint.columns
+            ]
         )
+        if constraint.name:
+            return exp.Constraint(
+                this=exp.Identifier(this=constraint.name), expressions=[pk_expression]
+            )
+        return pk_expression

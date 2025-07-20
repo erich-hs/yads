@@ -1,0 +1,31 @@
+name: "warehouse.orders.customer_orders"
+version: "2.1.0"
+description: "Represents a single customer order, including line items and shipping details."
+
+table_constraints:
+  - type: "primary_key"
+    name: "customer_orders_pk"
+    columns:
+      - "order_id"
+      - "order_id_2"
+      - "company_id"
+      - "customer_id"
+
+columns:
+  - name: "order_id"
+    type: "uuid"
+    description: "The unique identifier for the order (PK)."
+    constraints:
+      not_null: true
+
+  - name: "order_id_2"
+    type: "string"
+    description: "Another other id."
+    constraints:
+      primary_key: true
+
+  - name: "company_id"
+    type: "string"
+    description: "The ID of the company that placed the order (PK)."
+    constraints:
+      not_null: true

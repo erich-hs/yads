@@ -259,6 +259,67 @@ columns:
     assert_ast_equal(spec_yaml, sql)
 
 
+def test_create_table_with_composite_primary_key():
+    """
+    Tests creating a table with a composite PRIMARY KEY constraint defined at the table level.
+    """
+    spec_yaml = """
+name: "my_catalog.my_db.my_table"
+version: "1.0"
+columns:
+  - name: "order_id"
+    type: "uuid"
+  - name: "line_item_id"
+    type: "integer"
+table_constraints:
+  - type: "primary_key"
+    columns: ["order_id", "line_item_id"]
+"""
+    sql = "CREATE TABLE my_catalog.my_db.my_table (order_id UUID, line_item_id INT, PRIMARY KEY (order_id, line_item_id))"
+    assert_ast_equal(spec_yaml, sql)
+
+
+def test_create_table_with_named_composite_primary_key():
+    """
+    Tests creating a table with a named composite PRIMARY KEY constraint.
+    """
+    spec_yaml = """
+name: "my_catalog.my_db.my_table"
+version: "1.0"
+columns:
+  - name: "order_id"
+    type: "uuid"
+  - name: "line_item_id"
+    type: "integer"
+table_constraints:
+  - type: "primary_key"
+    name: "pk_orders"
+    columns: ["order_id", "line_item_id"]
+"""
+    sql = "CREATE TABLE my_catalog.my_db.my_table (order_id UUID, line_item_id INT, CONSTRAINT pk_orders PRIMARY KEY (order_id, line_item_id))"
+    assert_ast_equal(spec_yaml, sql)
+
+
+def test_create_table_with_single_column_table_primary_key():
+    """
+    Tests creating a table with a single-column PRIMARY KEY constraint defined at the table level.
+    """
+    spec_yaml = """
+name: "my_catalog.my_db.my_table"
+version: "1.0"
+columns:
+  - name: "order_id"
+    type: "uuid"
+table_constraints:
+  - type: "primary_key"
+    columns: ["order_id"]
+"""
+    sql = (
+        "CREATE TABLE my_catalog.my_db.my_table (order_id UUID, PRIMARY KEY (order_id))"
+    )
+    assert_ast_equal(spec_yaml, sql)
+
+
 def test_create_table_with_array_of_parameterized_type():
     """
     Tests creating a table with an array of a parameterized type (e.g., DECIMAL).
