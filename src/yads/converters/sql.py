@@ -9,6 +9,7 @@ from yads.constraints import (
     DefaultConstraint,
     NotNullConstraint,
     PrimaryKeyConstraint,
+    PrimaryKeyTableConstraint,
 )
 from yads.converters.base import BaseConverter
 from yads.spec import Field, PartitionColumn, Properties, SchemaSpec
@@ -94,6 +95,9 @@ class SqlglotConverter(BaseConverter):
             PrimaryKeyConstraint: self._handle_primary_key_constraint,
             DefaultConstraint: self._handle_default_constraint,
         }
+        self._table_constraint_handlers: dict[type, Callable[[Any], exp.Constraint]] = {
+            PrimaryKeyTableConstraint: self._handle_primary_key_table_constraint,
+        }
         self._property_handlers: dict[str, Callable[..., exp.Property]] = {
             "partitioned_by": self._handle_partitioned_by_property,
             "location": self._handle_location_property,
@@ -121,6 +125,12 @@ class SqlglotConverter(BaseConverter):
         catalog_name = namespace[-3] if len(namespace) > 2 else None
 
         properties = self._parse_properties(spec.properties)
+        expressions: list[exp.Expression] = [
+            self._convert_field(col) for col in spec.columns
+        ]
+        for constraint in spec.table_constraints:
+            if handler := self._table_constraint_handlers.get(type(constraint)):
+                expressions.append(handler(constraint))
 
         return exp.Create(
             this=exp.Schema(
@@ -129,7 +139,7 @@ class SqlglotConverter(BaseConverter):
                     db=exp.Identifier(this=db_name) if db_name else None,
                     catalog=exp.Identifier(this=catalog_name) if catalog_name else None,
                 ),
-                expressions=[self._convert_field(col) for col in spec.columns],
+                expressions=expressions,
             ),
             kind="TABLE",
             exists=spec.options.if_not_exists,
@@ -260,14 +270,29 @@ class SqlglotConverter(BaseConverter):
     def _handle_primary_key_constraint(
         self, constraint: PrimaryKeyConstraint
     ) -> exp.ColumnConstraint:
-        return exp.ColumnConstraint(
-            this=exp.Identifier(this=constraint.name) if constraint.name else None,
-            kind=exp.PrimaryKeyColumnConstraint(),
-        )
+        return exp.ColumnConstraint(kind=exp.PrimaryKeyColumnConstraint())
 
     def _handle_default_constraint(
         self, constraint: DefaultConstraint
     ) -> exp.ColumnConstraint:
         return exp.ColumnConstraint(
             kind=exp.DefaultColumnConstraint(this=convert(constraint.value))
+        )
+
+    def _handle_primary_key_table_constraint(
+        self, constraint: PrimaryKeyTableConstraint
+    ) -> exp.Constraint:
+        return exp.Constraint(
+            this=exp.Identifier(this=constraint.name) if constraint.name else None,
+            expressions=[
+                exp.PrimaryKey(
+                    expressions=[
+                        exp.Ordered(
+                            this=exp.Column(this=exp.Identifier(this=c)),
+                            nulls_first=True,
+                        )
+                        for c in constraint.columns
+                    ]
+                )
+            ],
         )

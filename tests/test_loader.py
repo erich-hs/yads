@@ -3,7 +3,12 @@ import pytest
 from yads.loader import from_dict, from_string, from_yaml
 from yads.spec import Field, SchemaSpec
 from yads.types import Array, Decimal, Integer, Map, String, Struct, UUID
-from yads.constraints import NotNullConstraint
+from yads.constraints import (
+    DefaultConstraint,
+    NotNullConstraint,
+    PrimaryKeyConstraint,
+    PrimaryKeyTableConstraint,
+)
 
 
 def test_from_string_valid_basic_schema():
@@ -271,6 +276,39 @@ def test_from_string_invalid_complex_type_def_raises_error(yaml_content, error_m
         from_string(yaml_content)
 
 
+def test_from_string_with_column_constraints():
+    """Tests parsing a schema with various column constraints."""
+    yaml_content = """
+name: "constraints.schema"
+version: "1.0.0"
+columns:
+  - name: "id"
+    type: "uuid"
+    constraints:
+      primary_key: true
+  - name: "status"
+    type: "string"
+    constraints:
+      default: "pending"
+"""
+    spec = from_string(yaml_content)
+
+    assert len(spec.columns) == 2
+
+    id_col = spec.columns[0]
+    assert id_col.name == "id"
+    assert isinstance(id_col.type, UUID)
+    assert len(id_col.constraints) == 1
+    assert isinstance(id_col.constraints[0], PrimaryKeyConstraint)
+
+    status_col = spec.columns[1]
+    assert status_col.name == "status"
+    assert isinstance(status_col.type, String)
+    assert len(status_col.constraints) == 1
+    assert isinstance(status_col.constraints[0], DefaultConstraint)
+    assert status_col.constraints[0].value == "pending"
+
+
 def test_from_yaml_loads_from_file(tmp_path):
     """Tests loading a schema from a YAML file."""
     schema_file = tmp_path / "test_schema.yml"
@@ -309,3 +347,29 @@ def test_from_dict_valid_basic_schema():
     assert id_col.name == "id"
     assert isinstance(id_col.type, Integer)
     assert any(isinstance(c, NotNullConstraint) for c in id_col.constraints)
+
+
+def test_from_string_with_table_constraints():
+    """Tests parsing a YAML string with table constraints."""
+    yaml_content = """
+    name: "test_schema"
+    version: "1.0"
+    description: "A test schema with table constraints."
+    table_constraints:
+      - type: "primary_key"
+        name: "test_pk"
+        columns:
+          - "id"
+          - "name"
+    columns:
+      - name: "id"
+        type: "integer"
+      - name: "name"
+        type: "string"
+    """
+    spec = from_string(yaml_content)
+    assert len(spec.table_constraints) == 1
+    pk_constraint = spec.table_constraints[0]
+    assert isinstance(pk_constraint, PrimaryKeyTableConstraint)
+    assert pk_constraint.name == "test_pk"
+    assert pk_constraint.columns == ["id", "name"]

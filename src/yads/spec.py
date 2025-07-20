@@ -4,7 +4,7 @@ import textwrap
 from dataclasses import dataclass, field
 from typing import Any
 
-from .constraints import BaseConstraint
+from .constraints import BaseConstraint, TableConstraint
 from .types import Type
 
 
@@ -140,6 +140,7 @@ class SchemaSpec:
     version: str
     columns: list[Field]
     description: str | None = None
+    table_constraints: list[TableConstraint] = field(default_factory=list)
     options: Options = field(default_factory=Options)
     properties: Properties = field(default_factory=Properties)
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -161,6 +162,11 @@ class SchemaSpec:
             parts.append(f"options={self.options}")
         if self.properties.is_defined():
             parts.append(f"properties={self.properties}")
+        if self.table_constraints:
+            constraints_str = "\n".join(map(str, self.table_constraints))
+            parts.append(
+                f"table_constraints=[\n{textwrap.indent(constraints_str, '  ')}\n]"
+            )
 
         columns_str = "\n".join(f"{column}" for column in self.columns)
         indented_columns = textwrap.indent(columns_str, "  ")

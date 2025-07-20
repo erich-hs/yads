@@ -9,6 +9,8 @@ from yads.constraints import (
     DefaultConstraint,
     NotNullConstraint,
     PrimaryKeyConstraint,
+    PrimaryKeyTableConstraint,
+    TableConstraint,
 )
 
 
@@ -16,20 +18,21 @@ from yads.constraints import (
     ("constraint", "expected_repr"),
     [
         (NotNullConstraint(), "NotNullConstraint()"),
-        (NotNullConstraint(name="pk_col"), "NotNullConstraint(name='pk_col')"),
         (PrimaryKeyConstraint(), "PrimaryKeyConstraint()"),
-        (
-            PrimaryKeyConstraint(name="pk_col"),
-            "PrimaryKeyConstraint(name='pk_col')",
-        ),
         (DefaultConstraint(value=1), "DefaultConstraint(value=1)"),
         (
-            DefaultConstraint(value=1, name="default_one"),
-            "DefaultConstraint(value=1, name='default_one')",
+            PrimaryKeyTableConstraint(columns=["id", "name"], name="pk_table"),
+            "PrimaryKeyTableConstraint(columns=['id', 'name'], name='pk_table')",
+        ),
+        (
+            PrimaryKeyTableConstraint(columns=["id"]),
+            "PrimaryKeyTableConstraint(columns=['id'], name=None)",
         ),
     ],
 )
-def test_constraint_repr(constraint: BaseConstraint, expected_repr: str) -> None:
+def test_constraint_repr(
+    constraint: BaseConstraint | TableConstraint, expected_repr: str
+) -> None:
     """Tests the __repr__ of constraint objects."""
     assert repr(constraint) == expected_repr
 
@@ -37,20 +40,17 @@ def test_constraint_repr(constraint: BaseConstraint, expected_repr: str) -> None
 @pytest.mark.parametrize(
     ("constraint_class", "init_args", "expected_attrs"),
     [
-        (NotNullConstraint, {}, {"name": None}),
-        (NotNullConstraint, {"name": "not_null_con"}, {"name": "not_null_con"}),
-        (PrimaryKeyConstraint, {}, {"name": None}),
-        (PrimaryKeyConstraint, {"name": "pk_con"}, {"name": "pk_con"}),
-        (DefaultConstraint, {"value": 123}, {"value": 123, "name": None}),
+        (DefaultConstraint, {"value": 123}, {"value": 123}),
+        (DefaultConstraint, {"value": "abc"}, {"value": "abc"}),
         (
-            DefaultConstraint,
-            {"value": "abc", "name": "default_con"},
-            {"value": "abc", "name": "default_con"},
+            PrimaryKeyTableConstraint,
+            {"columns": ["id", "name"], "name": "pk_con"},
+            {"columns": ["id", "name"], "name": "pk_con"},
         ),
     ],
 )
 def test_constraint_attributes(
-    constraint_class: Type[BaseConstraint],
+    constraint_class: Type[BaseConstraint | TableConstraint],
     init_args: dict[str, Any],
     expected_attrs: dict[str, Any],
 ) -> None:

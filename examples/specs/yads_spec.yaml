@@ -21,14 +21,25 @@ metadata:
   retention_days: 90
   granularity: "One order per customer"
 
+table_constraints:
+  - type: "primary_key"
+    name: "customer_orders_pk"
+    columns:
+      - "order_id"
+      - "company_id"
+
 columns:
   - name: "order_id"
     type: "uuid"
     description: "The unique identifier for the order (PK)."
     constraints:
       not_null: true
-      primary_key:
-        name: "orders_pk"
+
+  - name: "company_id"
+    type: "string"
+    description: "The ID of the company that placed the order (PK)."
+    constraints:
+      not_null: true
 
   - name: "customer_id"
     type: "integer"

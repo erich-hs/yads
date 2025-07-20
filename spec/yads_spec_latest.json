@@ -59,6 +59,12 @@
         }
       }
     },
+    "table_constraints": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/table_constraint"
+      }
+    },
     "metadata": {
       "type": "object",
       "properties": {
@@ -127,6 +133,25 @@
             { "required": ["name"] }
         ]
     },
+    "table_constraint": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["primary_key"]
+        },
+        "name": {
+          "type": "string"
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["type", "columns"]
+    },
     "constraints": {
       "type": "object",
       "properties": {
@@ -134,20 +159,7 @@
           "type": "boolean"
         },
         "primary_key": {
-          "oneOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "object",
-              "properties": {
-                "name": {
-                  "type": "string"
-                }
-              },
-              "required": ["name"]
-            }
-          ]
+          "type": "boolean"
         },
         "default": {}
       }

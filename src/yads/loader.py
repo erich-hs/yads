@@ -8,6 +8,8 @@ from .constraints import (
     DefaultConstraint,
     NotNullConstraint,
     PrimaryKeyConstraint,
+    PrimaryKeyTableConstraint,
+    TableConstraint,
 )
 from .spec import Field, Options, PartitionColumn, Properties, SchemaSpec
 from .types import (
@@ -121,11 +123,8 @@ def _parse_constraints(
 
     if constraints_def.get("not_null"):
         constraints.append(NotNullConstraint())
-    if pk_def := constraints_def.get("primary_key"):
-        if isinstance(pk_def, dict):
-            constraints.append(PrimaryKeyConstraint(name=pk_def.get("name")))
-        else:
-            constraints.append(PrimaryKeyConstraint())
+    if constraints_def.get("primary_key"):
+        constraints.append(PrimaryKeyConstraint())
     if "default" in constraints_def:
         constraints.append(DefaultConstraint(constraints_def["default"]))
 
@@ -151,6 +150,28 @@ def _parse_column(col_def: dict[str, Any]) -> Field:
         constraints=_parse_constraints(col_def.get("constraints")),
         metadata=col_def.get("metadata", {}),
     )
+
+
+def _parse_table_constraints(
+    table_constraints_def: list[dict[str, Any]] | None,
+) -> list[TableConstraint]:
+    """Parses table constraint definitions, returning a list of constraint objects."""
+    if not table_constraints_def:
+        return []
+
+    constraints: list[TableConstraint] = []
+    for const_def in table_constraints_def:
+        if const_def.get("type") == "primary_key":
+            if "columns" not in const_def:
+                raise ValueError("Primary key table constraint must specify 'columns'")
+            constraints.append(
+                PrimaryKeyTableConstraint(
+                    columns=const_def["columns"], name=const_def.get("name")
+                )
+            )
+        else:
+            raise ValueError(f"Unknown table constraint type: {const_def.get('type')}")
+    return constraints
 
 
 def _parse_options(options_def: dict[str, Any] | None) -> Options:
@@ -184,6 +205,7 @@ def from_dict(data: dict[str, Any]) -> SchemaSpec:
         description=data.get("description"),
         options=_parse_options(data.get("options")),
         properties=_parse_properties(data.get("properties")),
+        table_constraints=_parse_table_constraints(data.get("table_constraints")),
         metadata=data.get("metadata", {}),
         columns=[_parse_column(c) for c in data["columns"]],
     )
