@@ -215,17 +215,10 @@ def _parse_foreign_key_table_constraint(
             raise ValueError(
                 f"Foreign key table constraint must specify '{required_field}'"
             )
-
-    references_def = const_def["references"]
-    if not isinstance(references_def, dict) or "table" not in references_def:
-        raise ValueError(
-            "The 'references' of a foreign key must be a dictionary with a 'table' key"
-        )
-
     return ForeignKeyTableConstraint(
         columns=const_def["columns"],
         name=const_def.get("name"),
-        references=_parse_references(references_def),
+        references=_parse_references(const_def["references"]),
     )
 
 
@@ -255,8 +248,7 @@ def _parse_table_constraints(
 
     constraints: list[TableConstraint] = []
     for const_def in table_constraints_def:
-        constraint_type = const_def.get("type")
-        if not constraint_type:
+        if not (constraint_type := const_def.get("type")):
             raise ValueError("Table constraint definition must have a 'type'")
 
         if parser := _TABLE_CONSTRAINT_PARSERS.get(constraint_type):
