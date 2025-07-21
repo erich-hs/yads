@@ -9,7 +9,8 @@ CREATE TABLE warehouse.orders.customer_orders (
     tags ARRAY<TEXT>,
     metadata_tags MAP<VARCHAR(50), VARCHAR(255)>,
     created_at TIMESTAMPTZ NOT NULL,
-    CONSTRAINT customer_orders_pk PRIMARY KEY (order_id, company_id)
+    CONSTRAINT customer_orders_pk PRIMARY KEY (order_id, company_id),
+    CONSTRAINT customer_orders_customer_fk FOREIGN KEY (customer_id) REFERENCES warehouse.orders.customers (id)
 )
 PARTITIONED BY (order_date, MONTH(created_at))
 LOCATION '/warehouse/orders/customer_orders'

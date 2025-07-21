@@ -7,6 +7,8 @@ from sqlglot.expressions import convert
 
 from yads.constraints import (
     DefaultConstraint,
+    ForeignKeyConstraint,
+    ForeignKeyTableConstraint,
     NotNullConstraint,
     PrimaryKeyConstraint,
     PrimaryKeyTableConstraint,
@@ -74,8 +76,7 @@ class SqlConverter:
 
 class SqlglotConverter(BaseConverter):
     """
-    Converts a yads SchemaSpec object into a sqlglot Abstract
-    Syntax Tree (AST).
+    Converts a yads SchemaSpec object into a sqlglot Abstract Syntax Tree (AST).
     """
 
     def __init__(self) -> None:
@@ -94,9 +95,11 @@ class SqlglotConverter(BaseConverter):
             NotNullConstraint: self._handle_not_null_constraint,
             PrimaryKeyConstraint: self._handle_primary_key_constraint,
             DefaultConstraint: self._handle_default_constraint,
+            ForeignKeyConstraint: self._handle_foreign_key_constraint,
         }
         self._table_constraint_handlers: dict[type, Callable[[Any], exp.Expression]] = {
             PrimaryKeyTableConstraint: self._handle_primary_key_table_constraint,
+            ForeignKeyTableConstraint: self._handle_foreign_key_table_constraint,
         }
         self._property_handlers: dict[str, Callable[..., exp.Property]] = {
             "partitioned_by": self._handle_partitioned_by_property,
@@ -119,11 +122,7 @@ class SqlglotConverter(BaseConverter):
             A sqlglot Create Abstract Syntax Tree (AST).
             https://sqlglot.com/sqlglot/expressions.html#Create
         """
-        namespace = spec.name.split(".")
-        table_name = namespace[-1]
-        db_name = namespace[-2] if len(namespace) > 1 else None
-        catalog_name = namespace[-3] if len(namespace) > 2 else None
-
+        table = self._parse_full_table_name(spec.name)
         properties = self._parse_properties(spec.properties)
         expressions: list[exp.Expression] = [
             self._convert_field(col) for col in spec.columns
@@ -133,14 +132,7 @@ class SqlglotConverter(BaseConverter):
                 expressions.append(handler(constraint))
 
         return exp.Create(
-            this=exp.Schema(
-                this=exp.Table(
-                    this=exp.Identifier(this=table_name),
-                    db=exp.Identifier(this=db_name) if db_name else None,
-                    catalog=exp.Identifier(this=catalog_name) if catalog_name else None,
-                ),
-                expressions=expressions,
-            ),
+            this=exp.Schema(this=table, expressions=expressions),
             kind="TABLE",
             exists=spec.options.if_not_exists,
             replace=spec.options.or_replace,
@@ -293,6 +285,23 @@ class SqlglotConverter(BaseConverter):
             kind=exp.DefaultColumnConstraint(this=convert(constraint.value))
         )
 
+    def _handle_foreign_key_constraint(
+        self, constraint: ForeignKeyConstraint
+    ) -> exp.ColumnConstraint:
+        reference_expression = exp.Reference(
+            this=self._parse_full_table_name(
+                constraint.references.table, constraint.references.columns
+            ),
+        )
+
+        if constraint.name:
+            return exp.ColumnConstraint(
+                this=exp.Identifier(this=constraint.name),
+                kind=reference_expression,
+            )
+
+        return exp.ColumnConstraint(kind=reference_expression)
+
     def _handle_primary_key_table_constraint(
         self, constraint: PrimaryKeyTableConstraint
     ) -> exp.Expression:
@@ -310,3 +319,53 @@ class SqlglotConverter(BaseConverter):
                 this=exp.Identifier(this=constraint.name), expressions=[pk_expression]
             )
         return pk_expression
+
+    def _handle_foreign_key_table_constraint(
+        self, constraint: ForeignKeyTableConstraint
+    ) -> exp.Expression:
+        reference_expression = exp.Reference(
+            this=self._parse_full_table_name(
+                constraint.references.table, constraint.references.columns
+            ),
+        )
+        fk_expression = exp.ForeignKey(
+            expressions=[exp.Identifier(this=c) for c in constraint.columns],
+            reference=reference_expression,
+        )
+
+        if constraint.name:
+            return exp.Constraint(
+                this=exp.Identifier(this=constraint.name),
+                expressions=[fk_expression],
+            )
+        return fk_expression
+
+    def _parse_full_table_name(
+        self, full_name: str, columns: list[str] | None = None
+    ) -> exp.Table | exp.Schema:
+        """Parses a qualified table name into a sqlglot Table or Schema expression.
+        If columns are provided, a Schema expression is returned.
+
+        Args:
+            full_name: The qualified table name.
+            columns: Optional. The columns to include in the Schema expression.
+
+        Returns:
+            A sqlglot Table or Schema expression.
+        """
+        parts = full_name.split(".")
+        table_name = parts[-1]
+        db_name = parts[-2] if len(parts) > 1 else None
+        catalog_name = parts[-3] if len(parts) > 2 else None
+
+        table_expression = exp.Table(
+            this=exp.Identifier(this=table_name),
+            db=exp.Identifier(this=db_name) if db_name else None,
+            catalog=exp.Identifier(this=catalog_name) if catalog_name else None,
+        )
+        if columns:
+            return exp.Schema(
+                this=table_expression,
+                expressions=[exp.Identifier(this=c) for c in columns],
+            )
+        return table_expression

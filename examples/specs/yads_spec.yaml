@@ -27,6 +27,14 @@ table_constraints:
     columns:
       - "order_id"
       - "company_id"
+  - type: "foreign_key"
+    name: "customer_orders_customer_fk"
+    columns:
+      - "customer_id"
+    references:
+      table: "warehouse.orders.customers"
+      columns:
+        - "id"
 
 columns:
   - name: "order_id"

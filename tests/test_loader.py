@@ -8,6 +8,9 @@ from yads.constraints import (
     NotNullConstraint,
     PrimaryKeyConstraint,
     PrimaryKeyTableConstraint,
+    ForeignKeyConstraint,
+    ForeignKeyTableConstraint,
+    Reference,
 )
 
 
@@ -307,6 +310,59 @@ columns:
     assert len(status_col.constraints) == 1
     assert isinstance(status_col.constraints[0], DefaultConstraint)
     assert status_col.constraints[0].value == "pending"
+
+
+def test_from_string_with_column_foreign_key_constraint():
+    """Tests parsing a schema with a column-level foreign key constraint."""
+    yaml_content = """
+name: "fk.schema"
+version: "1.0.0"
+columns:
+  - name: "user_id"
+    type: "uuid"
+    constraints:
+      foreign_key:
+        name: "fk_user_id"
+        references:
+          table: "users"
+          columns: ["id"]
+"""
+    spec = from_string(yaml_content)
+    user_id_col = spec.columns[0]
+    assert len(user_id_col.constraints) == 1
+    fk_constraint = user_id_col.constraints[0]
+    assert isinstance(fk_constraint, ForeignKeyConstraint)
+    assert fk_constraint.name == "fk_user_id"
+    assert fk_constraint.references == Reference(table="users", columns=["id"])
+
+
+def test_from_string_with_table_foreign_key_constraint():
+    """Tests parsing a schema with a table-level foreign key constraint."""
+    yaml_content = """
+name: "fk.schema"
+version: "1.0.0"
+table_constraints:
+  - type: "foreign_key"
+    name: "fk_order_items"
+    columns: ["order_id", "product_id"]
+    references:
+      table: "order_items"
+      columns: ["order_id", "product_id"]
+columns:
+  - name: "order_id"
+    type: "uuid"
+  - name: "product_id"
+    type: "integer"
+"""
+    spec = from_string(yaml_content)
+    assert len(spec.table_constraints) == 1
+    fk_constraint = spec.table_constraints[0]
+    assert isinstance(fk_constraint, ForeignKeyTableConstraint)
+    assert fk_constraint.name == "fk_order_items"
+    assert fk_constraint.columns == ["order_id", "product_id"]
+    assert fk_constraint.references == Reference(
+        table="order_items", columns=["order_id", "product_id"]
+    )
 
 
 def test_from_yaml_loads_from_file(tmp_path):

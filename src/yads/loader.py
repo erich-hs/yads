@@ -8,9 +8,12 @@ from .constraints import (
     CONSTRAINT_EQUIVALENTS,
     ColumnConstraint,
     DefaultConstraint,
+    ForeignKeyConstraint,
+    ForeignKeyTableConstraint,
     NotNullConstraint,
     PrimaryKeyConstraint,
     PrimaryKeyTableConstraint,
+    Reference,
     TableConstraint,
 )
 from .spec import Field, Options, PartitionColumn, Properties, SchemaSpec
@@ -134,17 +137,30 @@ def _parse_default_constraint(value: Any) -> DefaultConstraint:
     return DefaultConstraint(value=value)
 
 
+def _parse_foreign_key_constraint(value: Any) -> ForeignKeyConstraint:
+    """Parses a foreign key constraint."""
+    if not isinstance(value, dict):
+        raise ValueError("The 'foreign_key' constraint expects a dictionary")
+    if "references" not in value:
+        raise ValueError("The 'foreign_key' constraint must specify 'references'")
+    return ForeignKeyConstraint(
+        name=value.get("name"),
+        references=_parse_references(value["references"]),
+    )
+
+
 _COLUMN_CONSTRAINT_PARSERS: dict[str, Callable[[Any], ColumnConstraint]] = {
     "not_null": _parse_not_null_constraint,
     "primary_key": _parse_primary_key_constraint,
     "default": _parse_default_constraint,
+    "foreign_key": _parse_foreign_key_constraint,
 }
 
 
 def _parse_constraints(
     constraints_def: dict[str, Any] | None,
 ) -> list[ColumnConstraint]:
-    """Parses constraint definitions, returning a list of constraint objects."""
+    """Parses constraint definitions, returning a list of column constraint objects."""
     constraints: list[ColumnConstraint] = []
     if not constraints_def:
         return constraints
@@ -190,8 +206,43 @@ def _parse_primary_key_table_constraint(
     )
 
 
+def _parse_foreign_key_table_constraint(
+    const_def: dict[str, Any],
+) -> ForeignKeyTableConstraint:
+    """Parses a foreign key table constraint."""
+    for required_field in ("columns", "references"):
+        if required_field not in const_def:
+            raise ValueError(
+                f"Foreign key table constraint must specify '{required_field}'"
+            )
+
+    references_def = const_def["references"]
+    if not isinstance(references_def, dict) or "table" not in references_def:
+        raise ValueError(
+            "The 'references' of a foreign key must be a dictionary with a 'table' key"
+        )
+
+    return ForeignKeyTableConstraint(
+        columns=const_def["columns"],
+        name=const_def.get("name"),
+        references=_parse_references(references_def),
+    )
+
+
+def _parse_references(references_def: dict[str, Any]) -> Reference:
+    """Parses a references dictionary and returns a Reference object."""
+    if "table" not in references_def:
+        raise ValueError(
+            "The 'references' of a foreign key must be a dictionary with a 'table' key"
+        )
+    return Reference(
+        table=references_def["table"], columns=references_def.get("columns")
+    )
+
+
 _TABLE_CONSTRAINT_PARSERS: dict[str, Callable[[Any], TableConstraint]] = {
     "primary_key": _parse_primary_key_table_constraint,
+    "foreign_key": _parse_foreign_key_table_constraint,
 }
 
 

@@ -463,3 +463,253 @@ def test_full_spec_from_file():
         sql = f.read()
 
     assert_ast_equal(spec_yaml, sql)
+
+
+def test_create_table_with_table_foreign_key():
+    """
+    Tests creating a table with a FOREIGN KEY constraint defined at the table level.
+    """
+    spec_yaml = """
+name: "my_catalog.my_db.pets"
+version: "1.0"
+columns:
+  - name: "name"
+    type: "string"
+  - name: "owner_first_name"
+    type: "string"
+  - name: "owner_last_name"
+    type: "string"
+table_constraints:
+  - type: "foreign_key"
+    name: "pets_persons_fk"
+    columns: ["owner_first_name", "owner_last_name"]
+    references:
+      table: "my_catalog.my_db.persons"
+"""
+    sql = """
+CREATE TABLE my_catalog.my_db.pets (
+  name TEXT,
+  owner_first_name TEXT,
+  owner_last_name TEXT,
+  CONSTRAINT pets_persons_fk FOREIGN KEY (owner_first_name, owner_last_name) REFERENCES my_catalog.my_db.persons
+)
+"""
+    assert_ast_equal(spec_yaml, sql)
+
+
+def test_create_table_with_table_foreign_key_with_ref_columns():
+    """
+    Tests creating a table with a FOREIGN KEY constraint with referenced columns.
+    """
+    spec_yaml = """
+name: "my_catalog.my_db.pets"
+version: "1.0"
+columns:
+  - name: "name"
+    type: "string"
+  - name: "owner_first_name"
+    type: "string"
+  - name: "owner_last_name"
+    type: "string"
+table_constraints:
+  - type: "foreign_key"
+    name: "pets_persons_fk"
+    columns: ["owner_first_name", "owner_last_name"]
+    references:
+      table: "my_catalog.my_db.persons"
+      columns: ["first_name", "last_name"]
+"""
+    sql = """
+CREATE TABLE my_catalog.my_db.pets (
+  name TEXT,
+  owner_first_name TEXT,
+  owner_last_name TEXT,
+  CONSTRAINT pets_persons_fk FOREIGN KEY (owner_first_name, owner_last_name) REFERENCES my_catalog.my_db.persons (first_name, last_name)
+)
+"""
+    assert_ast_equal(spec_yaml, sql)
+
+
+def test_create_table_with_column_foreign_key():
+    """
+    Tests creating a table with a FOREIGN KEY constraint defined at the column level.
+    """
+    spec_yaml = """
+name: "my_catalog.my_db.orders"
+version: "1.0"
+columns:
+  - name: "order_id"
+    type: "integer"
+    constraints:
+        not_null: true
+        primary_key: true
+  - name: "customer_id"
+    type: "uuid"
+    constraints:
+      foreign_key:
+        name: "orders_customers_fk"
+        references:
+          table: "my_catalog.my_db.customers"
+"""
+    sql = """
+CREATE TABLE my_catalog.my_db.orders (
+    order_id INT NOT NULL PRIMARY KEY,
+    customer_id UUID CONSTRAINT orders_customers_fk REFERENCES my_catalog.my_db.customers
+)"""
+    assert_ast_equal(spec_yaml, sql)
+
+
+def test_create_table_with_column_foreign_key_with_ref_column():
+    """
+    Tests creating a table with a column FOREIGN KEY constraint with a referenced column.
+    """
+    spec_yaml = """
+name: "my_catalog.my_db.orders"
+version: "1.0"
+columns:
+  - name: "order_id"
+    type: "integer"
+    constraints:
+        not_null: true
+        primary_key: true
+  - name: "customer_id"
+    type: "uuid"
+    constraints:
+      foreign_key:
+        name: "orders_customers_fk"
+        references:
+          table: "my_catalog.my_db.customers"
+          columns: ["id"]
+"""
+    sql = """
+CREATE TABLE my_catalog.my_db.orders (
+    order_id INT NOT NULL PRIMARY KEY,
+    customer_id UUID CONSTRAINT orders_customers_fk REFERENCES my_catalog.my_db.customers (id)
+)"""
+    assert_ast_equal(spec_yaml, sql)
+
+
+def test_create_table_with_table_foreign_key_unqualified_ref():
+    """
+    Tests creating a table with a FOREIGN KEY constraint with an unqualified referenced table.
+    """
+    spec_yaml = """
+name: "my_catalog.my_db.pets"
+version: "1.0"
+columns:
+  - name: "name"
+    type: "string"
+  - name: "owner_first_name"
+    type: "string"
+  - name: "owner_last_name"
+    type: "string"
+table_constraints:
+  - type: "foreign_key"
+    name: "pets_persons_fk"
+    columns: ["owner_first_name", "owner_last_name"]
+    references:
+      table: "persons"
+      columns: ["first_name", "last_name"]
+"""
+    sql = """
+CREATE TABLE my_catalog.my_db.pets (
+  name TEXT,
+  owner_first_name TEXT,
+  owner_last_name TEXT,
+  CONSTRAINT pets_persons_fk FOREIGN KEY (owner_first_name, owner_last_name) REFERENCES persons (first_name, last_name)
+)
+"""
+    assert_ast_equal(spec_yaml, sql)
+
+
+def test_create_table_with_table_foreign_key_partially_qualified_ref():
+    """
+    Tests creating a table with a FOREIGN KEY constraint with a partially qualified referenced table.
+    """
+    spec_yaml = """
+name: "my_catalog.my_db.pets"
+version: "1.0"
+columns:
+  - name: "name"
+    type: "string"
+  - name: "owner_first_name"
+    type: "string"
+  - name: "owner_last_name"
+    type: "string"
+table_constraints:
+  - type: "foreign_key"
+    name: "pets_persons_fk"
+    columns: ["owner_first_name", "owner_last_name"]
+    references:
+      table: "my_db.persons"
+      columns: ["first_name", "last_name"]
+"""
+    sql = """
+CREATE TABLE my_catalog.my_db.pets (
+  name TEXT,
+  owner_first_name TEXT,
+  owner_last_name TEXT,
+  CONSTRAINT pets_persons_fk FOREIGN KEY (owner_first_name, owner_last_name) REFERENCES my_db.persons (first_name, last_name)
+)
+"""
+    assert_ast_equal(spec_yaml, sql)
+
+
+def test_create_table_with_column_foreign_key_unqualified_ref():
+    """
+    Tests creating a table with a column FOREIGN KEY constraint with an unqualified referenced table.
+    """
+    spec_yaml = """
+name: "my_catalog.my_db.orders"
+version: "1.0"
+columns:
+  - name: "order_id"
+    type: "integer"
+    constraints:
+        not_null: true
+        primary_key: true
+  - name: "customer_id"
+    type: "uuid"
+    constraints:
+      foreign_key:
+        name: "orders_customers_fk"
+        references:
+          table: "customers"
+          columns: ["id"]
+"""
+    sql = """
+CREATE TABLE my_catalog.my_db.orders (
+    order_id INT NOT NULL PRIMARY KEY,
+    customer_id UUID CONSTRAINT orders_customers_fk REFERENCES customers (id)
+)"""
+    assert_ast_equal(spec_yaml, sql)
+
+
+def test_create_table_with_column_foreign_key_partially_qualified_ref():
+    """
+    Tests creating a table with a column FOREIGN KEY constraint with a partially qualified referenced table.
+    """
+    spec_yaml = """
+name: "my_catalog.my_db.orders"
+version: "1.0"
+columns:
+  - name: "order_id"
+    type: "integer"
+    constraints:
+        not_null: true
+        primary_key: true
+  - name: "customer_id"
+    type: "uuid"
+    constraints:
+      foreign_key:
+        name: "orders_customers_fk"
+        references:
+          table: "my_db.customers"
+          columns: ["id"]
+"""
+    sql = """
+CREATE TABLE my_catalog.my_db.orders (
+    order_id INT NOT NULL PRIMARY KEY,
+    customer_id UUID CONSTRAINT orders_customers_fk REFERENCES my_db.customers (id)
+)"""
+    assert_ast_equal(spec_yaml, sql)

@@ -138,7 +138,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["primary_key"]
+          "enum": ["primary_key", "foreign_key"]
         },
         "name": {
           "type": "string"
@@ -148,6 +148,21 @@
           "items": {
             "type": "string"
           }
+        },
+        "references": {
+          "type": "object",
+          "properties": {
+            "table": {
+              "type": "string"
+            },
+            "columns": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": ["table"]
         }
       },
       "required": ["type", "columns"]
@@ -160,6 +175,30 @@
         },
         "primary_key": {
           "type": "boolean"
+        },
+        "foreign_key": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "references": {
+              "type": "object",
+              "properties": {
+                "table": {
+                  "type": "string"
+                },
+                "columns": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": ["table"]
+            }
+          },
+          "required": ["references"]
         },
         "default": {}
       }
