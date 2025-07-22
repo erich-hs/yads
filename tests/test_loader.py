@@ -183,6 +183,66 @@ columns:
     assert isinstance(metadata_col.type.value, Integer)
 
 
+def test_from_string_decimal_params_out_of_order():
+    """Tests that Decimal with out-of-order params is parsed correctly."""
+    yaml_content = """
+name: "decimal.schema"
+version: "1.0.0"
+columns:
+  - name: "price"
+    type: "decimal"
+    params:
+      scale: 2
+      precision: 10
+"""
+    spec = from_string(yaml_content)
+    price_col = spec.columns[0]
+    assert isinstance(price_col.type, Decimal)
+    assert price_col.type.precision == 10
+    assert price_col.type.scale == 2
+
+
+def test_from_string_decimal_no_params():
+    """Tests that Decimal with no params is parsed correctly."""
+    yaml_content = """
+name: "decimal.schema"
+version: "1.0.0"
+columns:
+  - name: "price"
+    type: "decimal"
+"""
+    spec = from_string(yaml_content)
+    price_col = spec.columns[0]
+    assert isinstance(price_col.type, Decimal)
+    assert price_col.type.precision is None
+    assert price_col.type.scale is None
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        "precision: 10",
+        "scale: 2",
+    ],
+)
+def test_from_string_decimal_missing_one_param_raises_error(params):
+    """Tests that Decimal with only one of precision/scale raises a ValueError."""
+    yaml_content = f"""
+name: "decimal.schema"
+version: "1.0.0"
+columns:
+  - name: "price"
+    type: "decimal"
+    params:
+      {params}
+"""
+    with pytest.raises(
+        ValueError,
+        match="Decimal type requires both 'precision' and 'scale', or neither.",
+    ):
+        from_string(yaml_content)
+
+
 @pytest.mark.parametrize("missing_field", ["name", "version", "columns"])
 def test_from_string_missing_required_field_raises_error(missing_field):
     """Tests that a missing top-level required field raises a ValueError."""

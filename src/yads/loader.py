@@ -57,6 +57,7 @@ _TYPE_MAP: dict[str, type[Type]] = {
 TypeDef = dict[str, Any]
 
 
+# Type parsers
 def _parse_type(type_name: str, type_def: TypeDef) -> Type:
     """
     Parses a type definition from its name and definition dictionary.
@@ -69,12 +70,33 @@ def _parse_type(type_name: str, type_def: TypeDef) -> Type:
 
     if type_name in _COMPLEX_TYPE_PARSERS:
         params = _COMPLEX_TYPE_PARSERS[type_name](type_def)
+    elif type_name in _PARAMETERIZED_TYPE_PARSERS:
+        params = _PARAMETERIZED_TYPE_PARSERS[type_name](type_def)
     else:
         params = type_def.get("params", {})
 
     return type_class(**params)
 
 
+# Parameterized type parsers
+def _parse_decimal_type(type_def: TypeDef) -> dict[str, Any]:
+    """Parses and validates parameters for a 'decimal' type."""
+    params = type_def.get("params", {})
+    has_precision = "precision" in params
+    has_scale = "scale" in params
+    if has_precision != has_scale:
+        raise ValueError(
+            "Decimal type requires both 'precision' and 'scale', or neither."
+        )
+    return params
+
+
+_PARAMETERIZED_TYPE_PARSERS: dict[str, Callable[[TypeDef], dict[str, Any]]] = {
+    "decimal": _parse_decimal_type,
+}
+
+
+# Complex type parsers
 def _parse_array_type(type_def: TypeDef) -> dict[str, Any]:
     """Parses the parameters for an 'array' type."""
     if "element" not in type_def:
@@ -118,6 +140,7 @@ _COMPLEX_TYPE_PARSERS: dict[str, Callable[[TypeDef], dict[str, Any]]] = {
 }
 
 
+# Column constraint parsers
 def _parse_not_null_constraint(value: Any) -> NotNullConstraint:
     """Parses a not null constraint."""
     if not isinstance(value, bool):
@@ -174,6 +197,7 @@ def _parse_constraints(
     return constraints
 
 
+# Column parsers
 def _parse_column(col_def: dict[str, Any]) -> Field:
     """Parses a column definition dictionary and returns a Field object."""
     for required_field in ("name", "type"):
@@ -195,6 +219,7 @@ def _parse_column(col_def: dict[str, Any]) -> Field:
     )
 
 
+# Table constraint parsers
 def _parse_primary_key_table_constraint(
     const_def: dict[str, Any],
 ) -> PrimaryKeyTableConstraint:
@@ -258,6 +283,7 @@ def _parse_table_constraints(
     return constraints
 
 
+# Top-level attribute parsers
 def _parse_options(options_def: dict[str, Any] | None) -> Options:
     """Parses the options dictionary and returns an Options object."""
     if not options_def:
@@ -278,6 +304,7 @@ def _parse_properties(properties_def: dict[str, Any] | None) -> Properties:
     return Properties(**properties_def)
 
 
+# Validators
 def _check_for_duplicate_constraint_definitions(spec: SchemaSpec) -> None:
     """
     Warns if equivalent constraints are defined at both the column and table levels.
@@ -333,6 +360,7 @@ def _check_for_undefined_columns_in_table_constraints(spec: SchemaSpec) -> None:
             )
 
 
+# Loader functions
 def from_dict(data: dict[str, Any]) -> SchemaSpec:
     """Instantiates a SchemaSpec from a pre-parsed Python dictionary."""
     for required_field in ("name", "version", "columns"):

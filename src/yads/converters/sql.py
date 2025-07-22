@@ -161,12 +161,16 @@ class SqlglotConverter(BaseConverter):
         return exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ)
 
     def _handle_decimal_type(self, yads_type: Decimal) -> exp.DataType:
+        expressions = []
+        if (
+            yads_type.precision is not None
+        ):  # yads.Types.Decimal must have both precision and scale, or neither
+            expressions.append(exp.DataTypeParam(this=convert(yads_type.precision)))
+            expressions.append(exp.DataTypeParam(this=convert(yads_type.scale)))
+
         return exp.DataType(
             this=exp.DataType.Type.DECIMAL,
-            expressions=[
-                exp.DataTypeParam(this=convert(yads_type.precision)),
-                exp.DataTypeParam(this=convert(yads_type.scale)),
-            ],
+            expressions=expressions if expressions else None,
         )
 
     def _handle_string_type(self, yads_type: String) -> exp.DataType:

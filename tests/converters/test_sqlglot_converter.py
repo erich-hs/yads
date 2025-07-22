@@ -53,6 +53,39 @@ columns:
     assert_ast_equal(spec_yaml, sql)
 
 
+def test_create_table_with_decimal_params_out_of_order():
+    """
+    Tests creating a table with a decimal column where params are out of order.
+    """
+    spec_yaml = """
+name: "my_catalog.my_db.my_table"
+version: "1.0"
+columns:
+  - name: "order_total"
+    type: "decimal"
+    params:
+      scale: 2
+      precision: 10
+"""
+    sql = "CREATE TABLE my_catalog.my_db.my_table (order_total DECIMAL(10, 2))"
+    assert_ast_equal(spec_yaml, sql)
+
+
+def test_create_table_with_decimal_no_params():
+    """
+    Tests creating a table with a decimal column with no params.
+    """
+    spec_yaml = """
+name: "my_catalog.my_db.my_table"
+version: "1.0"
+columns:
+  - name: "order_total"
+    type: "decimal"
+"""
+    sql = "CREATE TABLE my_catalog.my_db.my_table (order_total DECIMAL)"
+    assert_ast_equal(spec_yaml, sql)
+
+
 def test_create_table_with_location_property():
     """
     Tests creating a table with a location property.
