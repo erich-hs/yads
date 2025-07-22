@@ -59,6 +59,18 @@ description: "A full schema with all features."
 metadata:
   owner: "data-team"
   sensitive: false
+options:
+  if_not_exists: true
+  or_replace: false
+properties:
+  partitioned_by:
+    - column: "user_id"
+    - column: "score"
+      transform: "identity"
+  location: "/data/full.schema"
+  table_type: "iceberg"
+  format: "parquet"
+  write_compression: "snappy"
 columns:
   - name: "user_id"
     type: "uuid"
@@ -79,6 +91,19 @@ columns:
     assert spec.version == "2.1.0"
     assert spec.description == "A full schema with all features."
     assert spec.metadata == {"owner": "data-team", "sensitive": False}
+
+    assert spec.options.if_not_exists is True
+    assert spec.options.or_replace is False
+
+    assert spec.properties.location == "/data/full.schema"
+    assert spec.properties.table_type == "iceberg"
+    assert spec.properties.format == "parquet"
+    assert spec.properties.write_compression == "snappy"
+    assert len(spec.properties.partitioned_by) == 2
+    assert spec.properties.partitioned_by[0].column == "user_id"
+    assert spec.properties.partitioned_by[0].transform is None
+    assert spec.properties.partitioned_by[1].column == "score"
+    assert spec.properties.partitioned_by[1].transform == "identity"
 
     user_id_col = spec.columns[0]
     assert user_id_col.name == "user_id"
