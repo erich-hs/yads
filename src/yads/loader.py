@@ -365,10 +365,9 @@ class SpecLoader:
     def _check_for_undefined_columns_in_table_constraints(
         self, spec: "SchemaSpec"
     ) -> None:
-        defined_columns = {c.name for c in spec.columns}
         for constraint in spec.table_constraints:
             constrained_columns = set(constraint.get_constrained_columns())
-            if not_defined := constrained_columns - defined_columns:
+            if not_defined := constrained_columns - spec.column_names:
                 constraint_name = (
                     getattr(constraint, "name", None)
                     or f"of type {type(constraint).__name__}"
@@ -383,23 +382,18 @@ class SpecLoader:
     def _check_for_undefined_columns_in_partitioned_by(
         self, spec: "SchemaSpec"
     ) -> None:
-        defined_columns = {c.name for c in spec.columns}
-        partition_columns = {p.column for p in spec.partitioned_by}
-        if not_defined := partition_columns - defined_columns:
+        if not_defined := spec.partition_column_names - spec.column_names:
             raise ValueError(
                 f"Partition spec references undefined columns: {sorted(list(not_defined))}"
             )
 
     def _check_for_undefined_columns_in_generated_as(self, spec: "SchemaSpec") -> None:
-        defined_columns = {c.name for c in spec.columns}
-        for column in spec.columns:
-            if column.generated_as:
-                referenced_column = column.generated_as.column
-                if referenced_column not in defined_columns:
-                    raise ValueError(
-                        f"Generated column '{column.name}' references undefined column: "
-                        f"'{referenced_column}'"
-                    )
+        for gen_col, source_col in spec.generated_columns.items():
+            if source_col not in spec.column_names:
+                raise ValueError(
+                    f"Generated column '{gen_col}' references undefined column: "
+                    f"'{source_col}'"
+                )
 
 
 # Loader functions

@@ -148,6 +148,25 @@ class SchemaSpec:
     table_constraints: list[TableConstraint] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    @property
+    def column_names(self) -> set[str]:
+        """A set of all column names in the schema."""
+        return {c.name for c in self.columns}
+
+    @property
+    def partition_column_names(self) -> set[str]:
+        """A set of all partition column names in the schema."""
+        return {p.column for p in self.partitioned_by}
+
+    @property
+    def generated_columns(self) -> dict[str, str]:
+        """A dictionary of generated columns and their source columns."""
+        return {
+            c.name: c.generated_as.column
+            for c in self.columns
+            if c.generated_as is not None
+        }
+
     def _build_header_str(self) -> str:
         """Builds the header section of the schema string representation."""
         return f"schema {self.name}(version={self.version!r})"
