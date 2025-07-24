@@ -62,15 +62,15 @@ metadata:
 options:
   if_not_exists: true
   or_replace: false
-properties:
-  partitioned_by:
-    - column: "user_id"
-    - column: "score"
-      transform: "identity"
+storage:
   location: "/data/full.schema"
-  table_type: "iceberg"
   format: "parquet"
-  write_compression: "snappy"
+  tbl_properties:
+    "write_compression": "snappy"
+partitioned_by:
+  - column: "user_id"
+  - column: "score"
+    transform: "identity"
 columns:
   - name: "user_id"
     type: "uuid"
@@ -95,15 +95,15 @@ columns:
     assert spec.options.if_not_exists is True
     assert spec.options.or_replace is False
 
-    assert spec.properties.location == "/data/full.schema"
-    assert spec.properties.table_type == "iceberg"
-    assert spec.properties.format == "parquet"
-    assert spec.properties.write_compression == "snappy"
-    assert len(spec.properties.partitioned_by) == 2
-    assert spec.properties.partitioned_by[0].column == "user_id"
-    assert spec.properties.partitioned_by[0].transform is None
-    assert spec.properties.partitioned_by[1].column == "score"
-    assert spec.properties.partitioned_by[1].transform == "identity"
+    assert spec.storage.location == "/data/full.schema"
+    assert spec.storage.format == "parquet"
+    assert spec.storage.tbl_properties == {"write_compression": "snappy"}
+
+    assert len(spec.partitioned_by) == 2
+    assert spec.partitioned_by[0].column == "user_id"
+    assert spec.partitioned_by[0].transform is None
+    assert spec.partitioned_by[1].column == "score"
+    assert spec.partitioned_by[1].transform == "identity"
 
     user_id_col = spec.columns[0]
     assert user_id_col.name == "user_id"
@@ -181,6 +181,47 @@ columns:
     assert isinstance(metadata_col.type.key, String)
     assert metadata_col.type.key.length == 50
     assert isinstance(metadata_col.type.value, Integer)
+
+
+def test_from_string_with_deeply_nested_types():
+    """Tests parsing a schema with deeply nested types."""
+    yaml_content = """
+name: "deeply.nested.schema"
+version: "1.0.0"
+columns:
+  - name: "top_level_struct"
+    type: "struct"
+    fields:
+      - name: "nested_array"
+        type: "array"
+        element:
+          type: "struct"
+          fields:
+            - name: "id"
+              type: "integer"
+            - name: "data"
+              type: "string"
+"""
+    spec = from_string(yaml_content)
+    assert len(spec.columns) == 1
+    top_level_col = spec.columns[0]
+    assert top_level_col.name == "top_level_struct"
+    assert isinstance(top_level_col.type, Struct)
+
+    assert len(top_level_col.type.fields) == 1
+    nested_array_field = top_level_col.type.fields[0]
+    assert nested_array_field.name == "nested_array"
+    assert isinstance(nested_array_field.type, Array)
+
+    element_type = nested_array_field.type.element
+    assert isinstance(element_type, Struct)
+
+    assert len(element_type.fields) == 2
+    id_field, data_field = element_type.fields
+    assert id_field.name == "id"
+    assert isinstance(id_field.type, Integer)
+    assert data_field.name == "data"
+    assert isinstance(data_field.type, String)
 
 
 def test_from_string_decimal_params_out_of_order():
@@ -309,6 +350,19 @@ columns:
         from_string(yaml_content)
 
 
+def test_from_string_invalid_type_def_raises_error():
+    """Tests that a non-string type raises a ValueError."""
+    yaml_content = """
+name: "test.schema"
+version: "1.0.0"
+columns:
+  - name: "col1"
+    type: 123
+"""
+    with pytest.raises(ValueError, match="The 'type' of a field must be a string"):
+        from_string(yaml_content)
+
+
 @pytest.mark.parametrize(
     "yaml_content, error_msg",
     [
@@ -421,8 +475,25 @@ columns:
     assert fk_constraint.references == Reference(table="users", columns=["id"])
 
 
-def test_from_string_with_table_foreign_key_constraint():
-    """Tests parsing a schema with a table-level foreign key constraint."""
+def test_from_string_with_invalid_constraint_raises_error():
+    """Tests that an unknown constraint raises a ValueError."""
+    yaml_content = """
+name: "invalid.constraint.schema"
+version: "1.0.0"
+columns:
+  - name: "id"
+    type: "uuid"
+    constraints:
+      invalid_constraint: true
+"""
+    with pytest.raises(
+        ValueError, match="Unknown column constraint: invalid_constraint"
+    ):
+        from_string(yaml_content)
+
+
+def test_from_string_with_table_foreign_key_constraint_multiple_columns():
+    """Tests parsing a schema with multiple columns in a table-level foreign key constraint."""
     yaml_content = """
 name: "fk.schema"
 version: "1.0.0"
@@ -448,6 +519,31 @@ columns:
     assert fk_constraint.references == Reference(
         table="order_items", columns=["order_id", "product_id"]
     )
+
+
+def test_from_string_with_table_foreign_key_constraint_single_column():
+    """Tests parsing a schema with a single-column table-level foreign key constraint."""
+    yaml_content = """
+name: "fk.schema"
+version: "1.0.0"
+table_constraints:
+  - type: "foreign_key"
+    name: "fk_order_items"
+    columns: ["order_id"]
+    references:
+      table: "order_items"
+      columns: ["id"]
+columns:
+  - name: "order_id"
+    type: "uuid"
+"""
+    spec = from_string(yaml_content)
+    assert len(spec.table_constraints) == 1
+    fk_constraint = spec.table_constraints[0]
+    assert isinstance(fk_constraint, ForeignKeyTableConstraint)
+    assert fk_constraint.name == "fk_order_items"
+    assert fk_constraint.columns == ["order_id"]
+    assert fk_constraint.references == Reference(table="order_items", columns=["id"])
 
 
 def test_from_yaml_loads_from_file(tmp_path):
@@ -582,3 +678,30 @@ def test_no_duplicate_pk_constraint_no_warning(recwarn):
     """
     from_string(yaml_content)
     assert len(recwarn) == 0
+
+
+def test_undefined_columns_in_foreign_key_table_constraint_warning():
+    """Tests that a warning is issued for foreign key table constraints on undefined columns."""
+    yaml_content = """
+    name: "undefined.columns.schema"
+    version: "1.0.0"
+    table_constraints:
+      - type: "foreign_key"
+        name: "fk_table"
+        columns:
+          - "id"
+          - "non_existent_col"
+        references:
+          table: "another_table"
+          columns:
+            - "id"
+            - "another_non_existent_col"
+    columns:
+      - name: "id"
+        type: "integer"
+    """
+    with pytest.warns(
+        UserWarning,
+        match=r"Table constraint 'fk_table' references undefined columns: \['non_existent_col'\]",
+    ):
+        from_string(yaml_content)

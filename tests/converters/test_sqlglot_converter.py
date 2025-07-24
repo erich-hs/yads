@@ -20,6 +20,83 @@ def assert_ast_equal(spec_yaml: str, sql: str):
     )
 
 
+def test_create_external_table():
+    """
+    Tests creating an external table.
+    """
+    spec_yaml = """
+name: "my_catalog.my_db.my_table"
+version: "1.0"
+options:
+  is_external: true
+columns:
+  - name: "order_id"
+    type: "uuid"
+"""
+    sql = "CREATE EXTERNAL TABLE my_catalog.my_db.my_table (order_id UUID)"
+    assert_ast_equal(spec_yaml, sql)
+
+
+def test_create_external_table_with_location():
+    """
+    Tests creating an external table with a location property.
+    """
+    spec_yaml = """
+name: "my_catalog.my_db.my_table"
+version: "1.0"
+options:
+  is_external: true
+storage:
+  location: "/path/to/table"
+columns:
+  - name: "order_id"
+    type: "uuid"
+"""
+    sql = "CREATE EXTERNAL TABLE my_catalog.my_db.my_table (order_id UUID) LOCATION '/path/to/table'"
+    assert_ast_equal(spec_yaml, sql)
+
+
+def test_create_external_table_with_file_format():
+    """
+    Tests creating an external table with a file format.
+    """
+    spec_yaml = """
+name: "my_catalog.my_db.my_table"
+version: "1.0"
+options:
+  is_external: true
+storage:
+  format: "parquet"
+columns:
+  - name: "order_id"
+    type: "uuid"
+"""
+    sql = (
+        "CREATE EXTERNAL TABLE my_catalog.my_db.my_table (order_id UUID) USING parquet"
+    )
+    assert_ast_equal(spec_yaml, sql)
+
+
+def test_create_external_table_with_location_and_file_format():
+    """
+    Tests creating an external table with a location and file format.
+    """
+    spec_yaml = """
+name: "my_catalog.my_db.my_table"
+version: "1.0"
+options:
+  is_external: true
+storage:
+  location: "/path/to/table"
+  format: "parquet"
+columns:
+  - name: "order_id"
+    type: "uuid"
+"""
+    sql = "CREATE EXTERNAL TABLE my_catalog.my_db.my_table (order_id UUID) USING parquet LOCATION '/path/to/table'"
+    assert_ast_equal(spec_yaml, sql)
+
+
 def test_create_table_with_single_column():
     """
     Tests creating a table with a single column.
@@ -93,7 +170,7 @@ def test_create_table_with_location_property():
     spec_yaml = """
 name: "my_catalog.my_db.my_table"
 version: "1.0"
-properties:
+storage:
   location: "/path/to/table"
 columns:
   - name: "order_id"
@@ -110,11 +187,10 @@ def test_create_table_with_partition_by():
     spec_yaml = """
 name: "my_catalog.my_db.my_table"
 version: "1.0"
-properties:
-  partitioned_by:
-    - column: "order_date"
-    - column: "created_at"
-      transform: "month"
+partitioned_by:
+  - column: "order_date"
+  - column: "created_at"
+    transform: "month"
 columns:
   - name: "order_id"
     type: "uuid"
@@ -141,9 +217,10 @@ def test_create_table_with_generic_properties():
     spec_yaml = """
 name: "my_catalog.my_db.my_table"
 version: "1.0"
-properties:
-  table_type: "iceberg"
-  format: "parquet"
+storage:
+  format: "iceberg"
+  tbl_properties:
+    "my_prop": "my_value"
 columns:
   - name: "order_id"
     type: "uuid"
@@ -152,9 +229,9 @@ columns:
 CREATE TABLE my_catalog.my_db.my_table (
   order_id UUID
 )
+USING iceberg
 TBLPROPERTIES (
-  'table_type' = 'iceberg',
-  'format' = 'parquet'
+  'my_prop' = 'my_value'
 )
 """
     assert_ast_equal(spec_yaml, sql)
@@ -619,6 +696,22 @@ CREATE TABLE my_catalog.my_db.orders (
     order_id INT NOT NULL PRIMARY KEY,
     customer_id UUID CONSTRAINT orders_customers_fk REFERENCES my_catalog.my_db.customers (id)
 )"""
+    assert_ast_equal(spec_yaml, sql)
+
+
+def test_create_table_with_empty_storage_properties():
+    """
+    Tests creating a table with an empty storage properties block.
+    """
+    spec_yaml = """
+name: "my_catalog.my_db.my_table"
+version: "1.0"
+storage: {}
+columns:
+  - name: "order_id"
+    type: "uuid"
+"""
+    sql = "CREATE TABLE my_catalog.my_db.my_table (order_id UUID)"
     assert_ast_equal(spec_yaml, sql)
 
 

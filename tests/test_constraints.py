@@ -13,6 +13,24 @@ from yads.constraints import (
 )
 
 
+def test_reference_str_single_column():
+    """Tests the __str__ of Reference with a single column."""
+    reference = Reference(table="ref_table", columns=["id"])
+    assert str(reference) == "ref_table(id)"
+
+
+def test_reference_str_multiple_columns():
+    """Tests the __str__ of Reference with multiple columns."""
+    reference = Reference(table="ref_table", columns=["id", "name"])
+    assert str(reference) == "ref_table(id, name)"
+
+
+def test_reference_str_no_columns():
+    """Tests the __str__ of Reference with no columns."""
+    reference = Reference(table="ref_table")
+    assert str(reference) == "ref_table"
+
+
 def test_not_null_constraint_str():
     """Tests the __str__ of NotNullConstraint."""
     assert str(NotNullConstraint()) == "NotNullConstraint()"
