@@ -18,17 +18,11 @@ from yads.converters.base import BaseConverter
 from yads.spec import Field, SchemaSpec, Storage, TransformedColumn
 from yads.types import (
     Array,
-    Date,
     Decimal,
-    Float,
-    Integer,
     Map,
     String,
     Struct,
-    Timestamp,
-    TimestampTZ,
     Type,
-    UUID,
 )
 
 
@@ -83,14 +77,8 @@ class SqlglotConverter(BaseConverter):
 
     def __init__(self) -> None:
         self._type_handlers: dict[type[Type], Callable[[Any], exp.DataType]] = {
-            UUID: self._handle_uuid_type,
-            Integer: self._handle_integer_type,
-            Float: self._handle_float_type,
-            Date: self._handle_date_type,
-            Timestamp: self._handle_timestamp_type,
-            TimestampTZ: self._handle_timestamptz_type,
-            Decimal: self._handle_decimal_type,
             String: self._handle_string_type,
+            Decimal: self._handle_decimal_type,
             Array: self._handle_array_type,
             Struct: self._handle_struct_type,
             Map: self._handle_map_type,
@@ -136,43 +124,11 @@ class SqlglotConverter(BaseConverter):
 
     # Type handlers
     def _convert_type(self, yads_type: Type) -> exp.DataType:
-        handler = self._type_handlers.get(type(yads_type))
-        if not handler:
-            raise NotImplementedError(
-                f"No handler implemented for type: {type(yads_type)}"
-            )
-        return handler(yads_type)
-
-    def _handle_uuid_type(self, yads_type: UUID) -> exp.DataType:
-        return exp.DataType(this=exp.DataType.Type.UUID)
-
-    def _handle_integer_type(self, yads_type: Integer) -> exp.DataType:
-        return exp.DataType(this=exp.DataType.Type.INT)
-
-    def _handle_float_type(self, yads_type: Float) -> exp.DataType:
-        return exp.DataType(this=exp.DataType.Type.FLOAT)
-
-    def _handle_date_type(self, yads_type: Date) -> exp.DataType:
-        return exp.DataType(this=exp.DataType.Type.DATE)
-
-    def _handle_timestamp_type(self, yads_type: Timestamp) -> exp.DataType:
-        return exp.DataType(this=exp.DataType.Type.TIMESTAMP)
-
-    def _handle_timestamptz_type(self, yads_type: TimestampTZ) -> exp.DataType:
-        return exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ)
-
-    def _handle_decimal_type(self, yads_type: Decimal) -> exp.DataType:
-        expressions = []
-        if (
-            yads_type.precision is not None
-        ):  # yads.Types.Decimal must have both precision and scale, or neither
-            expressions.append(exp.DataTypeParam(this=convert(yads_type.precision)))
-            expressions.append(exp.DataTypeParam(this=convert(yads_type.scale)))
-
-        return exp.DataType(
-            this=exp.DataType.Type.DECIMAL,
-            expressions=expressions if expressions else None,
-        )
+        """Converts a yads type to a sqlglot DataType expression."""
+        if handler := self._type_handlers.get(type(yads_type)):
+            return handler(yads_type)
+        # https://sqlglot.com/sqlglot/expressions.html#DataType.build
+        return exp.DataType.build(str(yads_type))
 
     def _handle_string_type(self, yads_type: String) -> exp.DataType:
         if yads_type.length:
@@ -181,6 +137,17 @@ class SqlglotConverter(BaseConverter):
                 expressions=[exp.DataTypeParam(this=convert(yads_type.length))],
             )
         return exp.DataType(this=exp.DataType.Type.TEXT)
+
+    def _handle_decimal_type(self, yads_type: Decimal) -> exp.DataType:
+        expressions = []
+        if yads_type.precision is not None:
+            expressions.append(exp.DataTypeParam(this=convert(yads_type.precision)))
+            expressions.append(exp.DataTypeParam(this=convert(yads_type.scale)))
+
+        return exp.DataType(
+            this=exp.DataType.Type.DECIMAL,
+            expressions=expressions if expressions else None,
+        )
 
     def _handle_array_type(self, yads_type: Array) -> exp.DataType:
         element_type = self._convert_type(yads_type.element)
@@ -250,8 +217,7 @@ class SqlglotConverter(BaseConverter):
             return handler(column, transform_args)
 
         # Fallback to a generic function expression for all other transforms.
-        # This is useful for simple transformations that don't require special
-        # handling and can be represented as a function call.
+        # https://sqlglot.com/sqlglot/expressions.html#func
         return exp.func(
             transform,
             exp.column(column),
