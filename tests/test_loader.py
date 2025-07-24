@@ -1,4 +1,5 @@
 import pytest
+import re
 
 from yads.loader import from_dict, from_string, from_yaml
 from yads.spec import Field, SchemaSpec
@@ -703,5 +704,50 @@ def test_undefined_columns_in_foreign_key_table_constraint_warning():
     with pytest.warns(
         UserWarning,
         match=r"Table constraint 'fk_table' references undefined columns: \['non_existent_col'\]",
+    ):
+        from_string(yaml_content)
+
+
+def test_from_string_generated_as_references_undefined_column_raises_error():
+    """
+    Tests that a generated_as clause referencing an undefined column raises a ValueError.
+    """
+    yaml_content = """
+name: "generated.as.undefined.column.schema"
+version: "1.0.0"
+columns:
+  - name: "col1"
+    type: "integer"
+  - name: "col2"
+    type: "integer"
+    generated_as:
+      column: "non_existent_col"
+      transform: "identity"
+"""
+    with pytest.raises(
+        ValueError,
+        match="Generated column 'col2' references undefined column: 'non_existent_col'",
+    ):
+        from_string(yaml_content)
+
+
+def test_from_string_partitioned_by_references_undefined_column_raises_error():
+    """
+    Tests that a partitioned_by clause referencing an undefined column raises a ValueError.
+    """
+    yaml_content = """
+name: "partitioned.by.undefined.column.schema"
+version: "1.0.0"
+partitioned_by:
+  - column: "non_existent_col"
+columns:
+  - name: "col1"
+    type: "integer"
+"""
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "Partition spec references undefined columns: ['non_existent_col']"
+        ),
     ):
         from_string(yaml_content)

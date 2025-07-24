@@ -20,6 +20,21 @@ def _format_dict_as_kwargs(d: dict[str, Any], multiline: bool = False) -> str:
 
 
 @dataclass(frozen=True)
+class GenerationClause:
+    """Represents the generation clause for a generated column."""
+
+    column: str
+    transform: str
+    transform_args: list[Any] = field(default_factory=list)
+
+    def __str__(self) -> str:
+        if self.transform_args:
+            args_str = ", ".join(map(str, self.transform_args))
+            return f"{self.transform}({self.column}, {args_str})"
+        return f"{self.transform}({self.column})"
+
+
+@dataclass(frozen=True)
 class Field:
     """Represents a named and typed data field."""
 
@@ -28,6 +43,7 @@ class Field:
     description: str | None = None
     constraints: list[ColumnConstraint] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
+    generated_as: GenerationClause | None = None
 
     def _build_details_repr(self) -> str:
         """Builds the string representation of the field's details."""
@@ -39,6 +55,8 @@ class Field:
             details.append(f"constraints=[{constraints_str}]")
         if self.metadata:
             details.append(f"metadata={_format_dict_as_kwargs(self.metadata)}")
+        if self.generated_as:
+            details.append(f"generated_as={self.generated_as}")
 
         if not details:
             return ""
@@ -47,7 +65,6 @@ class Field:
         return f"(\n{textwrap.indent(pretty_details, '  ')}\n)"
 
     def __str__(self) -> str:
-        """Returns a string representation of the field."""
         details_repr = self._build_details_repr()
         return f"{self.name}: {self.type}{details_repr}"
 
@@ -65,7 +82,6 @@ class Options:
         return self.is_external or self.if_not_exists or self.or_replace
 
     def __str__(self) -> str:
-        """Returns a string representation of the options."""
         if not self.is_defined():
             return "Options()"
         parts = []
@@ -164,6 +180,5 @@ class SchemaSpec:
         return "\n".join(parts)
 
     def __str__(self) -> str:
-        """Returns a pretty-printed string representation of the schema."""
         body = textwrap.indent(self._build_body_str(), "  ")
         return f"{self._build_header_str()}(\n{body}\n)"

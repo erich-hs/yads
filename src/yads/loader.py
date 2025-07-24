@@ -18,6 +18,7 @@ from .constraints import (
 )
 from .spec import (
     Field,
+    GenerationClause,
     Options,
     SchemaSpec,
     Storage,
@@ -204,6 +205,26 @@ def _parse_constraints(
 
 
 # Column parsers
+def _parse_generation_clause(
+    gen_clause_def: dict[str, Any] | None,
+) -> GenerationClause | None:
+    """Parses a generation clause dictionary and returns a GenerationClause object."""
+    if not gen_clause_def:
+        return None
+
+    for required_field in ("column", "transform"):
+        if required_field not in gen_clause_def:
+            raise ValueError(
+                f"'{required_field}' is a required field in a generation clause"
+            )
+
+    return GenerationClause(
+        column=gen_clause_def["column"],
+        transform=gen_clause_def["transform"],
+        transform_args=gen_clause_def.get("transform_args", []),
+    )
+
+
 def _parse_column(col_def: dict[str, Any]) -> Field:
     """Parses a column definition dictionary and returns a Field object."""
     for required_field in ("name", "type"):
@@ -222,6 +243,7 @@ def _parse_column(col_def: dict[str, Any]) -> Field:
         description=col_def.get("description"),
         constraints=_parse_constraints(col_def.get("constraints")),
         metadata=col_def.get("metadata", {}),
+        generated_as=_parse_generation_clause(col_def.get("generated_as")),
     )
 
 
@@ -382,6 +404,33 @@ def _check_for_undefined_columns_in_table_constraints(spec: SchemaSpec) -> None:
             )
 
 
+def _check_for_undefined_columns_in_partitioned_by(spec: SchemaSpec) -> None:
+    """
+    Checks if partition columns reference columns that are not defined in the spec.
+    """
+    defined_columns = {c.name for c in spec.columns}
+    partition_columns = {p.column for p in spec.partitioned_by}
+    if not_defined := partition_columns - defined_columns:
+        raise ValueError(
+            f"Partition spec references undefined columns: {sorted(list(not_defined))}"
+        )
+
+
+def _check_for_undefined_columns_in_generated_as(spec: SchemaSpec) -> None:
+    """
+    Checks if generated columns reference columns that are not defined in the spec.
+    """
+    defined_columns = {c.name for c in spec.columns}
+    for column in spec.columns:
+        if column.generated_as:
+            referenced_column = column.generated_as.column
+            if referenced_column not in defined_columns:
+                raise ValueError(
+                    f"Generated column '{column.name}' references undefined column: "
+                    f"'{referenced_column}'"
+                )
+
+
 # Loader functions
 def from_dict(data: dict[str, Any]) -> SchemaSpec:
     """Instantiates a SchemaSpec from a pre-parsed Python dictionary."""
@@ -402,6 +451,8 @@ def from_dict(data: dict[str, Any]) -> SchemaSpec:
     )
     _check_for_duplicate_constraint_definitions(spec)
     _check_for_undefined_columns_in_table_constraints(spec)
+    _check_for_undefined_columns_in_partitioned_by(spec)
+    _check_for_undefined_columns_in_generated_as(spec)
     return spec
 
 

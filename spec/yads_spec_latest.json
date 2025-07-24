@@ -118,9 +118,23 @@
         },
         "metadata": {
             "type": "object"
+        },
+        "generated_as": {
+            "$ref": "#/definitions/generation_clause"
         }
       },
       "required": ["type"]
+    },
+    "generation_clause": {
+        "type": "object",
+        "properties": {
+            "column": { "type": "string" },
+            "transform": { "type": "string" },
+            "transform_args": {
+                "type": "array"
+            }
+        },
+        "required": ["column", "transform"]
     },
     "transformed_column": {
         "type": "object",

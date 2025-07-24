@@ -98,6 +98,7 @@ class SqlglotConverter(BaseConverter):
         self._transform_handlers: dict[str, Callable[..., exp.Expression]] = {
             "bucket": self._handle_bucket_transform,
             "truncate": self._handle_truncate_transform,
+            "cast": self._handle_cast_transform,
         }
         self._constraint_handlers: dict[type, Callable[[Any], exp.ColumnConstraint]] = {
             NotNullConstraint: self._handle_not_null_constraint,
@@ -228,7 +229,9 @@ class SqlglotConverter(BaseConverter):
         for col in value:
             expression: exp.Expression
             if col.transform:
-                expression = self._handle_transformed_column(col)
+                expression = self._handle_transformation(
+                    col.column, col.transform, col.transform_args
+                )
             else:
                 expression = exp.Identifier(this=col.column)
             schema_expressions.append(expression)
@@ -237,23 +240,32 @@ class SqlglotConverter(BaseConverter):
             this=exp.Schema(expressions=schema_expressions)
         )
 
-    def _handle_transformed_column(self, col: TransformedColumn) -> exp.Expression:
+    def _handle_transformation(
+        self, column: str, transform: str, transform_args: list
+    ) -> exp.Expression:
         """Handles a transformed column by dispatching to a specific handler or
         falling back to a generic function expression.
         """
-        if not col.transform:
-            return exp.column(col.column)
-
-        if handler := self._transform_handlers.get(col.transform):
-            return handler(col.column, col.transform_args)
+        if handler := self._transform_handlers.get(transform):
+            return handler(column, transform_args)
 
         # Fallback to a generic function expression for all other transforms.
         # This is useful for simple transformations that don't require special
         # handling and can be represented as a function call.
         return exp.func(
-            col.transform,
-            exp.column(col.column),
-            *(exp.convert(arg) for arg in col.transform_args),
+            transform,
+            exp.column(column),
+            *(exp.convert(arg) for arg in transform_args),
+        )
+
+    def _handle_cast_transform(
+        self, column: str, transform_args: list
+    ) -> exp.Expression:
+        if len(transform_args) != 1:
+            raise ValueError("The 'cast' transform requires exactly one argument")
+        return exp.Cast(
+            this=exp.column(column),
+            to=exp.DataType(this=exp.DataType.Type[transform_args[0]]),
         )
 
     def _handle_bucket_transform(
@@ -303,6 +315,20 @@ class SqlglotConverter(BaseConverter):
     # Field and constraint handlers
     def _convert_field(self, field: Field) -> exp.ColumnDef:
         constraints = []
+        if field.generated_as:
+            expression = self._handle_transformation(
+                field.generated_as.column,
+                field.generated_as.transform,
+                field.generated_as.transform_args,
+            )
+            constraints.append(
+                exp.ColumnConstraint(
+                    kind=exp.GeneratedAsIdentityColumnConstraint(
+                        this=True, expression=expression
+                    )
+                )
+            )
+
         for constraint in field.constraints:
             if handler := self._constraint_handlers.get(type(constraint)):
                 constraints.append(handler(constraint))

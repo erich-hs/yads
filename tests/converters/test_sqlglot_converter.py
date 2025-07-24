@@ -951,3 +951,121 @@ CREATE TABLE events(
 PARTITIONED BY (eventType, YEAR(eventTime), MONTH(eventTime), DAY(eventTime))
 """
     assert_ast_equal(spec_yaml, sql)
+
+
+def test_create_table_with_generated_columns_date_cast():
+    """
+    Tests creating a table with a generated column that casts a timestamp to a date.
+    """
+    spec_yaml = """
+name: "default.people10m"
+version: "1.0"
+columns:
+  - name: "id"
+    type: "integer"
+  - name: "birthDate"
+    type: "timestamp"
+  - name: "dateOfBirth"
+    type: "date"
+    generated_as:
+      column: "birthDate"
+      transform: "cast"
+      transform_args: ["DATE"]
+"""
+    sql = """
+CREATE TABLE default.people10m (
+  id INT,
+  birthDate TIMESTAMP,
+  dateOfBirth DATE GENERATED ALWAYS AS (CAST(birthDate AS DATE))
+)
+"""
+    assert_ast_equal(spec_yaml, sql)
+
+
+def test_create_table_with_generated_columns_date_parts():
+    """
+    Tests creating a table with generated columns for year, month, and day from a timestamp.
+    """
+    spec_yaml = """
+name: "events"
+version: "1.0"
+columns:
+  - name: "eventId"
+    type: "integer"
+  - name: "eventTime"
+    type: "timestamp"
+  - name: "eventYear"
+    type: "integer"
+    generated_as:
+      column: "eventTime"
+      transform: "year"
+  - name: "eventMonth"
+    type: "integer"
+    generated_as:
+      column: "eventTime"
+      transform: "month"
+  - name: "eventDay"
+    type: "integer"
+    generated_as:
+      column: "eventTime"
+      transform: "day"
+"""
+    sql = """
+CREATE TABLE events (
+  eventId INT,
+  eventTime TIMESTAMP,
+  eventYear INT GENERATED ALWAYS AS (YEAR(eventTime)),
+  eventMonth INT GENERATED ALWAYS AS (MONTH(eventTime)),
+  eventDay INT GENERATED ALWAYS AS (DAY(eventTime))
+)
+"""
+    assert_ast_equal(spec_yaml, sql)
+
+
+def test_create_table_with_generated_columns_and_partitioning():
+    """
+    Tests creating a table with generated columns that are also used for partitioning.
+    """
+    spec_yaml = """
+name: "events"
+version: "1.0"
+partitioned_by:
+  - column: "eventType"
+  - column: "eventYear"
+  - column: "eventMonth"
+  - column: "eventDay"
+columns:
+  - name: "eventId"
+    type: "integer"
+  - name: "eventType"
+    type: "string"
+  - name: "eventTime"
+    type: "timestamp"
+  - name: "eventYear"
+    type: "integer"
+    generated_as:
+      column: "eventTime"
+      transform: "year"
+  - name: "eventMonth"
+    type: "integer"
+    generated_as:
+      column: "eventTime"
+      transform: "month"
+  - name: "eventDay"
+    type: "integer"
+    generated_as:
+      column: "eventTime"
+      transform: "day"
+"""
+    sql = """
+CREATE TABLE events(
+    eventId INT,
+    eventType TEXT,
+    eventTime TIMESTAMP,
+    eventYear INT GENERATED ALWAYS AS (YEAR(eventTime)),
+    eventMonth INT GENERATED ALWAYS AS (MONTH(eventTime)),
+    eventDay INT GENERATED ALWAYS AS (DAY(eventTime))
+)
+PARTITIONED BY (eventType, eventYear, eventMonth, eventDay)
+"""
+    assert_ast_equal(spec_yaml, sql)
