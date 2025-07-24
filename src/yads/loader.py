@@ -10,6 +10,7 @@ from .constraints import (
     DefaultConstraint,
     ForeignKeyConstraint,
     ForeignKeyTableConstraint,
+    IdentityConstraint,
     NotNullConstraint,
     PrimaryKeyConstraint,
     PrimaryKeyTableConstraint,
@@ -179,11 +180,27 @@ def _parse_foreign_key_constraint(value: Any) -> ForeignKeyConstraint:
     )
 
 
+def _parse_identity_constraint(value: Any) -> IdentityConstraint:
+    """Parses an identity constraint."""
+    if not isinstance(value, dict):
+        raise ValueError("The 'identity' constraint expects a dictionary")
+
+    increment = value.get("increment")
+    if increment == 0:
+        raise ValueError("The 'increment' for an identity constraint cannot be 0")
+    return IdentityConstraint(
+        always=value.get("always", True),
+        start=value.get("start"),
+        increment=increment,
+    )
+
+
 _COLUMN_CONSTRAINT_PARSERS: dict[str, Callable[[Any], ColumnConstraint]] = {
     "not_null": _parse_not_null_constraint,
     "primary_key": _parse_primary_key_constraint,
     "default": _parse_default_constraint,
     "foreign_key": _parse_foreign_key_constraint,
+    "identity": _parse_identity_constraint,
 }
 
 

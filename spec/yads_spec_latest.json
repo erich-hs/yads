@@ -193,6 +193,14 @@
         "primary_key": {
           "type": "boolean"
         },
+        "identity": {
+            "type": "object",
+            "properties": {
+                "always": { "type": "boolean", "default": true },
+                "start": { "type": "integer" },
+                "increment": { "type": "integer" }
+            }
+        },
         "foreign_key": {
           "type": "object",
           "properties": {

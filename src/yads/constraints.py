@@ -105,6 +105,15 @@ class PrimaryKeyTableConstraint(TableConstraint):
 
 
 @dataclass(frozen=True)
+class IdentityConstraint(ColumnConstraint):
+    """Represents an identity column constraint."""
+
+    always: bool = True
+    start: int | None = None
+    increment: int | None = None
+
+
+@dataclass(frozen=True)
 class ForeignKeyTableConstraint(TableConstraint):
     """Represents a FOREIGN KEY constraint on a table. Can be used to defined composite foreign keys."""
 

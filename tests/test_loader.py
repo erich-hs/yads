@@ -751,3 +751,99 @@ columns:
         ),
     ):
         from_string(yaml_content)
+
+
+@pytest.mark.parametrize(
+    "transform, column",
+    [
+        ("identity", "day"),
+        ("identity", "birthDate"),
+    ],
+)
+def test_generated_column_undefined_column_raises_error(transform, column):
+    data = {
+        "name": "test_schema",
+        "version": "1.0",
+        "columns": [
+            {"name": "id", "type": "integer"},
+            {
+                "name": "generated_col",
+                "type": "integer",
+                "generated_as": {"transform": transform, "column": column},
+            },
+        ],
+    }
+    with pytest.raises(
+        ValueError,
+        match=f"Generated column 'generated_col' references undefined column: '{column}'",
+    ):
+        from_dict(data)
+
+
+def test_identity_constraint_with_increment_zero_raises_error():
+    """Tests that an identity constraint with an increment of 0 raises a ValueError."""
+    spec_yaml = """
+name: "my_table"
+version: "1.0"
+columns:
+  - name: "id_col"
+    type: "integer"
+    constraints:
+      identity:
+        increment: 0
+"""
+    with pytest.raises(
+        ValueError, match="The 'increment' for an identity constraint cannot be 0"
+    ):
+        from_string(spec_yaml)
+
+
+def test_identity_constraint_with_invalid_type_raises_error():
+    """Tests that an identity constraint with an invalid type raises a ValueError."""
+    spec_yaml = """
+name: "my_table"
+version: "1.0"
+columns:
+  - name: "id_col"
+    type: "integer"
+    constraints:
+      identity: "invalid_type"
+"""
+    with pytest.raises(
+        ValueError, match="The 'identity' constraint expects a dictionary"
+    ):
+        from_string(spec_yaml)
+
+
+def test_identity_constraint_boolean_true_raises_error():
+    """Tests that an identity constraint with a value of true raises a ValueError."""
+    spec_yaml = """
+name: "my_table"
+version: "1.0"
+columns:
+  - name: "id_col"
+    type: "integer"
+    constraints:
+      identity: true
+"""
+    with pytest.raises(
+        ValueError, match="The 'identity' constraint expects a dictionary"
+    ):
+        from_string(spec_yaml)
+
+
+def test_identity_constraint_false_raises_error():
+    """Tests that an identity constraint with a value of false raises a ValueError."""
+    spec_yaml = """
+name: "my_table"
+version: "1.0"
+columns:
+  - name: "id_col"
+    type: "integer"
+    constraints:
+      identity: false
+"""
+    with pytest.raises(
+        ValueError, match="The 'identity' constraint expects a dictionary"
+    ):
+        from_string(spec_yaml)

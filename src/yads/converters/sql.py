@@ -9,6 +9,7 @@ from yads.constraints import (
     DefaultConstraint,
     ForeignKeyConstraint,
     ForeignKeyTableConstraint,
+    IdentityConstraint,
     NotNullConstraint,
     PrimaryKeyConstraint,
     PrimaryKeyTableConstraint,
@@ -105,6 +106,7 @@ class SqlglotConverter(BaseConverter):
             PrimaryKeyConstraint: self._handle_primary_key_constraint,
             DefaultConstraint: self._handle_default_constraint,
             ForeignKeyConstraint: self._handle_foreign_key_constraint,
+            IdentityConstraint: self._handle_identity_constraint,
         }
         self._table_constraint_handlers: dict[type, Callable[[Any], exp.Expression]] = {
             PrimaryKeyTableConstraint: self._handle_primary_key_table_constraint,
@@ -361,6 +363,31 @@ class SqlglotConverter(BaseConverter):
     ) -> exp.ColumnConstraint:
         return exp.ColumnConstraint(
             kind=exp.DefaultColumnConstraint(this=convert(constraint.value))
+        )
+
+    def _handle_identity_constraint(
+        self, constraint: IdentityConstraint
+    ) -> exp.ColumnConstraint:
+        start_expr: exp.Expression | None = None
+        if constraint.start is not None:
+            if constraint.start < 0:
+                start_expr = exp.Neg(this=convert(abs(constraint.start)))
+            else:
+                start_expr = convert(constraint.start)
+
+        increment_expr: exp.Expression | None = None
+        if constraint.increment is not None:
+            if constraint.increment < 0:
+                increment_expr = exp.Neg(this=convert(abs(constraint.increment)))
+            else:
+                increment_expr = convert(constraint.increment)
+
+        return exp.ColumnConstraint(
+            kind=exp.GeneratedAsIdentityColumnConstraint(
+                this=constraint.always,
+                start=start_expr,
+                increment=increment_expr,
+            )
         )
 
     def _handle_foreign_key_constraint(
