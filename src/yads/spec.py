@@ -21,7 +21,7 @@ def _format_dict_as_kwargs(d: dict[str, Any], multiline: bool = False) -> str:
 
 @dataclass(frozen=True)
 class GenerationClause:
-    """Represents the generation clause for a generated column."""
+    """Defines a generation clause for columns that are generated from other columns in the table."""
 
     column: str
     transform: str
@@ -36,7 +36,7 @@ class GenerationClause:
 
 @dataclass(frozen=True)
 class Field:
-    """Represents a named and typed data field."""
+    """A named and typed data field, representing a column in a table or a field in a complex type."""
 
     name: str
     type: Type
@@ -71,7 +71,7 @@ class Field:
 
 @dataclass(frozen=True)
 class Options:
-    """Represents options for schema handling."""
+    """Represents high-level options for CREATE TABLE statements."""
 
     is_external: bool = False
     if_not_exists: bool = False
@@ -96,7 +96,7 @@ class Options:
 
 @dataclass(frozen=True)
 class TransformedColumn:
-    """Represents a column that may have a transformation function applied."""
+    """A column that may have a transformation function applied."""
 
     column: str
     transform: str | None = None
@@ -113,7 +113,7 @@ class TransformedColumn:
 
 @dataclass(frozen=True)
 class Storage:
-    """Represents properties of the schema's underlying storage."""
+    """Defines the physical storage properties of a table."""
 
     format: str | None = None
     location: str | None = None
@@ -136,7 +136,7 @@ class Storage:
 
 @dataclass(frozen=True)
 class SchemaSpec:
-    """A data class representing a full schema specification."""
+    """A full yads schema specification, representing a table and its properties."""
 
     name: str
     version: str

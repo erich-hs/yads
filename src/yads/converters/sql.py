@@ -52,7 +52,8 @@ class SqlConverter:
             ast_converter: Optional. An AST converter to use. If None, a default
                            SqlglotConverter will be used.
             convert_options: Keyword arguments to be passed to the AST converter.
-                             These can be overridden in the `convert` method.
+                             These can be overridden in the `convert` method. See
+                             sqlglot's documentation for available options:
                              https://sqlglot.com/sqlglot/generator.html#Generator
         """
         self._ast_converter = ast_converter or SqlglotConverter()
@@ -60,13 +61,13 @@ class SqlConverter:
         self._convert_options = convert_options
 
     def convert(self, spec: SchemaSpec, **kwargs: Any) -> str:
-        """
-        Converts a yads SchemaSpec object into a SQL DDL string.
+        """Converts a yads SchemaSpec into a SQL DDL string.
 
         Args:
-            spec: The yads specification as a SchemaSpec object.
-            kwargs: Additional keyword arguments to be passed to the AST converter,
-                    overriding any options set during initialization.
+            spec: The SchemaSpec object.
+            kwargs: Keyword arguments for the AST converter, overriding any
+                    options from initialization. See sqlglot's documentation for
+                    available options:
                     https://sqlglot.com/sqlglot/generator.html#Generator
 
         Returns:
@@ -78,9 +79,7 @@ class SqlConverter:
 
 
 class SqlglotConverter(BaseConverter):
-    """
-    Converts a yads SchemaSpec object into a sqlglot Abstract Syntax Tree (AST).
-    """
+    """Converts a yads SchemaSpec into a sqlglot Abstract Syntax Tree (AST)."""
 
     def __init__(self) -> None:
         self._type_handlers: dict[type[Type], Callable[[Any], exp.DataType]] = {
@@ -114,14 +113,13 @@ class SqlglotConverter(BaseConverter):
         }
 
     def convert(self, spec: SchemaSpec) -> exp.Create:
-        """
-        Converts a yads SchemaSpec object into a sqlglot Create AST.
+        """Converts a yads SchemaSpec into a sqlglot Create AST.
 
         Args:
-            spec: The yads specification as a SchemaSpec object.
+            spec: The yads specification.
 
         Returns:
-            A sqlglot Create Abstract Syntax Tree (AST).
+            A sqlglot Create AST.
             https://sqlglot.com/sqlglot/expressions.html#Create
         """
         table = self._parse_full_table_name(spec.name)

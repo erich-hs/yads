@@ -38,6 +38,8 @@ class Type(ABC):
 
 @dataclass(frozen=True)
 class String(Type):
+    """A string data type, with an optional length."""
+
     length: int | None = None
 
     def __str__(self) -> str:
@@ -64,6 +66,8 @@ class Boolean(Type):
 
 @dataclass(frozen=True)
 class Decimal(Type):
+    """A decimal data type, with optional precision and scale."""
+
     precision: int | None = None
     scale: int | None = None
 
@@ -108,6 +112,8 @@ class UUID(Type):
 
 @dataclass(frozen=True)
 class Array(Type):
+    """An array data type, composed of elements of another type."""
+
     element: Type
 
     def __str__(self) -> str:
@@ -117,6 +123,8 @@ class Array(Type):
 
 @dataclass(frozen=True)
 class Struct(Type):
+    """A struct data type, composed of a list of named and typed fields."""
+
     fields: list["Field"]
 
     def __str__(self) -> str:
@@ -128,6 +136,8 @@ class Struct(Type):
 
 @dataclass(frozen=True)
 class Map(Type):
+    """A map data type, composed of a key type and a value type."""
+
     key: Type
     value: Type
 
