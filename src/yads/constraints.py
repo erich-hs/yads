@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import textwrap
-from typing import Any
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -14,7 +14,6 @@ class Reference:
     columns: list[str] | None = None
 
     def __str__(self) -> str:
-        """Returns a string representation of the reference."""
         if self.columns:
             return f"{self.table}({', '.join(self.columns)})"
         return self.table
@@ -22,12 +21,12 @@ class Reference:
 
 # Column Constraints
 class ColumnConstraint(ABC):
-    """The abstract base class for all column constraints."""
+    """Abstract base class for all column-level constraints."""
 
 
 @dataclass(frozen=True)
 class NotNullConstraint(ColumnConstraint):
-    """Represents a NOT NULL constraint on a column."""
+    """A NOT NULL constraint on a column."""
 
     def __str__(self) -> str:
         return "NotNullConstraint()"
@@ -35,7 +34,7 @@ class NotNullConstraint(ColumnConstraint):
 
 @dataclass(frozen=True)
 class PrimaryKeyConstraint(ColumnConstraint):
-    """Represents a PRIMARY KEY constraint on a column."""
+    """A PRIMARY KEY constraint on a column."""
 
     def __str__(self) -> str:
         return "PrimaryKeyConstraint()"
@@ -43,7 +42,7 @@ class PrimaryKeyConstraint(ColumnConstraint):
 
 @dataclass(frozen=True)
 class DefaultConstraint(ColumnConstraint):
-    """Represents a DEFAULT constraint on a column."""
+    """A DEFAULT constraint on a column."""
 
     value: Any
 
@@ -53,7 +52,7 @@ class DefaultConstraint(ColumnConstraint):
 
 @dataclass(frozen=True)
 class ForeignKeyConstraint(ColumnConstraint):
-    """Represents a FOREIGN KEY constraint on a column."""
+    """A FOREIGN KEY constraint on a column."""
 
     references: Reference
     name: str | None = None
@@ -68,10 +67,19 @@ class ForeignKeyConstraint(ColumnConstraint):
         return f"ForeignKeyConstraint({pretty_parts})"
 
 
+@dataclass(frozen=True)
+class IdentityConstraint(ColumnConstraint):
+    """An identity column constraint, often used for auto-incrementing keys."""
+
+    always: bool = True
+    start: int | None = None
+    increment: int | None = None
+
+
 # Table Constraints
 @dataclass(frozen=True)
 class TableConstraint(ABC):
-    """The abstract base class for all table constraints."""
+    """Abstract base class for all table-level constraints."""
 
     @abstractmethod
     def get_constrained_columns(self) -> list[str]:
@@ -81,7 +89,7 @@ class TableConstraint(ABC):
 
 @dataclass(frozen=True)
 class PrimaryKeyTableConstraint(TableConstraint):
-    """Represents a PRIMARY KEY constraint on a table. Can be used to defined composite primary keys."""
+    """A table-level PRIMARY KEY constraint, for single or composite keys."""
 
     columns: list[str]
     name: str | None = None
@@ -105,17 +113,8 @@ class PrimaryKeyTableConstraint(TableConstraint):
 
 
 @dataclass(frozen=True)
-class IdentityConstraint(ColumnConstraint):
-    """Represents an identity column constraint."""
-
-    always: bool = True
-    start: int | None = None
-    increment: int | None = None
-
-
-@dataclass(frozen=True)
 class ForeignKeyTableConstraint(TableConstraint):
-    """Represents a FOREIGN KEY constraint on a table. Can be used to defined composite foreign keys."""
+    """A table-level FOREIGN KEY constraint, for single or composite keys."""
 
     columns: list[str]
     references: Reference
