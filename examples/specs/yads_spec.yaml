@@ -1,126 +1,87 @@
-name: "warehouse.orders.customer_orders"
-version: "2.1.0"
-description: "Represents a single customer order, including line items and shipping details."
+name: "prod_db.fact_sales.customer_orders_pro"
+version: "3.0.0"
+description: "A comprehensive example showcasing advanced features of the YADS spec for a customer orders table."
 
 options:
-  if_not_exists: false
-  or_replace: false
+  if_not_exists: true
 
-properties:
-  partitioned_by:
-    - column: "order_date"
-    - column: "created_at"
-      transform: "month"
-  location: "/warehouse/orders/customer_orders"
-  table_type: "iceberg"
-  format: "parquet"
-  write_compression: "snappy"
+storage:
+  format: "iceberg"
+  location: "/warehouse/sales/customer_orders_pro"
+  tbl_properties:
+    write.target-file-size-bytes: "536870912"
+    read.split.target-size: "268435456"
+
+partitioned_by:
+  - column: "order_ts"
+    transform: "month"
+  - column: "order_status"
 
 metadata:
-  owner: "sales-engineering"
-  retention_days: 90
-  granularity: "One order per customer"
+  owner: "sales-analytics-team"
+  retention_days: 365
+  granularity: "per-order"
 
 table_constraints:
   - type: "primary_key"
-    name: "customer_orders_pk"
-    columns:
-      - "order_id"
-      - "company_id"
-  - type: "foreign_key"
-    name: "customer_orders_customer_fk"
-    columns:
-      - "customer_id"
-    references:
-      table: "warehouse.orders.customers"
-      columns:
-        - "id"
+    name: "pk_customer_orders_pro"
+    columns: ["order_id"]
 
 columns:
   - name: "order_id"
     type: "uuid"
-    description: "The unique identifier for the order (PK)."
+    description: "Unique identifier for each order."
     constraints:
       not_null: true
-
-  - name: "company_id"
-    type: "string"
-    description: "The ID of the company that placed the order (PK)."
-    constraints:
-      not_null: true
-
+  
   - name: "customer_id"
     type: "integer"
-    description: "The ID of the customer who placed the order."
+    description: "Identifier for the customer who placed the order."
     constraints:
       not_null: true
-
-  - name: "order_date"
-    type: "date"
-    description: "The date the order was placed."
+  
+  - name: "order_ts"
+    type: "timestamp_tz"
+    description: "Timestamp when the order was placed."
     constraints:
       not_null: true
-
-  - name: "order_total"
+  
+  - name: "total_amount"
     type: "decimal"
     params:
-      precision: 10
+      precision: 12
       scale: 2
-    description: "Total monetary value of the order."
+    description: "The total monetary value of the order."
     constraints:
       not_null: true
-      default: 0.5
+      default: 0.00
 
-  - name: "shipping_address"
+  - name: "order_status"
     type: "string"
-    params:
-      length: 255
-    description: "The full shipping address."
+    description: "The current status of the order (e.g., 'shipped', 'pending')."
+    constraints:
+      default: "pending"
 
-  - name: "line_items"
-    type: "array"
-    element:
-      type: "struct"
-      fields:
-        - name: "product_id"
-          type: "integer"
-          constraints:
-            not_null: true
-        - name: "quantity"
-          type: "integer"
-          constraints:
-            not_null: true
-        - name: "price"
-          type: "decimal"
-          params:
-            precision: 8
-            scale: 2
-          constraints:
-            not_null: true
-    description: "A list of products included in the order."
+  - name: "product_category"
+    type: "string"
+    description: "The category of the product."
 
+  - name: "shipping_details"
+    type: "struct"
+    fields:
+      - name: "address"
+        type: "string"
+        constraints:
+          not_null: true
+      - name: "city"
+        type: "string"
+      - name: "postal_code"
+        type: "string"
+        
   - name: "tags"
-    type: "array"
-    element:
-      type: "string"
-    description: "A list of tags for the order."
-
-  - name: "metadata_tags"
     type: "map"
     key:
       type: "string"
-      params:
-        length: 50
     value:
       type: "string"
-      params:
-        length: 255
-    description: "A map of metadata tags for the order."
-
-  - name: "created_at"
-    type: "timestamp_tz"
-    description: "The timestamp when the order record was created in the system."
-    constraints:
-      not_null: true
-    metadata:
-      source: "system_generated" 
+    description: "Key-value tags associated with the order." 

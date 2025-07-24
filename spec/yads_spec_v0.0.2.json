@@ -20,38 +20,43 @@
       "type": "object",
       "properties": {
         "if_not_exists": {
-          "type": "boolean",
-          "default": false
+          "type": "boolean"
         },
         "or_replace": {
-          "type": "boolean",
-          "default": false
+          "type": "boolean"
         }
-      },
-      "description": "Flags that modify the CREATE TABLE statement (e.g., EXTERNAL, IF NOT EXISTS)."
+      }
     },
-    "storage": {
+    "properties": {
       "type": "object",
-      "description": "Defines the physical storage settings of the table.",
       "properties": {
-        "format": {
-          "type": "string",
-          "description": "Unified table format (e.g., 'iceberg', 'orc', 'csv'). Translates to USING or STORED AS."
+        "partitioned_by": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "column": {
+                "type": "string"
+              },
+              "transform": {
+                "type": "string"
+              }
+            },
+            "required": ["column"]
+          }
         },
         "location": {
           "type": "string"
         },
-        "tbl_properties": {
-          "type": "object",
-          "description": "Key-value pairs for the TBLPROPERTIES clause."
+        "table_type": {
+          "type": "string"
+        },
+        "format": {
+          "type": "string"
+        },
+        "write_compression": {
+          "type": "string"
         }
-      }
-    },
-    "partitioned_by": {
-      "type": "array",
-      "description": "Defines the table's partitioning scheme.",
-      "items": {
-        "$ref": "#/definitions/transformed_column"
       }
     },
     "table_constraints": {
@@ -81,7 +86,7 @@
       }
     }
   },
-  "required": ["name", "version", "columns"],
+  "required": ["name", "version", "description", "columns"],
   "definitions": {
     "column": {
       "type": "object",
@@ -121,14 +126,6 @@
         }
       },
       "required": ["type"]
-    },
-    "transformed_column": {
-        "type": "object",
-        "properties": {
-            "column": { "type": "string" },
-            "transform": { "type": "string" }
-        },
-        "required": ["column"]
     },
     "named_column": {
         "allOf": [
