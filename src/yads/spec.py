@@ -84,9 +84,13 @@ class TransformedColumn:
 
     column: str
     transform: str | None = None
+    transform_args: list[Any] = field(default_factory=list)
 
     def __str__(self) -> str:
         if self.transform:
+            if self.transform_args:
+                args_str = ", ".join(map(str, self.transform_args))
+                return f"{self.transform}({self.column}, {args_str})"
             return f"{self.transform}({self.column})"
         return self.column
 

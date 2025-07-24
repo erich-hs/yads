@@ -312,7 +312,18 @@ def _parse_partitioned_by(
     if not partitioned_by_def:
         return []
 
-    return [TransformedColumn(**pc) for pc in partitioned_by_def]
+    transformed_columns = []
+    for pc in partitioned_by_def:
+        if "column" not in pc:
+            raise ValueError("Each item in 'partitioned_by' must have a 'column' key")
+        transformed_columns.append(
+            TransformedColumn(
+                column=pc["column"],
+                transform=pc.get("transform"),
+                transform_args=pc.get("transform_args", []),
+            )
+        )
+    return transformed_columns
 
 
 # Validators

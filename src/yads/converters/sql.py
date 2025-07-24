@@ -19,10 +19,12 @@ from yads.types import (
     Array,
     Date,
     Decimal,
+    Float,
     Integer,
     Map,
     String,
     Struct,
+    Timestamp,
     TimestampTZ,
     Type,
     UUID,
@@ -83,13 +85,19 @@ class SqlglotConverter(BaseConverter):
         self._type_handlers: dict[type[Type], Callable[[Any], exp.DataType]] = {
             UUID: self._handle_uuid_type,
             Integer: self._handle_integer_type,
+            Float: self._handle_float_type,
             Date: self._handle_date_type,
+            Timestamp: self._handle_timestamp_type,
             TimestampTZ: self._handle_timestamptz_type,
             Decimal: self._handle_decimal_type,
             String: self._handle_string_type,
             Array: self._handle_array_type,
             Struct: self._handle_struct_type,
             Map: self._handle_map_type,
+        }
+        self._transform_handlers: dict[str, Callable[..., exp.Expression]] = {
+            "bucket": self._handle_bucket_transform,
+            "truncate": self._handle_truncate_transform,
         }
         self._constraint_handlers: dict[type, Callable[[Any], exp.ColumnConstraint]] = {
             NotNullConstraint: self._handle_not_null_constraint,
@@ -140,8 +148,14 @@ class SqlglotConverter(BaseConverter):
     def _handle_integer_type(self, yads_type: Integer) -> exp.DataType:
         return exp.DataType(this=exp.DataType.Type.INT)
 
+    def _handle_float_type(self, yads_type: Float) -> exp.DataType:
+        return exp.DataType(this=exp.DataType.Type.FLOAT)
+
     def _handle_date_type(self, yads_type: Date) -> exp.DataType:
         return exp.DataType(this=exp.DataType.Type.DATE)
+
+    def _handle_timestamp_type(self, yads_type: Timestamp) -> exp.DataType:
+        return exp.DataType(this=exp.DataType.Type.TIMESTAMP)
 
     def _handle_timestamptz_type(self, yads_type: TimestampTZ) -> exp.DataType:
         return exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ)
@@ -214,13 +228,52 @@ class SqlglotConverter(BaseConverter):
         for col in value:
             expression: exp.Expression
             if col.transform:
-                expression = exp.func(col.transform, exp.column(col.column))
+                expression = self._handle_transformed_column(col)
             else:
                 expression = exp.Identifier(this=col.column)
             schema_expressions.append(expression)
 
         return exp.PartitionedByProperty(
             this=exp.Schema(expressions=schema_expressions)
+        )
+
+    def _handle_transformed_column(self, col: TransformedColumn) -> exp.Expression:
+        """Handles a transformed column by dispatching to a specific handler or
+        falling back to a generic function expression.
+        """
+        if not col.transform:
+            return exp.column(col.column)
+
+        if handler := self._transform_handlers.get(col.transform):
+            return handler(col.column, col.transform_args)
+
+        # Fallback to a generic function expression for all other transforms.
+        # This is useful for simple transformations that don't require special
+        # handling and can be represented as a function call.
+        return exp.func(
+            col.transform,
+            exp.column(col.column),
+            *(exp.convert(arg) for arg in col.transform_args),
+        )
+
+    def _handle_bucket_transform(
+        self, column: str, transform_args: list
+    ) -> exp.Expression:
+        if len(transform_args) != 1:
+            raise ValueError("The 'bucket' transform requires exactly one argument")
+        return exp.PartitionedByBucket(
+            this=exp.column(column),
+            expression=exp.convert(transform_args[0]),
+        )
+
+    def _handle_truncate_transform(
+        self, column: str, transform_args: list
+    ) -> exp.Expression:
+        if len(transform_args) != 1:
+            raise ValueError("The 'truncate' transform requires exactly one argument")
+        return exp.PartitionByTruncate(
+            this=exp.column(column),
+            expression=exp.convert(transform_args[0]),
         )
 
     def _handle_location_property(self, value: str) -> exp.LocationProperty:

@@ -10,9 +10,17 @@ def main():
     Reads a `yads` YAML specification and prints the generated DDL.
     """
     sql_str = """
--- DDL with file format defined with STORED AS
-CREATE TABLE student (id INT, name STRING)
-    STORED AS ORC
+CREATE TABLE default.people10m (
+  id INT,
+  firstName STRING,
+  middleName STRING,
+  lastName STRING,
+  gender STRING,
+  birthDate TIMESTAMP,
+  dateOfBirth DATE GENERATED ALWAYS AS (CAST(birthDate AS DATE)),
+  ssn STRING,
+  salary INT
+)
 """
     print(sql_str)
     ast = parse_one(sql_str)
@@ -22,12 +30,14 @@ CREATE TABLE student (id INT, name STRING)
     print("\n" + "=" * 80 + "\n")
 
     sql_str = """
--- DDL with file format defined with TBLPROPERTIES
-CREATE TABLE student (id INT, name STRING)
-    TBLPROPERTIES (
-        'format'='parquet',
-        'compression'='snappy'
-    )
+CREATE TABLE events(
+eventId BIGINT,
+data STRING,
+eventType STRING,
+eventTime TIMESTAMP,
+eventDate DATE GENERATED ALWAYS AS (CAST(eventTime AS DATE))
+)
+PARTITIONED BY (eventType, eventDate)
 """
     print(sql_str)
     ast = parse_one(sql_str)
@@ -37,10 +47,16 @@ CREATE TABLE student (id INT, name STRING)
     print("\n" + "=" * 80 + "\n")
 
     sql_str = """
--- DDL with open table format defined with USING
-CREATE TABLE student (id INT, name STRING)
-    USING iceberg
-    LOCATION 's3://my-bucket/student'
+CREATE TABLE events(
+eventId BIGINT,
+data STRING,
+eventType STRING,
+eventTime TIMESTAMP,
+year INT GENERATED ALWAYS AS (YEAR(eventTime)),
+month INT GENERATED ALWAYS AS (MONTH(eventTime)),
+day INT GENERATED ALWAYS AS (DAY(eventTime))
+)
+PARTITIONED BY (eventType, year, month, day)
 """
     print(sql_str)
     ast = parse_one(sql_str)
@@ -50,14 +66,14 @@ CREATE TABLE student (id INT, name STRING)
     print("\n" + "=" * 80 + "\n")
 
     sql_str = """
--- DDL with open table format defined with USING and TBLPROPERTIES
-CREATE TABLE student (id INT, name STRING)
-    USING iceberg
-    LOCATION 's3://my-bucket/student'
-    TBLPROPERTIES (
-        'write.target-file-size-bytes'='536870912',
-        'read.split.target-size'='268435456'
-    )
+CREATE TABLE orders (
+  order_id BIGINT,
+  customer_id BIGINT,
+  order_date DATE,
+  total_amount DOUBLE
+)
+USING iceberg
+PARTITIONED BY (bucket(customer_id, 10), bucket(order_date, 5))
 """
     print(sql_str)
     ast = parse_one(sql_str)
@@ -67,12 +83,14 @@ CREATE TABLE student (id INT, name STRING)
     print("\n" + "=" * 80 + "\n")
 
     sql_str = """
--- DDL with open table format defined via TBLPROPERTIES
-CREATE TABLE student (id INT, name STRING)
-    TBLPROPERTIES (
-        'format'='iceberg',
-        'location'='s3://my-bucket/student'
-    )
+CREATE TABLE user_data (
+  user_id BIGINT,
+  email STRING,
+  name STRING,
+  created_at TIMESTAMP
+) 
+USING iceberg
+PARTITIONED BY (TRUNCATE(3, email));
 """
     print(sql_str)
     ast = parse_one(sql_str)

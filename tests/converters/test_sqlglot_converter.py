@@ -839,3 +839,115 @@ CREATE TABLE my_catalog.my_db.orders (
     customer_id UUID CONSTRAINT orders_customers_fk REFERENCES my_db.customers (id)
 )"""
     assert_ast_equal(spec_yaml, sql)
+
+
+def test_create_table_with_partition_by_bucket():
+    """
+    Tests creating a table with a PARTITIONED BY (bucket(...)) clause.
+    """
+    spec_yaml = """
+name: "orders"
+version: "1.0"
+storage:
+  format: "iceberg"
+partitioned_by:
+  - column: "customer_id"
+    transform: "bucket"
+    transform_args: [10]
+  - column: "order_date"
+    transform: "bucket"
+    transform_args: [5]
+columns:
+  - name: "order_id"
+    type: "integer"
+  - name: "customer_id"
+    type: "integer"
+  - name: "order_date"
+    type: "date"
+  - name: "total_amount"
+    type: "float"
+"""
+    sql = """
+CREATE TABLE orders (
+  order_id INT,
+  customer_id INT,
+  order_date DATE,
+  total_amount FLOAT
+)
+USING iceberg
+PARTITIONED BY (bucket(customer_id, 10), bucket(order_date, 5))
+"""
+    assert_ast_equal(spec_yaml, sql)
+
+
+def test_create_table_with_partition_by_truncate():
+    """
+    Tests creating a table with a PARTITIONED BY (truncate(...)) clause.
+    """
+    spec_yaml = """
+name: "user_data"
+version: "1.0"
+storage:
+  format: "iceberg"
+partitioned_by:
+  - column: "email"
+    transform: "truncate"
+    transform_args: [3]
+columns:
+  - name: "user_id"
+    type: "integer"
+  - name: "email"
+    type: "string"
+  - name: "name"
+    type: "string"
+  - name: "created_at"
+    type: "timestamp"
+"""
+    sql = """
+CREATE TABLE user_data (
+  user_id INT,
+  email TEXT,
+  name TEXT,
+  created_at TIMESTAMP
+)
+USING iceberg
+PARTITIONED BY (TRUNCATE(email, 3))
+"""
+    assert_ast_equal(spec_yaml, sql)
+
+
+def test_create_table_with_partition_by_date_parts():
+    """
+    Tests creating a table with a PARTITIONED BY clause with year, month, and day transforms.
+    """
+    spec_yaml = """
+name: "events"
+version: "1.0"
+partitioned_by:
+  - column: "eventType"
+  - column: "eventTime"
+    transform: "year"
+  - column: "eventTime"
+    transform: "month"
+  - column: "eventTime"
+    transform: "day"
+columns:
+  - name: "eventId"
+    type: "integer"
+  - name: "data"
+    type: "string"
+  - name: "eventType"
+    type: "string"
+  - name: "eventTime"
+    type: "timestamp"
+"""
+    sql = """
+CREATE TABLE events(
+    eventId INT,
+    data TEXT,
+    eventType TEXT,
+    eventTime TIMESTAMP
+)
+PARTITIONED BY (eventType, YEAR(eventTime), MONTH(eventTime), DAY(eventTime))
+"""
+    assert_ast_equal(spec_yaml, sql)
