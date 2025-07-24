@@ -6,7 +6,7 @@
   "properties": {
     "name": {
       "type": "string",
-      "description": "The fully qualified name of the table."
+      "description": "The fully qualified name of the table, including catalog and database/schema."
     },
     "version": {
       "type": "string",
@@ -28,15 +28,15 @@
           "default": false
         }
       },
-      "description": "Flags that modify the CREATE TABLE statement (e.g., EXTERNAL, IF NOT EXISTS)."
+      "description": "Flags that modify the CREATE TABLE statement (e.g., IF NOT EXISTS, OR REPLACE)."
     },
     "storage": {
       "type": "object",
-      "description": "Defines the physical storage settings of the table.",
+      "description": "Defines the physical storage properties of the table.",
       "properties": {
         "format": {
           "type": "string",
-          "description": "Unified table format (e.g., 'iceberg', 'orc', 'csv'). Translates to USING or STORED AS."
+          "description": "The table format (e.g., 'iceberg', 'orc', 'csv'). Translates to USING or STORED AS in SQL."
         },
         "location": {
           "type": "string"
@@ -56,6 +56,7 @@
     },
     "table_constraints": {
       "type": "array",
+      "description": "A list of table-level constraints, such as composite primary or foreign keys.",
       "items": {
         "$ref": "#/definitions/table_constraint"
       }
@@ -99,7 +100,8 @@
           "$ref": "#/definitions/constraints"
         },
         "params": {
-          "type": "object"
+          "type": "object",
+          "description": "Parameters for parameterized types, such as precision and scale for decimals."
         },
         "element": {
           "$ref": "#/definitions/column"
@@ -131,13 +133,15 @@
             "column": { "type": "string" },
             "transform": { "type": "string" },
             "transform_args": {
-                "type": "array"
+                "type": "array",
+                "description": "A list of arguments for the transformation function."
             }
         },
         "required": ["column", "transform"]
     },
     "transformed_column": {
         "type": "object",
+        "description": "A column that may have a transformation function applied to it.",
         "properties": {
             "column": { "type": "string" },
             "transform": { "type": "string" }
@@ -195,6 +199,7 @@
         },
         "identity": {
             "type": "object",
+            "description": "Defines an identity column, often used for auto-incrementing keys.",
             "properties": {
                 "always": { "type": "boolean", "default": true },
                 "start": { "type": "integer" },
