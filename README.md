@@ -70,11 +70,57 @@ TBLPROPERTIES (
 
 Currently, `yads` supports generating SQL DDL statements via the `SqlConverter`. Support for other output formats, such as PySpark or PyArrow schemas, is planned for future releases.
 
+#### Officially Supported SQL Dialects
+
+While the generic `SqlConverter` can generate DDL for any dialect supported by `sqlglot`, we also provide officially supported converters for specific dialects. These specialized converters (e.g., `SparkSQLConverter`) perform additional validation to ensure that the generated DDL is fully compatible with the target dialect, providing a higher level of reliability.
+
+To use an officially supported converter, simply import and instantiate it directly:
+
+```python
+from yads.converters import SparkSQLConverter
+
+# The SparkSQLConverter will automatically handle the "spark" dialect
+# and perform Spark-specific validation on your spec.
+spark_converter = SparkSQLConverter()
+ddl = spark_converter.convert(spec, pretty=True)
+print(ddl)
+```
+
 ## Contributing
 
 We welcome contributions to `yads`!
 
-### How to Create a New Converter
+### How to Add a New Officially Supported SQL Converter
+
+If you want to add official support for a new SQL dialect (e.g., "Snowflake"), you can do so by creating a new converter that inherits from `SqlConverter`. This approach ensures that we can provide dialect-specific validation.
+
+`SqlConverter` uses the **Template Method** design pattern. Its `convert` method acts as the template, defining the high-level steps for conversion, including a `_validate` hook that does nothing by default. To add a new supported dialect, you only need to subclass `SqlConverter` and override the `_validate` hook with your dialect-specific logic.
+
+1.  **Create a New Converter Class in `sql.py`:** Add your new class to `src/yads/converters/sql.py`. It should inherit from `SqlConverter`. In its `__init__`, call `super()` and pass the correct dialect name.
+2.  **Implement the `_validate` Method:** Override the `_validate` method. This is where you will add your validation logic to inspect the `SchemaSpec` and raise a `ValueError` for any unsupported features.
+3.  **Expose the New Converter:** Add your new converter to the `__all__` list in `src/yads/converters/__init__.py`.
+
+Here is an example for a hypothetical `SnowflakeConverter`:
+
+```python
+# In src/yads/converters/sql.py
+
+class SnowflakeConverter(SqlConverter):
+    """Converter for generating Snowflake SQL DDL."""
+
+    def __init__(self, **convert_options: Any):
+        super().__init__(dialect="snowflake", **convert_options)
+
+    def _validate(self, spec: SchemaSpec) -> None:
+        """Validates the SchemaSpec against Snowflake SQL compatibility."""
+        # Add Snowflake-specific validation logic here.
+        # For example, check for unsupported data types.
+        for column in spec.columns:
+            if isinstance(column.type, SomeUnsupportedType):
+                raise ValueError("Snowflake does not support SomeUnsupportedType.")
+```
+
+### How to Create a New Core Converter
 
 To create a new converter from a `SchemaSpec` to another format (e.g., a PyArrow or PySpark schema), you can follow these steps.
 

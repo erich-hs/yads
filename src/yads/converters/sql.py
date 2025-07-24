@@ -67,9 +67,45 @@ class SqlConverter:
         Returns:
             A SQL DDL string formatted for the specified dialect.
         """
+        self._validate(spec)
         ast = self._ast_converter.convert(spec)
         options = {**self._convert_options, **kwargs}
         return ast.sql(dialect=self._dialect, **options)
+
+    def _validate(self, spec: SchemaSpec) -> None:
+        """A hook for dialect-specific validation.
+
+        Subclasses should override this method to implement dialect-specific
+        validation logic.
+
+        Args:
+            spec: The SchemaSpec object to validate.
+        """
+        pass
+
+
+class SparkSQLConverter(SqlConverter):
+    """Converter for generating Spark SQL DDL.
+
+    This converter adds Spark-specific validation before generating the DDL.
+    """
+
+    def __init__(self, **convert_options: Any):
+        """
+        Args:
+            convert_options: Keyword arguments to be passed to the AST converter.
+                             These can be overridden in the `convert` method.
+        """
+        super().__init__(dialect="spark", **convert_options)
+
+    def _validate(self, spec: SchemaSpec) -> None:
+        """Validates the SchemaSpec against Spark SQL compatibility.
+
+        Raises:
+            ValueError: If the spec contains features not supported by Spark.
+        """
+        # TODO: Add more validation logic here for types, other constraints, etc.
+        pass
 
 
 class SqlglotConverter(BaseConverter):
