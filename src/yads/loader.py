@@ -16,7 +16,13 @@ from .constraints import (
     Reference,
     TableConstraint,
 )
-from .spec import Field, Options, PartitionColumn, Properties, SchemaSpec
+from .spec import (
+    Field,
+    Options,
+    SchemaSpec,
+    Storage,
+    TransformedColumn,
+)
 from .types import (
     Array,
     Binary,
@@ -291,17 +297,22 @@ def _parse_options(options_def: dict[str, Any] | None) -> Options:
     return Options(**options_def)
 
 
-def _parse_properties(properties_def: dict[str, Any] | None) -> Properties:
-    """Parses the properties dictionary and returns a Properties object."""
-    if not properties_def:
-        return Properties()
+def _parse_storage(storage_def: dict[str, Any] | None) -> Storage | None:
+    """Parses the storage dictionary and returns a Storage object."""
+    if not storage_def:
+        return None
 
-    if "partitioned_by" in properties_def:
-        properties_def["partitioned_by"] = [
-            PartitionColumn(**pc) for pc in properties_def["partitioned_by"]
-        ]
+    return Storage(**storage_def)
 
-    return Properties(**properties_def)
+
+def _parse_partitioned_by(
+    partitioned_by_def: list[dict[str, Any]] | None,
+) -> list[TransformedColumn]:
+    """Parses the partitioned_by list and returns a list of PartitionColumn objects."""
+    if not partitioned_by_def:
+        return []
+
+    return [TransformedColumn(**pc) for pc in partitioned_by_def]
 
 
 # Validators
@@ -372,7 +383,8 @@ def from_dict(data: dict[str, Any]) -> SchemaSpec:
         version=data["version"],
         description=data.get("description"),
         options=_parse_options(data.get("options")),
-        properties=_parse_properties(data.get("properties")),
+        storage=_parse_storage(data.get("storage")),
+        partitioned_by=_parse_partitioned_by(data.get("partitioned_by")),
         table_constraints=_parse_table_constraints(data.get("table_constraints")),
         metadata=data.get("metadata", {}),
         columns=[_parse_column(c) for c in data["columns"]],

@@ -14,7 +14,7 @@ from yads.constraints import (
     PrimaryKeyTableConstraint,
 )
 from yads.converters.base import BaseConverter
-from yads.spec import Field, PartitionColumn, Properties, SchemaSpec
+from yads.spec import Field, SchemaSpec, Storage, TransformedColumn
 from yads.types import (
     Array,
     Date,
@@ -101,15 +101,6 @@ class SqlglotConverter(BaseConverter):
             PrimaryKeyTableConstraint: self._handle_primary_key_table_constraint,
             ForeignKeyTableConstraint: self._handle_foreign_key_table_constraint,
         }
-        self._property_handlers: dict[str, Callable[..., exp.Property]] = {
-            "partitioned_by": self._handle_partitioned_by_property,
-            "location": self._handle_location_property,
-        }
-        self._transform_handlers: dict[str, type[exp.Func]] = {
-            "month": exp.Month,
-            "year": exp.Year,
-            "day": exp.Day,
-        }
 
     def convert(self, spec: SchemaSpec) -> exp.Create:
         """
@@ -123,13 +114,8 @@ class SqlglotConverter(BaseConverter):
             https://sqlglot.com/sqlglot/expressions.html#Create
         """
         table = self._parse_full_table_name(spec.name)
-        properties = self._parse_properties(spec.properties)
-        expressions: list[exp.Expression] = [
-            self._convert_field(col) for col in spec.columns
-        ]
-        for constraint in spec.table_constraints:
-            if handler := self._table_constraint_handlers.get(type(constraint)):
-                expressions.append(handler(constraint))
+        properties = self._collect_properties(spec)
+        expressions = self._collect_expressions(spec)
 
         return exp.Create(
             this=exp.Schema(this=table, expressions=expressions),
@@ -206,37 +192,31 @@ class SqlglotConverter(BaseConverter):
         )
 
     # Property handlers
-    def _parse_properties(self, properties: Properties) -> list[exp.Property]:
-        properties_expressions = []
-        # Handled properties
-        for key, value in properties.__dict__.items():
-            if not value:
-                continue
-            if handler := self._property_handlers.get(key):
-                expression = handler(value)
-                properties_expressions.append(expression)
+    def _handle_storage_properties(self, storage: Storage | None) -> list[exp.Property]:
+        if not storage:
+            return []
 
-        # Generic properties
-        generic_properties = {
-            k: v
-            for k, v in properties.__dict__.items()
-            if k not in self._property_handlers and v is not None
-        }
-        for key, value in generic_properties.items():
-            properties_expressions.append(self._handle_generic_property(key, value))
+        properties: list[exp.Property] = []
+        if storage.format:
+            properties.append(exp.FileFormatProperty(this=exp.Var(this=storage.format)))
+        if storage.location:
+            properties.append(exp.LocationProperty(this=convert(storage.location)))
+        if storage.tbl_properties:
+            for key, value in storage.tbl_properties.items():
+                properties.append(exp.Property(this=convert(key), value=convert(value)))
 
-        return properties_expressions
+        return properties
 
     def _handle_partitioned_by_property(
-        self, value: list[PartitionColumn]
+        self, value: list[TransformedColumn]
     ) -> exp.PartitionedByProperty:
         schema_expressions = []
         for col in value:
-            column_identifier = exp.Identifier(this=col.column)
-            expression: exp.Expression = column_identifier
+            expression: exp.Expression
             if col.transform:
-                transform_func = self._transform_handlers[col.transform]
-                expression = transform_func(this=exp.Column(this=column_identifier))
+                expression = exp.func(col.transform, exp.column(col.column))
+            else:
+                expression = exp.Identifier(this=col.column)
             schema_expressions.append(expression)
 
         return exp.PartitionedByProperty(
@@ -244,13 +224,28 @@ class SqlglotConverter(BaseConverter):
         )
 
     def _handle_location_property(self, value: str) -> exp.LocationProperty:
-        return exp.LocationProperty(this=exp.Literal(this=value, is_string=True))
+        return exp.LocationProperty(this=exp.Literal(this=convert(value)))
+
+    def _handle_external_property(self) -> exp.ExternalProperty:
+        return exp.ExternalProperty()
 
     def _handle_generic_property(self, key: str, value: Any) -> exp.Property:
         return exp.Property(
-            this=exp.Literal(this=key, is_string=True),
-            value=exp.Literal(this=str(value), is_string=True),
+            this=exp.Literal(this=convert(key)),
+            value=exp.Literal(this=convert(value)),
         )
+
+    def _collect_properties(self, spec: SchemaSpec) -> list[exp.Property]:
+        """Gathers all table-level properties from the spec."""
+        properties: list[exp.Property] = []
+
+        if spec.options.is_external:
+            properties.append(self._handle_external_property())
+
+        properties.extend(self._handle_storage_properties(spec.storage))
+        if spec.partitioned_by:
+            properties.append(self._handle_partitioned_by_property(spec.partitioned_by))
+        return properties
 
     # Field and constraint handlers
     def _convert_field(self, field: Field) -> exp.ColumnDef:
@@ -343,6 +338,16 @@ class SqlglotConverter(BaseConverter):
                 expressions=[fk_expression],
             )
         return fk_expression
+
+    def _collect_expressions(self, spec: SchemaSpec) -> list[exp.Expression]:
+        """Gathers all table-level expressions from the spec."""
+        expressions: list[exp.Expression] = [
+            self._convert_field(col) for col in spec.columns
+        ]
+        for constraint in spec.table_constraints:
+            if handler := self._table_constraint_handlers.get(type(constraint)):
+                expressions.append(handler(constraint))
+        return expressions
 
     def _parse_full_table_name(
         self, full_name: str, columns: list[str] | None = None

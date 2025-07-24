@@ -56,18 +56,21 @@ class Field:
 class Options:
     """Represents options for schema handling."""
 
+    is_external: bool = False
     if_not_exists: bool = False
     or_replace: bool = False
 
     def is_defined(self) -> bool:
         """Checks if any option is defined."""
-        return self.if_not_exists or self.or_replace
+        return self.is_external or self.if_not_exists or self.or_replace
 
     def __str__(self) -> str:
         """Returns a string representation of the options."""
         if not self.is_defined():
             return "Options()"
         parts = []
+        if self.is_external:
+            parts.append("is_external=True")
         if self.if_not_exists:
             parts.append("if_not_exists=True")
         if self.or_replace:
@@ -76,60 +79,39 @@ class Options:
 
 
 @dataclass(frozen=True)
-class PartitionColumn:
-    """Represents a column used for partitioning."""
+class TransformedColumn:
+    """Represents a column that may have a transformation function applied."""
 
     column: str
     transform: str | None = None
 
     def __str__(self) -> str:
-        """Returns a string representation of the partition column."""
         if self.transform:
             return f"{self.transform}({self.column})"
         return self.column
 
 
 @dataclass(frozen=True)
-class Properties:
+class Storage:
     """Represents properties of the schema's underlying storage."""
 
-    partitioned_by: list[PartitionColumn] = field(default_factory=list)
-    location: str | None = None
-    table_type: str | None = None
     format: str | None = None
-    write_compression: str | None = None
-
-    def is_defined(self) -> bool:
-        """Checks if any property is defined."""
-        return any(
-            [
-                self.partitioned_by,
-                self.location,
-                self.table_type,
-                self.format,
-                self.write_compression,
-            ]
-        )
+    location: str | None = None
+    tbl_properties: dict[str, str] = field(default_factory=dict)
 
     def __str__(self) -> str:
-        """Returns a string representation of the properties."""
-        if not self.is_defined():
-            return "Properties()"
         parts = []
-        if self.partitioned_by:
-            p_cols = ", ".join(map(str, self.partitioned_by))
-            parts.append(f"partitioned_by=[{p_cols}]")
-        if self.location:
-            parts.append(f"location={self.location!r}")
-        if self.table_type:
-            parts.append(f"table_type={self.table_type!r}")
         if self.format:
             parts.append(f"format={self.format!r}")
-        if self.write_compression:
-            parts.append(f"write_compression={self.write_compression!r}")
+        if self.location:
+            parts.append(f"location={self.location!r}")
+        if self.tbl_properties:
+            tbl_props_str = _format_dict_as_kwargs(self.tbl_properties, multiline=True)
+            parts.append(f"tbl_properties={tbl_props_str}")
+
         pretty_parts = ",\n".join(parts)
         indented_parts = textwrap.indent(pretty_parts, "  ")
-        return f"Properties(\n{indented_parts}\n)"
+        return f"Storage(\n{indented_parts}\n)"
 
 
 @dataclass(frozen=True)
@@ -140,9 +122,10 @@ class SchemaSpec:
     version: str
     columns: list[Field]
     description: str | None = None
-    table_constraints: list[TableConstraint] = field(default_factory=list)
     options: Options = field(default_factory=Options)
-    properties: Properties = field(default_factory=Properties)
+    storage: Storage | None = None
+    partitioned_by: list[TransformedColumn] = field(default_factory=list)
+    table_constraints: list[TableConstraint] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def _build_header_str(self) -> str:
@@ -160,8 +143,11 @@ class SchemaSpec:
             )
         if self.options.is_defined():
             parts.append(f"options={self.options}")
-        if self.properties.is_defined():
-            parts.append(f"properties={self.properties}")
+        if self.storage:
+            parts.append(f"storage={self.storage}")
+        if self.partitioned_by:
+            p_cols = ", ".join(map(str, self.partitioned_by))
+            parts.append(f"partitioned_by=[{p_cols}]")
         if self.table_constraints:
             constraints_str = "\n".join(map(str, self.table_constraints))
             parts.append(
