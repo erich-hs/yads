@@ -4,6 +4,7 @@ description: "A comprehensive example showcasing advanced features of the YADS s
 
 options:
   if_not_exists: true
+  is_external: true
 
 storage:
   format: "iceberg"

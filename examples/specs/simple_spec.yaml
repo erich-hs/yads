@@ -2,14 +2,8 @@ name: "warehouse.orders.customer_orders"
 version: "2.1.0"
 description: "Represents a single customer order, including line items and shipping details."
 
-table_constraints:
-  - type: "primary_key"
-    name: "customer_orders_pk"
-    columns:
-      - "order_id"
-      - "order_id_2"
-      - "company_id"
-      - "customer_id"
+options:
+  is_external: true
 
 columns:
   - name: "order_id"

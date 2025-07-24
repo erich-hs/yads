@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS prod_db.fact_sales.customer_orders_pro (
+CREATE EXTERNAL TABLE IF NOT EXISTS prod_db.fact_sales.customer_orders_pro (
   order_id UUID NOT NULL,
   customer_id INT NOT NULL,
   order_ts TIMESTAMPTZ NOT NULL,
