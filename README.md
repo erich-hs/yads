@@ -1,43 +1,46 @@
 # yads
 
-`yads`: _~~Yet Another Data Spec~~_ **YAML-Augmented Data Specification** is a Python library for managing data specs using YAML. It helps you define and manage your data warehouse tables, schemas, and documentation in a structured, version-controlled way. With `yads`, you can define your data assets once in YAML and then generate DDL statements for different SQL dialects and schema objects for PySpark, PyArrow, and more.
+`yads`: _~~Yet Another Data Spec~~_ **YAML-Augmented Data Specification** is a Python library for managing data specs using YAML. It helps you define your data warehouse tables, schemas, and documentation in a structured, version-controlled way. With `yads`, you can specify your data assets once in YAML and then generate DDL statements for different SQL dialects and schema objects for PySpark, PyArrow, and more.
 
 ## Why yads?
 
-~~The modern data stack is complex, with data assets defined across a multitude of platforms and tools. This often leads to fragmented and inconsistent documentation, making data discovery and governance a challenge. `yads` was created to address this by providing a centralized, version-controllable, and extensible way to manage metadata for modern data platforms.~~
-
-~~The main goal of `yads` is to provide a single source of truth for your data assets using simple YAML files. These files can capture everything from table schemas and column descriptions to governance policies and usage notes. From these specifications, `yads` can transpile the information into various formats, such as DDL statements for different SQL dialects, Avro or PyArrow schemas, and generate documentation that is ready for both humans and Large Language Models (LLMs).~~
+In modern data platforms, data assets are often defined across a multitude of tools, leading to fragmentation and inconsistency. `yads` addresses this by providing a centralized, version-controllable, and extensible way to manage your data assets using simple YAML files.
 
 ## Getting Started
 
-## Installation
+### Installation
 
 ```bash
 pip install yads
 ```
 
-## Usage
+### Usage
 
-### Defining a Specification
+#### Defining a Specification
 
-Create a YAML file to define your table schema and properties. See the latest version of the [`yads` Specification](https://github.com/erich-hs/yads/blob/refactor/examples/specs/yads_spec.yaml) for an example.
+Create a YAML file to define your table schema and properties. See the latest version of the [`yads` Specification](https://github.com/erich-hs/yads/blob/refactor/examples/specs/yads_spec.yaml) for a comprehensive example.
 
-### Generating Spark DDL
+#### Generating SQL DDL
 
-You can generate a Spark DDL `CREATE TABLE` statement from the specification:
+You can generate a `CREATE TABLE` statement for a specific SQL dialect from your YAML specification:
 
 ```python
 import yads
 from yads.converters.sql import SqlConverter
 
+# Load the specification from a YAML file
 spec = yads.from_yaml("examples/specs/yads_spec.yaml")
+
+# Initialize a converter for the "spark" dialect
 spark_sql_converter = SqlConverter(dialect="spark")
 
-# Generate the DDL
+# Generate the DDL statement
 ddl = spark_sql_converter.convert(spec, pretty=True)
 
 print(ddl)
 ```
+
+This will produce the following SQL DDL:
 
 ```sql
 CREATE OR REPLACE TABLE warehouse.orders.customer_orders (
@@ -73,7 +76,7 @@ We welcome contributions to `yads`!
 
 ### How to Create a New Converter
 
-To create a converter from a `SchemaSpec` to another format (e.g., PyArrow schema, Spark schema), you should follow these steps. This guide focuses on creating converters that primarily deal with the `columns` section of a `yads` spec. The `SqlglotConverter` is a reference for handling SQL DDL-specific sections like `properties` and `options`.
+To create a new converter from a `SchemaSpec` to another format (e.g., a PyArrow or PySpark schema), you can follow these steps.
 
 #### 1. Create a Converter Class
 
@@ -96,7 +99,7 @@ from yads.types import (
 
 class MyFormatConverter(BaseConverter):
     """
-    A converter from a YADS SchemaSpec to MyFormat.
+    A converter from a yads SchemaSpec to MyFormat.
     """
 
     def convert(self, spec: SchemaSpec) -> Any:
@@ -120,7 +123,7 @@ def convert(self, spec: SchemaSpec) -> "MyTargetSchema":
 
 #### 3. Handle Fields and Types with a Dispatcher
 
-To keep an extensible design, use a dispatcher pattern to handle different `yads` types. Create a dictionary in your converter's `__init__` method that maps `yads` type classes to specific handler methods.
+To maintain an extensible design, use a dispatcher pattern to handle different `yads` types. In your converter's `__init__`, create a dictionary that maps `yads` type classes to specific handler methods.
 
 ```python
 from yads import types
@@ -138,11 +141,11 @@ class MyFormatConverter(BaseConverter):
         }
 
     def convert(self, spec: SchemaSpec) -> "MyTargetSchema":
-        # ...
-        pass
+        target_fields = [self._convert_field(field) for field in spec.columns]
+        return MyTargetSchema(fields=target_fields)
 
     def _convert_field(self, field: Field) -> "MyTargetField":
-        """Converts a YADS Field to a target field format."""
+        """Converts a yads Field to a target field format."""
         target_type = self._convert_type(field.type)
         return MyTargetField(name=field.name, type=target_type)
 
