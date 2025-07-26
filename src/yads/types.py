@@ -51,12 +51,28 @@ class String(Type):
 
 @dataclass(frozen=True)
 class Integer(Type):
-    pass
+    """An integer data type, with an optional size in bits."""
+
+    bits: int | None = None
+
+    def __str__(self) -> str:
+        """Returns a string representation of the integer type."""
+        if self.bits is not None:
+            return f"integer(bits={self.bits})"
+        return "integer"
 
 
 @dataclass(frozen=True)
 class Float(Type):
-    pass
+    """A float data type, with an optional size in bits."""
+
+    bits: int | None = None
+
+    def __str__(self) -> str:
+        """Returns a string representation of the float type."""
+        if self.bits is not None:
+            return f"float(bits={self.bits})"
+        return "float"
 
 
 @dataclass(frozen=True)
@@ -144,3 +160,31 @@ class Map(Type):
     def __str__(self) -> str:
         """Returns a string representation of the map type."""
         return f"map<{self.key}, {self.value}>"
+
+
+TYPE_ALIASES: dict[str, Type] = {
+    # Integers
+    "tinyint": Integer(bits=8),
+    "smallint": Integer(bits=16),
+    "int": Integer(bits=32),
+    "integer": Integer(bits=32),
+    "bigint": Integer(bits=64),
+    # Floats
+    "float": Float(bits=32),
+    "real": Float(bits=32),
+    "double": Float(bits=64),
+    # Standard types
+    "string": String(),
+    "boolean": Boolean(),
+    "binary": Binary(),
+    "date": Date(),
+    "timestamp": Timestamp(),
+    "timestamp_tz": TimestampTZ(),
+    "json": JSON(),
+    "uuid": UUID(),
+    # Complex types (defaults, can be overridden with params)
+    "decimal": Decimal(),
+    "array": Array(element=String()),
+    "struct": Struct(fields=[]),
+    "map": Map(key=String(), value=String()),
+}
