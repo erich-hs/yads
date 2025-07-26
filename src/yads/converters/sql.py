@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Any, Callable, List, Literal
 
 from sqlglot import exp
 from sqlglot.expressions import convert
@@ -19,11 +19,14 @@ from yads.spec import Field, SchemaSpec, Storage, TransformedColumn
 from yads.types import (
     Array,
     Decimal,
+    Float,
+    Integer,
     Map,
     String,
     Struct,
     Type,
 )
+from yads.validator import AstValidator, NoFixedLengthStringRule, Rule
 
 
 class SqlConverter:
@@ -38,6 +41,7 @@ class SqlConverter:
         self,
         dialect: str,
         ast_converter: BaseConverter | None = None,
+        ast_validator: AstValidator | None = None,
         **convert_options: Any,
     ):
         """
@@ -45,6 +49,8 @@ class SqlConverter:
             dialect: The target SQL dialect (e.g., "spark", "snowflake", "duckdb").
             ast_converter: Optional. An AST converter to use. If None, a default
                            SqlglotConverter will be used.
+            ast_validator: Optional. A processor for dialect-specific
+                               validation and adjustments.
             convert_options: Keyword arguments to be passed to the AST converter.
                              These can be overridden in the `convert` method. See
                              sqlglot's documentation for available options:
@@ -52,13 +58,23 @@ class SqlConverter:
         """
         self._ast_converter = ast_converter or SqlglotConverter()
         self._dialect = dialect
+        self._ast_validator = ast_validator
         self._convert_options = convert_options
 
-    def convert(self, spec: SchemaSpec, **kwargs: Any) -> str:
+    def convert(
+        self,
+        spec: SchemaSpec,
+        mode: Literal["strict", "warn", "ignore"] = "strict",
+        **kwargs: Any,
+    ) -> str:
         """Converts a yads SchemaSpec into a SQL DDL string.
 
         Args:
             spec: The SchemaSpec object.
+            mode: The validation mode for the dialect processor.
+                - "strict": Raises an error for any unsupported feature.
+                - "warn": Logs a warning for any unsupported feature and adjusts.
+                - "ignore": Silently ignores and adjusts for any unsupported feature.
             kwargs: Keyword arguments for the AST converter, overriding any
                     options from initialization. See sqlglot's documentation for
                     available options:
@@ -67,21 +83,11 @@ class SqlConverter:
         Returns:
             A SQL DDL string formatted for the specified dialect.
         """
-        self._validate(spec)
         ast = self._ast_converter.convert(spec)
+        if self._ast_validator:
+            ast = self._ast_validator.validate(ast, mode=mode)
         options = {**self._convert_options, **kwargs}
         return ast.sql(dialect=self._dialect, **options)
-
-    def _validate(self, spec: SchemaSpec) -> None:
-        """A hook for dialect-specific validation.
-
-        Subclasses should override this method to implement dialect-specific
-        validation logic.
-
-        Args:
-            spec: The SchemaSpec object to validate.
-        """
-        pass
 
 
 class SparkSQLConverter(SqlConverter):
@@ -96,16 +102,9 @@ class SparkSQLConverter(SqlConverter):
             convert_options: Keyword arguments to be passed to the AST converter.
                              These can be overridden in the `convert` method.
         """
-        super().__init__(dialect="spark", **convert_options)
-
-    def _validate(self, spec: SchemaSpec) -> None:
-        """Validates the SchemaSpec against Spark SQL compatibility.
-
-        Raises:
-            ValueError: If the spec contains features not supported by Spark.
-        """
-        # TODO: Add more validation logic here for types, other constraints, etc.
-        pass
+        rules: List[Rule] = [NoFixedLengthStringRule()]
+        validator = AstValidator(rules=rules)
+        super().__init__(dialect="spark", ast_validator=validator, **convert_options)
 
 
 class SqlglotConverter(BaseConverter):
@@ -118,6 +117,8 @@ class SqlglotConverter(BaseConverter):
             Array: self._handle_array_type,
             Struct: self._handle_struct_type,
             Map: self._handle_map_type,
+            Integer: self._handle_integer_type,
+            Float: self._handle_float_type,
         }
         self._transform_handlers: dict[str, Callable[..., exp.Expression]] = {
             "bucket": self._handle_bucket_transform,
@@ -166,13 +167,28 @@ class SqlglotConverter(BaseConverter):
         # https://sqlglot.com/sqlglot/expressions.html#DataType.build
         return exp.DataType.build(str(yads_type))
 
+    def _handle_integer_type(self, yads_type: Integer) -> exp.DataType:
+        if yads_type.bits == 8:
+            return exp.DataType(this=exp.DataType.Type.TINYINT)
+        if yads_type.bits == 16:
+            return exp.DataType(this=exp.DataType.Type.SMALLINT)
+        if yads_type.bits == 64:
+            return exp.DataType(this=exp.DataType.Type.BIGINT)
+        return exp.DataType(this=exp.DataType.Type.INT)
+
+    def _handle_float_type(self, yads_type: Float) -> exp.DataType:
+        if yads_type.bits == 64:
+            return exp.DataType(this=exp.DataType.Type.DOUBLE)
+        return exp.DataType(this=exp.DataType.Type.FLOAT)
+
     def _handle_string_type(self, yads_type: String) -> exp.DataType:
+        expressions = []
         if yads_type.length:
-            return exp.DataType(
-                this=exp.DataType.Type.VARCHAR,
-                expressions=[exp.DataTypeParam(this=convert(yads_type.length))],
-            )
-        return exp.DataType(this=exp.DataType.Type.TEXT)
+            expressions.append(exp.DataTypeParam(this=convert(yads_type.length)))
+        return exp.DataType(
+            this=exp.DataType.Type.TEXT,
+            expressions=expressions if expressions else None,
+        )
 
     def _handle_decimal_type(self, yads_type: Decimal) -> exp.DataType:
         expressions = []
