@@ -26,16 +26,15 @@ You can generate a `CREATE TABLE` statement for a specific SQL dialect from your
 
 ```python
 import yads
-from yads.converters.sql import SqlConverter
+from yads.converters.sql import SparkSQLConverter
 
 # Load the specification from a YAML file
 spec = yads.from_yaml("examples/specs/yads_spec.yaml")
 
-# Initialize a converter for the "spark" dialect
-spark_sql_converter = SqlConverter(dialect="spark")
-
-# Generate the DDL statement
-ddl = spark_sql_converter.convert(spec, pretty=True)
+# The SparkSQLConverter will automatically handle the "spark" dialect
+# and perform Spark-specific validation on your spec.
+spark_converter = SparkSQLConverter()
+ddl = spark_converter.convert(spec, pretty=True)
 
 print(ddl)
 ```
@@ -43,26 +42,26 @@ print(ddl)
 This will produce the following SQL DDL:
 
 ```sql
-CREATE OR REPLACE TABLE warehouse.orders.customer_orders (
-  order_id UUID NOT NULL PRIMARY KEY,
+CREATE EXTERNAL TABLE IF NOT EXISTS prod_db.fact_sales.customer_orders_pro (
+  order_id STRING NOT NULL,
   customer_id INT NOT NULL,
-  order_date DATE NOT NULL,
-  order_total DECIMAL(10, 2) NOT NULL DEFAULT 0.5,
-  shipping_address VARCHAR(255),
-  line_items ARRAY<STRUCT<product_id INT NOT NULL, quantity INT NOT NULL, price DECIMAL(8, 2) NOT NULL>>,
-  tags ARRAY<STRING>,
-  metadata_tags MAP<VARCHAR(50), VARCHAR(255)>,
-  created_at TIMESTAMPTZ NOT NULL
+  order_ts TIMESTAMP NOT NULL,
+  total_amount DECIMAL(12, 2) NOT NULL DEFAULT 0.0,
+  order_status STRING DEFAULT 'pending',
+  product_category STRING,
+  shipping_details STRUCT<address: STRING NOT NULL, city: STRING, postal_code: STRING>,
+  tags MAP<STRING, STRING>,
+  CONSTRAINT pk_customer_orders_pro PRIMARY KEY (order_id)
 )
+USING ICEBERG
+LOCATION '/warehouse/sales/customer_orders_pro'
 PARTITIONED BY (
-  order_date,
-  MONTH(created_at)
+  MONTH(order_ts),
+  order_status
 )
-LOCATION '/warehouse/orders/customer_orders'
 TBLPROPERTIES (
-  'table_type' = 'iceberg',
-  'format' = 'parquet',
-  'write_compression' = 'snappy'
+  'write.target-file-size-bytes' = '536870912',
+  'read.split.target-size' = '268435456'
 )
 ```
 
@@ -90,7 +89,69 @@ print(ddl)
 
 `yads` is designed to be easily extensible, allowing you to add support for new SQL dialects or other formats. This guide provides a brief overview of how to extend `yads` with custom converters and validation rules.
 
-### The Conversion and Validation Flow
+### Creating a Core Converter
+
+Core converters are responsible for the primary transformation of a `yads` `SchemaSpec` into a different object representation, such as a PySpark `StructType` or a PyArrow `Schema`. These converters form the foundation of `yads`'s extensibility.
+
+To create a new core converter, the following steps are required:
+
+1.  **Subclass `BaseConverter`**: Create a new class that inherits from `yads.converters.base.BaseConverter`.
+2.  **Implement the `convert` Method**: This method takes a `SchemaSpec` as input and should return the target object, such as a PySpark `StructType`.
+3.  **Implement Type and Field Handlers**: Within the converter, create methods to handle the conversion of `yads` types (e.g., `String`, `Decimal`, `Struct`) into their counterparts in the target framework. This typically involves a dispatch mechanism that maps `yads` types to specific handling functions.
+
+Here is a simplified example of a `PySparkConverter`:
+
+```python
+# in yads/converters/spark.py
+from pyspark.sql.types import (
+    StructType,
+    StructField,
+    StringType,
+    DecimalType
+)
+
+from yads.converters.base import BaseConverter
+from yads.spec import SchemaSpec, Field
+from yads.types import String, Decimal, Type
+
+
+class PySparkConverter(BaseConverter):
+    def __init__(self):
+        self._type_handlers = {
+            String: self._handle_string_type,
+            Decimal: self._handle_decimal_type,
+        }
+
+    def convert(self, spec: SchemaSpec) -> StructType:
+        return StructType([self._convert_field(field) for field in spec.columns])
+
+    def _convert_field(self, field: Field) -> StructField:
+        spark_type = self._convert_type(field.type)
+        return StructField(
+            name=field.name,
+            dataType=spark_type,
+            nullable=not field.is_not_nullable,
+            metadata={"description": field.description},
+        )
+
+    def _convert_type(self, yads_type: Type):
+        if handler := self._type_handlers.get(type(yads_type)):
+            return handler(yads_type)
+        # Fallback or error for unsupported types
+        return StringType()
+
+    def _handle_string_type(self, yads_type: String) -> StringType:
+        return StringType()
+
+    def _handle_decimal_type(self, yads_type: Decimal) -> DecimalType:
+        return DecimalType(precision=yads_type.precision, scale=yads_type.scale)
+```
+
+### Creating a SQL Converter
+
+To add support for a new SQL dialect, you'll typically need to follow a structured conversion and validation flow.
+
+#### The Conversion and Validation Flow
 
 The process of converting a `yads` specification into a target format (like a SQL DDL) follows these general steps:
 
@@ -106,7 +167,7 @@ The process of converting a `yads` specification into a target format (like a SQ
 > -   **SQL Converter (Specific & Strict)**: The final converter "narrows" the generic AST into valid DDL for a specific SQL dialect. The `AstValidator` ensures that any feature from the spec is gracefully handled—either by raising an error (in `strict` mode) or by adjusting the AST to fit the dialect's constraints.
 > This flow ensures that the `yads` spec remains the ultimate source of truth, while still allowing for the practical generation of correct, dialect-specific SQL.
 
-### Creating a New SQL Converter
+#### Steps to Create a SQL Converter
 
 To add support for a new SQL dialect, you'll typically need to:
 
