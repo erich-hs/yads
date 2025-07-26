@@ -468,7 +468,7 @@ columns:
         params:
           length: 255
 """
-    sql = "CREATE TABLE my_catalog.my_db.my_table (product_info STRUCT<product_id INT, product_name VARCHAR(255)>)"
+    sql = "CREATE TABLE my_catalog.my_db.my_table (product_info STRUCT<product_id INT, product_name TEXT(255)>)"
     assert_ast_equal(spec_yaml, sql)
 
 
@@ -489,7 +489,7 @@ columns:
       params:
         length: 100
 """
-    sql = "CREATE TABLE my_catalog.my_db.my_table (metadata MAP<TEXT, VARCHAR(100)>)"
+    sql = "CREATE TABLE my_catalog.my_db.my_table (metadata MAP<TEXT, TEXT(100)>)"
     assert_ast_equal(spec_yaml, sql)
 
 
@@ -513,7 +513,7 @@ columns:
           params:
             length: 255
 """
-    sql = "CREATE TABLE my_catalog.my_db.my_table (products ARRAY<STRUCT<product_id INT, product_name VARCHAR(255)>>)"
+    sql = "CREATE TABLE my_catalog.my_db.my_table (products ARRAY<STRUCT<product_id INT, product_name TEXT(255)>>)"
     assert_ast_equal(spec_yaml, sql)
 
 
@@ -537,7 +537,7 @@ columns:
           params:
             length: 20
 """
-    sql = "CREATE TABLE my_catalog.my_db.my_table (item STRUCT<item_id INT, variants ARRAY<VARCHAR(20)>>)"
+    sql = "CREATE TABLE my_catalog.my_db.my_table (item STRUCT<item_id INT, variants ARRAY<TEXT(20)>>)"
     assert_ast_equal(spec_yaml, sql)
 
 
@@ -558,7 +558,7 @@ columns:
     value:
       type: "integer"
 """
-    sql = "CREATE TABLE my_catalog.my_db.my_table (attributes MAP<VARCHAR(50), INT>)"
+    sql = "CREATE TABLE my_catalog.my_db.my_table (attributes MAP<TEXT(50), INT>)"
     assert_ast_equal(spec_yaml, sql)
 
 
