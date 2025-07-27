@@ -101,7 +101,13 @@
         },
         "params": {
           "type": "object",
-          "description": "Parameters for parameterized types, such as precision and scale for decimals."
+          "description": "Parameters for parameterized types, such as precision and scale for decimals.",
+          "properties": {
+            "length": { "type": "integer" },
+            "precision": { "type": "integer" },
+            "scale": { "type": "integer" },
+            "bits": { "type": "integer" }
+          }
         },
         "element": {
           "$ref": "#/definitions/column"
