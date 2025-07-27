@@ -26,7 +26,7 @@ You can generate a `CREATE TABLE` statement for a specific SQL dialect from your
 
 ```python
 import yads
-from yads.converters.sql import SparkSQLConverter
+from yads.converters import SparkSQLConverter
 
 # Load the specification from a YAML file
 spec = yads.from_yaml("examples/specs/yads_spec.yaml")
@@ -200,7 +200,3 @@ By following this pattern, you can keep dialect-specific logic cleanly separated
 ## Contributing
 
 Contributions are welcome! Please open an issue or submit a pull request.
-
-## License
-
-This project is licensed under the MIT License.
