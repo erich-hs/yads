@@ -89,6 +89,7 @@ class AstValidator:
                     node = rule.adjust(node)
             return node
 
+        # https://sqlglot.com/sqlglot/expressions.html#Expression.transform
         processed_ast = ast.transform(transformer, copy=False)
 
         if errors:
