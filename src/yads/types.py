@@ -217,6 +217,7 @@ PARAMETRIZED_TYPE_ALIASES: dict[str, tuple[type[Type], dict[str, Any]]] = {
     "int32": (Integer, {"bits": 32}),
     "int64": (Integer, {"bits": 64}),
     "bigint": (Integer, {"bits": 64}),
+    "long": (Integer, {"bits": 64}),
     "float32": (Float, {"bits": 32}),
     "float64": (Float, {"bits": 64}),
     "double": (Float, {"bits": 64}),

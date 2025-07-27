@@ -12,6 +12,7 @@ SPARK_TYPE_CASES = [
     ("smallint", None, "SMALLINT"),
     ("integer", None, "INT"),
     ("bigint", None, "BIGINT"),
+    ("long", None, "BIGINT"),
     ("float", None, "FLOAT"),
     ("double", None, "DOUBLE"),
     ("decimal", {"precision": 10, "scale": 2}, "DECIMAL(10, 2)"),
