@@ -96,23 +96,25 @@ def test_fixed_length_string_warn_mode():
     # Check that a warning was issued
     assert len(record) == 1
     assert "Fixed-length strings are not supported" in str(record[0].message)
+    assert "Set mode to 'fix' to automatically adjust the AST." in str(
+        record[0].message
+    )
 
-    # Check that the SQL is correct (length ignored -> STRING)
-    expected_sql = "CREATE TABLE test_db.test_table (\n  my_col STRING\n)"
+    expected_sql = "CREATE TABLE test_db.test_table (\n  my_col VARCHAR(50)\n)"
     assert " ".join(sql.strip().split()) == " ".join(expected_sql.strip().split())
 
 
-def test_fixed_length_string_ignore_mode():
+def test_fixed_length_string_fix_mode():
     """Tests that a fixed-length string converts without warning or adjustment in ignore mode."""
     spec = _get_spec_with_fixed_length_string()
     converter = SparkSQLConverter(pretty=True)
 
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
-        sql = converter.convert(spec, mode="ignore")
-        assert len(w) == 0, "No warnings should be issued in ignore mode"
+        sql = converter.convert(spec, mode="fix")
+        assert len(w) == 1, "A warning should be issued in fix mode"
+        assert "Fixed-length strings are not supported" in str(w[0].message)
+        assert "The length parameter will be removed." in str(w[0].message)
 
-    # The validator is skipped in 'ignore' mode, so the AST is not adjusted.
-    # sqlglot then generates VARCHAR(50) for a TEXT type with a length.
-    expected_sql = "CREATE TABLE test_db.test_table (\n  my_col VARCHAR(50)\n)"
+    expected_sql = "CREATE TABLE test_db.test_table (\n  my_col STRING\n)"
     assert " ".join(sql.strip().split()) == " ".join(expected_sql.strip().split())

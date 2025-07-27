@@ -29,3 +29,8 @@ class NoFixedLengthStringRule(Rule):
         ):
             node.set("expressions", None)
         return node
+
+    @property
+    def adjustment_description(self) -> str:
+        """A description of the `adjust` method."""
+        return "The length parameter will be removed."

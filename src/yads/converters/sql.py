@@ -64,7 +64,7 @@ class SqlConverter:
     def convert(
         self,
         spec: SchemaSpec,
-        mode: Literal["strict", "warn", "ignore"] = "strict",
+        mode: Literal["strict", "fix", "warn"] = "fix",
         **kwargs: Any,
     ) -> str:
         """Converts a yads SchemaSpec into a SQL DDL string.
@@ -73,8 +73,8 @@ class SqlConverter:
             spec: The SchemaSpec object.
             mode: The validation mode for the dialect processor.
                 - "strict": Raises an error for any unsupported feature.
-                - "warn": Logs a warning for any unsupported feature and adjusts.
-                - "ignore": Silently ignores and adjusts for any unsupported feature.
+                - "fix": Logs a warning for any unsupported feature and adjusts.
+                - "warn": Silently ignores and adjusts for any unsupported feature.
             kwargs: Keyword arguments for the AST converter, overriding any
                     options from initialization. See sqlglot's documentation for
                     available options:

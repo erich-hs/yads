@@ -40,6 +40,12 @@ class Rule(ABC):
         """
         pass
 
+    @property
+    @abstractmethod
+    def adjustment_description(self) -> str:
+        """A description of the `adjust` method."""
+        pass
+
 
 class AstValidator:
     """Processes a sqlglot AST to validate and adjust it for a specific dialect."""
@@ -52,7 +58,7 @@ class AstValidator:
         self.rules = rules
 
     def validate(
-        self, ast: exp.Create, mode: Literal["strict", "warn", "ignore"]
+        self, ast: exp.Create, mode: Literal["strict", "fix", "warn"]
     ) -> exp.Create:
         """Applies validation and adjustment rules to an AST.
 
@@ -61,7 +67,11 @@ class AstValidator:
 
         Args:
             ast: The sqlglot AST to process.
-            mode: The validation mode ("strict", "warn", or "ignore").
+            mode: The validation mode:
+                - "strict": Raises an error for any unsupported feature.
+                - "fix": Logs a warning and adjusts the AST to be compatible.
+                - "warn": Logs a warning for any unsupported feature without
+                          adjusting the AST.
 
         Returns:
             The processed (and possibly adjusted) sqlglot AST.
@@ -69,9 +79,6 @@ class AstValidator:
         Raises:
             ValueError: In "strict" mode, if any validation errors are found.
         """
-        if mode == "ignore":
-            return ast
-
         errors: List[str] = []
 
         def transformer(node: exp.Expression) -> exp.Expression:
@@ -80,13 +87,20 @@ class AstValidator:
                 if not error:
                     continue
 
-                if mode == "strict":
-                    errors.append(error)
-                elif mode == "warn":
-                    warnings.warn(
-                        f"{error} The converter will proceed by ignoring this feature."
-                    )
-                    node = rule.adjust(node)
+                match mode:
+                    case "strict":
+                        errors.append(f"{error}")
+                    case "fix":
+                        warnings.warn(f"{error} {rule.adjustment_description}")
+                        node = rule.adjust(node)
+                    case "warn":
+                        warnings.warn(
+                            f"{error}\n"
+                            "Set mode to 'fix' to automatically adjust the AST. "
+                            "The validator will proceed with no adjustment."
+                        )
+                    case _:
+                        raise ValueError(f"Invalid mode: {mode}")
             return node
 
         # https://sqlglot.com/sqlglot/expressions.html#Expression.transform
