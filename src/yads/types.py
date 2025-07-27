@@ -3,7 +3,7 @@ from __future__ import annotations
 import textwrap
 from abc import ABC
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .spec import Field
@@ -42,6 +42,10 @@ class String(Type):
 
     length: int | None = None
 
+    def __post_init__(self):
+        if self.length is not None and self.length <= 0:
+            raise ValueError("String 'length' must be a positive integer.")
+
     def __str__(self) -> str:
         """Returns a string representation of the string type."""
         if self.length is not None:
@@ -55,6 +59,12 @@ class Integer(Type):
 
     bits: int | None = None
 
+    def __post_init__(self):
+        if self.bits is not None and self.bits not in {8, 16, 32, 64}:
+            raise ValueError(
+                f"Integer 'bits' must be one of 8, 16, 32, 64, not {self.bits}."
+            )
+
     def __str__(self) -> str:
         """Returns a string representation of the integer type."""
         if self.bits is not None:
@@ -64,12 +74,15 @@ class Integer(Type):
 
 @dataclass(frozen=True)
 class Float(Type):
-    """A float data type, with an optional size in bits."""
+    """A floating-point number type."""
 
     bits: int | None = None
 
+    def __post_init__(self):
+        if self.bits is not None and self.bits not in {32, 64}:
+            raise ValueError(f"Float 'bits' must be one of 32 or 64, not {self.bits}.")
+
     def __str__(self) -> str:
-        """Returns a string representation of the float type."""
         if self.bits is not None:
             return f"float(bits={self.bits})"
         return "float"
@@ -82,17 +95,20 @@ class Boolean(Type):
 
 @dataclass(frozen=True)
 class Decimal(Type):
-    """A decimal data type, with optional precision and scale."""
+    """A decimal type with optional precision and scale."""
 
     precision: int | None = None
     scale: int | None = None
 
+    def __post_init__(self):
+        if (self.precision is None) != (self.scale is None):
+            raise ValueError(
+                "Decimal type requires both 'precision' and 'scale', or neither."
+            )
+
     def __str__(self) -> str:
-        """Returns a string representation of the decimal type."""
-        if self.precision is not None:
-            if self.scale is not None:
-                return f"decimal({self.precision},{self.scale})"
-            return f"decimal({self.precision},)"
+        if self.precision is not None and self.scale is not None:
+            return f"decimal({self.precision}, {self.scale})"
         return "decimal"
 
 
@@ -162,29 +178,46 @@ class Map(Type):
         return f"map<{self.key}, {self.value}>"
 
 
-TYPE_ALIASES: dict[str, Type] = {
-    # Integers
-    "tinyint": Integer(bits=8),
-    "smallint": Integer(bits=16),
-    "int": Integer(bits=32),
-    "integer": Integer(bits=32),
-    "bigint": Integer(bits=64),
-    # Floats
-    "float": Float(bits=32),
-    "real": Float(bits=32),
-    "double": Float(bits=64),
-    # Standard types
-    "string": String(),
-    "boolean": Boolean(),
-    "binary": Binary(),
-    "date": Date(),
-    "timestamp": Timestamp(),
-    "timestamp_tz": TimestampTZ(),
-    "json": JSON(),
-    "uuid": UUID(),
-    # Complex types (defaults, can be overridden with params)
-    "decimal": Decimal(),
-    "array": Array(element=String()),
-    "struct": Struct(fields=[]),
-    "map": Map(key=String(), value=String()),
+# A map from common type names to yads types.
+TYPE_ALIASES: dict[str, type[Type]] = {
+    "decimal": Decimal,
+    "numeric": Decimal,
+    "integer": Integer,
+    "int": Integer,
+    "float": Float,
+    "boolean": Boolean,
+    "bool": Boolean,
+    "string": String,
+    "text": String,
+    "varchar": String,
+    "char": String,
+    "binary": Binary,
+    "bytes": Binary,
+    "json": JSON,
+    "date": Date,
+    "datetime": Timestamp,
+    "timestamp": Timestamp,
+    "timestamp_tz": TimestampTZ,
+    "array": Array,
+    "list": Array,
+    "struct": Struct,
+    "record": Struct,
+    "map": Map,
+    "dictionary": Map,
+    "uuid": UUID,
+}
+
+# A map from type names with implicit parameters (e.g. `int32`) to a yads type
+# and its parameters. This allows for more concise spec definitions.
+PARAMETRIZED_TYPE_ALIASES: dict[str, tuple[type[Type], dict[str, Any]]] = {
+    "int8": (Integer, {"bits": 8}),
+    "tinyint": (Integer, {"bits": 8}),
+    "int16": (Integer, {"bits": 16}),
+    "smallint": (Integer, {"bits": 16}),
+    "int32": (Integer, {"bits": 32}),
+    "int64": (Integer, {"bits": 64}),
+    "bigint": (Integer, {"bits": 64}),
+    "float32": (Float, {"bits": 32}),
+    "float64": (Float, {"bits": 64}),
+    "double": (Float, {"bits": 64}),
 }

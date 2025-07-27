@@ -28,10 +28,9 @@ from .spec import (
 )
 from .types import (
     TYPE_ALIASES,
+    PARAMETRIZED_TYPE_ALIASES,
     Array,
-    Decimal,
     Map,
-    String,
     Struct,
     Type,
 )
@@ -76,57 +75,56 @@ class SpecLoader:
         return self.spec
 
     def _parse_type(self, type_name: str, type_def: dict[str, Any]) -> Type:
-        base_type = TYPE_ALIASES.get(type_name.lower())
-        if not base_type:
-            raise ValueError(f"Unknown type: '{type_name}'")
+        type_params = type_def.get("params", {})
+        type_name_lower = type_name.lower()
 
-        if isinstance(base_type, String):
-            length = type_def.get("params", {}).get("length")
-            return String(length=length) if length is not None else base_type
+        # Check for parametrized aliases like "int32"
+        if (
+            parametrized_alias := PARAMETRIZED_TYPE_ALIASES.get(type_name_lower)
+        ) is not None:
+            base_type_class, pre_defined_params = parametrized_alias
+            # Allow explicit params to override the alias's params
+            type_params = {**pre_defined_params, **type_params}
+            return base_type_class(**type_params)
 
-        if isinstance(base_type, Decimal):
-            params = type_def.get("params", {})
-            precision = params.get("precision")
-            scale = params.get("scale")
-            if (precision is not None) and (scale is not None):
-                return Decimal(precision=precision, scale=scale)
-            if precision is not None or scale is not None:
-                raise ValueError(
-                    "Decimal type requires both 'precision' and 'scale', or neither."
+        # Check for simple aliases like "string" or "integer"
+        base_type_class = TYPE_ALIASES.get(type_name_lower)  # type: ignore
+        if base_type_class is not None:
+            # For complex types, we need to recursively parse their components
+            if issubclass(base_type_class, Array):
+                if "element" not in type_def:
+                    raise ValueError("Array type definition must include 'element'")
+                element_def = type_def["element"]
+                if not isinstance(element_def, dict) or "type" not in element_def:
+                    raise ValueError(
+                        "The 'element' of an array must be a dictionary with a 'type' key"
+                    )
+                element_type_name = element_def["type"]
+                return Array(element=self._parse_type(element_type_name, element_def))
+
+            if issubclass(base_type_class, Struct):
+                if "fields" not in type_def:
+                    raise ValueError("Struct type definition must include 'fields'")
+                return Struct(
+                    fields=[self._parse_column(f) for f in type_def["fields"]]
                 )
-            return base_type
 
-        if isinstance(base_type, Array):
-            if "element" not in type_def:
-                raise ValueError("Array type definition must include 'element'")
-
-            element_def = type_def["element"]
-            if not isinstance(element_def, dict) or "type" not in element_def:
-                raise ValueError(
-                    "The 'element' of an array must be a dictionary with a 'type' key"
+            if issubclass(base_type_class, Map):
+                if "key" not in type_def or "value" not in type_def:
+                    raise ValueError(
+                        "Map type definition must include 'key' and 'value'"
+                    )
+                key_def = type_def["key"]
+                value_def = type_def["value"]
+                return Map(
+                    key=self._parse_type(key_def["type"], key_def),
+                    value=self._parse_type(value_def["type"], value_def),
                 )
 
-            element_type_name = element_def["type"]
-            return Array(element=self._parse_type(element_type_name, element_def))
+            # For simple types, instantiate with any provided params
+            return base_type_class(**type_params)
 
-        if isinstance(base_type, Struct):
-            if "fields" not in type_def:
-                raise ValueError("Struct type definition must include 'fields'")
-            return Struct(fields=[self._parse_column(f) for f in type_def["fields"]])
-
-        if isinstance(base_type, Map):
-            if "key" not in type_def or "value" not in type_def:
-                raise ValueError("Map type definition must include 'key' and 'value'")
-
-            key_def = type_def["key"]
-            value_def = type_def["value"]
-
-            return Map(
-                key=self._parse_type(key_def["type"], key_def),
-                value=self._parse_type(value_def["type"], value_def),
-            )
-
-        return base_type
+        raise ValueError(f"Unknown type: '{type_name}'")
 
     def _parse_not_null_constraint(self, value: Any) -> NotNullConstraint:
         if not isinstance(value, bool):
