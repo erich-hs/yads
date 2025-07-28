@@ -178,38 +178,33 @@ class Map(Type):
         return f"map<{self.key}, {self.value}>"
 
 
-# A map from common type names to yads types.
-TYPE_ALIASES: dict[str, type[Type]] = {
-    "decimal": Decimal,
-    "numeric": Decimal,
-    "integer": Integer,
-    "int": Integer,
-    "float": Float,
-    "boolean": Boolean,
-    "bool": Boolean,
-    "string": String,
-    "text": String,
-    "varchar": String,
-    "char": String,
-    "binary": Binary,
-    "bytes": Binary,
-    "json": JSON,
-    "date": Date,
-    "datetime": Timestamp,
-    "timestamp": Timestamp,
-    "timestamp_tz": TimestampTZ,
-    "array": Array,
-    "list": Array,
-    "struct": Struct,
-    "record": Struct,
-    "map": Map,
-    "dictionary": Map,
-    "uuid": UUID,
-}
-
-# A map from type names with implicit parameters (e.g. `int32`) to a yads type
-# and its parameters. This allows for more concise spec definitions.
-PARAMETRIZED_TYPE_ALIASES: dict[str, tuple[type[Type], dict[str, Any]]] = {
+# A map from common type names to yads types and their default parameters.
+TYPE_ALIASES: dict[str, tuple[type[Type], dict[str, Any]]] = {
+    "boolean": (Boolean, {}),
+    "binary": (Binary, {}),
+    "date": (Date, {}),
+    "timestamp": (Timestamp, {}),
+    "timestamp_tz": (TimestampTZ, {}),
+    "json": (JSON, {}),
+    "uuid": (UUID, {}),
+    "array": (Array, {}),
+    "struct": (Struct, {}),
+    "map": (Map, {}),
+    "string": (String, {}),
+    "decimal": (Decimal, {}),
+    "bool": (Boolean, {}),
+    "bytes": (Binary, {}),
+    "datetime": (Timestamp, {}),
+    "list": (Array, {}),
+    "record": (Struct, {}),
+    "dictionary": (Map, {}),
+    "text": (String, {}),
+    "varchar": (String, {}),
+    "char": (String, {}),
+    "numeric": (Decimal, {}),
+    "integer": (Integer, {"bits": 32}),
+    "int": (Integer, {"bits": 32}),
+    "float": (Float, {"bits": 64}),
     "int8": (Integer, {"bits": 8}),
     "tinyint": (Integer, {"bits": 8}),
     "int16": (Integer, {"bits": 16}),
