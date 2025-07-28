@@ -872,7 +872,7 @@ CREATE TABLE orders (
   order_id INT,
   customer_id INT,
   order_date DATE,
-  total_amount FLOAT
+  total_amount DOUBLE
 )
 USING iceberg
 PARTITIONED BY (bucket(customer_id, 10), bucket(order_date, 5))
