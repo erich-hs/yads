@@ -32,7 +32,6 @@ class Type(ABC):
     """The abstract base class for all canonical types."""
 
     def __str__(self) -> str:
-        """Returns a string representation of the type."""
         return self.__class__.__name__.lower()
 
 
@@ -47,7 +46,6 @@ class String(Type):
             raise ValueError("String 'length' must be a positive integer.")
 
     def __str__(self) -> str:
-        """Returns a string representation of the string type."""
         if self.length is not None:
             return f"string({self.length})"
         return "string"
@@ -66,7 +64,6 @@ class Integer(Type):
             )
 
     def __str__(self) -> str:
-        """Returns a string representation of the integer type."""
         if self.bits is not None:
             return f"integer(bits={self.bits})"
         return "integer"
@@ -149,7 +146,6 @@ class Array(Type):
     element: Type
 
     def __str__(self) -> str:
-        """Returns a string representation of the array type."""
         return f"array<{self.element}>"
 
 
@@ -160,7 +156,6 @@ class Struct(Type):
     fields: list["Field"]
 
     def __str__(self) -> str:
-        """Returns a string representation of the struct type."""
         fields_str = ",\n".join(str(field) for field in self.fields)
         indented_fields = textwrap.indent(fields_str, "  ")
         return f"struct<\n{indented_fields}\n>"
@@ -174,46 +169,54 @@ class Map(Type):
     value: Type
 
     def __str__(self) -> str:
-        """Returns a string representation of the map type."""
         return f"map<{self.key}, {self.value}>"
 
 
-# A map from common type names to yads types and their default parameters.
 TYPE_ALIASES: dict[str, tuple[type[Type], dict[str, Any]]] = {
-    "boolean": (Boolean, {}),
-    "binary": (Binary, {}),
-    "date": (Date, {}),
-    "timestamp": (Timestamp, {}),
-    "timestamp_tz": (TimestampTZ, {}),
-    "json": (JSON, {}),
-    "uuid": (UUID, {}),
-    "array": (Array, {}),
-    "struct": (Struct, {}),
-    "map": (Map, {}),
-    "string": (String, {}),
-    "decimal": (Decimal, {}),
-    "bool": (Boolean, {}),
-    "bytes": (Binary, {}),
-    "datetime": (Timestamp, {}),
-    "list": (Array, {}),
-    "record": (Struct, {}),
-    "dictionary": (Map, {}),
-    "text": (String, {}),
-    "varchar": (String, {}),
-    "char": (String, {}),
-    "numeric": (Decimal, {}),
-    "integer": (Integer, {"bits": 32}),
-    "int": (Integer, {"bits": 32}),
-    "float": (Float, {"bits": 64}),
+    # Numeric Types
     "int8": (Integer, {"bits": 8}),
     "tinyint": (Integer, {"bits": 8}),
+    "byte": (Integer, {"bits": 8}),
     "int16": (Integer, {"bits": 16}),
     "smallint": (Integer, {"bits": 16}),
+    "short": (Integer, {"bits": 16}),
     "int32": (Integer, {"bits": 32}),
+    "int": (Integer, {"bits": 32}),
+    "integer": (Integer, {"bits": 32}),
     "int64": (Integer, {"bits": 64}),
     "bigint": (Integer, {"bits": 64}),
     "long": (Integer, {"bits": 64}),
+    "float": (Float, {"bits": 64}),
     "float32": (Float, {"bits": 32}),
     "float64": (Float, {"bits": 64}),
     "double": (Float, {"bits": 64}),
+    "decimal": (Decimal, {}),
+    "numeric": (Decimal, {}),
+    # String Types
+    "string": (String, {}),
+    "text": (String, {}),
+    "varchar": (String, {}),
+    "char": (String, {}),
+    # Binary Types
+    "blob": (Binary, {}),
+    "binary": (Binary, {}),
+    "bytes": (Binary, {}),
+    # Boolean Types
+    "bool": (Boolean, {}),
+    "boolean": (Boolean, {}),
+    # Temporal Types
+    "date": (Date, {}),
+    "datetime": (Timestamp, {}),
+    "timestamp": (Timestamp, {}),
+    "timestamp_tz": (TimestampTZ, {}),
+    # Complex Types
+    "array": (Array, {}),
+    "list": (Array, {}),
+    "struct": (Struct, {}),
+    "record": (Struct, {}),
+    "map": (Map, {}),
+    "dictionary": (Map, {}),
+    "json": (JSON, {}),
+    # Other Types
+    "uuid": (UUID, {}),
 }
