@@ -73,8 +73,9 @@ class SqlConverter:
             spec: The SchemaSpec object.
             mode: The validation mode for the dialect processor.
                 - "strict": Raises an error for any unsupported feature.
-                - "fix": Logs a warning for any unsupported feature and adjusts.
-                - "warn": Silently ignores and adjusts for any unsupported feature.
+                - "fix": Logs a warning and adjusts the AST to be compatible.
+                - "warn": Logs a warning for any unsupported feature without
+                          adjusting the AST.
             kwargs: Keyword arguments for the AST converter, overriding any
                     options from initialization. See sqlglot's documentation for
                     available options:
