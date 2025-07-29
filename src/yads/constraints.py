@@ -13,6 +13,10 @@ class Reference:
     table: str
     columns: list[str] | None = None
 
+    def __post_init__(self):
+        if self.columns == []:
+            raise ValueError("Reference 'columns' cannot be an empty list.")
+
     def __str__(self) -> str:
         if self.columns:
             return f"{self.table}({', '.join(self.columns)})"
@@ -65,6 +69,10 @@ class IdentityConstraint(ColumnConstraint):
     start: int | None = None
     increment: int | None = None
 
+    def __post_init__(self):
+        if self.increment == 0:
+            raise ValueError("Identity 'increment' cannot be zero.")
+
 
 # Table Constraints
 @dataclass(frozen=True)
@@ -77,6 +85,10 @@ class TableConstraint(ABC):
 class PrimaryKeyTableConstraint(TableConstraint):
     columns: list[str]
     name: str | None = None
+
+    def __post_init__(self):
+        if not self.columns:
+            raise ValueError("PrimaryKeyTableConstraint 'columns' cannot be empty.")
 
     def get_constrained_columns(self) -> list[str]:
         return self.columns
@@ -100,6 +112,17 @@ class ForeignKeyTableConstraint(TableConstraint):
     columns: list[str]
     references: Reference
     name: str | None = None
+
+    def __post_init__(self):
+        if not self.columns:
+            raise ValueError("ForeignKeyTableConstraint 'columns' cannot be empty.")
+        if self.references.columns and len(self.columns) != len(
+            self.references.columns
+        ):
+            raise ValueError(
+                "The number of columns in the foreign key must match the number of "
+                "referenced columns."
+            )
 
     def get_constrained_columns(self) -> list[str]:
         return self.columns
