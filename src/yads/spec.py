@@ -123,10 +123,51 @@ class SchemaSpec:
     table_constraints: list[TableConstraint] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    def __post_init__(self):
+        self._validate_columns()
+        self._validate_partitions()
+        self._validate_generated_columns()
+        self._validate_table_constraints()
+
+    def _validate_columns(self):
+        names = set()
+        for c in self.columns:
+            if c.name in names:
+                raise ValueError(f"Duplicate column name found: {c.name!r}")
+            names.add(c.name)
+
+    def _validate_partitions(self):
+        for p_col in self.partition_column_names:
+            if p_col not in self.column_names:
+                raise ValueError(
+                    f"Partition column {p_col!r} must be defined as a column in the schema."
+                )
+
+    def _validate_generated_columns(self):
+        for gen_col, source_col in self.generated_columns.items():
+            if source_col not in self.all_column_names:
+                raise ValueError(
+                    f"Source column {source_col!r} for generated column {gen_col!r} "
+                    "not found in schema."
+                )
+
+    def _validate_table_constraints(self):
+        for constraint in self.table_constraints:
+            for col in constraint.get_constrained_columns():
+                if col not in self.all_column_names:
+                    raise ValueError(
+                        f"Column {col!r} in constraint {constraint} not found in schema."
+                    )
+
     @property
     def column_names(self) -> set[str]:
         """A set of all column names in the schema."""
         return {c.name for c in self.columns}
+
+    @property
+    def all_column_names(self) -> set[str]:
+        """A set of all column names in the schema, including partition columns."""
+        return self.column_names.union(self.partition_column_names)
 
     @property
     def partition_column_names(self) -> set[str]:
@@ -143,11 +184,9 @@ class SchemaSpec:
         }
 
     def _build_header_str(self) -> str:
-        """Builds the header section of the schema string representation."""
         return f"schema {self.name}(version={self.version!r})"
 
     def _build_body_str(self) -> str:
-        """Builds the body section of the schema string representation."""
         parts = []
         if self.description:
             parts.append(f"description={self.description!r}")
