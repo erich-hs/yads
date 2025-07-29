@@ -65,6 +65,8 @@ class SqlConverter:
     def convert(
         self,
         spec: SchemaSpec,
+        if_not_exists: bool = False,
+        or_replace: bool = False,
         mode: Literal["strict", "fix", "warn"] = "fix",
         **kwargs: Any,
     ) -> str:
@@ -72,6 +74,8 @@ class SqlConverter:
 
         Args:
             spec: The SchemaSpec object.
+            if_not_exists: If True, adds `IF NOT EXISTS` to the DDL statement.
+            or_replace: If True, adds `OR REPLACE` to the DDL statement.
             mode: The validation mode for the dialect processor.
                 - "strict": Raises an error for any unsupported feature.
                 - "fix": Logs a warning and adjusts the AST to be compatible.
@@ -85,7 +89,9 @@ class SqlConverter:
         Returns:
             A SQL DDL string formatted for the specified dialect.
         """
-        ast = self._ast_converter.convert(spec)
+        ast = self._ast_converter.convert(
+            spec, if_not_exists=if_not_exists, or_replace=or_replace
+        )
         if self._ast_validator:
             ast = self._ast_validator.validate(ast, mode=mode)
         options = {**self._convert_options, **kwargs}
@@ -140,11 +146,14 @@ class SqlglotConverter(BaseConverter):
             ForeignKeyTableConstraint: self._handle_foreign_key_table_constraint,
         }
 
-    def convert(self, spec: SchemaSpec) -> exp.Create:
+    def convert(self, spec: SchemaSpec, **kwargs: Any) -> exp.Create:
         """Converts a yads SchemaSpec into a sqlglot Create AST.
 
         Args:
             spec: The yads specification.
+            kwargs: Additional keyword arguments for the converter.
+                    `if_not_exists` (bool): If True, adds `IF NOT EXISTS`.
+                    `or_replace` (bool): If True, adds `OR REPLACE`.
 
         Returns:
             A sqlglot Create AST.
@@ -157,8 +166,8 @@ class SqlglotConverter(BaseConverter):
         return exp.Create(
             this=exp.Schema(this=table, expressions=expressions),
             kind="TABLE",
-            exists=spec.options.if_not_exists,
-            replace=spec.options.or_replace,
+            exists=kwargs.get("if_not_exists", False),
+            replace=kwargs.get("or_replace", False),
             properties=(exp.Properties(expressions=properties) if properties else None),
         )
 
@@ -342,7 +351,7 @@ class SqlglotConverter(BaseConverter):
         """Gathers all table-level properties from the spec."""
         properties: list[exp.Property] = []
 
-        if spec.options.is_external:
+        if spec.external:
             properties.append(self._handle_external_property())
 
         properties.extend(self._handle_storage_properties(spec.storage))

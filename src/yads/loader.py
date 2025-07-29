@@ -21,7 +21,6 @@ from .constraints import (
 from .spec import (
     Field,
     GenerationClause,
-    Options,
     SchemaSpec,
     Storage,
     TransformedColumn,
@@ -63,7 +62,7 @@ class SpecLoader:
             name=self.data["name"],
             version=self.data["version"],
             description=self.data.get("description"),
-            options=self._parse_options(self.data.get("options")),
+            external=self.data.get("external", False),
             storage=self._parse_storage(self.data.get("storage")),
             partitioned_by=self._parse_partitioned_by(self.data.get("partitioned_by")),
             table_constraints=self._parse_table_constraints(
@@ -264,11 +263,6 @@ class SpecLoader:
             else:
                 raise ValueError(f"Unknown table constraint type: {constraint_type}")
         return constraints
-
-    def _parse_options(self, options_def: dict[str, Any] | None) -> Options:
-        if not options_def:
-            return Options()
-        return Options(**options_def)
 
     def _parse_storage(self, storage_def: dict[str, Any] | None) -> Storage | None:
         if not storage_def:

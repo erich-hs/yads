@@ -12,11 +12,12 @@ class BaseConverter(ABC):
     """
 
     @abstractmethod
-    def convert(self, spec: SchemaSpec) -> Any:
+    def convert(self, spec: SchemaSpec, **kwargs: Any) -> Any:
         """Converts a SchemaSpec object into the target format.
 
         Args:
             spec: The SchemaSpec object to convert.
+            kwargs: Additional keyword arguments for the converter.
 
         Returns:
             The converted schema in its target representation. The return type

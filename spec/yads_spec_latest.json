@@ -16,19 +16,10 @@
       "type": "string",
       "description": "A description of the table."
     },
-    "options": {
-      "type": "object",
-      "properties": {
-        "if_not_exists": {
-          "type": "boolean",
-          "default": false
-        },
-        "or_replace": {
-          "type": "boolean",
-          "default": false
-        }
-      },
-      "description": "Flags that modify the CREATE TABLE statement (e.g., IF NOT EXISTS, OR REPLACE)."
+    "external": {
+      "type": "boolean",
+      "description": "Flag to emit a CREATE EXTERNAL statement from SQL DDL converters. Defaults to False.",
+      "default": false
     },
     "storage": {
       "type": "object",

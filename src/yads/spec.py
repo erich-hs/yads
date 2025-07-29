@@ -70,31 +70,6 @@ class Field:
 
 
 @dataclass(frozen=True)
-class Options:
-    """Represents high-level options for CREATE TABLE statements."""
-
-    is_external: bool = False
-    if_not_exists: bool = False
-    or_replace: bool = False
-
-    def is_defined(self) -> bool:
-        """Checks if any option is defined."""
-        return self.is_external or self.if_not_exists or self.or_replace
-
-    def __str__(self) -> str:
-        if not self.is_defined():
-            return "Options()"
-        parts = []
-        if self.is_external:
-            parts.append("is_external=True")
-        if self.if_not_exists:
-            parts.append("if_not_exists=True")
-        if self.or_replace:
-            parts.append("or_replace=True")
-        return f"Options({', '.join(parts)})"
-
-
-@dataclass(frozen=True)
 class TransformedColumn:
     """A column that may have a transformation function applied."""
 
@@ -142,7 +117,7 @@ class SchemaSpec:
     version: str
     columns: list[Field]
     description: str | None = None
-    options: Options = field(default_factory=Options)
+    external: bool = False
     storage: Storage | None = None
     partitioned_by: list[TransformedColumn] = field(default_factory=list)
     table_constraints: list[TableConstraint] = field(default_factory=list)
@@ -180,8 +155,8 @@ class SchemaSpec:
             parts.append(
                 f"metadata={_format_dict_as_kwargs(self.metadata, multiline=True)}"
             )
-        if self.options.is_defined():
-            parts.append(f"options={self.options}")
+        if self.external:
+            parts.append("external=True")
         if self.storage:
             parts.append(f"storage={self.storage}")
         if self.partitioned_by:
