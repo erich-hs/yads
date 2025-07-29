@@ -26,24 +26,18 @@ class ColumnConstraint(ABC):
 
 @dataclass(frozen=True)
 class NotNullConstraint(ColumnConstraint):
-    """A NOT NULL constraint on a column."""
-
     def __str__(self) -> str:
         return "NotNullConstraint()"
 
 
 @dataclass(frozen=True)
 class PrimaryKeyConstraint(ColumnConstraint):
-    """A PRIMARY KEY constraint on a column."""
-
     def __str__(self) -> str:
         return "PrimaryKeyConstraint()"
 
 
 @dataclass(frozen=True)
 class DefaultConstraint(ColumnConstraint):
-    """A DEFAULT constraint on a column."""
-
     value: Any
 
     def __str__(self) -> str:
@@ -52,8 +46,6 @@ class DefaultConstraint(ColumnConstraint):
 
 @dataclass(frozen=True)
 class ForeignKeyConstraint(ColumnConstraint):
-    """A FOREIGN KEY constraint on a column."""
-
     references: Reference
     name: str | None = None
 
@@ -69,8 +61,6 @@ class ForeignKeyConstraint(ColumnConstraint):
 
 @dataclass(frozen=True)
 class IdentityConstraint(ColumnConstraint):
-    """An identity column constraint, often used for auto-incrementing keys."""
-
     always: bool = True
     start: int | None = None
     increment: int | None = None
@@ -79,23 +69,16 @@ class IdentityConstraint(ColumnConstraint):
 # Table Constraints
 @dataclass(frozen=True)
 class TableConstraint(ABC):
-    """Abstract base class for all table-level constraints."""
-
     @abstractmethod
-    def get_constrained_columns(self) -> list[str]:
-        """Returns the list of columns targeted by the constraint."""
-        ...
+    def get_constrained_columns(self) -> list[str]: ...
 
 
 @dataclass(frozen=True)
 class PrimaryKeyTableConstraint(TableConstraint):
-    """A table-level PRIMARY KEY constraint, for single or composite keys."""
-
     columns: list[str]
     name: str | None = None
 
     def get_constrained_columns(self) -> list[str]:
-        """Returns the list of columns constrained as a primary key."""
         return self.columns
 
     def __str__(self) -> str:
@@ -114,14 +97,11 @@ class PrimaryKeyTableConstraint(TableConstraint):
 
 @dataclass(frozen=True)
 class ForeignKeyTableConstraint(TableConstraint):
-    """A table-level FOREIGN KEY constraint, for single or composite keys."""
-
     columns: list[str]
     references: Reference
     name: str | None = None
 
     def get_constrained_columns(self) -> list[str]:
-        """Returns the list of columns constrained by the foreign key."""
         return self.columns
 
     def __str__(self) -> str:
