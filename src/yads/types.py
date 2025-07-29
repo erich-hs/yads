@@ -3,6 +3,7 @@ from __future__ import annotations
 import textwrap
 from abc import ABC
 from dataclasses import dataclass
+from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -22,6 +23,8 @@ __all__ = [
     "Binary",
     "JSON",
     "UUID",
+    "Interval",
+    "IntervalUnit",
     "Array",
     "Struct",
     "Map",
@@ -139,6 +142,80 @@ class UUID(Type):
     pass
 
 
+class IntervalUnit(str, Enum):
+    """Enumeration for interval units."""
+
+    YEAR = "YEAR"
+    MONTH = "MONTH"
+    DAY = "DAY"
+    HOUR = "HOUR"
+    MINUTE = "MINUTE"
+    SECOND = "SECOND"
+
+
+@dataclass(frozen=True)
+class Interval(Type):
+    """An interval data type, with start and end fields."""
+
+    interval_start: IntervalUnit
+    interval_end: IntervalUnit | None = None
+
+    def __post_init__(self):
+        _YEAR_MONTH_UNITS = {IntervalUnit.YEAR, IntervalUnit.MONTH}
+        _DAY_TIME_UNITS = {
+            IntervalUnit.DAY,
+            IntervalUnit.HOUR,
+            IntervalUnit.MINUTE,
+            IntervalUnit.SECOND,
+        }
+
+        if self.interval_end:
+            in_ym_start = self.interval_start in _YEAR_MONTH_UNITS
+            in_ym_end = self.interval_end in _YEAR_MONTH_UNITS
+
+            if in_ym_start != in_ym_end:
+                category_start = "Year-Month" if in_ym_start else "Day-Time"
+                category_end = "Year-Month" if in_ym_end else "Day-Time"
+                raise ValueError(
+                    "Invalid Interval definition: 'interval_start' and 'interval_end' must "
+                    "belong to the same category (either Year-Month or Day-Time). "
+                    f"Received interval_start='{self.interval_start.value}' (category: "
+                    f"{category_start}) and interval_end='{self.interval_end.value}' "
+                    f"(category: {category_end})."
+                )
+
+        _UNIT_ORDER_MAP = {
+            "Year-Month": [IntervalUnit.YEAR, IntervalUnit.MONTH],
+            "Day-Time": [
+                IntervalUnit.DAY,
+                IntervalUnit.HOUR,
+                IntervalUnit.MINUTE,
+                IntervalUnit.SECOND,
+            ],
+        }
+
+        category = (
+            "Year-Month" if self.interval_start in _YEAR_MONTH_UNITS else "Day-Time"
+        )
+        order = _UNIT_ORDER_MAP[category]
+
+        if self.interval_end and self.interval_start != self.interval_end:
+            start_index = order.index(self.interval_start)
+            end_index = order.index(self.interval_end)
+            if start_index > end_index:
+                raise ValueError(
+                    "Invalid Interval definition: 'interval_start' cannot be less "
+                    "significant than 'interval_end'. "
+                    f"Received interval_start='{self.interval_start.value}' and "
+                    f"interval_end='{self.interval_end.value}'."
+                )
+
+    def __str__(self) -> str:
+        if self.interval_end and self.interval_start != self.interval_end:
+            return f"interval({self.interval_start.value} to {self.interval_end.value})"
+        return f"interval({self.interval_start.value})"
+
+
 @dataclass(frozen=True)
 class Array(Type):
     """An array data type, composed of elements of another type."""
@@ -209,6 +286,7 @@ TYPE_ALIASES: dict[str, tuple[type[Type], dict[str, Any]]] = {
     "datetime": (Timestamp, {}),
     "timestamp": (Timestamp, {}),
     "timestamp_tz": (TimestampTZ, {}),
+    "interval": (Interval, {}),
     # Complex Types
     "array": (Array, {}),
     "list": (Array, {}),

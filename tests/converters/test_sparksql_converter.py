@@ -49,6 +49,71 @@ SPARK_TYPE_CASES = [
         {"key": {"type": "string"}, "value": {"type": "integer"}},
         "MAP<STRING, INT>",
     ),
+    (
+        "interval",
+        {"interval_start": "year"},
+        "INTERVAL YEAR",
+    ),
+    (
+        "interval",
+        {"interval_start": "month"},
+        "INTERVAL MONTH",
+    ),
+    (
+        "interval",
+        {"interval_start": "year", "interval_end": "month"},
+        "INTERVAL YEAR TO MONTH",
+    ),
+    (
+        "interval",
+        {"interval_start": "day"},
+        "INTERVAL DAY",
+    ),
+    (
+        "interval",
+        {"interval_start": "hour"},
+        "INTERVAL HOUR",
+    ),
+    (
+        "interval",
+        {"interval_start": "minute"},
+        "INTERVAL MINUTE",
+    ),
+    (
+        "interval",
+        {"interval_start": "second"},
+        "INTERVAL SECOND",
+    ),
+    (
+        "interval",
+        {"interval_start": "day", "interval_end": "hour"},
+        "INTERVAL DAY TO HOUR",
+    ),
+    (
+        "interval",
+        {"interval_start": "day", "interval_end": "minute"},
+        "INTERVAL DAY TO MINUTE",
+    ),
+    (
+        "interval",
+        {"interval_start": "day", "interval_end": "second"},
+        "INTERVAL DAY TO SECOND",
+    ),
+    (
+        "interval",
+        {"interval_start": "hour", "interval_end": "minute"},
+        "INTERVAL HOUR TO MINUTE",
+    ),
+    (
+        "interval",
+        {"interval_start": "hour", "interval_end": "second"},
+        "INTERVAL HOUR TO SECOND",
+    ),
+    (
+        "interval",
+        {"interval_start": "minute", "interval_end": "second"},
+        "INTERVAL MINUTE TO SECOND",
+    ),
 ]
 
 

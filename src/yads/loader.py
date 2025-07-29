@@ -29,6 +29,8 @@ from .spec import (
 from .types import (
     TYPE_ALIASES,
     Array,
+    Interval,
+    IntervalUnit,
     Map,
     Struct,
     Type,
@@ -83,6 +85,18 @@ class SpecLoader:
         base_type_class, default_params = alias
         # Allow explicit params to override the alias's params
         final_params = {**default_params, **type_params}
+
+        if issubclass(base_type_class, Interval):
+            if "interval_start" not in final_params:
+                raise ValueError(
+                    "Interval type definition must include 'interval_start'"
+                )
+            final_params["interval_start"] = IntervalUnit(
+                final_params["interval_start"].upper()
+            )
+            if end_field_val := final_params.get("interval_end"):
+                final_params["interval_end"] = IntervalUnit(end_field_val.upper())
+            return base_type_class(**final_params)
 
         if issubclass(base_type_class, Array):
             if "element" not in type_def:

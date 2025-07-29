@@ -21,6 +21,7 @@ from yads.types import (
     Decimal,
     Float,
     Integer,
+    Interval,
     Map,
     String,
     Struct,
@@ -120,6 +121,7 @@ class SqlglotConverter(BaseConverter):
             Map: self._handle_map_type,
             Integer: self._handle_integer_type,
             Float: self._handle_float_type,
+            Interval: self._handle_interval_type,
         }
         self._transform_handlers: dict[str, Callable[..., exp.Expression]] = {
             "bucket": self._handle_bucket_transform,
@@ -181,6 +183,23 @@ class SqlglotConverter(BaseConverter):
         if yads_type.bits == 64:
             return exp.DataType(this=exp.DataType.Type.DOUBLE)
         return exp.DataType(this=exp.DataType.Type.FLOAT)
+
+    def _handle_interval_type(self, yads_type: Interval) -> exp.DataType:
+        if (
+            yads_type.interval_end
+            and yads_type.interval_start != yads_type.interval_end
+        ):
+            return exp.DataType(
+                this=exp.Interval(
+                    unit=exp.IntervalSpan(
+                        this=exp.Var(this=yads_type.interval_start.value),
+                        expression=exp.Var(this=yads_type.interval_end.value),
+                    )
+                )
+            )
+        return exp.DataType(
+            this=exp.Interval(unit=exp.Var(this=yads_type.interval_start.value))
+        )
 
     def _handle_string_type(self, yads_type: String) -> exp.DataType:
         expressions = []

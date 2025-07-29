@@ -106,7 +106,41 @@
             "length": { "type": "integer" },
             "precision": { "type": "integer" },
             "scale": { "type": "integer" },
-            "bits": { "type": "integer" }
+            "bits": { "type": "integer" },
+            "interval_start": {
+              "type": "string",
+              "enum": [
+                "YEAR",
+                "MONTH",
+                "DAY",
+                "HOUR",
+                "MINUTE",
+                "SECOND",
+                "year",
+                "month",
+                "day",
+                "hour",
+                "minute",
+                "second"
+              ]
+            },
+            "interval_end": {
+              "type": "string",
+              "enum": [
+                "YEAR",
+                "MONTH",
+                "DAY",
+                "HOUR",
+                "MINUTE",
+                "SECOND",
+                "year",
+                "month",
+                "day",
+                "hour",
+                "minute",
+                "second"
+              ]
+            }
           }
         },
         "element": {

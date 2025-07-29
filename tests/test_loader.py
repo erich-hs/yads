@@ -3,7 +3,17 @@ import re
 
 from yads.loader import from_dict, from_string, from_yaml
 from yads.spec import Field, SchemaSpec
-from yads.types import Array, Decimal, Integer, Map, String, Struct, UUID
+from yads.types import (
+    Array,
+    Decimal,
+    Integer,
+    Map,
+    String,
+    Struct,
+    UUID,
+    Interval,
+    IntervalUnit,
+)
 from yads.constraints import (
     DefaultConstraint,
     NotNullConstraint,
@@ -847,3 +857,140 @@ columns:
         ValueError, match="The 'identity' constraint expects a dictionary"
     ):
         from_string(spec_yaml)
+
+
+def test_from_string_with_interval_types():
+    """Tests parsing a schema with various interval types."""
+    yaml_content = """
+name: "intervals.schema"
+version: "1.0.0"
+columns:
+  - name: "interval_year"
+    type: "interval"
+    params:
+      interval_start: "year"
+  - name: "interval_month"
+    type: "interval"
+    params:
+      interval_start: "month"
+  - name: "interval_year_to_month"
+    type: "interval"
+    params:
+      interval_start: "year"
+      interval_end: "month"
+  - name: "interval_day"
+    type: "interval"
+    params:
+      interval_start: "day"
+  - name: "interval_hour"
+    type: "interval"
+    params:
+      interval_start: "hour"
+  - name: "interval_minute"
+    type: "interval"
+    params:
+      interval_start: "minute"
+  - name: "interval_second"
+    type: "interval"
+    params:
+      interval_start: "second"
+  - name: "interval_day_to_hour"
+    type: "interval"
+    params:
+      interval_start: "day"
+      interval_end: "hour"
+"""
+    spec = from_string(yaml_content)
+    assert len(spec.columns) == 8
+
+    expected_intervals = [
+        ("interval_year", Interval(IntervalUnit.YEAR)),
+        ("interval_month", Interval(IntervalUnit.MONTH)),
+        ("interval_year_to_month", Interval(IntervalUnit.YEAR, IntervalUnit.MONTH)),
+        ("interval_day", Interval(IntervalUnit.DAY)),
+        ("interval_hour", Interval(IntervalUnit.HOUR)),
+        ("interval_minute", Interval(IntervalUnit.MINUTE)),
+        ("interval_second", Interval(IntervalUnit.SECOND)),
+        ("interval_day_to_hour", Interval(IntervalUnit.DAY, IntervalUnit.HOUR)),
+    ]
+
+    for i, (name, interval_type) in enumerate(expected_intervals):
+        column = spec.columns[i]
+        assert column.name == name
+        assert isinstance(column.type, Interval)
+        assert column.type.interval_start == interval_type.interval_start
+        assert column.type.interval_end == interval_type.interval_end
+
+
+@pytest.mark.parametrize(
+    "interval_start, interval_end",
+    [
+        ("year", "day"),
+        ("day", "month"),
+        ("hour", "year"),
+        ("month", "second"),
+    ],
+)
+def test_from_string_with_invalid_interval_combination(interval_start, interval_end):
+    """Tests that an invalid interval combination raises a ValueError."""
+    yaml_content = f"""
+name: "invalid.interval.schema"
+version: "1.0.0"
+columns:
+  - name: "invalid_interval"
+    type: "interval"
+    params:
+      interval_start: "{interval_start}"
+      interval_end: "{interval_end}"
+"""
+    with pytest.raises(ValueError, match="Invalid Interval definition"):
+        from_string(yaml_content)
+
+
+def test_from_string_with_interval_missing_start():
+    """Tests that an interval without 'interval_start' raises a ValueError."""
+    yaml_content = """
+name: "invalid.interval.schema"
+version: "1.0.0"
+columns:
+  - name: "invalid_interval"
+    type: "interval"
+    params:
+      interval_end: "month"
+"""
+    with pytest.raises(
+        ValueError, match="Interval type definition must include 'interval_start'"
+    ):
+        from_string(yaml_content)
+
+
+@pytest.mark.parametrize("value", ["years", "days", "random_string"])
+def test_from_string_with_interval_invalid_value(value):
+    """Tests that an interval with an invalid 'interval_start' or 'interval_end' value raises a ValueError."""
+    yaml_content = f"""
+name: "invalid.interval.schema"
+version: "1.0.0"
+columns:
+  - name: "invalid_interval"
+    type: "interval"
+    params:
+      interval_start: "{value}"
+"""
+    with pytest.raises(
+        ValueError, match=f"'{value.upper()}' is not a valid IntervalUnit"
+    ):
+        from_string(yaml_content)
+
+
+def test_from_string_with_interval_params_not_a_dict():
+    """Tests that an interval with non-dictionary 'params' raises a ValueError."""
+    yaml_content = """
+name: "invalid.interval.schema"
+version: "1.0.0"
+columns:
+  - name: "invalid_interval"
+    type: "interval"
+    params: "year"
+"""
+    with pytest.raises(TypeError, match="'str' object is not a mapping"):
+        from_string(yaml_content)
