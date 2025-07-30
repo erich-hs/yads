@@ -220,7 +220,7 @@ class TestTypeAliases:
             ("int64", Integer, {"bits": 64}),
             ("bigint", Integer, {"bits": 64}),
             ("long", Integer, {"bits": 64}),
-            ("float", Float, {"bits": 64}),
+            ("float", Float, {"bits": 32}),
             ("float32", Float, {"bits": 32}),
             ("float64", Float, {"bits": 64}),
             ("double", Float, {"bits": 64}),
