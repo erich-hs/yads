@@ -24,7 +24,7 @@ __all__ = [
     "JSON",
     "UUID",
     "Interval",
-    "IntervalUnit",
+    "IntervalTimeUnit",
     "Array",
     "Struct",
     "Map",
@@ -142,8 +142,8 @@ class UUID(Type):
     pass
 
 
-class IntervalUnit(str, Enum):
-    """Enumeration for interval units."""
+class IntervalTimeUnit(str, Enum):
+    """Enumeration for interval time units."""
 
     YEAR = "YEAR"
     MONTH = "MONTH"
@@ -157,16 +157,16 @@ class IntervalUnit(str, Enum):
 class Interval(Type):
     """An interval data type, with start and end fields."""
 
-    interval_start: IntervalUnit
-    interval_end: IntervalUnit | None = None
+    interval_start: IntervalTimeUnit
+    interval_end: IntervalTimeUnit | None = None
 
     def __post_init__(self):
-        _YEAR_MONTH_UNITS = {IntervalUnit.YEAR, IntervalUnit.MONTH}
+        _YEAR_MONTH_UNITS = {IntervalTimeUnit.YEAR, IntervalTimeUnit.MONTH}
         _DAY_TIME_UNITS = {
-            IntervalUnit.DAY,
-            IntervalUnit.HOUR,
-            IntervalUnit.MINUTE,
-            IntervalUnit.SECOND,
+            IntervalTimeUnit.DAY,
+            IntervalTimeUnit.HOUR,
+            IntervalTimeUnit.MINUTE,
+            IntervalTimeUnit.SECOND,
         }
 
         if self.interval_end:
@@ -185,12 +185,12 @@ class Interval(Type):
                 )
 
         _UNIT_ORDER_MAP = {
-            "Year-Month": [IntervalUnit.YEAR, IntervalUnit.MONTH],
+            "Year-Month": [IntervalTimeUnit.YEAR, IntervalTimeUnit.MONTH],
             "Day-Time": [
-                IntervalUnit.DAY,
-                IntervalUnit.HOUR,
-                IntervalUnit.MINUTE,
-                IntervalUnit.SECOND,
+                IntervalTimeUnit.DAY,
+                IntervalTimeUnit.HOUR,
+                IntervalTimeUnit.MINUTE,
+                IntervalTimeUnit.SECOND,
             ],
         }
 

@@ -3,32 +3,32 @@ from yads.constraints import (
     DefaultConstraint,
     ForeignKeyConstraint,
     ForeignKeyTableConstraint,
+    ForeignKeyReference,
     IdentityConstraint,
     NotNullConstraint,
     PrimaryKeyConstraint,
     PrimaryKeyTableConstraint,
-    Reference,
 )
 
 
-class TestReference:
+class TestForeignKeyReference:
     def test_reference_with_columns(self):
-        ref = Reference(table="other_table", columns=["id1", "id2"])
+        ref = ForeignKeyReference(table="other_table", columns=["id1", "id2"])
         assert ref.table == "other_table"
         assert ref.columns == ["id1", "id2"]
         assert str(ref) == "other_table(id1, id2)"
 
     def test_reference_without_columns(self):
-        ref = Reference(table="other_table")
+        ref = ForeignKeyReference(table="other_table")
         assert ref.table == "other_table"
         assert ref.columns is None
         assert str(ref) == "other_table"
 
     def test_reference_with_empty_columns_raises_error(self):
         with pytest.raises(
-            ValueError, match="Reference 'columns' cannot be an empty list."
+            ValueError, match="ForeignKeyReference 'columns' cannot be an empty list."
         ):
-            Reference(table="other_table", columns=[])
+            ForeignKeyReference(table="other_table", columns=[])
 
 
 class TestColumnConstraints:
@@ -46,7 +46,7 @@ class TestColumnConstraints:
         assert str(constraint) == "DefaultConstraint(value='default_value')"
 
     def test_foreign_key_constraint(self):
-        ref = Reference(table="other_table", columns=["id"])
+        ref = ForeignKeyReference(table="other_table", columns=["id"])
         constraint = ForeignKeyConstraint(references=ref, name="fk_name")
         assert constraint.references == ref
         assert constraint.name == "fk_name"
@@ -56,7 +56,7 @@ class TestColumnConstraints:
         )
 
     def test_foreign_key_constraint_without_name(self):
-        ref = Reference(table="other_table", columns=["id"])
+        ref = ForeignKeyReference(table="other_table", columns=["id"])
         constraint = ForeignKeyConstraint(references=ref)
         assert constraint.name is None
         assert str(constraint) == "ForeignKeyConstraint(references=other_table(id))"
@@ -109,7 +109,7 @@ class TestTableConstraints:
             PrimaryKeyTableConstraint(columns=[])
 
     def test_foreign_key_table_constraint(self):
-        ref = Reference(table="other_table", columns=["ref_id1", "ref_id2"])
+        ref = ForeignKeyReference(table="other_table", columns=["ref_id1", "ref_id2"])
         constraint = ForeignKeyTableConstraint(
             columns=["id1", "id2"], references=ref, name="fk_name"
         )
@@ -130,7 +130,7 @@ class TestTableConstraints:
         assert str(constraint) == expected_str
 
     def test_foreign_key_table_constraint_without_name(self):
-        ref = Reference(table="other_table", columns=["ref_id"])
+        ref = ForeignKeyReference(table="other_table", columns=["ref_id"])
         constraint = ForeignKeyTableConstraint(columns=["id"], references=ref)
         assert constraint.name is None
         assert constraint.get_constrained_columns() == ["id"]
@@ -148,14 +148,17 @@ class TestTableConstraints:
         with pytest.raises(
             ValueError, match="ForeignKeyTableConstraint 'columns' cannot be empty."
         ):
-            ForeignKeyTableConstraint(columns=[], references=Reference(table="t"))
+            ForeignKeyTableConstraint(
+                columns=[], references=ForeignKeyReference(table="t")
+            )
 
     def test_foreign_key_table_constraint_with_mismatched_columns_raises_error(self):
         with pytest.raises(
             ValueError, match="must match the number of referenced columns"
         ):
             ForeignKeyTableConstraint(
-                columns=["a"], references=Reference(table="t", columns=["b", "c"])
+                columns=["a"],
+                references=ForeignKeyReference(table="t", columns=["b", "c"]),
             )
 
 

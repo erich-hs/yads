@@ -9,7 +9,7 @@ from yads.types import (
     Float,
     Integer,
     Interval,
-    IntervalUnit,
+    IntervalTimeUnit,
     JSON,
     Map,
     String,
@@ -115,10 +115,10 @@ class TestIntervalType:
     @pytest.mark.parametrize(
         "start, end, expected_str",
         [
-            (IntervalUnit.YEAR, None, "interval(YEAR)"),
-            (IntervalUnit.MONTH, None, "interval(MONTH)"),
-            (IntervalUnit.YEAR, IntervalUnit.MONTH, "interval(YEAR to MONTH)"),
-            (IntervalUnit.YEAR, IntervalUnit.YEAR, "interval(YEAR)"),
+            (IntervalTimeUnit.YEAR, None, "interval(YEAR)"),
+            (IntervalTimeUnit.MONTH, None, "interval(MONTH)"),
+            (IntervalTimeUnit.YEAR, IntervalTimeUnit.MONTH, "interval(YEAR to MONTH)"),
+            (IntervalTimeUnit.YEAR, IntervalTimeUnit.YEAR, "interval(YEAR)"),
         ],
     )
     def test_valid_year_month_intervals(self, start, end, expected_str):
@@ -129,14 +129,18 @@ class TestIntervalType:
     @pytest.mark.parametrize(
         "start, end, expected_str",
         [
-            (IntervalUnit.DAY, None, "interval(DAY)"),
-            (IntervalUnit.HOUR, None, "interval(HOUR)"),
-            (IntervalUnit.MINUTE, None, "interval(MINUTE)"),
-            (IntervalUnit.SECOND, None, "interval(SECOND)"),
-            (IntervalUnit.DAY, IntervalUnit.HOUR, "interval(DAY to HOUR)"),
-            (IntervalUnit.DAY, IntervalUnit.SECOND, "interval(DAY to SECOND)"),
-            (IntervalUnit.MINUTE, IntervalUnit.SECOND, "interval(MINUTE to SECOND)"),
-            (IntervalUnit.SECOND, IntervalUnit.SECOND, "interval(SECOND)"),
+            (IntervalTimeUnit.DAY, None, "interval(DAY)"),
+            (IntervalTimeUnit.HOUR, None, "interval(HOUR)"),
+            (IntervalTimeUnit.MINUTE, None, "interval(MINUTE)"),
+            (IntervalTimeUnit.SECOND, None, "interval(SECOND)"),
+            (IntervalTimeUnit.DAY, IntervalTimeUnit.HOUR, "interval(DAY to HOUR)"),
+            (IntervalTimeUnit.DAY, IntervalTimeUnit.SECOND, "interval(DAY to SECOND)"),
+            (
+                IntervalTimeUnit.MINUTE,
+                IntervalTimeUnit.SECOND,
+                "interval(MINUTE to SECOND)",
+            ),
+            (IntervalTimeUnit.SECOND, IntervalTimeUnit.SECOND, "interval(SECOND)"),
         ],
     )
     def test_valid_day_time_intervals(self, start, end, expected_str):
@@ -145,14 +149,22 @@ class TestIntervalType:
 
     def test_invalid_mixed_category_interval_raises_error(self):
         with pytest.raises(ValueError, match="must belong to the same category"):
-            Interval(interval_start=IntervalUnit.YEAR, interval_end=IntervalUnit.DAY)
+            Interval(
+                interval_start=IntervalTimeUnit.YEAR, interval_end=IntervalTimeUnit.DAY
+            )
 
     def test_invalid_order_interval_raises_error(self):
         with pytest.raises(ValueError, match="cannot be less significant than"):
-            Interval(interval_start=IntervalUnit.MONTH, interval_end=IntervalUnit.YEAR)
+            Interval(
+                interval_start=IntervalTimeUnit.MONTH,
+                interval_end=IntervalTimeUnit.YEAR,
+            )
 
         with pytest.raises(ValueError, match="cannot be less significant than"):
-            Interval(interval_start=IntervalUnit.SECOND, interval_end=IntervalUnit.HOUR)
+            Interval(
+                interval_start=IntervalTimeUnit.SECOND,
+                interval_end=IntervalTimeUnit.HOUR,
+            )
 
 
 class TestComplexTypes:

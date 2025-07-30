@@ -7,7 +7,7 @@ from typing import Any
 
 
 @dataclass(frozen=True)
-class Reference:
+class ForeignKeyReference:
     """Represents a reference for a foreign key constraint."""
 
     table: str
@@ -15,7 +15,7 @@ class Reference:
 
     def __post_init__(self):
         if self.columns == []:
-            raise ValueError("Reference 'columns' cannot be an empty list.")
+            raise ValueError("ForeignKeyReference 'columns' cannot be an empty list.")
 
     def __str__(self) -> str:
         if self.columns:
@@ -50,7 +50,7 @@ class DefaultConstraint(ColumnConstraint):
 
 @dataclass(frozen=True)
 class ForeignKeyConstraint(ColumnConstraint):
-    references: Reference
+    references: ForeignKeyReference
     name: str | None = None
 
     def __str__(self) -> str:
@@ -110,7 +110,7 @@ class PrimaryKeyTableConstraint(TableConstraint):
 @dataclass(frozen=True)
 class ForeignKeyTableConstraint(TableConstraint):
     columns: list[str]
-    references: Reference
+    references: ForeignKeyReference
     name: str | None = None
 
     def __post_init__(self):

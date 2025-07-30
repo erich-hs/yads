@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import warnings
-from typing import Any, Callable
+from typing import Any, Protocol
 
 import yaml
 
@@ -15,7 +15,7 @@ from .constraints import (
     NotNullConstraint,
     PrimaryKeyConstraint,
     PrimaryKeyTableConstraint,
-    Reference,
+    ForeignKeyReference,
     TableConstraint,
 )
 from .spec import (
@@ -29,32 +29,103 @@ from .types import (
     TYPE_ALIASES,
     Array,
     Interval,
-    IntervalUnit,
+    IntervalTimeUnit,
     Map,
     Struct,
     Type,
 )
 
 
+class ConstraintParser(Protocol):
+    """Protocol for constraint parsing functions."""
+
+    def __call__(self, value: Any) -> ColumnConstraint: ...
+
+
+class TableConstraintParser(Protocol):
+    """Protocol for table constraint parsing functions."""
+
+    def __call__(self, const_def: dict[str, Any]) -> TableConstraint: ...
+
+
 class SpecLoader:
+    """Loads and validates YAML/JSON data into a yads SchemaSpec object.
+
+    The SpecLoader is responsible for parsing schema definitions from dictionaries
+    (typically loaded from YAML or JSON files) and converting them into strongly-typed
+    yads objects. It handles type parsing, constraint validation, and comprehensive
+    schema validation to ensure the resulting SchemaSpec is consistent and complete.
+
+    Key responsibilities:
+    - Parse all yads types (primitives, intervals, arrays, structs, maps)
+    - Convert constraint definitions to constraint objects
+    - Validate table and column constraint consistency
+    - Ensure referential integrity (partitions, generation clauses, constraints)
+    - Provide helpful error messages for malformed specifications
+
+    Example:
+        >>> data = {
+        ...     "name": "my_table",
+        ...     "version": "1.0.0",
+        ...     "columns": [
+        ...         {"name": "id", "type": "integer", "constraints": {"not_null": True}},
+        ...         {"name": "name", "type": "string"}
+        ...     ]
+        ... }
+        >>> loader = SpecLoader(data)
+        >>> spec = loader.load()
+        >>> print(spec.name)
+        'my_table'
+    """
+
     def __init__(self, data: dict[str, Any]):
         self.data = data
         self.spec: SchemaSpec | None = None
-        self._column_constraint_parsers: dict[
-            str, Callable[[Any], ColumnConstraint]
-        ] = {
+        self._column_constraint_parsers: dict[str, ConstraintParser] = {
             "not_null": self._parse_not_null_constraint,
             "primary_key": self._parse_primary_key_constraint,
             "default": self._parse_default_constraint,
             "foreign_key": self._parse_foreign_key_constraint,
             "identity": self._parse_identity_constraint,
         }
-        self._table_constraint_parsers: dict[str, Callable[[Any], TableConstraint]] = {
+        self._table_constraint_parsers: dict[str, TableConstraintParser] = {
             "primary_key": self._parse_primary_key_table_constraint,
             "foreign_key": self._parse_foreign_key_table_constraint,
         }
 
     def load(self) -> SchemaSpec:
+        """Loads and validates the schema specification.
+
+        Performs comprehensive parsing and validation of the provided data dictionary,
+        converting it into a validated SchemaSpec object. This includes:
+
+        1. Parsing all field types and constraints
+        2. Validating required fields are present
+        3. Converting storage and partitioning specifications
+        4. Checking referential integrity across the schema
+        5. Ensuring constraint consistency between table and column levels
+
+        Returns:
+            SchemaSpec: A fully validated and parsed schema specification.
+
+        Raises:
+            ValueError: If any required fields are missing, types are invalid,
+                       constraints are malformed, or referential integrity
+                       violations are detected.
+
+        Example:
+            >>> loader = SpecLoader({
+            ...     "name": "users",
+            ...     "version": "2.0.0",
+            ...     "columns": [
+            ...         {"name": "user_id", "type": "uuid", "constraints": {"primary_key": True}},
+            ...         {"name": "email", "type": "string", "constraints": {"not_null": True}}
+            ...     ]
+            ... })
+            >>> spec = loader.load()
+            >>> len(spec.columns)
+            2
+        """
         for required_field in ("name", "version", "columns"):
             if required_field not in self.data:
                 raise ValueError(f"'{required_field}' is a required field")
@@ -90,11 +161,11 @@ class SpecLoader:
                 raise ValueError(
                     "Interval type definition must include 'interval_start'"
                 )
-            final_params["interval_start"] = IntervalUnit(
+            final_params["interval_start"] = IntervalTimeUnit(
                 final_params["interval_start"].upper()
             )
             if end_field_val := final_params.get("interval_end"):
-                final_params["interval_end"] = IntervalUnit(end_field_val.upper())
+                final_params["interval_end"] = IntervalTimeUnit(end_field_val.upper())
             return base_type_class(**final_params)
 
         if issubclass(base_type_class, Array):
@@ -154,8 +225,6 @@ class SpecLoader:
             raise ValueError("The 'identity' constraint expects a dictionary")
 
         increment = value.get("increment")
-        if increment == 0:
-            raise ValueError("The 'increment' for an identity constraint cannot be 0")
         return IdentityConstraint(
             always=value.get("always", True),
             start=value.get("start"),
@@ -238,12 +307,12 @@ class SpecLoader:
             references=self._parse_references(const_def["references"]),
         )
 
-    def _parse_references(self, references_def: dict[str, Any]) -> Reference:
+    def _parse_references(self, references_def: dict[str, Any]) -> ForeignKeyReference:
         if "table" not in references_def:
             raise ValueError(
                 "The 'references' of a foreign key must be a dictionary with a 'table' key"
             )
-        return Reference(
+        return ForeignKeyReference(
             table=references_def["table"], columns=references_def.get("columns")
         )
 
