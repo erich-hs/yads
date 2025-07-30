@@ -166,8 +166,8 @@ class SqlglotConverter(BaseConverter):
         return exp.Create(
             this=exp.Schema(this=table, expressions=expressions),
             kind="TABLE",
-            exists=kwargs.get("if_not_exists", False),
-            replace=kwargs.get("or_replace", False),
+            exists=kwargs.get("if_not_exists", False) or None,
+            replace=kwargs.get("or_replace", False) or None,
             properties=(exp.Properties(expressions=properties) if properties else None),
         )
 
@@ -260,13 +260,13 @@ class SqlglotConverter(BaseConverter):
             return []
 
         properties: list[exp.Property] = []
-        if storage.format:
-            properties.append(exp.FileFormatProperty(this=exp.Var(this=storage.format)))
         if storage.location:
-            properties.append(exp.LocationProperty(this=convert(storage.location)))
+            properties.append(self._handle_location_property(storage.location))
+        if storage.format:
+            properties.append(self._handle_file_format_property(storage.format))
         if storage.tbl_properties:
             for key, value in storage.tbl_properties.items():
-                properties.append(exp.Property(this=convert(key), value=convert(value)))
+                properties.append(self._handle_generic_property(key, value))
 
         return properties
 
@@ -287,6 +287,28 @@ class SqlglotConverter(BaseConverter):
         return exp.PartitionedByProperty(
             this=exp.Schema(expressions=schema_expressions)
         )
+
+    def _handle_location_property(self, value: str) -> exp.LocationProperty:
+        return exp.LocationProperty(this=convert(value))
+
+    def _handle_file_format_property(self, value: str) -> exp.FileFormatProperty:
+        return exp.FileFormatProperty(this=exp.Var(this=value))
+
+    def _handle_external_property(self) -> exp.ExternalProperty:
+        return exp.ExternalProperty()
+
+    def _handle_generic_property(self, key: str, value: Any) -> exp.Property:
+        return exp.Property(this=convert(key), value=convert(value))
+
+    def _collect_properties(self, spec: SchemaSpec) -> list[exp.Property]:
+        """Gathers all table-level properties from the spec."""
+        properties: list[exp.Property] = []
+        if spec.external:
+            properties.append(self._handle_external_property())
+        properties.extend(self._handle_storage_properties(spec.storage))
+        if spec.partitioned_by:
+            properties.append(self._handle_partitioned_by_property(spec.partitioned_by))
+        return properties
 
     def _handle_transformation(
         self, column: str, transform: str, transform_args: list
@@ -334,30 +356,6 @@ class SqlglotConverter(BaseConverter):
             this=exp.column(column),
             expression=exp.convert(transform_args[0]),
         )
-
-    def _handle_location_property(self, value: str) -> exp.LocationProperty:
-        return exp.LocationProperty(this=exp.Literal(this=convert(value)))
-
-    def _handle_external_property(self) -> exp.ExternalProperty:
-        return exp.ExternalProperty()
-
-    def _handle_generic_property(self, key: str, value: Any) -> exp.Property:
-        return exp.Property(
-            this=exp.Literal(this=convert(key)),
-            value=exp.Literal(this=convert(value)),
-        )
-
-    def _collect_properties(self, spec: SchemaSpec) -> list[exp.Property]:
-        """Gathers all table-level properties from the spec."""
-        properties: list[exp.Property] = []
-
-        if spec.external:
-            properties.append(self._handle_external_property())
-
-        properties.extend(self._handle_storage_properties(spec.storage))
-        if spec.partitioned_by:
-            properties.append(self._handle_partitioned_by_property(spec.partitioned_by))
-        return properties
 
     # Field and constraint handlers
     def _convert_field(self, field: Field) -> exp.ColumnDef:
