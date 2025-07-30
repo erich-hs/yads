@@ -21,7 +21,33 @@ def _format_dict_as_kwargs(d: dict[str, Any], multiline: bool = False) -> str:
 
 @dataclass(frozen=True)
 class GenerationClause:
-    """Defines a generation clause for columns that are generated from other columns in the table."""
+    """Defines a generation clause for computed columns derived from other columns.
+
+    Generation clauses specify how a column's value should be computed from
+    another column in the table. The generated column gets this GenerationClause
+    in its `generated_as` field, and it references the source column.
+
+    Example:
+        >>> # A generated column 'order_year' computed from 'order_date'
+        >>> clause = GenerationClause(column="order_date", transform="year")
+        >>> str(clause)
+        'year(order_date)'
+
+        >>> # A generated column 'user_bucket' computed from 'user_id'
+        >>> clause = GenerationClause(column="user_id", transform="bucket", transform_args=[100])
+        >>> str(clause)
+        'bucket(user_id, 100)'
+
+        >>> # In YAML, this would look like:
+        >>> # columns:
+        >>> #   - name: "order_date"
+        >>> #     type: "date"
+        >>> #   - name: "order_year"
+        >>> #     type: "integer"
+        >>> #     generated_as:
+        >>> #       column: "order_date"
+        >>> #       transform: "year"
+    """
 
     column: str
     transform: str
@@ -36,7 +62,28 @@ class GenerationClause:
 
 @dataclass(frozen=True)
 class Field:
-    """A named and typed data field, representing a column in a table or a field in a complex type."""
+    """A named and typed data field, representing a column in a table or a field in a complex type.
+
+    Fields are the building blocks of schemas, representing individual data columns
+    with their types, constraints, and optional metadata. They can be used both
+    for top-level table columns and nested fields within complex types like structs.
+
+    Example:
+        >>> from yads.types import String, Integer
+        >>> from yads.constraints import NotNullConstraint, DefaultConstraint
+        >>>
+        >>> # Simple field
+        >>> field = Field(name="username", type=String())
+        >>>
+        >>> # Field with constraints and metadata
+        >>> field = Field(
+        ...     name="user_id",
+        ...     type=Integer(bits=64),
+        ...     constraints=[NotNullConstraint()],
+        ...     description="Unique identifier for the user",
+        ...     metadata={"source": "user_service"}
+        ... )
+    """
 
     name: str
     type: Type
@@ -71,7 +118,28 @@ class Field:
 
 @dataclass(frozen=True)
 class TransformedColumn:
-    """A column that may have a transformation function applied."""
+    """A column that may have a transformation function applied.
+
+    TransformedColumns are used in partitioning and clustering specifications
+    to define how column values should be transformed before being. Common
+    transformations include bucketing, truncating, and date part extraction.
+
+    Example:
+        >>> # Simple column reference for partitioning
+        >>> col = TransformedColumn(column="status")
+        >>> str(col)
+        'status'
+
+        >>> # Transformed column for better distribution
+        >>> col = TransformedColumn(column="order_date", transform="month")
+        >>> str(col)
+        'month(order_date)'
+
+        >>> # Bucketing for even distribution
+        >>> col = TransformedColumn(column="user_id", transform="bucket", transform_args=[50])
+        >>> str(col)
+        'bucket(user_id, 50)'
+    """
 
     column: str
     transform: str | None = None
@@ -88,7 +156,25 @@ class TransformedColumn:
 
 @dataclass(frozen=True)
 class Storage:
-    """Defines the physical storage properties of a table."""
+    """Defines the physical storage properties of a table.
+
+    Storage configuration specifies how and where table data should be physically
+    stored, including file format, location, and format-specific properties.
+
+    Example:
+        >>> # Basic Parquet storage
+        >>> storage = Storage(format="parquet", location="/data/tables/users")
+        >>>
+        >>> # Iceberg table with properties
+        >>> storage = Storage(
+        ...     format="iceberg",
+        ...     location="/warehouse/sales/orders",
+        ...     tbl_properties={
+        ...         "write.target-file-size-bytes": "536870912",
+        ...         "read.split.target-size": "268435456"
+        ...     }
+        ... )
+    """
 
     format: str | None = None
     location: str | None = None
