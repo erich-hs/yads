@@ -5,7 +5,7 @@ CREATE EXTERNAL TABLE catalog.db.full_schema (
 )
 LOCATION '/data/full.schema'
 USING parquet
-PARTITIONED BY (user_id, IDENTITY(score))
 TBLPROPERTIES (
   'write_compression' = 'snappy'
 )
+PARTITIONED BY (user_id, IDENTITY(score))

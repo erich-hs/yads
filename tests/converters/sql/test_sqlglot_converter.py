@@ -59,8 +59,8 @@ def test_converter(spec_path, expected_sql_path):
         expected_sql = f.read()
     expected_ast = parse_one(expected_sql)
 
-    assert generated_ast.sql(dialect="spark") == expected_ast.sql(dialect="spark"), (
-        f"SQL DDL from YAML fixture and SQL DDL from SQL fixture are not equal.\n\n"
-        f"YAML DDL:\n{generated_ast.sql(dialect='spark', pretty=True)}\n\n"
-        f"SQL DDL:\n{expected_ast.sql(dialect='spark', pretty=True)}"
+    assert generated_ast == expected_ast, (
+        "Generated AST does not match expected AST.\n\n"
+        f"YAML AST: {repr(generated_ast)}\n\n"
+        f"SQL AST:  {repr(expected_ast)}"
     )
