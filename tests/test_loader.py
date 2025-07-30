@@ -5,7 +5,7 @@ from pathlib import Path
 from yads.constraints import NotNullConstraint, PrimaryKeyTableConstraint
 from yads.loader import from_dict, from_string, from_yaml
 from yads.spec import SchemaSpec
-from yads.types import Decimal
+from yads.constraints import DefaultConstraint, ForeignKeyTableConstraint
 
 # Define paths to the fixture directories
 VALID_SPEC_DIR = Path(__file__).parent / "fixtures" / "spec" / "valid"
@@ -54,11 +54,10 @@ class TestFromYaml:
 class TestFullSpec:
     """Tests the loading of a comprehensive spec with all features."""
 
-    @pytest.fixture
+    @pytest.fixture(scope="class")
     def spec(self) -> SchemaSpec:
         """Fixture to load the full_spec.yaml file."""
-        spec_path = VALID_SPEC_DIR / "full_spec.yaml"
-        return from_yaml(str(spec_path))
+        return from_yaml(str(VALID_SPEC_DIR / "full_spec.yaml"))
 
     def test_top_level_attributes(self, spec: SchemaSpec):
         assert spec.name == "catalog.db.full_schema"
@@ -75,32 +74,74 @@ class TestFullSpec:
 
     def test_partitioning(self, spec: SchemaSpec):
         assert len(spec.partitioned_by) == 2
-        assert spec.partitioned_by[0].column == "user_id"
-        assert spec.partitioned_by[0].transform is None
-        assert spec.partitioned_by[1].column == "score"
-        assert spec.partitioned_by[1].transform == "identity"
+        assert spec.partitioned_by[0].column == "c_string_len"
+        assert spec.partitioned_by[1].column == "c_date"
+        assert spec.partitioned_by[1].transform == "month"
 
     def test_columns(self, spec: SchemaSpec):
-        assert len(spec.columns) == 2
-        user_id_col, score_col = spec.columns
+        assert len(spec.columns) == 20
 
-        assert user_id_col.name == "user_id"
-        assert str(user_id_col.type) == "uuid"
-        assert user_id_col.description == "User identifier"
-        assert any(isinstance(c, NotNullConstraint) for c in user_id_col.constraints)
-        assert user_id_col.metadata == {"pii": True}
+    def test_column_constraints(self, spec: SchemaSpec):
+        # Test not_null constraint
+        c_with_not_null = {
+            c.name
+            for c in spec.columns
+            if any(isinstance(cons, NotNullConstraint) for cons in c.constraints)
+        }
+        assert len(c_with_not_null) == 2
+        assert "c_uuid" in c_with_not_null
+        assert "c_date" in c_with_not_null
 
-        assert score_col.name == "score"
-        assert isinstance(score_col.type, Decimal)
-        assert score_col.type.precision == 5
-        assert score_col.type.scale == 2
+        # Test default constraint
+        c_with_default = {
+            c.name: next(
+                (cons for cons in c.constraints if isinstance(cons, DefaultConstraint)),
+                None,
+            )
+            for c in spec.columns
+            if any(isinstance(cons, DefaultConstraint) for cons in c.constraints)
+        }
+        assert len(c_with_default) == 1
+        assert "c_string" in c_with_default
+        assert c_with_default["c_string"] is not None
+        assert c_with_default["c_string"].value == "default_string"
 
     def test_table_constraints(self, spec: SchemaSpec):
-        assert len(spec.table_constraints) == 1
-        pk = spec.table_constraints[0]
-        assert isinstance(pk, PrimaryKeyTableConstraint)
-        assert pk.name == "pk_full_schema"
-        assert pk.columns == ["user_id"]
+        assert len(spec.table_constraints) == 2
+
+        pk_constraint = next(
+            (
+                c
+                for c in spec.table_constraints
+                if isinstance(c, PrimaryKeyTableConstraint)
+            ),
+            None,
+        )
+        assert pk_constraint is not None
+        assert pk_constraint.name == "pk_full_schema"
+        assert pk_constraint.columns == ["c_uuid", "c_date"]
+
+        fk_constraint = next(
+            (
+                c
+                for c in spec.table_constraints
+                if isinstance(c, ForeignKeyTableConstraint)
+            ),
+            None,
+        )
+        assert fk_constraint is not None
+        assert fk_constraint.name == "fk_other_table"
+        assert fk_constraint.columns == ["c_int64"]
+        assert fk_constraint.references.table == "other_table"
+        assert fk_constraint.references.columns == ["id"]
+
+    def test_get_column(self, spec: SchemaSpec):
+        column = next((c for c in spec.columns if c.name == "c_uuid"), None)
+        assert column is not None
+        assert column.name == "c_uuid"
+        assert str(column.type) == "uuid"
+        assert column.description == "Primary key part 1"
+        assert not column.metadata
 
 
 @pytest.mark.parametrize(
