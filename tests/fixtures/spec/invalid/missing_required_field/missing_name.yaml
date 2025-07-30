@@ -1,0 +1,4 @@
+version: "1.0.0"
+columns:
+  - name: "col1"
+    type: "string" 

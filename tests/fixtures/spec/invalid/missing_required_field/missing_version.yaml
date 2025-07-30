@@ -1,0 +1,4 @@
+name: "test.schema"
+columns:
+  - name: "col1"
+    type: "string" 

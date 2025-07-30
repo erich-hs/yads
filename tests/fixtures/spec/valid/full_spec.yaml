@@ -1,0 +1,33 @@
+name: "catalog.db.full_schema"
+version: "2.1.0"
+description: "A full schema with all features."
+metadata:
+  owner: "data-team"
+  sensitive: false
+external: true
+storage:
+  location: "/data/full.schema"
+  format: "parquet"
+  tbl_properties:
+    "write_compression": "snappy"
+partitioned_by:
+  - column: "user_id"
+  - column: "score"
+    transform: "identity"
+table_constraints:
+  - type: "primary_key"
+    name: "pk_full_schema"
+    columns: ["user_id"]
+columns:
+  - name: "user_id"
+    type: "uuid"
+    description: "User identifier"
+    constraints:
+      not_null: true
+    metadata:
+      pii: true
+  - name: "score"
+    type: "decimal"
+    params:
+      precision: 5
+      scale: 2 
