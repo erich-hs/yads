@@ -20,44 +20,48 @@ def _format_dict_as_kwargs(d: dict[str, Any], multiline: bool = False) -> str:
 
 
 @dataclass(frozen=True)
-class GenerationClause:
-    """Defines a generation clause for computed columns derived from other columns.
+class TransformedColumn:
+    """A column that may have a transformation function applied.
 
-    Generation clauses specify how a column's value should be computed from
-    another column in the table. The generated column gets this GenerationClause
-    in its `generated_as` field, and it references the source column.
+    TransformedColumns are used in two contexts:
+    1. Partitioning and clustering specifications - to define how column values
+       should be transformed before partitioning/clustering
+    2. Generated column specifications - to define computed columns derived from
+       other columns (used in Field.generated_as)
+
+    Common transformations include bucketing, truncating, and date part extraction.
 
     Example:
-        >>> # A generated column 'order_year' computed from 'order_date'
-        >>> clause = GenerationClause(column="order_date", transform="year")
-        >>> str(clause)
-        'year(order_date)'
+        >>> # Simple column reference for partitioning
+        >>> col = TransformedColumn(column="status")
+        >>> str(col)
+        'status'
 
-        >>> # A generated column 'user_bucket' computed from 'user_id'
-        >>> clause = GenerationClause(column="user_id", transform="bucket", transform_args=[100])
-        >>> str(clause)
-        'bucket(user_id, 100)'
+        >>> # Column with a transformation function applied
+        >>> col = TransformedColumn(column="order_date", transform="month")
+        >>> str(col)
+        'month(order_date)'
 
-        >>> # In YAML, this would look like:
-        >>> # columns:
-        >>> #   - name: "order_date"
-        >>> #     type: "date"
-        >>> #   - name: "order_year"
-        >>> #     type: "integer"
-        >>> #     generated_as:
-        >>> #       column: "order_date"
-        >>> #       transform: "year"
+        >>> col = TransformedColumn(column="user_id", transform="bucket", transform_args=[50])
+        >>> str(col)
+        'bucket(user_id, 50)'
+
+        >>> # Generated column example (transform is required for generated columns)
+        >>> col = TransformedColumn(column="order_date", transform="year")
+        >>> # This would be used in: Field(name="order_year", type=Integer(), generated_as=col)
     """
 
     column: str
-    transform: str
+    transform: str | None = None
     transform_args: list[Any] = field(default_factory=list)
 
     def __str__(self) -> str:
-        if self.transform_args:
-            args_str = ", ".join(map(str, self.transform_args))
-            return f"{self.transform}({self.column}, {args_str})"
-        return f"{self.transform}({self.column})"
+        if self.transform:
+            if self.transform_args:
+                args_str = ", ".join(map(str, self.transform_args))
+                return f"{self.transform}({self.column}, {args_str})"
+            return f"{self.transform}({self.column})"
+        return self.column
 
 
 @dataclass(frozen=True)
@@ -83,6 +87,13 @@ class Field:
         ...     description="Unique identifier for the user",
         ...     metadata={"source": "user_service"}
         ... )
+        >>>
+        >>> # Generated field
+        >>> field = Field(
+        ...     name="order_year",
+        ...     type=Integer(),
+        ...     generated_as=TransformedColumn(column="order_date", transform="year")
+        ... )
     """
 
     name: str
@@ -90,7 +101,7 @@ class Field:
     description: str | None = None
     constraints: list[ColumnConstraint] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
-    generated_as: GenerationClause | None = None
+    generated_as: TransformedColumn | None = None
 
     def _build_details_repr(self) -> str:
         """Builds the string representation of the field's details."""
@@ -114,44 +125,6 @@ class Field:
     def __str__(self) -> str:
         details_repr = self._build_details_repr()
         return f"{self.name}: {self.type}{details_repr}"
-
-
-@dataclass(frozen=True)
-class TransformedColumn:
-    """A column that may have a transformation function applied.
-
-    TransformedColumns are used in partitioning and clustering specifications
-    to define how column values should be transformed before being. Common
-    transformations include bucketing, truncating, and date part extraction.
-
-    Example:
-        >>> # Simple column reference for partitioning
-        >>> col = TransformedColumn(column="status")
-        >>> str(col)
-        'status'
-
-        >>> # Transformed column for better distribution
-        >>> col = TransformedColumn(column="order_date", transform="month")
-        >>> str(col)
-        'month(order_date)'
-
-        >>> # Bucketing for even distribution
-        >>> col = TransformedColumn(column="user_id", transform="bucket", transform_args=[50])
-        >>> str(col)
-        'bucket(user_id, 50)'
-    """
-
-    column: str
-    transform: str | None = None
-    transform_args: list[Any] = field(default_factory=list)
-
-    def __str__(self) -> str:
-        if self.transform:
-            if self.transform_args:
-                args_str = ", ".join(map(str, self.transform_args))
-                return f"{self.transform}({self.column}, {args_str})"
-            return f"{self.transform}({self.column})"
-        return self.column
 
 
 @dataclass(frozen=True)

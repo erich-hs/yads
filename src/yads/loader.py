@@ -20,7 +20,6 @@ from .constraints import (
 )
 from .spec import (
     Field,
-    GenerationClause,
     SchemaSpec,
     Storage,
     TransformedColumn,
@@ -248,7 +247,7 @@ class SpecLoader:
 
     def _parse_generation_clause(
         self, gen_clause_def: dict[str, Any] | None
-    ) -> GenerationClause | None:
+    ) -> TransformedColumn | None:
         if not gen_clause_def:
             return None
 
@@ -258,7 +257,11 @@ class SpecLoader:
                     f"'{required_field}' is a required field in a generation clause"
                 )
 
-        return GenerationClause(
+        # For generated columns, transform is required
+        if not gen_clause_def["transform"]:
+            raise ValueError("'transform' cannot be empty in a generation clause")
+
+        return TransformedColumn(
             column=gen_clause_def["column"],
             transform=gen_clause_def["transform"],
             transform_args=gen_clause_def.get("transform_args", []),

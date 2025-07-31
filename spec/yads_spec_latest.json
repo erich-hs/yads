@@ -153,13 +153,14 @@
             "type": "object"
         },
         "generated_as": {
-            "$ref": "#/definitions/generation_clause"
+            "$ref": "#/definitions/transformed_column"
         }
       },
       "required": ["type"]
     },
-    "generation_clause": {
+    "transformed_column": {
         "type": "object",
+        "description": "A column that may have a transformation function applied to it. Used for both partitioning/clustering and generated column specifications.",
         "properties": {
             "column": { "type": "string" },
             "transform": { "type": "string" },
@@ -167,15 +168,6 @@
                 "type": "array",
                 "description": "A list of arguments for the transformation function."
             }
-        },
-        "required": ["column", "transform"]
-    },
-    "transformed_column": {
-        "type": "object",
-        "description": "A column that may have a transformation function applied to it.",
-        "properties": {
-            "column": { "type": "string" },
-            "transform": { "type": "string" }
         },
         "required": ["column"]
     },

@@ -1,37 +1,54 @@
 import pytest
-from yads import constraints, spec, types
+from yads import spec, types
+from yads.constraints import NotNullConstraint, PrimaryKeyTableConstraint
 
 
-class TestGenerationClause:
-    def test_instantiation_and_str(self):
-        gc = spec.GenerationClause(column="a", transform="identity")
-        assert gc.column == "a"
-        assert gc.transform == "identity"
-        assert gc.transform_args == []
-        assert str(gc) == "identity(a)"
+class TestTransformedColumn:
+    def test_instantiation_and_str_with_transform(self):
+        tc = spec.TransformedColumn(column="a", transform="identity")
+        assert tc.column == "a"
+        assert tc.transform == "identity"
+        assert tc.transform_args == []
+        assert str(tc) == "identity(a)"
 
     def test_instantiation_with_args_and_str(self):
-        gc = spec.GenerationClause(column="a", transform="bucket", transform_args=[16])
-        assert gc.column == "a"
-        assert gc.transform == "bucket"
-        assert gc.transform_args == [16]
-        assert str(gc) == "bucket(a, 16)"
+        tc = spec.TransformedColumn(column="a", transform="bucket", transform_args=[16])
+        assert tc.column == "a"
+        assert tc.transform == "bucket"
+        assert tc.transform_args == [16]
+        assert str(tc) == "bucket(a, 16)"
+
+    def test_simple_column(self):
+        tc = spec.TransformedColumn(column="dt")
+        assert tc.column == "dt"
+        assert tc.transform is None
+        assert tc.transform_args == []
+        assert str(tc) == "dt"
+
+    def test_transformed_column(self):
+        tc = spec.TransformedColumn(column="ts", transform="hour")
+        assert str(tc) == "hour(ts)"
+
+    def test_transformed_column_with_args(self):
+        tc = spec.TransformedColumn(column="id", transform="bucket", transform_args=[4])
+        assert str(tc) == "bucket(id, 4)"
 
 
 class TestField:
     def test_simple_field(self):
-        field = spec.Field(name="id", type=types.Integer())
-        assert field.name == "id"
-        assert isinstance(field.type, types.Integer)
+        field = spec.Field(name="username", type=types.String())
+        assert field.name == "username"
+        assert field.type == types.String()
         assert field.description is None
         assert field.constraints == []
         assert field.metadata == {}
         assert field.generated_as is None
-        assert str(field) == "id: integer"
+        assert str(field) == "username: string"
 
     def test_full_field(self):
-        constraint = constraints.NotNullConstraint()
-        gen_clause = spec.GenerationClause(column="other_col", transform="identity")
+        constraint = NotNullConstraint()
+        gen_clause = spec.TransformedColumn(column="other_col", transform="identity")
+
         field = spec.Field(
             name="username",
             type=types.String(length=50),
@@ -49,23 +66,6 @@ class TestField:
             ")"
         )
         assert str(field) == expected_str
-
-
-class TestTransformedColumn:
-    def test_simple_column(self):
-        tc = spec.TransformedColumn(column="dt")
-        assert tc.column == "dt"
-        assert tc.transform is None
-        assert tc.transform_args == []
-        assert str(tc) == "dt"
-
-    def test_transformed_column(self):
-        tc = spec.TransformedColumn(column="ts", transform="hour")
-        assert str(tc) == "hour(ts)"
-
-    def test_transformed_column_with_args(self):
-        tc = spec.TransformedColumn(column="id", transform="bucket", transform_args=[4])
-        assert str(tc) == "bucket(id, 4)"
 
 
 class TestStorage:
@@ -112,7 +112,7 @@ class TestSchemaSpec:
         assert minimal_spec.metadata == {}
 
     def test_spec_properties(self):
-        gen_clause = spec.GenerationClause(column="raw_id", transform="identity")
+        gen_clause = spec.TransformedColumn(column="raw_id", transform="identity")
         spec_instance = spec.SchemaSpec(
             name="users",
             version="1.0",
@@ -137,7 +137,7 @@ class TestSchemaSpec:
         assert str(minimal_spec) == expected_str
 
     def test_str_representation_full(self):
-        pk_constraint = constraints.PrimaryKeyTableConstraint(columns=["id"])
+        pk_constraint = PrimaryKeyTableConstraint(columns=["id"])
         spec_instance = spec.SchemaSpec(
             name="my_table",
             version="1.0",
@@ -147,7 +147,7 @@ class TestSchemaSpec:
                 spec.Field(
                     name="id",
                     type=types.Integer(),
-                    constraints=[constraints.NotNullConstraint()],
+                    constraints=[NotNullConstraint()],
                 ),
                 spec.Field(name="data", type=types.String()),
             ],
@@ -215,7 +215,7 @@ class TestSchemaSpecValidation:
 
     def test_generated_column_source_missing(self, base_spec_kwargs):
         """Test that the source for a generated column must exist."""
-        gen_clause = spec.GenerationClause(column="non_existent", transform="identity")
+        gen_clause = spec.TransformedColumn(column="non_existent", transform="identity")
         base_spec_kwargs["columns"].append(
             spec.Field(name="gen_col", type=types.Integer(), generated_as=gen_clause)
         )
@@ -227,7 +227,7 @@ class TestSchemaSpecValidation:
 
     def test_table_constraint_column_missing(self, base_spec_kwargs):
         """Test that a column in a table constraint must exist."""
-        pk_constraint = constraints.PrimaryKeyTableConstraint(columns=["pk", "id"])
+        pk_constraint = PrimaryKeyTableConstraint(columns=["pk", "id"])
         base_spec_kwargs["table_constraints"] = [pk_constraint]
         with pytest.raises(ValueError, match="Column 'pk' in constraint"):
             spec.SchemaSpec(**base_spec_kwargs)
