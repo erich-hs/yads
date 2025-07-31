@@ -30,11 +30,11 @@ from yads.types import (
 from yads.validator import AstValidator, NoFixedLengthStringRule, Rule
 
 
-class SqlConverter:
+class SQLConverter:
     """Converts a SchemaSpec into a SQL DDL string for a specific dialect.
 
     High-level convenience converter that uses a core converter
-    (e.g. SqlglotConverter) to generate an Abstract Syntax Tree (AST)
+    (e.g. SQLGlotConverter) to generate an Abstract Syntax Tree (AST)
     before serializing it to a SQL DDL string.
     """
 
@@ -49,7 +49,7 @@ class SqlConverter:
         Args:
             dialect: The target SQL dialect (e.g., "spark", "snowflake", "duckdb").
             ast_converter: Optional. An AST converter to use. If None, a default
-                           SqlglotConverter will be used.
+                           SQLGlotConverter will be used.
             ast_validator: Optional. A processor for dialect-specific
                                validation and adjustments.
             convert_options: Keyword arguments to be passed to the AST converter.
@@ -57,7 +57,7 @@ class SqlConverter:
                              sqlglot's documentation for available options:
                              https://sqlglot.com/sqlglot/generator.html#Generator
         """
-        self._ast_converter = ast_converter or SqlglotConverter()
+        self._ast_converter = ast_converter or SQLGlotConverter()
         self._dialect = dialect
         self._ast_validator = ast_validator
         self._convert_options = convert_options
@@ -98,7 +98,7 @@ class SqlConverter:
         return ast.sql(dialect=self._dialect, **options)
 
 
-class SparkSQLConverter(SqlConverter):
+class SparkSQLConverter(SQLConverter):
     """Converter for generating Spark SQL DDL.
 
     This converter adds Spark-specific validation before generating the DDL.
@@ -115,7 +115,7 @@ class SparkSQLConverter(SqlConverter):
         super().__init__(dialect="spark", ast_validator=validator, **convert_options)
 
 
-class SqlglotConverter(BaseConverter):
+class SQLGlotConverter(BaseConverter):
     """Converts a yads SchemaSpec into a sqlglot Abstract Syntax Tree (AST)."""
 
     def __init__(self) -> None:
@@ -360,7 +360,7 @@ class SqlglotConverter(BaseConverter):
     # Field and constraint handlers
     def _convert_field(self, field: Field) -> exp.ColumnDef:
         constraints = []
-        if field.generated_as:
+        if field.generated_as and field.generated_as.transform:
             expression = self._handle_transformation(
                 field.generated_as.column,
                 field.generated_as.transform,

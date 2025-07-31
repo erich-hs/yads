@@ -1,5 +1,3 @@
-"""Officially supported converters for the yads spec."""
+from .sql import SparkSQLConverter, SQLConverter, SQLGlotConverter
 
-from .sql import SparkSQLConverter, SqlConverter
-
-__all__ = ["SqlConverter", "SparkSQLConverter"]
+__all__ = ["SQLConverter", "SparkSQLConverter", "SQLGlotConverter"]

@@ -1,6 +1,6 @@
 import pytest
 from sqlglot import parse_one, exp
-from yads.converters.sql import SqlglotConverter
+from yads.converters.sql import SQLGlotConverter
 from yads.loader import from_yaml
 from yads.types import (
     String,
@@ -60,7 +60,7 @@ def test_converter(spec_path, expected_sql_path):
 
     This test operates by:
     1. Loading a YAML specification from a file.
-    2. Converting the specification to a sqlglot AST using the SqlglotConverter.
+    2. Converting the specification to a sqlglot AST using the SQLGlotConverter.
     3. Reading the expected SQL DDL from a corresponding .sql file.
     4. Parsing the expected SQL into a sqlglot AST.
     5. Comparing the generated AST with the expected AST.
@@ -69,7 +69,7 @@ def test_converter(spec_path, expected_sql_path):
     that the semantic structure is correct, regardless of formatting differences.
     """
     spec = from_yaml(spec_path)
-    converter = SqlglotConverter()
+    converter = SQLGlotConverter()
     generated_ast = converter.convert(spec)
 
     with open(expected_sql_path) as f:
@@ -84,10 +84,10 @@ def test_converter(spec_path, expected_sql_path):
 
 
 class TestTypeConversion:
-    """Tests that SqlglotConverter correctly converts Type objects to sqlglot DataType expressions."""
+    """Tests that SQLGlotConverter correctly converts Type objects to sqlglot DataType expressions."""
 
     def setUp(self):
-        self.converter = SqlglotConverter()
+        self.converter = SQLGlotConverter()
 
     @pytest.mark.parametrize(
         "yads_type, expected_datatype",
@@ -136,7 +136,7 @@ class TestTypeConversion:
     )
     def test_simple_type_conversion(self, yads_type, expected_datatype):
         """Test conversion of simple (non-complex) types to sqlglot DataType expressions."""
-        converter = SqlglotConverter()
+        converter = SQLGlotConverter()
         result = converter._convert_type(yads_type)
         assert result == expected_datatype
 
@@ -199,7 +199,7 @@ class TestTypeConversion:
     )
     def test_interval_type_conversion(self, yads_type, expected_datatype):
         """Test conversion of interval types to sqlglot DataType expressions."""
-        converter = SqlglotConverter()
+        converter = SQLGlotConverter()
         result = converter._convert_type(yads_type)
         assert result == expected_datatype
 
@@ -217,7 +217,7 @@ class TestTypeConversion:
     )
     def test_array_type_conversion(self, yads_type):
         """Test conversion of array types to sqlglot DataType expressions."""
-        converter = SqlglotConverter()
+        converter = SQLGlotConverter()
         result = converter._convert_type(yads_type)
 
         assert isinstance(result, exp.DataType)
@@ -240,7 +240,7 @@ class TestTypeConversion:
     )
     def test_map_type_conversion(self, yads_type):
         """Test conversion of map types to sqlglot DataType expressions."""
-        converter = SqlglotConverter()
+        converter = SQLGlotConverter()
         result = converter._convert_type(yads_type)
 
         assert isinstance(result, exp.DataType)
@@ -264,7 +264,7 @@ class TestTypeConversion:
         ]
         yads_type = Struct(fields=struct_fields)
 
-        converter = SqlglotConverter()
+        converter = SQLGlotConverter()
         result = converter._convert_type(yads_type)
 
         assert isinstance(result, exp.DataType)
@@ -291,7 +291,7 @@ class TestTypeConversion:
         ]
         yads_type = Struct(fields=outer_fields)
 
-        converter = SqlglotConverter()
+        converter = SQLGlotConverter()
         result = converter._convert_type(yads_type)
 
         assert isinstance(result, exp.DataType)
