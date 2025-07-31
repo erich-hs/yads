@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Callable, List, Literal
+from functools import singledispatchmethod
+from typing import Any, List, Literal
 
 from sqlglot import exp
 from sqlglot.expressions import convert
@@ -118,33 +119,12 @@ class SparkSQLConverter(SQLConverter):
 class SQLGlotConverter(BaseConverter):
     """Converts a yads SchemaSpec into a sqlglot Abstract Syntax Tree (AST)."""
 
-    def __init__(self) -> None:
-        self._type_handlers: dict[type[Type], Callable[[Any], exp.DataType]] = {
-            String: self._handle_string_type,
-            Decimal: self._handle_decimal_type,
-            Array: self._handle_array_type,
-            Struct: self._handle_struct_type,
-            Map: self._handle_map_type,
-            Integer: self._handle_integer_type,
-            Float: self._handle_float_type,
-            Interval: self._handle_interval_type,
-        }
-        self._transform_handlers: dict[str, Callable[..., exp.Expression]] = {
-            "bucket": self._handle_bucket_transform,
-            "truncate": self._handle_truncate_transform,
-            "cast": self._handle_cast_transform,
-        }
-        self._constraint_handlers: dict[type, Callable[[Any], exp.ColumnConstraint]] = {
-            NotNullConstraint: self._handle_not_null_constraint,
-            PrimaryKeyConstraint: self._handle_primary_key_constraint,
-            DefaultConstraint: self._handle_default_constraint,
-            ForeignKeyConstraint: self._handle_foreign_key_constraint,
-            IdentityConstraint: self._handle_identity_constraint,
-        }
-        self._table_constraint_handlers: dict[type, Callable[[Any], exp.Expression]] = {
-            PrimaryKeyTableConstraint: self._handle_primary_key_table_constraint,
-            ForeignKeyTableConstraint: self._handle_foreign_key_table_constraint,
-        }
+    # Class-level constants for transform handlers
+    _TRANSFORM_HANDLERS: dict[str, str] = {
+        "bucket": "_handle_bucket_transform",
+        "truncate": "_handle_truncate_transform",
+        "cast": "_handle_cast_transform",
+    }
 
     def convert(self, spec: SchemaSpec, **kwargs: Any) -> exp.Create:
         """Converts a yads SchemaSpec into a sqlglot Create AST.
@@ -171,15 +151,18 @@ class SQLGlotConverter(BaseConverter):
             properties=(exp.Properties(expressions=properties) if properties else None),
         )
 
-    # Type handlers
+    @singledispatchmethod
     def _convert_type(self, yads_type: Type) -> exp.DataType:
-        """Converts a yads type to a sqlglot DataType expression."""
-        if handler := self._type_handlers.get(type(yads_type)):
-            return handler(yads_type)
+        """Converts a yads type to a sqlglot DataType expression.
+
+        Fallback method for simple types that use their string representation.
+        """
         # https://sqlglot.com/sqlglot/expressions.html#DataType.build
         return exp.DataType.build(str(yads_type))
 
-    def _handle_integer_type(self, yads_type: Integer) -> exp.DataType:
+    @_convert_type.register(Integer)
+    def _(self, yads_type: Integer) -> exp.DataType:
+        """Convert Integer types with bit-specific handling."""
         if yads_type.bits == 8:
             return exp.DataType(this=exp.DataType.Type.TINYINT)
         if yads_type.bits == 16:
@@ -188,12 +171,40 @@ class SQLGlotConverter(BaseConverter):
             return exp.DataType(this=exp.DataType.Type.BIGINT)
         return exp.DataType(this=exp.DataType.Type.INT)
 
-    def _handle_float_type(self, yads_type: Float) -> exp.DataType:
+    @_convert_type.register(Float)
+    def _(self, yads_type: Float) -> exp.DataType:
+        """Convert Float types with bit-specific handling."""
         if yads_type.bits == 64:
             return exp.DataType(this=exp.DataType.Type.DOUBLE)
         return exp.DataType(this=exp.DataType.Type.FLOAT)
 
-    def _handle_interval_type(self, yads_type: Interval) -> exp.DataType:
+    @_convert_type.register(String)
+    def _(self, yads_type: String) -> exp.DataType:
+        """Convert String types with optional length parameter."""
+        expressions = []
+        if yads_type.length:
+            expressions.append(exp.DataTypeParam(this=convert(yads_type.length)))
+        return exp.DataType(
+            this=exp.DataType.Type.TEXT,
+            expressions=expressions if expressions else None,
+        )
+
+    @_convert_type.register(Decimal)
+    def _(self, yads_type: Decimal) -> exp.DataType:
+        """Convert Decimal types with precision and scale parameters."""
+        expressions = []
+        if yads_type.precision is not None:
+            expressions.append(exp.DataTypeParam(this=convert(yads_type.precision)))
+            expressions.append(exp.DataTypeParam(this=convert(yads_type.scale)))
+
+        return exp.DataType(
+            this=exp.DataType.Type.DECIMAL,
+            expressions=expressions if expressions else None,
+        )
+
+    @_convert_type.register(Interval)
+    def _(self, yads_type: Interval) -> exp.DataType:
+        """Convert Interval types with time unit handling."""
         if (
             yads_type.interval_end
             and yads_type.interval_start != yads_type.interval_end
@@ -210,27 +221,9 @@ class SQLGlotConverter(BaseConverter):
             this=exp.Interval(unit=exp.Var(this=yads_type.interval_start.value))
         )
 
-    def _handle_string_type(self, yads_type: String) -> exp.DataType:
-        expressions = []
-        if yads_type.length:
-            expressions.append(exp.DataTypeParam(this=convert(yads_type.length)))
-        return exp.DataType(
-            this=exp.DataType.Type.TEXT,
-            expressions=expressions if expressions else None,
-        )
-
-    def _handle_decimal_type(self, yads_type: Decimal) -> exp.DataType:
-        expressions = []
-        if yads_type.precision is not None:
-            expressions.append(exp.DataTypeParam(this=convert(yads_type.precision)))
-            expressions.append(exp.DataTypeParam(this=convert(yads_type.scale)))
-
-        return exp.DataType(
-            this=exp.DataType.Type.DECIMAL,
-            expressions=expressions if expressions else None,
-        )
-
-    def _handle_array_type(self, yads_type: Array) -> exp.DataType:
+    @_convert_type.register(Array)
+    def _(self, yads_type: Array) -> exp.DataType:
+        """Convert Array types with recursive element type conversion."""
         element_type = self._convert_type(yads_type.element)
         return exp.DataType(
             this=exp.DataType.Type.ARRAY,
@@ -238,14 +231,18 @@ class SQLGlotConverter(BaseConverter):
             nested=exp.DataType.Type.ARRAY in exp.DataType.NESTED_TYPES,
         )
 
-    def _handle_struct_type(self, yads_type: Struct) -> exp.DataType:
+    @_convert_type.register(Struct)
+    def _(self, yads_type: Struct) -> exp.DataType:
+        """Convert Struct types with recursive field conversion."""
         return exp.DataType(
             this=exp.DataType.Type.STRUCT,
             expressions=[self._convert_field(field) for field in yads_type.fields],
             nested=exp.DataType.Type.STRUCT in exp.DataType.NESTED_TYPES,
         )
 
-    def _handle_map_type(self, yads_type: Map) -> exp.DataType:
+    @_convert_type.register(Map)
+    def _(self, yads_type: Map) -> exp.DataType:
+        """Convert Map types with recursive key/value type conversion."""
         key_type = self._convert_type(yads_type.key)
         value_type = self._convert_type(yads_type.value)
         return exp.DataType(
@@ -254,163 +251,40 @@ class SQLGlotConverter(BaseConverter):
             nested=exp.DataType.Type.MAP in exp.DataType.NESTED_TYPES,
         )
 
-    # Property handlers
-    def _handle_storage_properties(self, storage: Storage | None) -> list[exp.Property]:
-        if not storage:
-            return []
+    # Constraint handling using singledispatchmethod
+    @singledispatchmethod
+    def _convert_column_constraint(self, constraint: Any) -> exp.ColumnConstraint:
+        """Convert a column constraint to a sqlglot ColumnConstraint expression.
 
-        properties: list[exp.Property] = []
-        if storage.location:
-            properties.append(self._handle_location_property(storage.location))
-        if storage.format:
-            properties.append(self._handle_file_format_property(storage.format))
-        if storage.tbl_properties:
-            for key, value in storage.tbl_properties.items():
-                properties.append(self._handle_generic_property(key, value))
-
-        return properties
-
-    def _handle_partitioned_by_property(
-        self, value: list[TransformedColumn]
-    ) -> exp.PartitionedByProperty:
-        schema_expressions = []
-        for col in value:
-            expression: exp.Expression
-            if col.transform:
-                expression = self._handle_transformation(
-                    col.column, col.transform, col.transform_args
-                )
-            else:
-                expression = exp.Identifier(this=col.column)
-            schema_expressions.append(expression)
-
-        return exp.PartitionedByProperty(
-            this=exp.Schema(expressions=schema_expressions)
-        )
-
-    def _handle_location_property(self, value: str) -> exp.LocationProperty:
-        return exp.LocationProperty(this=convert(value))
-
-    def _handle_file_format_property(self, value: str) -> exp.FileFormatProperty:
-        return exp.FileFormatProperty(this=exp.Var(this=value))
-
-    def _handle_external_property(self) -> exp.ExternalProperty:
-        return exp.ExternalProperty()
-
-    def _handle_generic_property(self, key: str, value: Any) -> exp.Property:
-        return exp.Property(this=convert(key), value=convert(value))
-
-    def _collect_properties(self, spec: SchemaSpec) -> list[exp.Property]:
-        """Gathers all table-level properties from the spec."""
-        properties: list[exp.Property] = []
-        if spec.external:
-            properties.append(self._handle_external_property())
-        properties.extend(self._handle_storage_properties(spec.storage))
-        if spec.partitioned_by:
-            properties.append(self._handle_partitioned_by_property(spec.partitioned_by))
-        return properties
-
-    def _handle_transformation(
-        self, column: str, transform: str, transform_args: list
-    ) -> exp.Expression:
-        """Handles a transformed column by dispatching to a specific handler or
-        falling back to a generic function expression.
+        Fallback method for unsupported constraints.
         """
-        if handler := self._transform_handlers.get(transform):
-            return handler(column, transform_args)
-
-        # Fallback to a generic function expression for all other transforms.
-        # https://sqlglot.com/sqlglot/expressions.html#func
-        return exp.func(
-            transform,
-            exp.column(column),
-            *(exp.convert(arg) for arg in transform_args),
+        # TODO: Revisit this after implementing a global setting to either
+        # raise or warn when the spec is more expressive than the handlers
+        # available in the converter.
+        raise NotImplementedError(
+            f"No handler implemented for constraint: {type(constraint)}"
         )
 
-    def _handle_cast_transform(
-        self, column: str, transform_args: list
-    ) -> exp.Expression:
-        if len(transform_args) != 1:
-            raise ValueError("The 'cast' transform requires exactly one argument")
-        return exp.Cast(
-            this=exp.column(column),
-            to=exp.DataType(this=exp.DataType.Type[transform_args[0]]),
-        )
-
-    def _handle_bucket_transform(
-        self, column: str, transform_args: list
-    ) -> exp.Expression:
-        if len(transform_args) != 1:
-            raise ValueError("The 'bucket' transform requires exactly one argument")
-        return exp.PartitionedByBucket(
-            this=exp.column(column),
-            expression=exp.convert(transform_args[0]),
-        )
-
-    def _handle_truncate_transform(
-        self, column: str, transform_args: list
-    ) -> exp.Expression:
-        if len(transform_args) != 1:
-            raise ValueError("The 'truncate' transform requires exactly one argument")
-        return exp.PartitionByTruncate(
-            this=exp.column(column),
-            expression=exp.convert(transform_args[0]),
-        )
-
-    # Field and constraint handlers
-    def _convert_field(self, field: Field) -> exp.ColumnDef:
-        constraints = []
-        if field.generated_as and field.generated_as.transform:
-            expression = self._handle_transformation(
-                field.generated_as.column,
-                field.generated_as.transform,
-                field.generated_as.transform_args,
-            )
-            constraints.append(
-                exp.ColumnConstraint(
-                    kind=exp.GeneratedAsIdentityColumnConstraint(
-                        this=True, expression=expression
-                    )
-                )
-            )
-
-        for constraint in field.constraints:
-            if handler := self._constraint_handlers.get(type(constraint)):
-                constraints.append(handler(constraint))
-            else:
-                # TODO: Revisit this after implementing a global setting to either
-                # raise or warn when the spec is more expressive than the handlers
-                # available in a core converter.
-                raise NotImplementedError(
-                    f"No handler implemented for constraint: {type(constraint)}"
-                )
-
-        return exp.ColumnDef(
-            this=exp.Identifier(this=field.name),
-            kind=self._convert_type(field.type),
-            constraints=constraints if constraints else None,
-        )
-
-    def _handle_not_null_constraint(
-        self, constraint: NotNullConstraint
-    ) -> exp.ColumnConstraint:
+    @_convert_column_constraint.register(NotNullConstraint)
+    def _(self, constraint: NotNullConstraint) -> exp.ColumnConstraint:
+        """Convert NotNull constraints."""
         return exp.ColumnConstraint(kind=exp.NotNullColumnConstraint())
 
-    def _handle_primary_key_constraint(
-        self, constraint: PrimaryKeyConstraint
-    ) -> exp.ColumnConstraint:
+    @_convert_column_constraint.register(PrimaryKeyConstraint)
+    def _(self, constraint: PrimaryKeyConstraint) -> exp.ColumnConstraint:
+        """Convert PrimaryKey constraints."""
         return exp.ColumnConstraint(kind=exp.PrimaryKeyColumnConstraint())
 
-    def _handle_default_constraint(
-        self, constraint: DefaultConstraint
-    ) -> exp.ColumnConstraint:
+    @_convert_column_constraint.register(DefaultConstraint)
+    def _(self, constraint: DefaultConstraint) -> exp.ColumnConstraint:
+        """Convert Default constraints."""
         return exp.ColumnConstraint(
             kind=exp.DefaultColumnConstraint(this=convert(constraint.value))
         )
 
-    def _handle_identity_constraint(
-        self, constraint: IdentityConstraint
-    ) -> exp.ColumnConstraint:
+    @_convert_column_constraint.register(IdentityConstraint)
+    def _(self, constraint: IdentityConstraint) -> exp.ColumnConstraint:
+        """Convert Identity constraints with start and increment handling."""
         start_expr: exp.Expression | None = None
         if constraint.start is not None:
             if constraint.start < 0:
@@ -433,9 +307,9 @@ class SQLGlotConverter(BaseConverter):
             )
         )
 
-    def _handle_foreign_key_constraint(
-        self, constraint: ForeignKeyConstraint
-    ) -> exp.ColumnConstraint:
+    @_convert_column_constraint.register(ForeignKeyConstraint)
+    def _(self, constraint: ForeignKeyConstraint) -> exp.ColumnConstraint:
+        """Convert ForeignKey constraints."""
         reference_expression = exp.Reference(
             this=self._parse_full_table_name(
                 constraint.references.table, constraint.references.columns
@@ -450,9 +324,23 @@ class SQLGlotConverter(BaseConverter):
 
         return exp.ColumnConstraint(kind=reference_expression)
 
-    def _handle_primary_key_table_constraint(
-        self, constraint: PrimaryKeyTableConstraint
-    ) -> exp.Expression:
+    # Table constraint handling using singledispatchmethod
+    @singledispatchmethod
+    def _convert_table_constraint(self, constraint: Any) -> exp.Expression:
+        """Convert a table constraint to a sqlglot Expression.
+
+        Fallback method for unsupported table constraints.
+        """
+        # TODO: Revisit this after implementing a global setting to either
+        # raise or warn when the spec is more expressive than the handlers
+        # available in the converter.
+        raise NotImplementedError(
+            f"No handler implemented for table constraint: {type(constraint)}"
+        )
+
+    @_convert_table_constraint.register(PrimaryKeyTableConstraint)
+    def _(self, constraint: PrimaryKeyTableConstraint) -> exp.Expression:
+        """Convert PrimaryKey table constraints."""
         pk_expression = exp.PrimaryKey(
             expressions=[
                 exp.Ordered(
@@ -468,9 +356,9 @@ class SQLGlotConverter(BaseConverter):
             )
         return pk_expression
 
-    def _handle_foreign_key_table_constraint(
-        self, constraint: ForeignKeyTableConstraint
-    ) -> exp.Expression:
+    @_convert_table_constraint.register(ForeignKeyTableConstraint)
+    def _(self, constraint: ForeignKeyTableConstraint) -> exp.Expression:
+        """Convert ForeignKey table constraints."""
         reference_expression = exp.Reference(
             this=self._parse_full_table_name(
                 constraint.references.table, constraint.references.columns
@@ -488,14 +376,157 @@ class SQLGlotConverter(BaseConverter):
             )
         return fk_expression
 
+    # Property handlers
+    def _handle_storage_properties(self, storage: Storage | None) -> list[exp.Property]:
+        """Convert storage configuration to a list of Property expressions."""
+        if not storage:
+            return []
+
+        properties: list[exp.Property] = []
+        if storage.location:
+            properties.append(self._handle_location_property(storage.location))
+        if storage.format:
+            properties.append(self._handle_file_format_property(storage.format))
+        if storage.tbl_properties:
+            for key, value in storage.tbl_properties.items():
+                properties.append(self._handle_generic_property(key, value))
+
+        return properties
+
+    def _handle_partitioned_by_property(
+        self, value: list[TransformedColumn]
+    ) -> exp.PartitionedByProperty:
+        """Convert partitioned-by configuration to a PartitionedByProperty expression."""
+        schema_expressions = []
+        for col in value:
+            expression: exp.Expression
+            if col.transform:
+                expression = self._handle_transformation(
+                    col.column, col.transform, col.transform_args
+                )
+            else:
+                expression = exp.Identifier(this=col.column)
+            schema_expressions.append(expression)
+
+        return exp.PartitionedByProperty(
+            this=exp.Schema(expressions=schema_expressions)
+        )
+
+    def _handle_location_property(self, value: str) -> exp.LocationProperty:
+        """Convert location string to a LocationProperty expression."""
+        return exp.LocationProperty(this=convert(value))
+
+    def _handle_file_format_property(self, value: str) -> exp.FileFormatProperty:
+        """Convert file format string to a FileFormatProperty expression."""
+        return exp.FileFormatProperty(this=exp.Var(this=value))
+
+    def _handle_external_property(self) -> exp.ExternalProperty:
+        """Create an ExternalProperty expression."""
+        return exp.ExternalProperty()
+
+    def _handle_generic_property(self, key: str, value: Any) -> exp.Property:
+        """Convert key-value pair to a generic Property expression."""
+        return exp.Property(this=convert(key), value=convert(value))
+
+    def _collect_properties(self, spec: SchemaSpec) -> list[exp.Property]:
+        """Gathers all table-level properties from the spec."""
+        properties: list[exp.Property] = []
+        if spec.external:
+            properties.append(self._handle_external_property())
+        properties.extend(self._handle_storage_properties(spec.storage))
+        if spec.partitioned_by:
+            properties.append(self._handle_partitioned_by_property(spec.partitioned_by))
+        return properties
+
+    # Transform handlers
+    def _handle_transformation(
+        self, column: str, transform: str, transform_args: list
+    ) -> exp.Expression:
+        """Handles a transformed column by dispatching to a specific handler or
+        falling back to a generic function expression.
+        """
+        if handler_method_name := self._TRANSFORM_HANDLERS.get(transform):
+            handler_method = getattr(self, handler_method_name)
+            return handler_method(column, transform_args)
+
+        # Fallback to a generic function expression for all other transforms.
+        # https://sqlglot.com/sqlglot/expressions.html#func
+        return exp.func(
+            transform,
+            exp.column(column),
+            *(exp.convert(arg) for arg in transform_args),
+        )
+
+    def _handle_cast_transform(
+        self, column: str, transform_args: list
+    ) -> exp.Expression:
+        """Handle 'cast' transform with type conversion."""
+        if len(transform_args) != 1:
+            raise ValueError("The 'cast' transform requires exactly one argument")
+        return exp.Cast(
+            this=exp.column(column),
+            to=exp.DataType(this=exp.DataType.Type[transform_args[0]]),
+        )
+
+    def _handle_bucket_transform(
+        self, column: str, transform_args: list
+    ) -> exp.Expression:
+        """Handle 'bucket' transform for partitioning."""
+        if len(transform_args) != 1:
+            raise ValueError("The 'bucket' transform requires exactly one argument")
+        return exp.PartitionedByBucket(
+            this=exp.column(column),
+            expression=exp.convert(transform_args[0]),
+        )
+
+    def _handle_truncate_transform(
+        self, column: str, transform_args: list
+    ) -> exp.Expression:
+        """Handle 'truncate' transform for partitioning."""
+        if len(transform_args) != 1:
+            raise ValueError("The 'truncate' transform requires exactly one argument")
+        return exp.PartitionByTruncate(
+            this=exp.column(column),
+            expression=exp.convert(transform_args[0]),
+        )
+
+    # Field and expression collection
+    def _convert_field(self, field: Field) -> exp.ColumnDef:
+        """Convert a Field to a ColumnDef expression with constraints."""
+        constraints = []
+
+        # Handle generated columns
+        if field.generated_as and field.generated_as.transform:
+            expression = self._handle_transformation(
+                field.generated_as.column,
+                field.generated_as.transform,
+                field.generated_as.transform_args,
+            )
+            constraints.append(
+                exp.ColumnConstraint(
+                    kind=exp.GeneratedAsIdentityColumnConstraint(
+                        this=True, expression=expression
+                    )
+                )
+            )
+
+        # Handle field constraints using single dispatch
+        for constraint in field.constraints:
+            constraints.append(self._convert_column_constraint(constraint))
+
+        return exp.ColumnDef(
+            this=exp.Identifier(this=field.name),
+            kind=self._convert_type(field.type),
+            constraints=constraints if constraints else None,
+        )
+
     def _collect_expressions(self, spec: SchemaSpec) -> list[exp.Expression]:
         """Gathers all table-level expressions from the spec."""
         expressions: list[exp.Expression] = [
             self._convert_field(col) for col in spec.columns
         ]
         for constraint in spec.table_constraints:
-            if handler := self._table_constraint_handlers.get(type(constraint)):
-                expressions.append(handler(constraint))
+            expressions.append(self._convert_table_constraint(constraint))
         return expressions
 
     def _parse_full_table_name(
