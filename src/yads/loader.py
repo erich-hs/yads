@@ -77,20 +77,29 @@ class SpecLoader:
         'my_table'
     """
 
+    _TYPE_PARSERS: dict[type, str] = {
+        Interval: "_parse_interval_type",
+        Array: "_parse_array_type",
+        Struct: "_parse_struct_type",
+        Map: "_parse_map_type",
+    }
+
+    _COLUMN_CONSTRAINT_PARSERS: dict[str, str] = {
+        "not_null": "_parse_not_null_constraint",
+        "primary_key": "_parse_primary_key_constraint",
+        "default": "_parse_default_constraint",
+        "foreign_key": "_parse_foreign_key_constraint",
+        "identity": "_parse_identity_constraint",
+    }
+
+    _TABLE_CONSTRAINT_PARSERS: dict[str, str] = {
+        "primary_key": "_parse_primary_key_table_constraint",
+        "foreign_key": "_parse_foreign_key_table_constraint",
+    }
+
     def __init__(self, data: dict[str, Any]):
         self.data = data
         self.spec: SchemaSpec | None = None
-        self._column_constraint_parsers: dict[str, ConstraintParser] = {
-            "not_null": self._parse_not_null_constraint,
-            "primary_key": self._parse_primary_key_constraint,
-            "default": self._parse_default_constraint,
-            "foreign_key": self._parse_foreign_key_constraint,
-            "identity": self._parse_identity_constraint,
-        }
-        self._table_constraint_parsers: dict[str, TableConstraintParser] = {
-            "primary_key": self._parse_primary_key_table_constraint,
-            "foreign_key": self._parse_foreign_key_table_constraint,
-        }
 
     def load(self) -> SchemaSpec:
         """Loads and validates the schema specification.
@@ -144,58 +153,83 @@ class SpecLoader:
         self._validate_spec()
         return self.spec
 
-    def _parse_type(self, type_name: str, type_def: dict[str, Any]) -> Type:
+    def _get_processed_type_params(
+        self, type_name: str, type_def: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Helper method to extract and process type parameters from type definition."""
         type_params = type_def.get("params", {})
+        default_params = TYPE_ALIASES[type_name.lower()][1]
+        return {**default_params, **type_params}
+
+    def _parse_type(self, type_name: str, type_def: dict[str, Any]) -> Type:
+        """Converts a type name and definition to a yads Type object."""
         type_name_lower = type_name.lower()
 
         if (alias := TYPE_ALIASES.get(type_name_lower)) is None:
             raise ValueError(f"Unknown type: '{type_name}'")
 
-        base_type_class, default_params = alias
-        # Allow explicit params to override the alias's params
-        final_params = {**default_params, **type_params}
+        base_type_class = alias[0]
 
-        if issubclass(base_type_class, Interval):
-            if "interval_start" not in final_params:
-                raise ValueError(
-                    "Interval type definition must include 'interval_start'"
-                )
-            final_params["interval_start"] = IntervalTimeUnit(
-                final_params["interval_start"].upper()
-            )
-            if end_field_val := final_params.get("interval_end"):
-                final_params["interval_end"] = IntervalTimeUnit(end_field_val.upper())
-            return base_type_class(**final_params)
+        # Handle complex types with special parsing requirements using class-level mapping
+        if parser_method_name := self._TYPE_PARSERS.get(base_type_class):
+            parser_method = getattr(self, parser_method_name)
+            return parser_method(type_def)
 
-        if issubclass(base_type_class, Array):
-            if "element" not in type_def:
-                raise ValueError("Array type definition must include 'element'")
-            element_def = type_def["element"]
-            if not isinstance(element_def, dict) or "type" not in element_def:
-                raise ValueError(
-                    "The 'element' of an array must be a dictionary with a 'type' key"
-                )
-            element_type_name = element_def["type"]
-            return Array(element=self._parse_type(element_type_name, element_def))
-
-        if issubclass(base_type_class, Struct):
-            if "fields" not in type_def:
-                raise ValueError("Struct type definition must include 'fields'")
-            return Struct(fields=[self._parse_column(f) for f in type_def["fields"]])
-
-        if issubclass(base_type_class, Map):
-            if "key" not in type_def or "value" not in type_def:
-                raise ValueError("Map type definition must include 'key' and 'value'")
-            key_def = type_def["key"]
-            value_def = type_def["value"]
-            return Map(
-                key=self._parse_type(key_def["type"], key_def),
-                value=self._parse_type(value_def["type"], value_def),
-            )
-
-        # For simple types, instantiate with any provided params
+        # For simple types, get processed params and instantiate
+        final_params = self._get_processed_type_params(type_name, type_def)
         return base_type_class(**final_params)
 
+    # Type parsers for complex types
+    def _parse_interval_type(self, type_def: dict[str, Any]) -> Interval:
+        """Parse Interval types with special handling for time units."""
+        type_name = type_def.get("type", "")
+        final_params = self._get_processed_type_params(type_name, type_def)
+
+        if "interval_start" not in final_params:
+            raise ValueError("Interval type definition must include 'interval_start'")
+
+        final_params["interval_start"] = IntervalTimeUnit(
+            final_params["interval_start"].upper()
+        )
+        if end_field_val := final_params.get("interval_end"):
+            final_params["interval_end"] = IntervalTimeUnit(end_field_val.upper())
+
+        return Interval(**final_params)
+
+    def _parse_array_type(self, type_def: dict[str, Any]) -> Array:
+        """Parse Array types with recursive element parsing."""
+        if "element" not in type_def:
+            raise ValueError("Array type definition must include 'element'")
+
+        element_def = type_def["element"]
+        if not isinstance(element_def, dict) or "type" not in element_def:
+            raise ValueError(
+                "The 'element' of an array must be a dictionary with a 'type' key"
+            )
+
+        element_type_name = element_def["type"]
+        return Array(element=self._parse_type(element_type_name, element_def))
+
+    def _parse_struct_type(self, type_def: dict[str, Any]) -> Struct:
+        """Parse Struct types with recursive field parsing."""
+        if "fields" not in type_def:
+            raise ValueError("Struct type definition must include 'fields'")
+
+        return Struct(fields=[self._parse_column(f) for f in type_def["fields"]])
+
+    def _parse_map_type(self, type_def: dict[str, Any]) -> Map:
+        """Parse Map types with recursive key/value parsing."""
+        if "key" not in type_def or "value" not in type_def:
+            raise ValueError("Map type definition must include 'key' and 'value'")
+
+        key_def = type_def["key"]
+        value_def = type_def["value"]
+        return Map(
+            key=self._parse_type(key_def["type"], key_def),
+            value=self._parse_type(value_def["type"], value_def),
+        )
+
+    # Column constraint parsers
     def _parse_not_null_constraint(self, value: Any) -> NotNullConstraint:
         if not isinstance(value, bool):
             raise ValueError("The 'not_null' constraint expects a boolean value")
@@ -216,7 +250,7 @@ class SpecLoader:
             raise ValueError("The 'foreign_key' constraint must specify 'references'")
         return ForeignKeyConstraint(
             name=value.get("name"),
-            references=self._parse_references(value["references"]),
+            references=self._parse_foreign_key_references(value["references"]),
         )
 
     def _parse_identity_constraint(self, value: Any) -> IdentityConstraint:
@@ -230,16 +264,18 @@ class SpecLoader:
             increment=increment,
         )
 
-    def _parse_constraints(
+    def _parse_column_constraints(
         self, constraints_def: dict[str, Any] | None
     ) -> list[ColumnConstraint]:
+        """Parse column constraints using the class-level parser mapping."""
         constraints: list[ColumnConstraint] = []
         if not constraints_def:
             return constraints
 
         for key, value in constraints_def.items():
-            if key in self._column_constraint_parsers:
-                constraints.append(self._column_constraint_parsers[key](value))
+            if parser_method_name := self._COLUMN_CONSTRAINT_PARSERS.get(key):
+                parser_method = getattr(self, parser_method_name)
+                constraints.append(parser_method(value))
             else:
                 raise ValueError(f"Unknown column constraint: {key}")
 
@@ -282,11 +318,12 @@ class SpecLoader:
             name=col_def["name"],
             type=self._parse_type(type_name, col_def),
             description=col_def.get("description"),
-            constraints=self._parse_constraints(col_def.get("constraints")),
+            constraints=self._parse_column_constraints(col_def.get("constraints")),
             metadata=col_def.get("metadata", {}),
             generated_as=self._parse_generation_clause(col_def.get("generated_as")),
         )
 
+    # Table constraint parsers
     def _parse_primary_key_table_constraint(
         self, const_def: dict[str, Any]
     ) -> PrimaryKeyTableConstraint:
@@ -307,10 +344,12 @@ class SpecLoader:
         return ForeignKeyTableConstraint(
             columns=const_def["columns"],
             name=const_def.get("name"),
-            references=self._parse_references(const_def["references"]),
+            references=self._parse_foreign_key_references(const_def["references"]),
         )
 
-    def _parse_references(self, references_def: dict[str, Any]) -> ForeignKeyReference:
+    def _parse_foreign_key_references(
+        self, references_def: dict[str, Any]
+    ) -> ForeignKeyReference:
         if "table" not in references_def:
             raise ValueError(
                 "The 'references' of a foreign key must be a dictionary with a 'table' key"
@@ -322,6 +361,7 @@ class SpecLoader:
     def _parse_table_constraints(
         self, table_constraints_def: list[dict[str, Any]] | None
     ) -> list[TableConstraint]:
+        """Parse table constraints using the class-level parser mapping."""
         if not table_constraints_def:
             return []
 
@@ -330,8 +370,11 @@ class SpecLoader:
             if not (constraint_type := const_def.get("type")):
                 raise ValueError("Table constraint definition must have a 'type'")
 
-            if parser := self._table_constraint_parsers.get(constraint_type):
-                constraints.append(parser(const_def))
+            if parser_method_name := self._TABLE_CONSTRAINT_PARSERS.get(
+                constraint_type
+            ):
+                parser_method = getattr(self, parser_method_name)
+                constraints.append(parser_method(const_def))
             else:
                 raise ValueError(f"Unknown table constraint type: {constraint_type}")
         return constraints
@@ -364,6 +407,7 @@ class SpecLoader:
         return transformed_columns
 
     def _validate_spec(self) -> None:
+        """Validate the parsed specification for consistency and referential integrity."""
         if not self.spec:
             return
         self._check_for_duplicate_constraint_definitions(self.spec)
@@ -372,6 +416,7 @@ class SpecLoader:
         self._check_for_undefined_columns_in_generated_as(self.spec)
 
     def _check_for_duplicate_constraint_definitions(self, spec: "SchemaSpec") -> None:
+        """Check for constraints defined at both column and table level."""
         for col_const_type, tbl_const_type in CONSTRAINT_EQUIVALENTS.items():
             constrained_cols = {
                 c.name
@@ -394,6 +439,7 @@ class SpecLoader:
     def _check_for_undefined_columns_in_table_constraints(
         self, spec: "SchemaSpec"
     ) -> None:
+        """Check that table constraints only reference defined columns."""
         for constraint in spec.table_constraints:
             constrained_columns = set(constraint.get_constrained_columns())
             if not_defined := constrained_columns - spec.column_names:
@@ -411,12 +457,14 @@ class SpecLoader:
     def _check_for_undefined_columns_in_partitioned_by(
         self, spec: "SchemaSpec"
     ) -> None:
+        """Check that partition specifications only reference defined columns."""
         if not_defined := spec.partition_column_names - spec.column_names:
             raise ValueError(
                 f"Partition spec references undefined columns: {sorted(list(not_defined))}"
             )
 
     def _check_for_undefined_columns_in_generated_as(self, spec: "SchemaSpec") -> None:
+        """Check that generated columns only reference defined columns."""
         for gen_col, source_col in spec.generated_columns.items():
             if source_col not in spec.column_names:
                 raise ValueError(
