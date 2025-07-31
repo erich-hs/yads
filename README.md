@@ -67,11 +67,11 @@ TBLPROPERTIES (
 
 ### Available Converters
 
-Currently, `yads` supports generating SQL DDL statements via the `SqlConverter`. Support for other output formats, such as PySpark or PyArrow schemas, is planned for future releases.
+Currently, `yads` supports generating SQL DDL statements via the `SQLConverter`. Support for other output formats, such as PySpark or PyArrow schemas, is planned for future releases.
 
 #### Officially Supported SQL Dialects
 
-While the generic `SqlConverter` can generate DDL for any dialect supported by `sqlglot`, we also provide officially supported converters for specific dialects. These specialized converters (e.g., `SparkSQLConverter`) perform additional validation to ensure that the generated DDL is fully compatible with the target dialect, providing a higher level of reliability.
+While the generic `SQLConverter` can generate DDL for any dialect supported by `sqlglot`, we also provide officially supported converters for specific dialects. These specialized converters (e.g., `SparkSQLConverter`) perform additional validation to ensure that the generated DDL is fully compatible with the target dialect, providing a higher level of reliability.
 
 To use an officially supported converter, simply import and instantiate it directly:
 
@@ -156,7 +156,7 @@ To add support for a new SQL dialect, you'll typically need to follow a structur
 The process of converting a `yads` specification into a target format (like a SQL DDL) follows these general steps:
 
 1.  **Parsing**: The YAML/JSON spec is parsed into a `SchemaSpec` object.
-2.  **Core Conversion**: A core converter (e.g., `SqlglotConverter`) transforms the `SchemaSpec` into a generic intermediate representation, like a `sqlglot` Abstract Syntax Tree (AST).
+2.  **Core Conversion**: A core converter (e.g., `SQLGlotConverter`) transforms the `SchemaSpec` into a generic intermediate representation, like a `sqlglot` Abstract Syntax Tree (AST).
 3.  **Validation and Adjustment (Optional)**: For formats with specific constraints (like SQL dialects), an `AstValidator` can be used to process the intermediate representation. It applies a set of rules to check for unsupported features and adjusts the AST accordingly.
 4.  **Serialization**: The final representation is serialized into the target output format (e.g., a SQL string).
 
@@ -171,23 +171,23 @@ The process of converting a `yads` specification into a target format (like a SQ
 
 To add support for a new SQL dialect, you'll typically need to:
 
-1.  **Create a Converter Class**: Subclass `SqlConverter` (e.g., `MyNewSqlConverter`).
+1.  **Create a Converter Class**: Subclass `SQLConverter` (e.g., `MyNewSQLConverter`).
 2.  **Implement Validation Rules**: If the dialect has features that are not universally supported, create new validation rules by subclassing `yads.validator.Rule`. Each rule needs to implement:
     *   `validate()`: To check the AST for a specific issue.
     *   `adjust()`: To modify the AST to resolve the issue.
-3.  **Wire it Up**: In your new converter's `__init__`, instantiate `AstValidator` with your list of rules and pass it to the `SqlConverter`'s constructor.
+3.  **Wire it Up**: In your new converter's `__init__`, instantiate `AstValidator` with your list of rules and pass it to the `SQLConverter`'s constructor.
 
 Here's a simplified example of a custom converter for a fictional "AwesomeDB":
 
 ```python
 # in yads/converters/sql.py
-from yads.converters.sql import SqlConverter
+from yads.converters.sql import SQLConverter
 from yads.validator import AstValidator, Rule
 
 class DisallowLongVarcharsRule(Rule):
     # ... implementation for the rule ...
 
-class AwesomeDBConverter(SqlConverter):
+class AwesomeDBConverter(SQLConverter):
     def __init__(self, **convert_options: Any):
         rules = [DisallowLongVarcharsRule()]
         validator = AstValidator(rules=rules)
