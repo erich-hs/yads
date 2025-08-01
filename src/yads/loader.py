@@ -383,25 +383,26 @@ class SpecLoader:
     def _parse_primary_key_table_constraint(
         self, const_def: dict[str, Any]
     ) -> PrimaryKeyTableConstraint:
-        if "columns" not in const_def:
-            raise InvalidConstraintError(
-                "Primary key table constraint must specify 'columns'."
-            )
+        for required_field in ("name", "columns"):
+            if required_field not in const_def:
+                raise InvalidConstraintError(
+                    f"Primary key table constraint must specify '{required_field}'."
+                )
         return PrimaryKeyTableConstraint(
-            columns=const_def["columns"], name=const_def.get("name")
+            columns=const_def["columns"], name=const_def["name"]
         )
 
     def _parse_foreign_key_table_constraint(
         self, const_def: dict[str, Any]
     ) -> ForeignKeyTableConstraint:
-        for required_field in ("columns", "references"):
+        for required_field in ("name", "columns", "references"):
             if required_field not in const_def:
                 raise InvalidConstraintError(
                     f"Foreign key table constraint must specify '{required_field}'."
                 )
         return ForeignKeyTableConstraint(
             columns=const_def["columns"],
-            name=const_def.get("name"),
+            name=const_def["name"],
             references=self._parse_foreign_key_references(const_def["references"]),
         )
 
