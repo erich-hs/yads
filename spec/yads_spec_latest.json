@@ -209,7 +209,7 @@
           "required": ["table"]
         }
       },
-      "required": ["type", "columns"]
+      "required": ["type", "columns", "name"]
     },
     "constraints": {
       "type": "object",

@@ -551,7 +551,7 @@ class SQLGlotConverter(BaseConverter):
             return exp.Constraint(
                 this=exp.Identifier(this=constraint.name), expressions=[pk_expression]
             )
-        return pk_expression
+        raise ConversionError("Primary key constraint must have a name.")
 
     @_convert_table_constraint.register(ForeignKeyTableConstraint)
     def _(self, constraint: ForeignKeyTableConstraint) -> exp.Expression:
@@ -570,7 +570,7 @@ class SQLGlotConverter(BaseConverter):
                 this=exp.Identifier(this=constraint.name),
                 expressions=[fk_expression],
             )
-        return fk_expression
+        raise ConversionError("Foreign key constraint must have a name.")
 
     # Property handlers
     def _handle_storage_properties(self, storage: Storage | None) -> list[exp.Property]:
