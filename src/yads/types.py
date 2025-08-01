@@ -1,3 +1,30 @@
+"""Data type definitions for yads specifications.
+
+This module provides the canonical type system for yads, defining primitive types
+(strings, numbers, dates), complex types (arrays, structs, maps), and specialized
+types (intervals, UUIDs). These types form the foundation for schema definitions
+and are used throughout spec conversions.
+
+The type system is designed to be expressive and database-agnostic, while providing
+sufficient detail for accurate conversion to specific SQL dialects and data processing
+frameworks.
+
+Example:
+    >>> from yads.types import String, Integer, Decimal, Struct
+    >>> from yads.spec import Field
+    >>>
+    >>> # Create basic types
+    >>> name_type = String(length=100)
+    >>> age_type = Integer(bits=32)
+    >>>
+    >>> # Create complex types
+    >>> address_type = Struct(fields=[
+    ...     Field(name="street", type=String()),
+    ...     Field(name="city", type=String()),
+    ...     Field(name="zip", type=String(length=10))
+    ... ])
+"""
+
 from __future__ import annotations
 
 import textwrap
@@ -34,7 +61,12 @@ __all__ = [
 
 
 class Type(ABC):
-    """The abstract base class for all canonical types."""
+    """Abstract base class for all yads data types.
+
+    All type definitions in yads inherit from this base class, providing
+    a consistent interface for type representation and conversion across
+    different target systems.
+    """
 
     def __str__(self) -> str:
         return self.__class__.__name__.lower()
@@ -42,7 +74,29 @@ class Type(ABC):
 
 @dataclass(frozen=True)
 class String(Type):
-    """A string data type, with an optional length."""
+    """Variable-length string type with optional maximum length constraint.
+
+    Represents text data that can be converted to STRING-like types in various
+    SQL dialects or data-processing frameworks. The length parameter specifies
+    the maximum number of characters allowed.
+
+    Args:
+        length: Maximum number of characters. If None, represents unlimited length.
+
+    Raises:
+        TypeDefinitionError: If length is not a positive integer.
+
+    Example:
+        >>> # Unlimited length string
+        >>> String()
+
+        >>> # String with maximum length
+        >>> String(length=255)
+
+        >>> # Common use in field definition
+        >>> from yads.spec import Field
+        >>> Field(name="username", type=String(length=50))
+    """
 
     length: int | None = None
 
@@ -60,7 +114,29 @@ class String(Type):
 
 @dataclass(frozen=True)
 class Integer(Type):
-    """An integer data type, with an optional size in bits."""
+    """Signed integer type with optional bit-width specification.
+
+    Represents whole numbers that can be converted to various integer types
+    in SQL dialects and data processing frameworks. The bit-width determines
+    the range of values that can be stored.
+
+    Args:
+        bits: Number of bits for the integer. Must be 8, 16, 32, or 64.
+              If None, uses the default integer type for the target system.
+
+    Raises:
+        TypeDefinitionError: If bits is not one of the valid values.
+
+    Example:
+        >>> # Default integer (typically 32-bit)
+        >>> Integer()
+
+        >>> # Specific bit-width integers
+        >>> Integer(bits=8)   # TINYINT
+        >>> Integer(bits=16)  # SMALLINT
+        >>> Integer(bits=32)  # INT
+        >>> Integer(bits=64)  # BIGINT
+    """
 
     bits: int | None = None
 
@@ -78,7 +154,28 @@ class Integer(Type):
 
 @dataclass(frozen=True)
 class Float(Type):
-    """A floating-point number type."""
+    """IEEE floating-point number type with optional precision specification.
+
+    Represents approximate numeric values with fractional components.
+
+    Args:
+        bits: Number of bits for the float. Must be 32 or 64.
+              32-bit corresponds to single precision, 64-bit to double precision.
+              If None, uses the default float type for the target system.
+
+    Raises:
+        TypeDefinitionError: If bits is not 32 or 64.
+
+    Example:
+        >>> # Default float (typically 64-bit)
+        >>> Float()
+
+        >>> # Single precision
+        >>> Float(bits=32)
+
+        >>> # Double precision
+        >>> Float(bits=64)
+    """
 
     bits: int | None = None
 
@@ -96,12 +193,44 @@ class Float(Type):
 
 @dataclass(frozen=True)
 class Boolean(Type):
-    pass
+    """Boolean type representing true/false values.
+
+    Maps to BOOLEAN types in SQL dialects or equivalent binary representations
+    in data processing frameworks.
+
+    Example:
+        >>> Boolean()
+        >>>
+        >>> # Use in field definition
+        >>> Field(name="is_active", type=Boolean())
+    """
 
 
 @dataclass(frozen=True)
 class Decimal(Type):
-    """A decimal type with optional precision and scale."""
+    """Fixed-precision decimal type.
+
+    Args:
+        precision: Total number of digits (before and after decimal point).
+        scale: Number of digits after the decimal point.
+
+    Both precision and scale must be specified together, or both omitted
+    for a default decimal type.
+
+    Raises:
+        TypeDefinitionError: If only one of precision/scale is specified,
+                           or if values are invalid.
+
+    Example:
+        >>> # Default decimal
+        >>> Decimal()
+
+        >>> # Currency with 2 decimal places (up to $9,999,999.99)
+        >>> Decimal(precision=10, scale=2)
+
+        >>> # High-precision scientific data
+        >>> Decimal(precision=20, scale=8)
+    """
 
     precision: int | None = None
     scale: int | None = None
@@ -132,36 +261,103 @@ class Decimal(Type):
 
 @dataclass(frozen=True)
 class Date(Type):
-    pass
+    """Calendar date type representing year, month, and day.
+
+    Maps to DATE-like types in SQL dialects or data-processing frameworks.
+    Does not include time information.
+
+    Example:
+        >>> Date()
+        >>>
+        >>> # Use for date columns
+        >>> Field(name="birth_date", type=Date())
+    """
 
 
 @dataclass(frozen=True)
 class Timestamp(Type):
-    pass
+    """Date and time type without timezone information.
+
+    Represents a specific point in time including date and time components,
+    but without timezone awareness. Maps to TIMESTAMP or DATETIME types
+    in SQL dialects.
+
+    Example:
+        >>> Timestamp()
+        >>>
+        >>> # Use for event timestamps
+        >>> Field(name="created_at", type=Timestamp())
+    """
 
 
 @dataclass(frozen=True)
 class TimestampTZ(Type):
-    pass
+    """Date and time type with timezone information.
+
+    Similar to Timestamp but includes timezone awareness. Maps to
+    TIMESTAMP WITH TIME ZONE or equivalent types in SQL dialects.
+
+    Example:
+        >>> TimestampTZ()
+        >>>
+        >>> # Use for global event timestamps
+        >>> Field(name="order_time", type=TimestampTZ())
+    """
 
 
 @dataclass(frozen=True)
 class Binary(Type):
-    pass
+    """Binary data type for storing byte sequences.
+
+    Used for storing arbitrary binary data such as images, documents,
+    or serialized objects. Maps to BLOB, BINARY, or VARBINARY types
+    in SQL dialects.
+
+    Example:
+        >>> Binary()
+        >>>
+        >>> # Use for file storage
+        >>> Field(name="document", type=Binary())
+    """
 
 
 @dataclass(frozen=True)
 class JSON(Type):
-    pass
+    """JSON document type for semi-structured data.
+
+    Stores JSON documents with native support for JSON operations
+    in compatible databases.
+
+    Example:
+        >>> JSON()
+        >>>
+        >>> # Use for flexible document storage
+        >>> Field(name="metadata", type=JSON())
+    """
 
 
 @dataclass(frozen=True)
 class UUID(Type):
-    pass
+    """Universally Unique Identifier type.
+
+    Represents 128-bit UUID values, commonly used for primary keys
+    and unique identifiers in distributed systems.
+
+    Example:
+        >>> UUID()
+        >>>
+        >>> # Use for unique identifiers
+        >>> Field(name="user_id", type=UUID())
+    """
 
 
 class IntervalTimeUnit(str, Enum):
-    """Enumeration for interval time units."""
+    """Time unit enumeration for interval types.
+
+    Defines the valid time units that can be used in interval type
+    definitions. Units are categorized into Year-Month and Day-Time
+    groups for SQL compatibility.
+    """
 
     YEAR = "YEAR"
     MONTH = "MONTH"
@@ -173,7 +369,34 @@ class IntervalTimeUnit(str, Enum):
 
 @dataclass(frozen=True)
 class Interval(Type):
-    """An interval data type, with start and end fields."""
+    """Time interval type representing a duration between two time points.
+
+    Intervals can represent durations like "3 months", "2 days", or
+    "5 hours 30 minutes". The interval is defined by start and optionally
+    end time units.
+
+    Args:
+        interval_start: The starting (most significant) time unit.
+        interval_end: The ending (least significant) time unit. If None,
+                     represents a single-unit interval.
+
+    The start and end units must belong to the same category:
+    - Year-Month: YEAR, MONTH
+    - Day-Time: DAY, HOUR, MINUTE, SECOND
+
+    Raises:
+        TypeDefinitionError: If start and end units are from different categories,
+                           or if start is less significant than end.
+
+    Example:
+        >>> # Single unit intervals
+        >>> Interval(IntervalTimeUnit.YEAR)
+        >>> Interval(IntervalTimeUnit.DAY)
+
+        >>> # Range intervals
+        >>> Interval(IntervalTimeUnit.YEAR, IntervalTimeUnit.MONTH)
+        >>> Interval(IntervalTimeUnit.DAY, IntervalTimeUnit.SECOND)
+    """
 
     interval_start: IntervalTimeUnit
     interval_end: IntervalTimeUnit | None = None
@@ -236,7 +459,25 @@ class Interval(Type):
 
 @dataclass(frozen=True)
 class Array(Type):
-    """An array data type, composed of elements of another type."""
+    """Array type containing elements of a homogeneous type.
+
+    Represents ordered collections where all elements share the same type.
+    Maps to ARRAY types in SQL dialects or list/array structures in data
+    processing frameworks.
+
+    Args:
+        element: The type of elements contained in the array.
+
+    Example:
+        >>> # Array of strings
+        >>> Array(element=String())
+
+        >>> # Array of integers
+        >>> Array(element=Integer(bits=32))
+
+        >>> # Nested array (array of arrays)
+        >>> Array(element=Array(element=String()))
+    """
 
     element: Type
 
@@ -246,7 +487,31 @@ class Array(Type):
 
 @dataclass(frozen=True)
 class Struct(Type):
-    """A struct data type, composed of a list of named and typed fields."""
+    """Structured type containing named fields of potentially different types.
+
+    Represents complex objects with named fields. Maps to STRUCT/ROW types in
+    SQL dialects or nested objects in data-processing frameworks.
+
+    Args:
+        fields: List of Field objects defining the structure's schema.
+
+    Example:
+        >>> from yads.spec import Field
+        >>>
+        >>> # Address structure
+        >>> address_type = Struct(fields=[
+        ...     Field(name="street", type=String()),
+        ...     Field(name="city", type=String()),
+        ...     Field(name="postal_code", type=String(length=10))
+        ... ])
+
+        >>> # Nested structures
+        >>> person_type = Struct(fields=[
+        ...     Field(name="name", type=String()),
+        ...     Field(name="age", type=Integer()),
+        ...     Field(name="address", type=address_type)
+        ... ])
+    """
 
     fields: list["Field"]
 
@@ -258,7 +523,26 @@ class Struct(Type):
 
 @dataclass(frozen=True)
 class Map(Type):
-    """A map data type, composed of a key type and a value type."""
+    """Key-value mapping type with homogeneous key and value types.
+
+    Represents associative arrays or dictionaries where all keys share one type
+    and all values share another type. Maps to MAP types in SQL dialects or
+    dictionary structures in data processing frameworks.
+
+    Args:
+        key: The type of all keys in the map.
+        value: The type of all values in the map.
+
+    Example:
+        >>> # String-to-string mapping (like tags)
+        >>> Map(key=String(), value=String())
+
+        >>> # String-to-integer mapping (like counters)
+        >>> Map(key=String(), value=Integer())
+
+        >>> # Complex value types
+        >>> Map(key=String(), value=Array(element=String()))
+    """
 
     key: Type
     value: Type

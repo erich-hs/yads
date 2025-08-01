@@ -1,3 +1,43 @@
+"""Schema specification loading and parsing.
+
+This module provides the core functionality for loading yads schema specifications
+from YAML files, strings, or dictionaries. It handles type parsing, constraint
+validation, and comprehensive schema validation to ensure the resulting SchemaSpec
+objects are consistent and complete.
+
+The loader supports the full yads type system including primitives, complex types,
+intervals, and constraints. It provides detailed error messages to help users
+debug specification issues.
+
+Example:
+    >>> import yads
+    >>>
+    >>> # Load from YAML file
+    >>> spec = yads.from_yaml("schema.yaml")
+    >>>
+    >>> # Load from YAML string
+    >>> yaml_content = '''
+    ... name: my_table
+    ... version: "1.0.0"
+    ... columns:
+    ...   - name: id
+    ...     type: integer
+    ...     constraints:
+    ...       not_null: true
+    ... '''
+    >>> spec = yads.from_string(yaml_content)
+    >>>
+    >>> # Load from dictionary
+    >>> data = {
+    ...     "name": "my_table",
+    ...     "version": "1.0.0",
+    ...     "columns": [
+    ...         {"name": "id", "type": "integer", "constraints": {"not_null": True}}
+    ...     ]
+    ... }
+    >>> spec = yads.from_dict(data)
+"""
+
 from __future__ import annotations
 
 import warnings
@@ -43,14 +83,10 @@ from .types import (
 
 
 class ConstraintParser(Protocol):
-    """Protocol for constraint parsing functions."""
-
     def __call__(self, value: Any) -> ColumnConstraint: ...
 
 
 class TableConstraintParser(Protocol):
-    """Protocol for table constraint parsing functions."""
-
     def __call__(self, const_def: dict[str, Any]) -> TableConstraint: ...
 
 
@@ -165,13 +201,11 @@ class SpecLoader:
     def _get_processed_type_params(
         self, type_name: str, type_def: dict[str, Any]
     ) -> dict[str, Any]:
-        """Helper method to extract and process type parameters from type definition."""
         type_params = type_def.get("params", {})
         default_params = TYPE_ALIASES[type_name.lower()][1]
         return {**default_params, **type_params}
 
     def _parse_type(self, type_name: str, type_def: dict[str, Any]) -> Type:
-        """Converts a type name and definition to a yads Type object."""
         type_name_lower = type_name.lower()
 
         if (alias := TYPE_ALIASES.get(type_name_lower)) is None:
@@ -190,7 +224,6 @@ class SpecLoader:
 
     # Type parsers for complex types
     def _parse_interval_type(self, type_def: dict[str, Any]) -> Interval:
-        """Parse Interval types with special handling for time units."""
         type_name = type_def.get("type", "")
         final_params = self._get_processed_type_params(type_name, type_def)
 
@@ -208,7 +241,6 @@ class SpecLoader:
         return Interval(**final_params)
 
     def _parse_array_type(self, type_def: dict[str, Any]) -> Array:
-        """Parse Array types with recursive element parsing."""
         if "element" not in type_def:
             raise TypeDefinitionError("Array type definition must include 'element'.")
 
@@ -222,14 +254,12 @@ class SpecLoader:
         return Array(element=self._parse_type(element_type_name, element_def))
 
     def _parse_struct_type(self, type_def: dict[str, Any]) -> Struct:
-        """Parse Struct types with recursive field parsing."""
         if "fields" not in type_def:
             raise TypeDefinitionError("Struct type definition must include 'fields'")
 
         return Struct(fields=[self._parse_column(f) for f in type_def["fields"]])
 
     def _parse_map_type(self, type_def: dict[str, Any]) -> Map:
-        """Parse Map types with recursive key/value parsing."""
         if "key" not in type_def or "value" not in type_def:
             raise TypeDefinitionError(
                 "Map type definition must include 'key' and 'value'."
@@ -290,7 +320,6 @@ class SpecLoader:
     def _parse_column_constraints(
         self, constraints_def: dict[str, Any] | None
     ) -> list[ColumnConstraint]:
-        """Parse column constraints using the class-level parser mapping."""
         constraints: list[ColumnConstraint] = []
         if not constraints_def:
             return constraints
@@ -390,7 +419,6 @@ class SpecLoader:
     def _parse_table_constraints(
         self, table_constraints_def: list[dict[str, Any]] | None
     ) -> list[TableConstraint]:
-        """Parse table constraints using the class-level parser mapping."""
         if not table_constraints_def:
             return []
 
@@ -440,7 +468,6 @@ class SpecLoader:
         return transformed_columns
 
     def _validate_spec(self) -> None:
-        """Validate the parsed specification for consistency and referential integrity."""
         if not self.spec:
             return
         self._check_for_duplicate_constraint_definitions(self.spec)
@@ -508,12 +535,77 @@ class SpecLoader:
 
 # Loader functions
 def from_dict(data: dict[str, Any]) -> SchemaSpec:
-    """Instantiates a SchemaSpec from a pre-parsed Python dictionary."""
+    """Load a schema specification from a dictionary.
+
+    Parses and validates a schema specification provided as a dictionary.
+
+    Args:
+        data: Dictionary containing the schema specification. Must include
+              'name', 'version', and 'columns' fields at minimum.
+
+    Returns:
+        A validated immutable SchemaSpec object.
+
+    Example:
+        >>> data = {
+        ...     "name": "users",
+        ...     "version": "1.0.0",
+        ...     "columns": [
+        ...         {
+        ...             "name": "id",
+        ...             "type": "integer",
+        ...             "constraints": {"not_null": True, "primary_key": True}
+        ...         },
+        ...         {
+        ...             "name": "email",
+        ...             "type": "string",
+        ...             "params": {"length": 255},
+        ...             "constraints": {"not_null": True}
+        ...         }
+        ...     ]
+        ... }
+        >>> spec = from_dict(data)
+        >>> print(f"Loaded schema: {spec.name} v{spec.version}")
+        Loaded schema: users v1.0.0
+    """
     return SpecLoader(data).load()
 
 
 def from_string(content: str) -> SchemaSpec:
-    """Parses a YAML string and returns a SchemaSpec."""
+    """Load a schema specification from a YAML string.
+
+    Parses YAML content and converts it into a validated SchemaSpec object.
+
+    Args:
+        content: YAML string containing the schema specification.
+
+    Returns:
+        A validated immutable SchemaSpec object.
+
+    Raises:
+        SchemaParsingError: If the YAML content is invalid or doesn't parse
+                          to a dictionary.
+
+    Example:
+        >>> yaml_content = '''
+        ... name: products
+        ... version: "2.1.0"
+        ... description: Product catalog table
+        ... columns:
+        ...   - name: product_id
+        ...     type: string
+        ...     constraints:
+        ...       not_null: true
+        ...       primary_key: true
+        ...   - name: name
+        ...     type: string
+        ...     params:
+        ...       length: 200
+        ... '''
+        >>> spec = from_string(yaml_content)
+        >>> print(f"Loaded {len(spec.columns)} columns")
+        Loaded 2 columns
+    """
     data = yaml.safe_load(content)
     if not isinstance(data, dict):
         raise SchemaParsingError("Loaded YAML content did not parse to a dictionary.")
@@ -521,7 +613,22 @@ def from_string(content: str) -> SchemaSpec:
 
 
 def from_yaml(path: str) -> SchemaSpec:
-    """Reads a YAML file from a given path and returns a SchemaSpec object."""
+    """Load a schema specification from a YAML file.
+
+    Reads and parses a YAML file containing a schema specification.
+
+    Args:
+        path: Path to the YAML file containing the schema specification.
+
+    Returns:
+        A validated immutable SchemaSpec object.
+
+    Example:
+        >>> # Load from file
+        >>> spec = from_yaml("schemas/users.yaml")
+        >>> print(f"Loaded schema: {spec.name}")
+        Loaded schema: users
+    """
     with open(path) as f:
         content = f.read()
     return from_string(content)

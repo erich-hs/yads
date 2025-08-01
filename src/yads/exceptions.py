@@ -47,7 +47,6 @@ class YadsError(Exception):
         self.suggestions = suggestions or []
 
     def __str__(self) -> str:
-        """Return a formatted error message with suggestions."""
         result = super().__str__()
 
         if self.suggestions:

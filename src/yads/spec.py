@@ -1,3 +1,32 @@
+"""Core schema specification data structures for yads.
+
+This module defines the fundamental data structures that represent schema specifications
+in yads. These immutable data classes form the canonical representation of the yads spec.
+
+Example:
+    >>> from yads.types import String, Integer
+    >>> from yads.constraints import NotNullConstraint
+    >>>
+    >>> # Define table columns
+    >>> columns = [
+    ...     Field(name="id", type=Integer(), constraints=[NotNullConstraint()]),
+    ...     Field(name="name", type=String(length=100))
+    ... ]
+    >>>
+    >>> # Create complete schema specification
+    >>> spec = SchemaSpec(
+    ...     name="users",
+    ...     version="1.0.0",
+    ...     columns=columns,
+    ...     description="User information table"
+    ... )
+    >>>
+    >>> # Use with converters
+    >>> from yads.converters import SparkSQLConverter
+    >>> converter = SparkSQLConverter()
+    >>> ddl = converter.convert(spec)
+"""
+
 from __future__ import annotations
 
 import textwrap
@@ -10,7 +39,6 @@ from .types import Type
 
 
 def _format_dict_as_kwargs(d: dict[str, Any], multiline: bool = False) -> str:
-    """Formats a dictionary as a string of key-value pairs, like kwargs."""
     if not d:
         return "{}"
     items = [f"{k}={v!r}" for k, v in d.items()]
@@ -105,7 +133,6 @@ class Field:
     generated_as: TransformedColumn | None = None
 
     def _build_details_repr(self) -> str:
-        """Builds the string representation of the field's details."""
         details = []
         if self.description:
             details.append(f"description={self.description!r}")
@@ -171,7 +198,67 @@ class Storage:
 
 @dataclass(frozen=True)
 class SchemaSpec:
-    """A full yads schema specification, representing a table and its properties."""
+    """Complete yads schema specification.
+
+    SchemaSpec is the central data structure in yads that represents a complete
+    table definition including columns, constraints, storage properties, and
+    metadata. It serves as the input for all converters and validation processes.
+
+    The schema specification is immutable.
+
+    Args:
+        name: Fully qualified table name (e.g., "catalog.database.table").
+        version: Schema version string for tracking changes.
+        columns: List of Field objects defining the table structure.
+        description: Optional human-readable description of the table.
+        external: Whether to generate CREATE EXTERNAL TABLE statements.
+        storage: Storage configuration including format and properties.
+        partitioned_by: List of partitioning specifications.
+        table_constraints: List of table-level constraints (e.g., composite keys).
+        metadata: Additional metadata as key-value pairs.
+
+    Raises:
+        SchemaValidationError: If the schema contains validation errors such as
+                             duplicate column names, undefined partition columns,
+                             or invalid constraint references.
+
+    Example:
+        >>> from yads.types import String, Integer
+        >>> from yads.constraints import NotNullConstraint, PrimaryKeyConstraint
+        >>>
+        >>> # Create a simple schema
+        >>> spec = SchemaSpec(
+        ...     name="users",
+        ...     version="1.0.0",
+        ...     description="User information table",
+        ...     columns=[
+        ...         Field(
+        ...             name="id",
+        ...             type=Integer(),
+        ...             constraints=[NotNullConstraint(), PrimaryKeyConstraint()]
+        ...         ),
+        ...         Field(
+        ...             name="email",
+        ...             type=String(length=255),
+        ...             constraints=[NotNullConstraint()]
+        ...         ),
+        ...         Field(name="name", type=String())
+        ...     ]
+        ... )
+        >>>
+        >>> # Access schema properties
+        >>> print(f"Schema: {spec.name} v{spec.version}")
+        Schema: users v1.0.0
+        >>> print(f"Columns: {len(spec.columns)}")
+        Columns: 3
+        >>> print(f"Column names: {spec.column_names}")
+        Column names: {'id', 'email', 'name'}
+
+        >>> # Use with converters
+        >>> from yads.converters import SparkSQLConverter
+        >>> converter = SparkSQLConverter()
+        >>> ddl = converter.convert(spec)
+    """
 
     name: str
     version: str
@@ -205,7 +292,7 @@ class SchemaSpec:
 
     def _validate_generated_columns(self):
         for gen_col, source_col in self.generated_columns.items():
-            if source_col not in self.all_column_names:
+            if source_col not in self.column_names:
                 raise SchemaValidationError(
                     f"Source column {source_col!r} for generated column {gen_col!r} "
                     "not found in schema."
@@ -214,29 +301,32 @@ class SchemaSpec:
     def _validate_table_constraints(self):
         for constraint in self.table_constraints:
             for col in constraint.get_constrained_columns():
-                if col not in self.all_column_names:
+                if col not in self.column_names:
                     raise SchemaValidationError(
                         f"Column {col!r} in constraint {constraint} not found in schema."
                     )
 
     @property
     def column_names(self) -> set[str]:
-        """A set of all column names in the schema."""
+        """Set of all column names defined in the schema."""
         return {c.name for c in self.columns}
 
     @property
-    def all_column_names(self) -> set[str]:
-        """A set of all column names in the schema, including partition columns."""
-        return self.column_names.union(self.partition_column_names)
-
-    @property
     def partition_column_names(self) -> set[str]:
-        """A set of all partition column names in the schema."""
+        """Set of column names referenced in partitioning specifications."""
         return {p.column for p in self.partitioned_by}
 
     @property
     def generated_columns(self) -> dict[str, str]:
-        """A dictionary of generated columns and their source columns."""
+        """Mapping of generated column names to their source columns.
+
+        Identifies columns that are computed from other columns rather than
+        stored directly. The keys are generated column names and values are
+        the source column names they derive from.
+
+        Returns:
+            Dictionary mapping generated column names to source column names.
+        """
         return {
             c.name: c.generated_as.column
             for c in self.columns
