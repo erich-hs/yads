@@ -3,6 +3,14 @@ import yaml
 from pathlib import Path
 
 from yads.constraints import NotNullConstraint, PrimaryKeyTableConstraint
+from yads.exceptions import (
+    InvalidConstraintError,
+    SchemaParsingError,
+    SchemaValidationError,
+    TypeDefinitionError,
+    UnknownConstraintError,
+    UnknownTypeError,
+)
 from yads.loader import from_dict, from_string, from_yaml
 from yads.spec import SchemaSpec
 from yads.constraints import DefaultConstraint, ForeignKeyTableConstraint
@@ -161,75 +169,94 @@ class TestFullSpec:
 
 
 @pytest.mark.parametrize(
-    "spec_path, error_msg",
+    "spec_path, error_type, error_msg",
     [
         (
             INVALID_SPEC_DIR / "missing_required_field" / "missing_name.yaml",
+            SchemaParsingError,
             "'name' is a required field",
         ),
         (
             INVALID_SPEC_DIR / "missing_required_field" / "missing_version.yaml",
+            SchemaParsingError,
             "'version' is a required field",
         ),
         (
             INVALID_SPEC_DIR / "missing_required_field" / "missing_columns.yaml",
+            SchemaParsingError,
             "'columns' is a required field",
         ),
         (
             INVALID_SPEC_DIR / "missing_column_field" / "missing_name.yaml",
+            SchemaParsingError,
             "'name' is a required field in a column definition",
         ),
         (
             INVALID_SPEC_DIR / "missing_column_field" / "missing_type.yaml",
+            SchemaParsingError,
             "'type' is a required field in a column definition",
         ),
-        (INVALID_SPEC_DIR / "unknown_type.yaml", "Unknown type: 'invalid_type'"),
+        (
+            INVALID_SPEC_DIR / "unknown_type.yaml",
+            UnknownTypeError,
+            "Unknown type: 'invalid_type'",
+        ),
         (
             INVALID_SPEC_DIR / "invalid_type_def.yaml",
+            TypeDefinitionError,
             "The 'type' of a field must be a string",
         ),
         (
             INVALID_SPEC_DIR / "invalid_complex_type" / "array_missing_element.yaml",
+            TypeDefinitionError,
             "Array type definition must include 'element'",
         ),
         (
             INVALID_SPEC_DIR / "invalid_complex_type" / "struct_missing_fields.yaml",
+            TypeDefinitionError,
             "Struct type definition must include 'fields'",
         ),
         (
             INVALID_SPEC_DIR / "invalid_complex_type" / "map_missing_key.yaml",
+            TypeDefinitionError,
             "Map type definition must include 'key' and 'value'",
         ),
         (
             INVALID_SPEC_DIR / "invalid_complex_type" / "map_missing_value.yaml",
+            TypeDefinitionError,
             "Map type definition must include 'key' and 'value'",
         ),
         (
             INVALID_SPEC_DIR / "unknown_constraint.yaml",
+            UnknownConstraintError,
             "Unknown column constraint: invalid_constraint",
         ),
         (
             INVALID_SPEC_DIR / "generated_as_undefined_column.yaml",
+            SchemaValidationError,
             "Source column 'non_existent_col' for generated column 'col2' not found in schema.",
         ),
         (
             INVALID_SPEC_DIR / "partitioned_by_undefined_column.yaml",
+            SchemaValidationError,
             "Partition column 'non_existent_col' must be defined as a column in the schema.",
         ),
         (
             INVALID_SPEC_DIR / "identity_with_increment_zero.yaml",
-            "Identity 'increment' cannot be zero.",
+            InvalidConstraintError,
+            "Identity 'increment' must be a non-zero integer",
         ),
         (
             INVALID_SPEC_DIR / "invalid_interval" / "missing_start.yaml",
+            TypeDefinitionError,
             "Interval type definition must include 'interval_start'",
         ),
     ],
 )
-def test_from_string_with_invalid_spec_raises_error(spec_path, error_msg):
+def test_from_string_with_invalid_spec_raises_error(spec_path, error_type, error_msg):
     with open(spec_path) as f:
         content = f.read()
-    with pytest.raises(ValueError, match=error_msg):
+    with pytest.raises(error_type, match=error_msg):
         from_string(content)
 
 
@@ -237,7 +264,7 @@ def test_invalid_yaml_content_raises_error():
     """Test that non-dictionary YAML content raises a ``TypeError``."""
     content = "- item1\n- item2"  # A list, not a dictionary
     with pytest.raises(
-        TypeError, match="Loaded YAML content did not parse to a dictionary"
+        SchemaParsingError, match="Loaded YAML content did not parse to a dictionary"
     ):
         from_string(content)
 

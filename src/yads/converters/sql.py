@@ -16,6 +16,7 @@ from yads.constraints import (
     PrimaryKeyTableConstraint,
 )
 from yads.converters.base import BaseConverter
+from yads.exceptions import ConversionError, UnsupportedFeatureError
 from yads.spec import Field, SchemaSpec, Storage, TransformedColumn
 from yads.types import (
     Array,
@@ -261,8 +262,8 @@ class SQLGlotConverter(BaseConverter):
         # TODO: Revisit this after implementing a global setting to either
         # raise or warn when the spec is more expressive than the handlers
         # available in the converter.
-        raise NotImplementedError(
-            f"No handler implemented for constraint: {type(constraint)}"
+        raise UnsupportedFeatureError(
+            f"SQLGlotConverter does not support constraint: {type(constraint)}."
         )
 
     @_convert_column_constraint.register(NotNullConstraint)
@@ -334,8 +335,8 @@ class SQLGlotConverter(BaseConverter):
         # TODO: Revisit this after implementing a global setting to either
         # raise or warn when the spec is more expressive than the handlers
         # available in the converter.
-        raise NotImplementedError(
-            f"No handler implemented for table constraint: {type(constraint)}"
+        raise UnsupportedFeatureError(
+            f"SQLGlotConverter does not support table constraint: {type(constraint)}."
         )
 
     @_convert_table_constraint.register(PrimaryKeyTableConstraint)
@@ -462,7 +463,9 @@ class SQLGlotConverter(BaseConverter):
     ) -> exp.Expression:
         """Handle 'cast' transform with type conversion."""
         if len(transform_args) != 1:
-            raise ValueError("The 'cast' transform requires exactly one argument")
+            raise ConversionError(
+                f"The 'cast' transform requires exactly one argument. Got {len(transform_args)}."
+            )
         return exp.Cast(
             this=exp.column(column),
             to=exp.DataType(this=exp.DataType.Type[transform_args[0]]),
@@ -473,7 +476,9 @@ class SQLGlotConverter(BaseConverter):
     ) -> exp.Expression:
         """Handle 'bucket' transform for partitioning."""
         if len(transform_args) != 1:
-            raise ValueError("The 'bucket' transform requires exactly one argument")
+            raise ConversionError(
+                f"The 'bucket' transform requires exactly one argument. Got {len(transform_args)}."
+            )
         return exp.PartitionedByBucket(
             this=exp.column(column),
             expression=exp.convert(transform_args[0]),
@@ -484,7 +489,9 @@ class SQLGlotConverter(BaseConverter):
     ) -> exp.Expression:
         """Handle 'truncate' transform for partitioning."""
         if len(transform_args) != 1:
-            raise ValueError("The 'truncate' transform requires exactly one argument")
+            raise ConversionError(
+                f"The 'truncate' transform requires exactly one argument. Got {len(transform_args)}."
+            )
         return exp.PartitionByTruncate(
             this=exp.column(column),
             expression=exp.convert(transform_args[0]),

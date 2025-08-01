@@ -1,4 +1,5 @@
 import pytest
+from yads.exceptions import TypeDefinitionError
 from yads.types import (
     TYPE_ALIASES,
     Array,
@@ -35,7 +36,7 @@ class TestStringType:
     @pytest.mark.parametrize("invalid_length", [0, -1, -100])
     def test_string_invalid_length_raises_error(self, invalid_length):
         with pytest.raises(
-            ValueError, match="String 'length' must be a positive integer."
+            TypeDefinitionError, match="String 'length' must be a positive integer."
         ):
             String(length=invalid_length)
 
@@ -55,7 +56,7 @@ class TestIntegerType:
     @pytest.mark.parametrize("invalid_bits", [-1, 0, 1, 12, 24, 128])
     def test_integer_with_invalid_bits_raises_error(self, invalid_bits):
         with pytest.raises(
-            ValueError,
+            TypeDefinitionError,
             match=f"Integer 'bits' must be one of 8, 16, 32, 64, not {invalid_bits}.",
         ):
             Integer(bits=invalid_bits)
@@ -76,7 +77,7 @@ class TestFloatType:
     @pytest.mark.parametrize("invalid_bits", [-1, 0, 1, 8, 16, 128])
     def test_float_with_invalid_bits_raises_error(self, invalid_bits):
         with pytest.raises(
-            ValueError,
+            TypeDefinitionError,
             match=f"Float 'bits' must be one of 32 or 64, not {invalid_bits}.",
         ):
             Float(bits=invalid_bits)
@@ -97,14 +98,14 @@ class TestDecimalType:
 
     def test_decimal_with_only_precision_raises_error(self):
         with pytest.raises(
-            ValueError,
+            TypeDefinitionError,
             match="Decimal type requires both 'precision' and 'scale', or neither.",
         ):
             Decimal(precision=10)
 
     def test_decimal_with_only_scale_raises_error(self):
         with pytest.raises(
-            ValueError,
+            TypeDefinitionError,
             match="Decimal type requires both 'precision' and 'scale', or neither.",
         ):
             Decimal(scale=2)
@@ -148,19 +149,25 @@ class TestIntervalType:
         assert str(t) == expected_str
 
     def test_invalid_mixed_category_interval_raises_error(self):
-        with pytest.raises(ValueError, match="must belong to the same category"):
+        with pytest.raises(
+            TypeDefinitionError, match="must belong to the same category"
+        ):
             Interval(
                 interval_start=IntervalTimeUnit.YEAR, interval_end=IntervalTimeUnit.DAY
             )
 
     def test_invalid_order_interval_raises_error(self):
-        with pytest.raises(ValueError, match="cannot be less significant than"):
+        with pytest.raises(
+            TypeDefinitionError, match="cannot be less significant than"
+        ):
             Interval(
                 interval_start=IntervalTimeUnit.MONTH,
                 interval_end=IntervalTimeUnit.YEAR,
             )
 
-        with pytest.raises(ValueError, match="cannot be less significant than"):
+        with pytest.raises(
+            TypeDefinitionError, match="cannot be less significant than"
+        ):
             Interval(
                 interval_start=IntervalTimeUnit.SECOND,
                 interval_end=IntervalTimeUnit.HOUR,

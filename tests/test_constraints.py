@@ -9,6 +9,7 @@ from yads.constraints import (
     PrimaryKeyConstraint,
     PrimaryKeyTableConstraint,
 )
+from yads.exceptions import InvalidConstraintError
 
 
 class TestForeignKeyReference:
@@ -26,7 +27,8 @@ class TestForeignKeyReference:
 
     def test_reference_with_empty_columns_raises_error(self):
         with pytest.raises(
-            ValueError, match="ForeignKeyReference 'columns' cannot be an empty list."
+            InvalidConstraintError,
+            match="ForeignKeyReference 'columns' cannot be an empty list.",
         ):
             ForeignKeyReference(table="other_table", columns=[])
 
@@ -74,7 +76,10 @@ class TestColumnConstraints:
         assert constraint.increment == 5
 
     def test_identity_constraint_with_zero_increment_raises_error(self):
-        with pytest.raises(ValueError, match="Identity 'increment' cannot be zero."):
+        with pytest.raises(
+            InvalidConstraintError,
+            match="Identity 'increment' must be a non-zero integer",
+        ):
             IdentityConstraint(increment=0)
 
 
@@ -104,7 +109,8 @@ class TestTableConstraints:
 
     def test_primary_key_table_constraint_with_empty_columns_raises_error(self):
         with pytest.raises(
-            ValueError, match="PrimaryKeyTableConstraint 'columns' cannot be empty."
+            InvalidConstraintError,
+            match="PrimaryKeyTableConstraint 'columns' cannot be empty.",
         ):
             PrimaryKeyTableConstraint(columns=[])
 
@@ -146,7 +152,8 @@ class TestTableConstraints:
 
     def test_foreign_key_table_constraint_with_empty_columns_raises_error(self):
         with pytest.raises(
-            ValueError, match="ForeignKeyTableConstraint 'columns' cannot be empty."
+            InvalidConstraintError,
+            match="ForeignKeyTableConstraint 'columns' cannot be empty.",
         ):
             ForeignKeyTableConstraint(
                 columns=[], references=ForeignKeyReference(table="t")
@@ -154,7 +161,7 @@ class TestTableConstraints:
 
     def test_foreign_key_table_constraint_with_mismatched_columns_raises_error(self):
         with pytest.raises(
-            ValueError, match="must match the number of referenced columns"
+            InvalidConstraintError, match="must match the number of referenced columns"
         ):
             ForeignKeyTableConstraint(
                 columns=["a"],

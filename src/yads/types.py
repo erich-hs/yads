@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
+from yads.exceptions import TypeDefinitionError
+
 if TYPE_CHECKING:
     from .spec import Field
 
@@ -46,7 +48,9 @@ class String(Type):
 
     def __post_init__(self):
         if self.length is not None and self.length <= 0:
-            raise ValueError("String 'length' must be a positive integer.")
+            raise TypeDefinitionError(
+                f"String 'length' must be a positive integer, not {self.length}."
+            )
 
     def __str__(self) -> str:
         if self.length is not None:
@@ -62,7 +66,7 @@ class Integer(Type):
 
     def __post_init__(self):
         if self.bits is not None and self.bits not in {8, 16, 32, 64}:
-            raise ValueError(
+            raise TypeDefinitionError(
                 f"Integer 'bits' must be one of 8, 16, 32, 64, not {self.bits}."
             )
 
@@ -80,7 +84,9 @@ class Float(Type):
 
     def __post_init__(self):
         if self.bits is not None and self.bits not in {32, 64}:
-            raise ValueError(f"Float 'bits' must be one of 32 or 64, not {self.bits}.")
+            raise TypeDefinitionError(
+                f"Float 'bits' must be one of 32 or 64, not {self.bits}."
+            )
 
     def __str__(self) -> str:
         if self.bits is not None:
@@ -102,8 +108,20 @@ class Decimal(Type):
 
     def __post_init__(self):
         if (self.precision is None) != (self.scale is None):
-            raise ValueError(
+            raise TypeDefinitionError(
                 "Decimal type requires both 'precision' and 'scale', or neither."
+            )
+        if self.precision is not None and (
+            not isinstance(self.precision, int) or self.precision <= 0
+        ):
+            raise TypeDefinitionError(
+                f"Decimal 'precision' must be a positive integer, not {self.precision}."
+            )
+        if self.scale is not None and (
+            not isinstance(self.scale, int) or self.scale < 0
+        ):
+            raise TypeDefinitionError(
+                f"Decimal 'scale' must be a positive integer, not {self.scale}."
             )
 
     def __str__(self) -> str:
@@ -176,7 +194,7 @@ class Interval(Type):
             if in_ym_start != in_ym_end:
                 category_start = "Year-Month" if in_ym_start else "Day-Time"
                 category_end = "Year-Month" if in_ym_end else "Day-Time"
-                raise ValueError(
+                raise TypeDefinitionError(
                     "Invalid Interval definition: 'interval_start' and 'interval_end' must "
                     "belong to the same category (either Year-Month or Day-Time). "
                     f"Received interval_start='{self.interval_start.value}' (category: "
@@ -203,7 +221,7 @@ class Interval(Type):
             start_index = order.index(self.interval_start)
             end_index = order.index(self.interval_end)
             if start_index > end_index:
-                raise ValueError(
+                raise TypeDefinitionError(
                     "Invalid Interval definition: 'interval_start' cannot be less "
                     "significant than 'interval_end'. "
                     f"Received interval_start='{self.interval_start.value}' and "

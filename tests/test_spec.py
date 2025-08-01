@@ -1,6 +1,7 @@
 import pytest
 from yads import spec, types
 from yads.constraints import NotNullConstraint, PrimaryKeyTableConstraint
+from yads.exceptions import SchemaValidationError
 
 
 class TestTransformedColumn:
@@ -199,7 +200,9 @@ class TestSchemaSpecValidation:
     def test_duplicate_column_name(self, base_spec_kwargs):
         """Test that duplicate column names raise a ValueError."""
         base_spec_kwargs["columns"].append(spec.Field(name="id", type=types.String()))
-        with pytest.raises(ValueError, match="Duplicate column name found: 'id'"):
+        with pytest.raises(
+            SchemaValidationError, match="Duplicate column name found: 'id'"
+        ):
             spec.SchemaSpec(**base_spec_kwargs)
 
     def test_partition_column_must_be_in_columns(self, base_spec_kwargs):
@@ -208,7 +211,7 @@ class TestSchemaSpecValidation:
             spec.TransformedColumn(column="non_existent")
         ]
         with pytest.raises(
-            ValueError,
+            SchemaValidationError,
             match="Partition column 'non_existent' must be defined as a column in the schema",
         ):
             spec.SchemaSpec(**base_spec_kwargs)
@@ -220,7 +223,7 @@ class TestSchemaSpecValidation:
             spec.Field(name="gen_col", type=types.Integer(), generated_as=gen_clause)
         )
         with pytest.raises(
-            ValueError,
+            SchemaValidationError,
             match="Source column 'non_existent' for generated column 'gen_col'",
         ):
             spec.SchemaSpec(**base_spec_kwargs)
@@ -229,5 +232,5 @@ class TestSchemaSpecValidation:
         """Test that a column in a table constraint must exist."""
         pk_constraint = PrimaryKeyTableConstraint(columns=["pk", "id"])
         base_spec_kwargs["table_constraints"] = [pk_constraint]
-        with pytest.raises(ValueError, match="Column 'pk' in constraint"):
+        with pytest.raises(SchemaValidationError, match="Column 'pk' in constraint"):
             spec.SchemaSpec(**base_spec_kwargs)

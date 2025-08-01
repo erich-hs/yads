@@ -5,6 +5,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
 
+from .exceptions import InvalidConstraintError
+
 
 @dataclass(frozen=True)
 class ForeignKeyReference:
@@ -15,7 +17,9 @@ class ForeignKeyReference:
 
     def __post_init__(self):
         if self.columns == []:
-            raise ValueError("ForeignKeyReference 'columns' cannot be an empty list.")
+            raise InvalidConstraintError(
+                "ForeignKeyReference 'columns' cannot be an empty list."
+            )
 
     def __str__(self) -> str:
         if self.columns:
@@ -71,7 +75,9 @@ class IdentityConstraint(ColumnConstraint):
 
     def __post_init__(self):
         if self.increment == 0:
-            raise ValueError("Identity 'increment' cannot be zero.")
+            raise InvalidConstraintError(
+                f"Identity 'increment' must be a non-zero integer, not {self.increment}."
+            )
 
 
 # Table Constraints
@@ -88,7 +94,9 @@ class PrimaryKeyTableConstraint(TableConstraint):
 
     def __post_init__(self):
         if not self.columns:
-            raise ValueError("PrimaryKeyTableConstraint 'columns' cannot be empty.")
+            raise InvalidConstraintError(
+                "PrimaryKeyTableConstraint 'columns' cannot be empty."
+            )
 
     def get_constrained_columns(self) -> list[str]:
         return self.columns
@@ -115,13 +123,15 @@ class ForeignKeyTableConstraint(TableConstraint):
 
     def __post_init__(self):
         if not self.columns:
-            raise ValueError("ForeignKeyTableConstraint 'columns' cannot be empty.")
+            raise InvalidConstraintError(
+                "ForeignKeyTableConstraint 'columns' cannot be empty."
+            )
         if self.references.columns and len(self.columns) != len(
             self.references.columns
         ):
-            raise ValueError(
-                "The number of columns in the foreign key must match the number of "
-                "referenced columns."
+            raise InvalidConstraintError(
+                f"The number of columns in the foreign key ({len(self.columns)}) must match the number of "
+                f"referenced columns ({len(self.references.columns)})."
             )
 
     def get_constrained_columns(self) -> list[str]:

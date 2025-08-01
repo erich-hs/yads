@@ -18,6 +18,13 @@ from .constraints import (
     ForeignKeyReference,
     TableConstraint,
 )
+from .exceptions import (
+    InvalidConstraintError,
+    SchemaParsingError,
+    TypeDefinitionError,
+    UnknownConstraintError,
+    UnknownTypeError,
+)
 from .spec import (
     Field,
     SchemaSpec,
@@ -117,9 +124,11 @@ class SpecLoader:
             SchemaSpec: A fully validated and parsed schema specification.
 
         Raises:
-            ValueError: If any required fields are missing, types are invalid,
-                       constraints are malformed, or referential integrity
-                       violations are detected.
+            SchemaParsingError: If any required fields are missing.
+            TypeDefinitionError: If a type definition is invalid.
+            UnknownTypeError: If an unknown type is used.
+            InvalidConstraintError: If a constraint definition is invalid.
+            UnknownConstraintError: If an unknown constraint is used.
 
         Example:
             >>> loader = SpecLoader({
@@ -136,7 +145,7 @@ class SpecLoader:
         """
         for required_field in ("name", "version", "columns"):
             if required_field not in self.data:
-                raise ValueError(f"'{required_field}' is a required field")
+                raise SchemaParsingError(f"'{required_field}' is a required field.")
         self.spec = SchemaSpec(
             name=self.data["name"],
             version=self.data["version"],
@@ -166,7 +175,7 @@ class SpecLoader:
         type_name_lower = type_name.lower()
 
         if (alias := TYPE_ALIASES.get(type_name_lower)) is None:
-            raise ValueError(f"Unknown type: '{type_name}'")
+            raise UnknownTypeError(f"Unknown type: '{type_name}'.")
 
         base_type_class = alias[0]
 
@@ -186,7 +195,9 @@ class SpecLoader:
         final_params = self._get_processed_type_params(type_name, type_def)
 
         if "interval_start" not in final_params:
-            raise ValueError("Interval type definition must include 'interval_start'")
+            raise TypeDefinitionError(
+                "Interval type definition must include 'interval_start'."
+            )
 
         final_params["interval_start"] = IntervalTimeUnit(
             final_params["interval_start"].upper()
@@ -199,12 +210,12 @@ class SpecLoader:
     def _parse_array_type(self, type_def: dict[str, Any]) -> Array:
         """Parse Array types with recursive element parsing."""
         if "element" not in type_def:
-            raise ValueError("Array type definition must include 'element'")
+            raise TypeDefinitionError("Array type definition must include 'element'.")
 
         element_def = type_def["element"]
         if not isinstance(element_def, dict) or "type" not in element_def:
-            raise ValueError(
-                "The 'element' of an array must be a dictionary with a 'type' key"
+            raise TypeDefinitionError(
+                "The 'element' of an array must be a dictionary with a 'type' key."
             )
 
         element_type_name = element_def["type"]
@@ -213,14 +224,16 @@ class SpecLoader:
     def _parse_struct_type(self, type_def: dict[str, Any]) -> Struct:
         """Parse Struct types with recursive field parsing."""
         if "fields" not in type_def:
-            raise ValueError("Struct type definition must include 'fields'")
+            raise TypeDefinitionError("Struct type definition must include 'fields'")
 
         return Struct(fields=[self._parse_column(f) for f in type_def["fields"]])
 
     def _parse_map_type(self, type_def: dict[str, Any]) -> Map:
         """Parse Map types with recursive key/value parsing."""
         if "key" not in type_def or "value" not in type_def:
-            raise ValueError("Map type definition must include 'key' and 'value'")
+            raise TypeDefinitionError(
+                "Map type definition must include 'key' and 'value'."
+            )
 
         key_def = type_def["key"]
         value_def = type_def["value"]
@@ -232,12 +245,16 @@ class SpecLoader:
     # Column constraint parsers
     def _parse_not_null_constraint(self, value: Any) -> NotNullConstraint:
         if not isinstance(value, bool):
-            raise ValueError("The 'not_null' constraint expects a boolean value")
+            raise InvalidConstraintError(
+                f"The 'not_null' constraint expects a boolean value. Got {value!r}."
+            )
         return NotNullConstraint()
 
     def _parse_primary_key_constraint(self, value: Any) -> PrimaryKeyConstraint:
         if not isinstance(value, bool):
-            raise ValueError("The 'primary_key' constraint expects a boolean value")
+            raise InvalidConstraintError(
+                f"The 'primary_key' constraint expects a boolean value. Got {value!r}."
+            )
         return PrimaryKeyConstraint()
 
     def _parse_default_constraint(self, value: Any) -> DefaultConstraint:
@@ -245,9 +262,13 @@ class SpecLoader:
 
     def _parse_foreign_key_constraint(self, value: Any) -> ForeignKeyConstraint:
         if not isinstance(value, dict):
-            raise ValueError("The 'foreign_key' constraint expects a dictionary")
+            raise InvalidConstraintError(
+                f"The 'foreign_key' constraint expects a dictionary. Got {value!r}."
+            )
         if "references" not in value:
-            raise ValueError("The 'foreign_key' constraint must specify 'references'")
+            raise InvalidConstraintError(
+                "The 'foreign_key' constraint must specify 'references'."
+            )
         return ForeignKeyConstraint(
             name=value.get("name"),
             references=self._parse_foreign_key_references(value["references"]),
@@ -255,7 +276,9 @@ class SpecLoader:
 
     def _parse_identity_constraint(self, value: Any) -> IdentityConstraint:
         if not isinstance(value, dict):
-            raise ValueError("The 'identity' constraint expects a dictionary")
+            raise InvalidConstraintError(
+                f"The 'identity' constraint expects a dictionary. Got {value!r}."
+            )
 
         increment = value.get("increment")
         return IdentityConstraint(
@@ -277,7 +300,7 @@ class SpecLoader:
                 parser_method = getattr(self, parser_method_name)
                 constraints.append(parser_method(value))
             else:
-                raise ValueError(f"Unknown column constraint: {key}")
+                raise UnknownConstraintError(f"Unknown column constraint: {key}.")
 
         return constraints
 
@@ -289,13 +312,15 @@ class SpecLoader:
 
         for required_field in ("column", "transform"):
             if required_field not in gen_clause_def:
-                raise ValueError(
-                    f"'{required_field}' is a required field in a generation clause"
+                raise SchemaParsingError(
+                    f"'{required_field}' is a required field in a generation clause."
                 )
 
         # For generated columns, transform is required
         if not gen_clause_def["transform"]:
-            raise ValueError("'transform' cannot be empty in a generation clause")
+            raise SchemaParsingError(
+                "'transform' cannot be empty in a generation clause."
+            )
 
         return TransformedColumn(
             column=gen_clause_def["column"],
@@ -306,13 +331,15 @@ class SpecLoader:
     def _parse_column(self, col_def: dict[str, Any]) -> Field:
         for required_field in ("name", "type"):
             if required_field not in col_def:
-                raise ValueError(
-                    f"'{required_field}' is a required field in a column definition"
+                raise SchemaParsingError(
+                    f"'{required_field}' is a required field in a column definition."
                 )
         type_name = col_def["type"]
 
         if not isinstance(type_name, str):
-            raise ValueError("The 'type' of a field must be a string")
+            raise TypeDefinitionError(
+                f"The 'type' of a field must be a string. Got {type_name!r}."
+            )
 
         return Field(
             name=col_def["name"],
@@ -328,7 +355,9 @@ class SpecLoader:
         self, const_def: dict[str, Any]
     ) -> PrimaryKeyTableConstraint:
         if "columns" not in const_def:
-            raise ValueError("Primary key table constraint must specify 'columns'")
+            raise InvalidConstraintError(
+                "Primary key table constraint must specify 'columns'."
+            )
         return PrimaryKeyTableConstraint(
             columns=const_def["columns"], name=const_def.get("name")
         )
@@ -338,8 +367,8 @@ class SpecLoader:
     ) -> ForeignKeyTableConstraint:
         for required_field in ("columns", "references"):
             if required_field not in const_def:
-                raise ValueError(
-                    f"Foreign key table constraint must specify '{required_field}'"
+                raise InvalidConstraintError(
+                    f"Foreign key table constraint must specify '{required_field}'."
                 )
         return ForeignKeyTableConstraint(
             columns=const_def["columns"],
@@ -351,8 +380,8 @@ class SpecLoader:
         self, references_def: dict[str, Any]
     ) -> ForeignKeyReference:
         if "table" not in references_def:
-            raise ValueError(
-                "The 'references' of a foreign key must be a dictionary with a 'table' key"
+            raise InvalidConstraintError(
+                "The 'references' of a foreign key must be a dictionary with a 'table' key."
             )
         return ForeignKeyReference(
             table=references_def["table"], columns=references_def.get("columns")
@@ -368,7 +397,9 @@ class SpecLoader:
         constraints: list[TableConstraint] = []
         for const_def in table_constraints_def:
             if not (constraint_type := const_def.get("type")):
-                raise ValueError("Table constraint definition must have a 'type'")
+                raise InvalidConstraintError(
+                    "Table constraint definition must have a 'type'."
+                )
 
             if parser_method_name := self._TABLE_CONSTRAINT_PARSERS.get(
                 constraint_type
@@ -376,7 +407,9 @@ class SpecLoader:
                 parser_method = getattr(self, parser_method_name)
                 constraints.append(parser_method(const_def))
             else:
-                raise ValueError(f"Unknown table constraint type: {constraint_type}")
+                raise UnknownConstraintError(
+                    f"Unknown table constraint type: {constraint_type}."
+                )
         return constraints
 
     def _parse_storage(self, storage_def: dict[str, Any] | None) -> Storage | None:
@@ -394,8 +427,8 @@ class SpecLoader:
         transformed_columns = []
         for pc in partitioned_by_def:
             if "column" not in pc:
-                raise ValueError(
-                    "Each item in 'partitioned_by' must have a 'column' key"
+                raise SchemaParsingError(
+                    "Each item in 'partitioned_by' must have a 'column' key."
                 )
             transformed_columns.append(
                 TransformedColumn(
@@ -459,17 +492,17 @@ class SpecLoader:
     ) -> None:
         """Check that partition specifications only reference defined columns."""
         if not_defined := spec.partition_column_names - spec.column_names:
-            raise ValueError(
-                f"Partition spec references undefined columns: {sorted(list(not_defined))}"
+            raise SchemaParsingError(
+                f"Partition spec references undefined columns: {sorted(list(not_defined))}."
             )
 
     def _check_for_undefined_columns_in_generated_as(self, spec: "SchemaSpec") -> None:
         """Check that generated columns only reference defined columns."""
         for gen_col, source_col in spec.generated_columns.items():
             if source_col not in spec.column_names:
-                raise ValueError(
+                raise SchemaParsingError(
                     f"Generated column '{gen_col}' references undefined column: "
-                    f"'{source_col}'"
+                    f"'{source_col}'."
                 )
 
 
@@ -483,7 +516,7 @@ def from_string(content: str) -> SchemaSpec:
     """Parses a YAML string and returns a SchemaSpec."""
     data = yaml.safe_load(content)
     if not isinstance(data, dict):
-        raise TypeError("Loaded YAML content did not parse to a dictionary")
+        raise SchemaParsingError("Loaded YAML content did not parse to a dictionary.")
     return from_dict(data)
 
 

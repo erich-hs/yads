@@ -1,5 +1,6 @@
 import pytest
 from yads.converters.sql import SparkSQLConverter
+from yads.exceptions import ValidationRuleError
 from yads.loader import from_string
 from yads.spec import SchemaSpec
 
@@ -28,7 +29,9 @@ class TestSparkSQLConverter:
         when encountering a fixed-length string.
         """
         converter = SparkSQLConverter()
-        with pytest.raises(ValueError, match="Fixed-length strings are not supported"):
+        with pytest.raises(
+            ValidationRuleError, match="Fixed-length strings are not supported"
+        ):
             converter.convert(spec_with_fixed_length_string, mode="strict")
 
     def test_convert_fix_mode_removes_length(

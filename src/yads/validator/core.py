@@ -6,6 +6,8 @@ from typing import List, Literal, cast
 
 from sqlglot import exp
 
+from ..exceptions import ValidationRuleError
+
 
 class Rule(ABC):
     """An abstract base class for a validation and adjustment rule.
@@ -100,7 +102,7 @@ class AstValidator:
                             "The validator will proceed with no adjustment."
                         )
                     case _:
-                        raise ValueError(f"Invalid mode: {mode}")
+                        raise ValidationRuleError(f"Invalid mode: {mode}.")
             return node
 
         # https://sqlglot.com/sqlglot/expressions.html#Expression.transform
@@ -108,8 +110,8 @@ class AstValidator:
 
         if errors:
             error_summary = "\n".join(f"- {e}" for e in errors)
-            raise ValueError(
-                f"Validation for the target dialect failed with the following errors:\n{error_summary}"
+            raise ValidationRuleError(
+                f"Validation for the target dialect failed with the following errors:\n{error_summary}."
             )
 
         return cast(exp.Create, processed_ast)

@@ -4,6 +4,7 @@ import pytest
 import warnings
 from sqlglot import exp, parse_one
 
+from yads.exceptions import ValidationRuleError
 from yads.validator.core import AstValidator, Rule
 
 
@@ -40,7 +41,7 @@ class TestAstValidator:
     def test_validate_strict_mode_raises_error(
         self, ast_validator: AstValidator, create_table_ast: exp.Create
     ):
-        with pytest.raises(ValueError) as excinfo:
+        with pytest.raises(ValidationRuleError) as excinfo:
             ast_validator.validate(create_table_ast, mode="strict")
         assert "TEXT type is not allowed." in str(excinfo.value)
 
@@ -87,7 +88,7 @@ class TestAstValidator:
     def test_validate_invalid_mode_raises_error(
         self, ast_validator: AstValidator, create_table_ast: exp.Create
     ):
-        with pytest.raises(ValueError) as excinfo:
+        with pytest.raises(ValidationRuleError) as excinfo:
             ast_validator.validate(create_table_ast, mode="invalid_mode")  # type: ignore
         assert "Invalid mode: invalid_mode" in str(excinfo.value)
 
