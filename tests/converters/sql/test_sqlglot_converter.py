@@ -690,3 +690,189 @@ class TestTypeConversion:
         assert nested_field_def.this.this == "nested_struct"
         assert isinstance(nested_field_def.kind, exp.DataType)
         assert nested_field_def.kind.this == exp.DataType.Type.STRUCT
+
+
+class TestTableNameParsing:
+    def test_parse_full_table_name_with_catalog_and_database(self):
+        converter = SQLGlotConverter()
+        result = converter._parse_full_table_name("prod.sales.orders")
+
+        expected = exp.Table(
+            this=exp.Identifier(this="orders"),
+            db=exp.Identifier(this="sales"),
+            catalog=exp.Identifier(this="prod"),
+        )
+        assert result == expected
+
+    def test_parse_full_table_name_with_database_only(self):
+        converter = SQLGlotConverter()
+        result = converter._parse_full_table_name("sales.orders")
+
+        expected = exp.Table(
+            this=exp.Identifier(this="orders"),
+            db=exp.Identifier(this="sales"),
+            catalog=None,
+        )
+        assert result == expected
+
+    def test_parse_full_table_name_with_table_only(self):
+        converter = SQLGlotConverter()
+        result = converter._parse_full_table_name("orders")
+
+        expected = exp.Table(
+            this=exp.Identifier(this="orders"),
+            db=None,
+            catalog=None,
+        )
+        assert result == expected
+
+    def test_parse_full_table_name_ignore_catalog(self):
+        converter = SQLGlotConverter()
+        result = converter._parse_full_table_name(
+            "prod.sales.orders", ignore_catalog=True
+        )
+
+        expected = exp.Table(
+            this=exp.Identifier(this="orders"),
+            db=exp.Identifier(this="sales"),
+            catalog=None,
+        )
+        assert result == expected
+
+    def test_parse_full_table_name_ignore_database(self):
+        converter = SQLGlotConverter()
+        result = converter._parse_full_table_name(
+            "prod.sales.orders", ignore_database=True
+        )
+
+        expected = exp.Table(
+            this=exp.Identifier(this="orders"),
+            db=None,
+            catalog=exp.Identifier(this="prod"),
+        )
+        assert result == expected
+
+    def test_parse_full_table_name_ignore_both(self):
+        converter = SQLGlotConverter()
+        result = converter._parse_full_table_name(
+            "prod.sales.orders", ignore_catalog=True, ignore_database=True
+        )
+
+        expected = exp.Table(
+            this=exp.Identifier(this="orders"),
+            db=None,
+            catalog=None,
+        )
+        assert result == expected
+
+    def test_parse_full_table_name_ignore_catalog_partial_qualified(self):
+        converter = SQLGlotConverter()
+        result = converter._parse_full_table_name("sales.orders", ignore_catalog=True)
+
+        expected = exp.Table(
+            this=exp.Identifier(this="orders"),
+            db=exp.Identifier(this="sales"),
+            catalog=None,
+        )
+        assert result == expected
+
+    def test_parse_full_table_name_ignore_database_partial_qualified(self):
+        converter = SQLGlotConverter()
+        result = converter._parse_full_table_name("prod.orders", ignore_database=True)
+
+        expected = exp.Table(
+            this=exp.Identifier(this="orders"),
+            db=None,
+            catalog=None,
+        )
+        assert result == expected
+
+
+class TestConvertWithIgnoreArguments:
+    def test_convert_with_ignore_catalog(self):
+        from yads.loader import from_yaml
+
+        spec = from_yaml("tests/fixtures/spec/valid/basic_spec.yaml")
+        converter = SQLGlotConverter()
+        result = converter.convert(spec, ignore_catalog=True)
+
+        table_expression = result.this.this
+        assert table_expression.this.this == "test_schema"
+        assert table_expression.db == "db"
+        assert table_expression.catalog == ""
+
+    def test_convert_with_ignore_database(self):
+        from yads.loader import from_yaml
+
+        spec = from_yaml("tests/fixtures/spec/valid/basic_spec.yaml")
+        converter = SQLGlotConverter()
+        result = converter.convert(spec, ignore_database=True)
+
+        table_expression = result.this.this
+        assert table_expression.this.this == "test_schema"
+        assert table_expression.db == ""
+        assert table_expression.catalog == "catalog"
+
+    def test_convert_with_ignore_both(self):
+        from yads.loader import from_yaml
+
+        spec = from_yaml("tests/fixtures/spec/valid/basic_spec.yaml")
+        converter = SQLGlotConverter()
+        result = converter.convert(spec, ignore_catalog=True, ignore_database=True)
+
+        table_expression = result.this.this
+        assert table_expression.this.this == "test_schema"
+        assert table_expression.db == ""
+        assert table_expression.catalog == ""
+
+    def test_convert_with_ignore_arguments_and_other_kwargs(self):
+        from yads.loader import from_yaml
+
+        spec = from_yaml("tests/fixtures/spec/valid/basic_spec.yaml")
+        converter = SQLGlotConverter()
+        result = converter.convert(
+            spec, ignore_catalog=True, ignore_database=True, if_not_exists=True
+        )
+
+        table_expression = result.this.this
+        assert table_expression.this.this == "test_schema"
+        assert table_expression.db == ""
+        assert table_expression.catalog == ""
+
+        assert result.args["exists"] is True
+
+    def test_convert_with_partial_qualified_name_ignore_catalog(self):
+        from yads.spec import SchemaSpec, Field
+        from yads.types import String
+
+        spec = SchemaSpec(
+            name="sales.orders",
+            version="1.0.0",
+            columns=[Field(name="id", type=String())],
+        )
+
+        converter = SQLGlotConverter()
+        result = converter.convert(spec, ignore_catalog=True)
+
+        table_expression = result.this.this
+        assert table_expression.this.this == "orders"
+        assert table_expression.db == "sales"
+        assert table_expression.catalog == ""
+
+    def test_convert_with_partial_qualified_name_ignore_database(self):
+        from yads.spec import SchemaSpec, Field
+        from yads.types import String
+
+        spec = SchemaSpec(
+            name="prod.orders",
+            version="1.0.0",
+            columns=[Field(name="id", type=String())],
+        )
+
+        converter = SQLGlotConverter()
+        result = converter.convert(spec, ignore_database=True)
+
+        table_expression = result.this.this
+        assert table_expression.this.this == "orders"
+        assert table_expression.db == ""
+        assert table_expression.catalog == ""

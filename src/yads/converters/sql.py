@@ -141,6 +141,8 @@ class SQLConverter:
         spec: SchemaSpec,
         if_not_exists: bool = False,
         or_replace: bool = False,
+        ignore_catalog: bool = False,
+        ignore_database: bool = False,
         mode: Literal["strict", "fix", "warn"] = "fix",
         **kwargs: Any,
     ) -> str:
@@ -154,6 +156,8 @@ class SQLConverter:
             spec: The yads specification as a SchemaSpec object.
             if_not_exists: If True, add `IF NOT EXISTS` clause to the DDL statement.
             or_replace: If True, add `OR REPLACE` clause to the DDL statement.
+            ignore_catalog: If True, omits the catalog from the table name.
+            ignore_database: If True, omits the database from the table name.
             mode: Validation mode when an ast_validator is configured:
                 - "strict": Raise ValidationRuleError for any unsupported features.
                 - "fix": Log warnings and automatically adjust AST for compatibility.
@@ -177,7 +181,11 @@ class SQLConverter:
             ... )
         """
         ast = self._ast_converter.convert(
-            spec, if_not_exists=if_not_exists, or_replace=or_replace
+            spec,
+            if_not_exists=if_not_exists,
+            or_replace=or_replace,
+            ignore_catalog=ignore_catalog,
+            ignore_database=ignore_database,
         )
         if self._ast_validator:
             ast = self._ast_validator.validate(ast, mode=mode)
@@ -291,6 +299,8 @@ class SQLGlotConverter(BaseConverter):
                     node to `True`.
                 or_replace: If True, sets the `replace` property of the `exp.Create`
                     node to `True`.
+                ignore_catalog: If True, omits the catalog from the table name.
+                ignore_database: If True, omits the database from the table name.
 
         Returns:
             sqlglot `exp.Create` expression representing a CREATE TABLE statement.
@@ -305,7 +315,11 @@ class SQLGlotConverter(BaseConverter):
             >>> print(ast.sql(dialect="spark"))
             CREATE TABLE IF NOT EXISTS ...
         """
-        table = self._parse_full_table_name(spec.name)
+        table = self._parse_full_table_name(
+            spec.name,
+            ignore_catalog=kwargs.get("ignore_catalog", False),
+            ignore_database=kwargs.get("ignore_database", False),
+        )
         properties = self._collect_properties(spec)
         expressions = self._collect_expressions(spec)
 
@@ -717,7 +731,11 @@ class SQLGlotConverter(BaseConverter):
         return expressions
 
     def _parse_full_table_name(
-        self, full_name: str, columns: list[str] | None = None
+        self,
+        full_name: str,
+        columns: list[str] | None = None,
+        ignore_catalog: bool = False,
+        ignore_database: bool = False,
     ) -> exp.Table | exp.Schema:
         """Parse a qualified table name into a sqlglot `exp.Table` or `exp.Schema` expression.
 
@@ -730,11 +748,13 @@ class SQLGlotConverter(BaseConverter):
                       Supports formats: 'table', 'database.table', 'catalog.database.table'.
             columns: Column names to include in Schema expression. When provided,
                     returns a `exp.Schema` expression instead of `exp.Table` expression.
+            ignore_catalog: If True, omits the catalog from the table name.
+            ignore_database: If True, omits the database from the table name.
 
         Returns:
             sqlglot `exp.Table` expression when columns is None, or `exp.Schema` expression
             when columns are provided. The expression includes proper catalog,
-            database, and table identifiers.
+            database, and table identifiers based on the ignore flags.
 
         Example:
             >>> converter._parse_full_table_name("prod.sales.orders")
@@ -742,11 +762,17 @@ class SQLGlotConverter(BaseConverter):
                   this=Identifier(this='orders'))
             >>> converter._parse_full_table_name("orders", ["id", "name"])
             Schema(this=Table(...), expressions=[Identifier(this='id'), ...])
+            >>> converter._parse_full_table_name("prod.sales.orders", ignore_catalog=True)
+            Table(db=Identifier(this='sales'), this=Identifier(this='orders'))
         """
         parts = full_name.split(".")
         table_name = parts[-1]
-        db_name = parts[-2] if len(parts) > 1 else None
-        catalog_name = parts[-3] if len(parts) > 2 else None
+        db_name = None
+        catalog_name = None
+        if not ignore_database and len(parts) > 1:
+            db_name = parts[-2]
+        if not ignore_catalog and len(parts) > 2:
+            catalog_name = parts[-3]
 
         table_expression = exp.Table(
             this=exp.Identifier(this=table_name),
