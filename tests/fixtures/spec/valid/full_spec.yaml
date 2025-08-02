@@ -110,8 +110,7 @@ columns:
     description: "A date column with a generated value."
     generated_as:
       column: "c_date"
-      transform: "add_months"
-      transform_args: [1]
+      transform: "month"
 
   - name: "c_timestamp"
     type: "timestamp"
