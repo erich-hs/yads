@@ -2,6 +2,7 @@ CREATE EXTERNAL TABLE catalog.db.full_schema (
   c_uuid UUID NOT NULL,
   c_string TEXT DEFAULT 'default_string',
   c_string_len TEXT(255),
+  c_string_generated TEXT GENERATED ALWAYS AS (UPPER(c_string)),
   c_int8 TINYINT,
   c_int16 SMALLINT,
   c_int32_identity INT GENERATED ALWAYS AS IDENTITY(1, 1),
