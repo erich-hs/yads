@@ -225,11 +225,8 @@ class Decimal(Type):
         >>> # Default decimal
         >>> Decimal()
 
-        >>> # Currency with 2 decimal places (up to $9,999,999.99)
+        >>> # Use in field definition
         >>> Decimal(precision=10, scale=2)
-
-        >>> # High-precision scientific data
-        >>> Decimal(precision=20, scale=8)
     """
 
     precision: int | None = None
@@ -269,7 +266,7 @@ class Date(Type):
     Example:
         >>> Date()
         >>>
-        >>> # Use for date columns
+        >>> # Use in field definition
         >>> Field(name="birth_date", type=Date())
     """
 
@@ -285,7 +282,7 @@ class Timestamp(Type):
     Example:
         >>> Timestamp()
         >>>
-        >>> # Use for event timestamps
+        >>> # Use in field definition
         >>> Field(name="created_at", type=Timestamp())
     """
 
@@ -300,7 +297,7 @@ class TimestampTZ(Type):
     Example:
         >>> TimestampTZ()
         >>>
-        >>> # Use for global event timestamps
+        >>> # Use in field definition
         >>> Field(name="order_time", type=TimestampTZ())
     """
 
@@ -316,7 +313,7 @@ class Binary(Type):
     Example:
         >>> Binary()
         >>>
-        >>> # Use for file storage
+        >>> # Use in field definition
         >>> Field(name="document", type=Binary())
     """
 
@@ -331,7 +328,7 @@ class JSON(Type):
     Example:
         >>> JSON()
         >>>
-        >>> # Use for flexible document storage
+        >>> # Use in field definition
         >>> Field(name="metadata", type=JSON())
     """
 
@@ -346,7 +343,7 @@ class UUID(Type):
     Example:
         >>> UUID()
         >>>
-        >>> # Use for unique identifiers
+        >>> # Use in field definition
         >>> Field(name="user_id", type=UUID())
     """
 
@@ -534,10 +531,10 @@ class Map(Type):
         value: The type of all values in the map.
 
     Example:
-        >>> # String-to-string mapping (like tags)
+        >>> # String-to-string mapping
         >>> Map(key=String(), value=String())
 
-        >>> # String-to-integer mapping (like counters)
+        >>> # String-to-integer mapping
         >>> Map(key=String(), value=Integer())
 
         >>> # Complex value types
