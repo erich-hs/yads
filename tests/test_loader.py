@@ -75,12 +75,458 @@ class TestFromYaml:
         assert spec.name == valid_spec_dict["name"]
 
 
-class TestFullSpec:
-    """Tests the loading of a comprehensive spec with all features."""
+class TestConstraintParsing:
+    def _create_minimal_spec_with_constraint(self, constraint_def: dict) -> dict:
+        return {
+            "name": "test_schema",
+            "version": "1.0.0",
+            "columns": [
+                {
+                    "name": "test_column",
+                    "type": "string",
+                    "constraints": constraint_def,
+                }
+            ],
+        }
 
+    def test_not_null_constraint_with_non_boolean_raises_error(self):
+        spec_dict = self._create_minimal_spec_with_constraint({"not_null": "true"})
+        with pytest.raises(
+            InvalidConstraintError, match="The 'not_null' constraint expects a boolean"
+        ):
+            from_dict(spec_dict)
+
+    def test_primary_key_constraint_with_non_boolean_raises_error(self):
+        spec_dict = self._create_minimal_spec_with_constraint({"primary_key": "true"})
+        with pytest.raises(
+            InvalidConstraintError,
+            match="The 'primary_key' constraint expects a boolean",
+        ):
+            from_dict(spec_dict)
+
+    def test_foreign_key_constraint_with_non_dict_raises_error(self):
+        spec_dict = self._create_minimal_spec_with_constraint({"foreign_key": "table"})
+        with pytest.raises(
+            InvalidConstraintError,
+            match="The 'foreign_key' constraint expects a dictionary",
+        ):
+            from_dict(spec_dict)
+
+    def test_foreign_key_constraint_missing_references_raises_error(self):
+        spec_dict = self._create_minimal_spec_with_constraint(
+            {"foreign_key": {"name": "fk_test"}}
+        )
+        with pytest.raises(
+            InvalidConstraintError,
+            match="The 'foreign_key' constraint must specify 'references'",
+        ):
+            from_dict(spec_dict)
+
+    def test_identity_constraint_with_non_dict_raises_error(self):
+        spec_dict = self._create_minimal_spec_with_constraint({"identity": True})
+        with pytest.raises(
+            InvalidConstraintError,
+            match="The 'identity' constraint expects a dictionary",
+        ):
+            from_dict(spec_dict)
+
+    def test_default_constraint_parsing(self):
+        spec_dict = self._create_minimal_spec_with_constraint({"default": "test_value"})
+        spec = from_dict(spec_dict)
+
+        column = spec.columns[0]
+        default_constraints = [
+            c for c in column.constraints if isinstance(c, DefaultConstraint)
+        ]
+        assert len(default_constraints) == 1
+        assert default_constraints[0].value == "test_value"
+
+    def test_identity_constraint_parsing(self):
+        spec_dict = self._create_minimal_spec_with_constraint(
+            {"identity": {"always": False, "start": 10, "increment": 2}}
+        )
+        spec = from_dict(spec_dict)
+
+        column = spec.columns[0]
+        identity_constraints = [
+            c
+            for c in column.constraints
+            if c.__class__.__name__ == "IdentityConstraint"
+        ]
+        assert len(identity_constraints) == 1
+        identity = identity_constraints[0]
+        assert identity.always is False
+        assert identity.start == 10
+        assert identity.increment == 2
+
+    def test_identity_constraint_with_negative_increment_parsing(self):
+        spec_dict = self._create_minimal_spec_with_constraint(
+            {"identity": {"always": False, "start": 10, "increment": -2}}
+        )
+        spec = from_dict(spec_dict)
+
+        column = spec.columns[0]
+        identity_constraints = [
+            c
+            for c in column.constraints
+            if c.__class__.__name__ == "IdentityConstraint"
+        ]
+        assert len(identity_constraints) == 1
+        identity = identity_constraints[0]
+        assert identity.always is False
+        assert identity.start == 10
+        assert identity.increment == -2
+
+    def test_foreign_key_constraint_parsing(self):
+        spec_dict = self._create_minimal_spec_with_constraint(
+            {
+                "foreign_key": {
+                    "name": "fk_test",
+                    "references": {"table": "other_table", "columns": ["id"]},
+                }
+            }
+        )
+        spec = from_dict(spec_dict)
+
+        column = spec.columns[0]
+        fk_constraints = [
+            c
+            for c in column.constraints
+            if c.__class__.__name__ == "ForeignKeyConstraint"
+        ]
+        assert len(fk_constraints) == 1
+        fk = fk_constraints[0]
+        assert fk.name == "fk_test"
+        assert fk.references.table == "other_table"
+        assert fk.references.columns == ["id"]
+
+
+class TestGenerationClauseParsing:
+    def _create_spec_with_generated_column(self, generated_as_def: dict | None) -> dict:
+        column_def: dict = {
+            "name": "generated_col",
+            "type": "string",
+        }
+        if generated_as_def is not None:
+            column_def["generated_as"] = generated_as_def
+
+        return {
+            "name": "test_schema",
+            "version": "1.0.0",
+            "columns": [
+                {"name": "source_col", "type": "string"},
+                column_def,
+            ],
+        }
+
+    def test_generation_clause_missing_column_raises_error(self):
+        spec_dict = self._create_spec_with_generated_column({"transform": "upper"})
+        with pytest.raises(
+            SchemaParsingError,
+            match="'column' is a required field in a generation clause",
+        ):
+            from_dict(spec_dict)
+
+    def test_generation_clause_missing_transform_raises_error(self):
+        spec_dict = self._create_spec_with_generated_column({"column": "source_col"})
+        with pytest.raises(
+            SchemaParsingError,
+            match="'transform' is a required field in a generation clause",
+        ):
+            from_dict(spec_dict)
+
+    def test_generation_clause_empty_transform_raises_error(self):
+        spec_dict = self._create_spec_with_generated_column(
+            {"column": "source_col", "transform": ""}
+        )
+        with pytest.raises(
+            SchemaParsingError,
+            match="'transform' cannot be empty in a generation clause",
+        ):
+            from_dict(spec_dict)
+
+    def test_valid_generation_clause_parsing(self):
+        spec_dict = self._create_spec_with_generated_column(
+            {
+                "column": "source_col",
+                "transform": "upper",
+                "transform_args": ["arg1"],
+            }
+        )
+        spec = from_dict(spec_dict)
+
+        generated_col = spec.columns[1]
+        assert generated_col.generated_as is not None
+        assert generated_col.generated_as.column == "source_col"
+        assert generated_col.generated_as.transform == "upper"
+        assert generated_col.generated_as.transform_args == ["arg1"]
+
+
+class TestTableConstraintParsing:
+    def _create_spec_with_table_constraint(self, constraint_def: dict) -> dict:
+        return {
+            "name": "test_schema",
+            "version": "1.0.0",
+            "columns": [
+                {"name": "col1", "type": "string"},
+                {"name": "col2", "type": "integer"},
+            ],
+            "table_constraints": [constraint_def],
+        }
+
+    def test_primary_key_table_constraint_missing_columns_raises_error(self):
+        spec_dict = self._create_spec_with_table_constraint(
+            {"type": "primary_key", "name": "pk_test"}
+        )
+        with pytest.raises(
+            InvalidConstraintError,
+            match="Primary key table constraint must specify 'columns'",
+        ):
+            from_dict(spec_dict)
+
+    def test_primary_key_table_constraint_with_no_name_raises_error(self):
+        spec_dict = self._create_spec_with_table_constraint(
+            {"type": "primary_key", "columns": ["col1"]}
+        )
+        with pytest.raises(
+            InvalidConstraintError,
+            match="Primary key table constraint must specify 'name'",
+        ):
+            from_dict(spec_dict)
+
+    def test_foreign_key_table_constraint_missing_columns_raises_error(self):
+        spec_dict = self._create_spec_with_table_constraint(
+            {
+                "type": "foreign_key",
+                "name": "fk_test",
+                "references": {"table": "other_table"},
+            }
+        )
+        with pytest.raises(
+            InvalidConstraintError,
+            match="Foreign key table constraint must specify 'columns'",
+        ):
+            from_dict(spec_dict)
+
+    def test_foreign_key_table_constraint_with_no_name_raises_error(self):
+        spec_dict = self._create_spec_with_table_constraint(
+            {
+                "type": "foreign_key",
+                "columns": ["col1"],
+                "references": {"table": "other_table"},
+            }
+        )
+        with pytest.raises(
+            InvalidConstraintError,
+            match="Foreign key table constraint must specify 'name'",
+        ):
+            from_dict(spec_dict)
+
+    def test_foreign_key_table_constraint_missing_references_raises_error(self):
+        spec_dict = self._create_spec_with_table_constraint(
+            {"type": "foreign_key", "name": "fk_test", "columns": ["col1"]}
+        )
+        with pytest.raises(
+            InvalidConstraintError,
+            match="Foreign key table constraint must specify 'references'",
+        ):
+            from_dict(spec_dict)
+
+    def test_table_constraint_missing_type_raises_error(self):
+        spec_dict = self._create_spec_with_table_constraint(
+            {"name": "test_constraint", "columns": ["col1"]}
+        )
+        with pytest.raises(
+            InvalidConstraintError,
+            match="Table constraint definition must have a 'type'",
+        ):
+            from_dict(spec_dict)
+
+    def test_foreign_key_references_missing_table_raises_error(self):
+        spec_dict = self._create_spec_with_table_constraint(
+            {
+                "type": "foreign_key",
+                "name": "fk_test",
+                "columns": ["col1"],
+                "references": {"columns": ["id"]},
+            }
+        )
+        with pytest.raises(
+            InvalidConstraintError,
+            match="The 'references' of a foreign key must be a dictionary with a 'table' key",
+        ):
+            from_dict(spec_dict)
+
+    def test_valid_primary_key_table_constraint_parsing(self):
+        spec_dict = self._create_spec_with_table_constraint(
+            {"type": "primary_key", "name": "pk_test", "columns": ["col1", "col2"]}
+        )
+        spec = from_dict(spec_dict)
+
+        assert len(spec.table_constraints) == 1
+        pk_constraint = spec.table_constraints[0]
+        assert isinstance(pk_constraint, PrimaryKeyTableConstraint)
+        assert pk_constraint.name == "pk_test"
+        assert pk_constraint.columns == ["col1", "col2"]
+
+    def test_valid_foreign_key_table_constraint_parsing(self):
+        spec_dict = self._create_spec_with_table_constraint(
+            {
+                "type": "foreign_key",
+                "name": "fk_test",
+                "columns": ["col1"],
+                "references": {"table": "other_table", "columns": ["id"]},
+            }
+        )
+        spec = from_dict(spec_dict)
+
+        assert len(spec.table_constraints) == 1
+        fk_constraint = spec.table_constraints[0]
+        assert isinstance(fk_constraint, ForeignKeyTableConstraint)
+        assert fk_constraint.name == "fk_test"
+        assert fk_constraint.columns == ["col1"]
+        assert fk_constraint.references.table == "other_table"
+        assert fk_constraint.references.columns == ["id"]
+
+
+class TestStorageParsing:
+    def test_storage_parsing(self):
+        spec_dict = {
+            "name": "test_schema",
+            "version": "1.0.0",
+            "columns": [{"name": "col1", "type": "string"}],
+            "storage": {
+                "format": "parquet",
+                "location": "/path/to/data",
+                "tbl_properties": {"compression": "snappy"},
+            },
+        }
+        spec = from_dict(spec_dict)
+
+        assert spec.storage is not None
+        assert spec.storage.format == "parquet"
+        assert spec.storage.location == "/path/to/data"
+        assert spec.storage.tbl_properties == {"compression": "snappy"}
+
+    def test_partitioned_by_missing_column_raises_error(self):
+        spec_dict = {
+            "name": "test_schema",
+            "version": "1.0.0",
+            "columns": [{"name": "col1", "type": "string"}],
+            "partitioned_by": [{"transform": "year"}],
+        }
+        with pytest.raises(
+            SchemaParsingError,
+            match="Each item in 'partitioned_by' must have a 'column' key",
+        ):
+            from_dict(spec_dict)
+
+
+class TestPartitioningParsing:
+    def test_partitioned_by_parsing(self):
+        spec_dict = {
+            "name": "test_schema",
+            "version": "1.0.0",
+            "columns": [
+                {"name": "col1", "type": "string"},
+                {"name": "date_col", "type": "date"},
+            ],
+            "partitioned_by": [
+                {"column": "col1"},
+                {
+                    "column": "date_col",
+                    "transform": "year",
+                    "transform_args": [2023],
+                },
+            ],
+        }
+        spec = from_dict(spec_dict)
+
+        assert len(spec.partitioned_by) == 2
+
+        first_partition = spec.partitioned_by[0]
+        assert first_partition.column == "col1"
+        assert first_partition.transform is None
+        assert first_partition.transform_args == []
+
+        second_partition = spec.partitioned_by[1]
+        assert second_partition.column == "date_col"
+        assert second_partition.transform == "year"
+        assert second_partition.transform_args == [2023]
+
+
+class TestValidationMethods:
+    def test_validate_columns_duplicate_names(self):
+        spec_dict = {
+            "name": "test_schema",
+            "version": "1.0.0",
+            "columns": [
+                {"name": "col1", "type": "string"},
+                {"name": "col1", "type": "integer"},
+            ],
+        }
+        with pytest.raises(
+            SchemaValidationError, match="Duplicate column name found: 'col1'"
+        ):
+            from_dict(spec_dict)
+
+    def test_validate_partitions_undefined_column(self):
+        spec_dict = {
+            "name": "test_schema",
+            "version": "1.0.0",
+            "columns": [{"name": "col1", "type": "string"}],
+            "partitioned_by": [{"column": "undefined_col"}],
+        }
+        with pytest.raises(
+            SchemaValidationError,
+            match="Partition column 'undefined_col' must be defined as a column in the schema",
+        ):
+            from_dict(spec_dict)
+
+    def test_validate_generated_columns_undefined_source(self):
+        spec_dict = {
+            "name": "test_schema",
+            "version": "1.0.0",
+            "columns": [
+                {
+                    "name": "generated_col",
+                    "type": "string",
+                    "generated_as": {
+                        "column": "undefined_source",
+                        "transform": "upper",
+                    },
+                }
+            ],
+        }
+        with pytest.raises(
+            SchemaValidationError,
+            match="Source column 'undefined_source' for generated column 'generated_col' not found in schema",
+        ):
+            from_dict(spec_dict)
+
+    def test_validate_table_constraints_undefined_column(self):
+        spec_dict = {
+            "name": "test_schema",
+            "version": "1.0.0",
+            "columns": [{"name": "col1", "type": "string"}],
+            "table_constraints": [
+                {
+                    "type": "primary_key",
+                    "name": "pk_test",
+                    "columns": ["undefined_col"],
+                }
+            ],
+        }
+        with pytest.raises(SchemaValidationError) as excinfo:
+            from_dict(spec_dict)
+
+        assert "Column 'undefined_col'" in str(excinfo.value)
+        assert "not found in schema" in str(excinfo.value)
+
+
+class TestFullSpec:
     @pytest.fixture(scope="class")
     def spec(self) -> SchemaSpec:
-        """Fixture to load the full_spec.yaml file."""
         return from_yaml(str(VALID_SPEC_DIR / "full_spec.yaml"))
 
     def test_top_level_attributes(self, spec: SchemaSpec):
@@ -261,7 +707,6 @@ def test_from_string_with_invalid_spec_raises_error(spec_path, error_type, error
 
 
 def test_invalid_yaml_content_raises_error():
-    """Test that non-dictionary YAML content raises a ``TypeError``."""
     content = "- item1\n- item2"  # A list, not a dictionary
     with pytest.raises(
         SchemaParsingError, match="Loaded YAML content did not parse to a dictionary"
@@ -270,10 +715,7 @@ def test_invalid_yaml_content_raises_error():
 
 
 class TestTypeLoading:
-    """Tests that the loader correctly parses YAML type definitions into Type objects."""
-
     def _create_minimal_spec_with_type(self, type_def: dict) -> dict:
-        """Helper to create a minimal spec with a single column of the given type."""
         return {
             "name": "test_schema",
             "version": "1.0.0",
@@ -390,7 +832,6 @@ class TestTypeLoading:
         ],
     )
     def test_simple_type_loading(self, type_def, expected_type, expected_str):
-        """Test loading of simple (non-complex) types from YAML."""
         spec_dict = self._create_minimal_spec_with_type(type_def)
         spec = from_dict(spec_dict)
 
@@ -425,7 +866,6 @@ class TestTypeLoading:
         ],
     )
     def test_array_type_loading(self, type_def, expected_element_type):
-        """Test loading of array types from YAML."""
         spec_dict = self._create_minimal_spec_with_type(type_def)
         spec = from_dict(spec_dict)
 
@@ -463,7 +903,6 @@ class TestTypeLoading:
         ],
     )
     def test_map_type_loading(self, type_def, expected_key_type, expected_value_type):
-        """Test loading of map types from YAML."""
         spec_dict = self._create_minimal_spec_with_type(type_def)
         spec = from_dict(spec_dict)
 
@@ -473,7 +912,6 @@ class TestTypeLoading:
         assert column.type.value == expected_value_type
 
     def test_struct_type_loading(self):
-        """Test loading of struct types from YAML."""
         type_def = {
             "type": "struct",
             "fields": [
@@ -499,7 +937,6 @@ class TestTypeLoading:
         assert field3.type == Boolean()
 
     def test_nested_struct_type_loading(self):
-        """Test loading of nested struct types from YAML."""
         type_def = {
             "type": "struct",
             "fields": [

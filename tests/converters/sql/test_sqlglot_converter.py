@@ -19,6 +19,17 @@ from yads.types import (
     Map,
 )
 from yads.spec import Field
+from yads.constraints import (
+    NotNullConstraint,
+    PrimaryKeyConstraint,
+    PrimaryKeyTableConstraint,
+    ForeignKeyConstraint,
+    ForeignKeyTableConstraint,
+    ForeignKeyReference,
+    DefaultConstraint,
+    IdentityConstraint,
+)
+from yads.exceptions import ConversionError, UnsupportedFeatureError
 
 
 @pytest.mark.parametrize(
@@ -83,9 +94,388 @@ def test_converter(spec_path, expected_sql_path):
     )
 
 
-class TestTypeConversion:
-    """Tests that SQLGlotConverter correctly converts Type objects to sqlglot DataType expressions."""
+class TestConstraintConversion:
+    def test_not_null_constraint_conversion(self):
+        converter = SQLGlotConverter()
+        constraint = NotNullConstraint()
+        result = converter._convert_column_constraint(constraint)
 
+        expected = exp.ColumnConstraint(kind=exp.NotNullColumnConstraint())
+        assert result == expected
+
+    def test_primary_key_constraint_conversion(self):
+        converter = SQLGlotConverter()
+        constraint = PrimaryKeyConstraint()
+        result = converter._convert_column_constraint(constraint)
+
+        expected = exp.ColumnConstraint(kind=exp.PrimaryKeyColumnConstraint())
+        assert result == expected
+
+    def test_default_constraint_conversion(self):
+        converter = SQLGlotConverter()
+        constraint = DefaultConstraint(value="test_value")
+        result = converter._convert_column_constraint(constraint)
+
+        expected = exp.ColumnConstraint(
+            kind=exp.DefaultColumnConstraint(this=exp.Literal.string("test_value"))
+        )
+        assert result == expected
+
+    def test_identity_constraint_positive_values_conversion(self):
+        converter = SQLGlotConverter()
+        constraint = IdentityConstraint(always=True, start=1, increment=1)
+        result = converter._convert_column_constraint(constraint)
+
+        expected = exp.ColumnConstraint(
+            kind=exp.GeneratedAsIdentityColumnConstraint(
+                this=True,
+                start=exp.Literal.number("1"),
+                increment=exp.Literal.number("1"),
+            )
+        )
+        assert result == expected
+
+    def test_identity_constraint_negative_increment_conversion(self):
+        converter = SQLGlotConverter()
+        constraint = IdentityConstraint(always=False, start=10, increment=-1)
+        result = converter._convert_column_constraint(constraint)
+
+        expected = exp.ColumnConstraint(
+            kind=exp.GeneratedAsIdentityColumnConstraint(
+                this=False,
+                start=exp.Literal.number("10"),
+                increment=exp.Neg(this=exp.Literal.number("1")),
+            )
+        )
+        assert result == expected
+
+    def test_identity_constraint_negative_start_conversion(self):
+        converter = SQLGlotConverter()
+        constraint = IdentityConstraint(always=True, start=-5, increment=2)
+        result = converter._convert_column_constraint(constraint)
+
+        expected = exp.ColumnConstraint(
+            kind=exp.GeneratedAsIdentityColumnConstraint(
+                this=True,
+                start=exp.Neg(this=exp.Literal.number("5")),
+                increment=exp.Literal.number("2"),
+            )
+        )
+        assert result == expected
+
+    def test_foreign_key_constraint_with_name_conversion(self):
+        converter = SQLGlotConverter()
+        constraint = ForeignKeyConstraint(
+            name="fk_test",
+            references=ForeignKeyReference(table="other_table", columns=["id"]),
+        )
+        result = converter._convert_column_constraint(constraint)
+
+        expected = exp.ColumnConstraint(
+            this=exp.Identifier(this="fk_test"),
+            kind=exp.Reference(
+                this=exp.Schema(
+                    this=exp.Table(
+                        this=exp.Identifier(this="other_table"), db=None, catalog=None
+                    ),
+                    expressions=[exp.Identifier(this="id")],
+                )
+            ),
+        )
+        assert result == expected
+
+    def test_foreign_key_constraint_no_name_conversion(self):
+        converter = SQLGlotConverter()
+        constraint = ForeignKeyConstraint(
+            references=ForeignKeyReference(table="other_table", columns=["id"])
+        )
+        result = converter._convert_column_constraint(constraint)
+
+        expected = exp.ColumnConstraint(
+            kind=exp.Reference(
+                this=exp.Schema(
+                    this=exp.Table(
+                        this=exp.Identifier(this="other_table"), db=None, catalog=None
+                    ),
+                    expressions=[exp.Identifier(this="id")],
+                )
+            )
+        )
+        assert result == expected
+
+    def test_primary_key_table_constraint_with_name_conversion(self):
+        converter = SQLGlotConverter()
+        constraint = PrimaryKeyTableConstraint(name="pk_test", columns=["col1", "col2"])
+        result = converter._convert_table_constraint(constraint)
+
+        expected = exp.Constraint(
+            this=exp.Identifier(this="pk_test"),
+            expressions=[
+                exp.PrimaryKey(
+                    expressions=[
+                        exp.Ordered(
+                            this=exp.Column(this=exp.Identifier(this="col1")),
+                            nulls_first=True,
+                        ),
+                        exp.Ordered(
+                            this=exp.Column(this=exp.Identifier(this="col2")),
+                            nulls_first=True,
+                        ),
+                    ]
+                )
+            ],
+        )
+        assert result == expected
+
+    def test_primary_key_table_constraint_no_name_raises_error(self):
+        converter = SQLGlotConverter()
+        constraint = PrimaryKeyTableConstraint(columns=["col1"])
+
+        with pytest.raises(
+            ConversionError, match="Primary key constraint must have a name"
+        ):
+            converter._convert_table_constraint(constraint)
+
+    def test_foreign_key_table_constraint_with_name_conversion(self):
+        converter = SQLGlotConverter()
+        constraint = ForeignKeyTableConstraint(
+            name="fk_test",
+            columns=["col1"],
+            references=ForeignKeyReference(table="other_table", columns=["id"]),
+        )
+        result = converter._convert_table_constraint(constraint)
+
+        expected = exp.Constraint(
+            this=exp.Identifier(this="fk_test"),
+            expressions=[
+                exp.ForeignKey(
+                    expressions=[exp.Identifier(this="col1")],
+                    reference=exp.Reference(
+                        this=exp.Schema(
+                            this=exp.Table(
+                                this=exp.Identifier(this="other_table"),
+                                db=None,
+                                catalog=None,
+                            ),
+                            expressions=[exp.Identifier(this="id")],
+                        )
+                    ),
+                )
+            ],
+        )
+        assert result == expected
+
+    def test_foreign_key_table_constraint_no_name_raises_error(self):
+        converter = SQLGlotConverter()
+        constraint = ForeignKeyTableConstraint(
+            columns=["col1"],
+            references=ForeignKeyReference(table="other_table", columns=["id"]),
+        )
+
+        with pytest.raises(
+            ConversionError, match="Foreign key constraint must have a name"
+        ):
+            converter._convert_table_constraint(constraint)
+
+    def test_unsupported_column_constraint_raises_error(self):
+        converter = SQLGlotConverter()
+
+        class UnsupportedConstraint:
+            pass
+
+        constraint = UnsupportedConstraint()
+
+        with pytest.raises(
+            UnsupportedFeatureError,
+            match="SQLGlotConverter does not support constraint",
+        ):
+            converter._convert_column_constraint(constraint)
+
+    def test_unsupported_table_constraint_raises_error(self):
+        converter = SQLGlotConverter()
+
+        class UnsupportedTableConstraint:
+            pass
+
+        constraint = UnsupportedTableConstraint()
+
+        with pytest.raises(
+            UnsupportedFeatureError,
+            match="SQLGlotConverter does not support table constraint",
+        ):
+            converter._convert_table_constraint(constraint)
+
+
+class TestTransformConversion:
+    def test_bucket_transform_conversion(self):
+        converter = SQLGlotConverter()
+        result = converter._handle_bucket_transform("col1", [10])
+
+        expected = exp.PartitionedByBucket(
+            this=exp.column("col1"),
+            expression=exp.Literal.number("10"),
+        )
+        assert result == expected
+
+    def test_bucket_transform_wrong_args_raises_error(self):
+        converter = SQLGlotConverter()
+
+        with pytest.raises(
+            ConversionError,
+            match="The 'bucket' transform requires exactly one argument",
+        ):
+            converter._handle_bucket_transform("col1", [10, 20])
+
+    def test_truncate_transform_conversion(self):
+        converter = SQLGlotConverter()
+        result = converter._handle_truncate_transform("col1", [5])
+
+        expected = exp.PartitionByTruncate(
+            this=exp.column("col1"),
+            expression=exp.Literal.number("5"),
+        )
+        assert result == expected
+
+    def test_truncate_transform_wrong_args_raises_error(self):
+        converter = SQLGlotConverter()
+
+        with pytest.raises(
+            ConversionError,
+            match="The 'truncate' transform requires exactly one argument",
+        ):
+            converter._handle_truncate_transform("col1", [])
+
+    def test_cast_transform_conversion(self):
+        converter = SQLGlotConverter()
+        result = converter._handle_cast_transform("col1", ["TEXT"])
+
+        expected = exp.Cast(
+            this=exp.column("col1"),
+            to=exp.DataType(this=exp.DataType.Type.TEXT),
+        )
+        assert result == expected
+
+    def test_cast_transform_wrong_args_raises_error(self):
+        converter = SQLGlotConverter()
+
+        with pytest.raises(
+            ConversionError, match="The 'cast' transform requires exactly one argument"
+        ):
+            converter._handle_cast_transform("col1", ["TEXT", "INT"])
+
+    def test_unknown_transform_fallback(self):
+        converter = SQLGlotConverter()
+        result = converter._handle_transformation(
+            "col1", "custom_func", ["arg1", "arg2"]
+        )
+
+        expected = exp.func(
+            "custom_func",
+            exp.column("col1"),
+            exp.Literal.string("arg1"),
+            exp.Literal.string("arg2"),
+        )
+        assert result == expected
+
+    def test_known_transform_handling(self):
+        converter = SQLGlotConverter()
+        result = converter._handle_transformation("col1", "bucket", [10])
+
+        expected = exp.PartitionedByBucket(
+            this=exp.column("col1"),
+            expression=exp.Literal.number("10"),
+        )
+        assert result == expected
+
+
+class TestGeneratedColumnConversion:
+    def test_generated_column_conversion(self):
+        converter = SQLGlotConverter()
+        from yads.spec import TransformedColumn
+
+        field = Field(
+            name="generated_col",
+            type=String(),
+            generated_as=TransformedColumn(
+                column="source_col", transform="upper", transform_args=[]
+            ),
+        )
+        result = converter._convert_field(field)
+
+        assert result.this.this == "generated_col"
+        assert isinstance(result.kind, exp.DataType)
+        assert result.constraints is not None
+        assert len(result.constraints) == 1
+        constraint = result.constraints[0]
+        assert isinstance(constraint, exp.ColumnConstraint)
+        assert isinstance(constraint.kind, exp.GeneratedAsIdentityColumnConstraint)
+        assert constraint.kind.this is True
+
+    def test_generated_column_with_transform_args(self):
+        converter = SQLGlotConverter()
+        from yads.spec import TransformedColumn
+
+        field = Field(
+            name="generated_col",
+            type=String(),
+            generated_as=TransformedColumn(
+                column="source_col", transform="substring", transform_args=[1, 10]
+            ),
+        )
+        result = converter._convert_field(field)
+
+        assert result.this.this == "generated_col"
+        assert result.constraints is not None
+        assert len(result.constraints) == 1
+
+        constraint = result.constraints[0]
+        assert isinstance(constraint.kind, exp.GeneratedAsIdentityColumnConstraint)
+        assert constraint.kind.this is True
+        # The expression should be a function call with the arguments
+        assert constraint.kind.expression is not None
+
+    def test_field_without_generated_clause(self):
+        converter = SQLGlotConverter()
+
+        field = Field(
+            name="regular_col", type=String(), constraints=[NotNullConstraint()]
+        )
+        result = converter._convert_field(field)
+
+        assert result.this.this == "regular_col"
+        assert result.constraints is not None
+        assert len(result.constraints) == 1
+
+        # Should only have the NotNull constraint, no generated constraint
+        constraint = result.constraints[0]
+        assert isinstance(constraint.kind, exp.NotNullColumnConstraint)
+
+    def test_field_with_both_constraints_and_generated(self):
+        converter = SQLGlotConverter()
+        from yads.spec import TransformedColumn
+
+        field = Field(
+            name="complex_col",
+            type=String(),
+            constraints=[NotNullConstraint()],
+            generated_as=TransformedColumn(
+                column="source_col", transform="upper", transform_args=[]
+            ),
+        )
+        result = converter._convert_field(field)
+
+        # Check that the field has both constraints
+        assert result.this.this == "complex_col"
+        assert result.constraints is not None
+        assert len(result.constraints) == 2
+
+        # Should have both generated and not null constraints
+        constraint_types = [type(c.kind) for c in result.constraints]
+        assert exp.GeneratedAsIdentityColumnConstraint in constraint_types
+        assert exp.NotNullColumnConstraint in constraint_types
+
+
+class TestTypeConversion:
     def setUp(self):
         self.converter = SQLGlotConverter()
 
@@ -135,7 +525,6 @@ class TestTypeConversion:
         ],
     )
     def test_simple_type_conversion(self, yads_type, expected_datatype):
-        """Test conversion of simple (non-complex) types to sqlglot DataType expressions."""
         converter = SQLGlotConverter()
         result = converter._convert_type(yads_type)
         assert result == expected_datatype
@@ -198,7 +587,6 @@ class TestTypeConversion:
         ],
     )
     def test_interval_type_conversion(self, yads_type, expected_datatype):
-        """Test conversion of interval types to sqlglot DataType expressions."""
         converter = SQLGlotConverter()
         result = converter._convert_type(yads_type)
         assert result == expected_datatype
@@ -216,7 +604,6 @@ class TestTypeConversion:
         ],
     )
     def test_array_type_conversion(self, yads_type):
-        """Test conversion of array types to sqlglot DataType expressions."""
         converter = SQLGlotConverter()
         result = converter._convert_type(yads_type)
 
@@ -239,7 +626,6 @@ class TestTypeConversion:
         ],
     )
     def test_map_type_conversion(self, yads_type):
-        """Test conversion of map types to sqlglot DataType expressions."""
         converter = SQLGlotConverter()
         result = converter._convert_type(yads_type)
 
@@ -255,8 +641,6 @@ class TestTypeConversion:
         assert value_datatype == expected_value
 
     def test_struct_type_conversion(self):
-        """Test conversion of struct types to sqlglot DataType expressions."""
-        # Create a struct with multiple fields
         struct_fields = [
             Field(name="field1", type=String()),
             Field(name="field2", type=Integer(bits=32)),
@@ -280,8 +664,6 @@ class TestTypeConversion:
             assert field_def.kind == expected_field_type
 
     def test_nested_struct_type_conversion(self):
-        """Test conversion of nested struct types to sqlglot DataType expressions."""
-        # Create a nested struct
         inner_fields = [Field(name="inner_field", type=Integer(bits=32))]
         inner_struct = Struct(fields=inner_fields)
 
