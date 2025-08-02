@@ -13,6 +13,7 @@ CREATE EXTERNAL TABLE catalog.db.full_schema (
   c_decimal DECIMAL,
   c_decimal_ps DECIMAL(10, 2),
   c_date DATE NOT NULL,
+  c_date_generated DATE GENERATED ALWAYS AS (ADD_MONTHS(c_date, 1)),
   c_timestamp TIMESTAMP,
   c_binary BINARY,
   c_interval_ym INTERVAL YEAR TO MONTH,

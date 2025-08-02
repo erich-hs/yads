@@ -105,6 +105,14 @@ columns:
     constraints:
       not_null: true
 
+  - name: "c_date_generated"
+    type: "date"
+    description: "A date column with a generated value."
+    generated_as:
+      column: "c_date"
+      transform: "add_months"
+      transform_args: [1]
+
   - name: "c_timestamp"
     type: "timestamp"
     description: "A timestamp without timezone."
