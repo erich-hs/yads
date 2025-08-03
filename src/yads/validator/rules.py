@@ -18,7 +18,7 @@ Example:
     >>> original_ast = SQLGlotConverter().convert(my_spec)
     >>>
     >>> validator = AstValidator(rules=[NoFixedLengthStringRule()])
-    >>> fixed_ast = validator.validate(original_ast, mode="fix")
+    >>> fixed_ast = validator.validate(original_ast, mode="warn")
     >>>
     >>> print(original_ast)
     >>> print(fixed_ast)

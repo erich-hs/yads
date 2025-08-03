@@ -4,8 +4,8 @@ This module provides the infrastructure for validating and adjusting sqlglot
 Abstract Syntax Trees (ASTs) to ensure compatibility with specific SQL dialects.
 
 The validation process operates on sqlglot AST nodes and can either report
-errors (in strict mode) or automatically adjust the AST to ensure compatibility
-(in fix mode). This enables yads to generate valid SQL DDL for dialects with
+errors (in raise mode) or automatically adjust the AST to ensure compatibility
+(in warn mode). This enables yads to generate valid SQL DDL for dialects with
 varying feature support while maintaining a single, expressive schema specification.
 
 Example:
@@ -26,7 +26,7 @@ Example:
     ...         return "Custom adjustment applied"
     >>>
     >>> validator = AstValidator(rules=[CustomRule()])
-    >>> processed_ast = validator.validate(ast, mode="fix")
+    >>> processed_ast = validator.validate(ast, mode="warn")
 """
 
 from __future__ import annotations
@@ -38,6 +38,12 @@ from typing import List, Literal, cast
 from sqlglot import exp
 
 from ..exceptions import ValidationRuleError
+
+
+class ValidationWarning(UserWarning):
+    """Custom warning category for yads validation adjustments."""
+
+    pass
 
 
 class Rule(ABC):
@@ -183,22 +189,22 @@ class AstValidator:
         >>>
         >>> # Apply validation in different modes
         >>> try:
-        ...     strict_ast = validator.validate(ast, mode="strict")
+        ...     strict_ast = validator.validate(ast, mode="raise")
         ... except ValidationRuleError as e:
         ...     print(f"Validation failed: {e}")
         >>>
         >>> # Auto-fix with warnings
-        >>> fixed_ast = validator.validate(ast, mode="fix")
+        >>> fixed_ast = validator.validate(ast, mode="warn")
         >>>
-        >>> # Check compatibility without changes
-        >>> checked_ast = validator.validate(ast, mode="warn")
+        >>> # Silently ignore incompatible features
+        >>> checked_ast = validator.validate(ast, mode="ignore")
     """
 
     def __init__(self, rules: list[Rule]):
         self.rules = rules
 
     def validate(
-        self, ast: exp.Create, mode: Literal["strict", "fix", "warn"]
+        self, ast: exp.Create, mode: Literal["raise", "warn", "ignore"]
     ) -> exp.Create:
         """Apply validation rules to an AST with the specified mode.
 
@@ -215,33 +221,33 @@ class AstValidator:
         Args:
             ast: The sqlglot CREATE TABLE AST to validate and process.
             mode: Validation mode determining how to handle rule violations:
-                - "strict": Collect all errors and raise ValidationRuleError
+                - "raise": Collect all errors and raise ValidationRuleError
                   if any violations are found. The AST is not modified.
-                - "fix": Apply automatic adjustments for each violation and
+                - "warn": Apply automatic adjustments for each violation and
                   issue warnings about the changes made.
-                - "warn": Issue warnings about violations but don't modify
-                  the AST. Useful for compatibility checking.
+                - "ignore": Silently ignore violations without modifying
+                  the AST or issuing warnings.
 
         Returns:
-            The processed sqlglot AST. In "fix" mode, this may be modified
+            The processed sqlglot AST. In "warn" mode, this may be modified
             from the original. In other modes, it should be unchanged.
 
         Raises:
-            ValidationRuleError: In "strict" mode, if any validation rules
+            ValidationRuleError: In "raise" mode, if any validation rules
                                detect incompatibilities.
             ValidationRuleError: If an invalid mode is specified.
 
         Example:
             >>> validator = AstValidator(rules=[MyCustomRule()])
             >>>
-            >>> # Strict validation - fail on any issues
-            >>> validated_ast = validator.validate(ast, mode="strict")
+            >>> # Raise mode - fail on any issues
+            >>> validated_ast = validator.validate(ast, mode="raise")
             >>>
-            >>> # Auto-fix mode - apply corrections automatically
-            >>> fixed_ast = validator.validate(ast, mode="fix")
+            >>> # Warn mode - apply corrections automatically
+            >>> fixed_ast = validator.validate(ast, mode="warn")
             >>>
-            >>> # Warning mode - report issues without changes
-            >>> warned_ast = validator.validate(ast, mode="warn")
+            >>> # Ignore mode - proceed silently without changes
+            >>> ast = validator.validate(ast, mode="ignore")
         """
         errors: List[str] = []
 
@@ -252,17 +258,18 @@ class AstValidator:
                     continue
 
                 match mode:
-                    case "strict":
+                    case "raise":
                         errors.append(f"{error}")
-                    case "fix":
-                        warnings.warn(f"{error} {rule.adjustment_description}")
-                        node = rule.adjust(node)
                     case "warn":
                         warnings.warn(
-                            f"{error}\n"
-                            "Set mode to 'fix' to automatically adjust the AST. "
-                            "The validator will proceed with no adjustment."
+                            f"{error} {rule.adjustment_description}",
+                            ValidationWarning,
+                            stacklevel=3,
                         )
+                        node = rule.adjust(node)
+                    case "ignore":
+                        # Silently ignore violations without warnings or adjustments
+                        pass
                     case _:
                         raise ValidationRuleError(f"Invalid mode: {mode}.")
             return node
@@ -273,7 +280,7 @@ class AstValidator:
         if errors:
             error_summary = "\n".join(f"- {e}" for e in errors)
             raise ValidationRuleError(
-                f"Validation for the target dialect failed with the following errors:\n{error_summary}."
+                f"Validation for the target dialect failed with the following errors:\n{error_summary}"
             )
 
         return cast(exp.Create, processed_ast)

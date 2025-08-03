@@ -38,19 +38,19 @@ def create_table_ast() -> exp.Create:
 
 
 class TestAstValidator:
-    def test_validate_strict_mode_raises_error(
+    def test_validate_raise_mode_raises_error(
         self, ast_validator: AstValidator, create_table_ast: exp.Create
     ):
         with pytest.raises(ValidationRuleError) as excinfo:
-            ast_validator.validate(create_table_ast, mode="strict")
+            ast_validator.validate(create_table_ast, mode="raise")
         assert "TEXT type is not allowed." in str(excinfo.value)
 
-    def test_validate_fix_mode_adjusts_ast_and_warns(
+    def test_validate_warn_mode_adjusts_ast_and_warns(
         self, ast_validator: AstValidator, create_table_ast: exp.Create
     ):
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            processed_ast = ast_validator.validate(create_table_ast, mode="fix")
+            processed_ast = ast_validator.validate(create_table_ast, mode="warn")
 
             assert len(w) == 1
             assert issubclass(w[-1].category, UserWarning)
@@ -64,20 +64,10 @@ class TestAstValidator:
         ]
         assert not text_nodes
 
-    def test_validate_warn_mode_warns_without_adjusting(
+    def test_validate_ignore_mode_does_nothing(
         self, ast_validator: AstValidator, create_table_ast: exp.Create
     ):
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            processed_ast = ast_validator.validate(create_table_ast, mode="warn")
-
-            assert len(w) == 1
-            assert issubclass(w[-1].category, UserWarning)
-            assert "TEXT type is not allowed." in str(w[-1].message)
-            assert "Set mode to 'fix' to automatically adjust the AST." in str(
-                w[-1].message
-            )
-
+        processed_ast = ast_validator.validate(create_table_ast, mode="ignore")
         text_nodes = [
             node
             for node in processed_ast.find_all(exp.DataType)
@@ -97,5 +87,5 @@ class TestAstValidator:
         ast = parse_one(sql)
         assert isinstance(ast, exp.Create)
 
-        processed_ast = ast_validator.validate(ast, mode="strict")
+        processed_ast = ast_validator.validate(ast, mode="raise")
         assert processed_ast.sql() == ast.sql()

@@ -21,46 +21,45 @@ def spec_with_fixed_length_string() -> SchemaSpec:
 
 
 class TestSparkSQLConverter:
-    def test_convert_strict_mode_raises_error(
+    def test_convert_raise_mode_raises_error(
         self, spec_with_fixed_length_string: SchemaSpec
     ):
         """
-        Tests that the SparkSQLConverter raises a ValueError in 'strict' mode
+        Tests that the SparkSQLConverter raises a ValueError in 'raise' mode
         when encountering a fixed-length string.
         """
         converter = SparkSQLConverter()
         with pytest.raises(
             ValidationRuleError, match="Fixed-length strings are not supported"
         ):
-            converter.convert(spec_with_fixed_length_string, mode="strict")
+            converter.convert(spec_with_fixed_length_string, mode="raise")
 
-    def test_convert_fix_mode_removes_length(
+    def test_convert_warn_mode_removes_length(
         self, spec_with_fixed_length_string: SchemaSpec
     ):
         """
         Tests that the SparkSQLConverter removes the length from a fixed-length
-        string in 'fix' mode.
-        """
-        converter = SparkSQLConverter(pretty=True)
-        with pytest.warns(UserWarning, match="Fixed-length strings are not supported"):
-            generated_ddl = converter.convert(spec_with_fixed_length_string, mode="fix")
-        expected_ddl = """CREATE TABLE my_db.my_table (
-  col1 STRING
-)"""
-        assert generated_ddl.strip() == expected_ddl
-
-    def test_convert_warn_mode_keeps_length_and_warns(
-        self, spec_with_fixed_length_string: SchemaSpec
-    ):
-        """
-        Tests that the SparkSQLConverter keeps the length of a fixed-length string
-        in 'warn' mode and logs a warning.
+        string in 'warn' mode.
         """
         converter = SparkSQLConverter(pretty=True)
         with pytest.warns(UserWarning, match="Fixed-length strings are not supported"):
             generated_ddl = converter.convert(
                 spec_with_fixed_length_string, mode="warn"
             )
+        expected_ddl = """CREATE TABLE my_db.my_table (
+  col1 STRING
+)"""
+        assert generated_ddl.strip() == expected_ddl
+
+    def test_convert_ignore_mode_does_nothing(
+        self, spec_with_fixed_length_string: SchemaSpec
+    ):
+        """
+        Tests that the SparkSQLConverter keeps the length of a fixed-length string
+        in 'ignore' mode and does nothing.
+        """
+        converter = SparkSQLConverter(pretty=True)
+        generated_ddl = converter.convert(spec_with_fixed_length_string, mode="ignore")
         expected_ddl = """CREATE TABLE my_db.my_table (
   col1 VARCHAR(10)
 )"""

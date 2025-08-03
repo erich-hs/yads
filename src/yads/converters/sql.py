@@ -143,7 +143,7 @@ class SQLConverter:
         or_replace: bool = False,
         ignore_catalog: bool = False,
         ignore_database: bool = False,
-        mode: Literal["strict", "fix", "warn"] = "fix",
+        mode: Literal["raise", "warn", "ignore"] = "warn",
         **kwargs: Any,
     ) -> str:
         """Convert a yads SchemaSpec into a SQL DDL string.
@@ -159,9 +159,9 @@ class SQLConverter:
             ignore_catalog: If True, omits the catalog from the table name.
             ignore_database: If True, omits the database from the table name.
             mode: Validation mode when an ast_validator is configured:
-                - "strict": Raise ValidationRuleError for any unsupported features.
-                - "fix": Log warnings and automatically adjust AST for compatibility.
-                - "warn": Log warnings without modifying the AST.
+                - "raise": Raise ValidationRuleError for any unsupported features.
+                - "warn": Log warnings and automatically adjust AST for compatibility.
+                - "ignore": Silently ignore unsupported features without warnings or modifications.
             **kwargs: Additional options for SQL generation, overriding defaults.
                       See sqlglot's documentation for supported options:
                       https://sqlglot.com/sqlglot/generator.html#Generator
@@ -170,7 +170,7 @@ class SQLConverter:
             SQL DDL CREATE TABLE statement as a string.
 
         Raises:
-            ValidationRuleError: In strict mode when unsupported features are detected.
+            ValidationRuleError: In raise mode when unsupported features are detected.
             ConversionError: When the underlying conversion process fails.
 
         Example:
