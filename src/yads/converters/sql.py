@@ -664,9 +664,14 @@ class SQLGlotConverter(BaseConverter):
             raise ConversionError(
                 f"The 'cast' transform requires exactly one argument. Got {len(transform_args)}."
             )
+        cast_to_type = transform_args[0].upper()
+        if cast_to_type not in exp.DataType.Type:
+            raise UnsupportedFeatureError(
+                f"Transform type '{cast_to_type}' is not a valid sqlglot Type"
+            )
         return exp.Cast(
             this=exp.column(column),
-            to=exp.DataType(this=exp.DataType.Type[transform_args[0]]),
+            to=exp.DataType(this=exp.DataType.Type[cast_to_type]),
         )
 
     def _handle_bucket_transform(

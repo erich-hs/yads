@@ -363,6 +363,14 @@ class TestTransformConversion:
         ):
             converter._handle_cast_transform("col1", ["TEXT", "INT"])
 
+    def test_cast_transform_unknown_type_raises_error(self):
+        converter = SQLGlotConverter()
+        with pytest.raises(
+            UnsupportedFeatureError,
+            match="Transform type 'NOT_A_TYPE' is not a valid sqlglot Type",
+        ):
+            converter._handle_cast_transform("col1", ["not_a_type"])
+
     def test_unknown_transform_fallback(self):
         converter = SQLGlotConverter()
         result = converter._handle_transformation(
