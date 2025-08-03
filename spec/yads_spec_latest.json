@@ -6,7 +6,7 @@
   "properties": {
     "name": {
       "type": "string",
-      "description": "The fully qualified name of the table, including catalog and database/schema."
+      "description": "The fully qualified name of the table, including catalog and database/schema. Follows the format: [catalog].[database].[table]."
     },
     "version": {
       "type": "string",
@@ -14,12 +14,16 @@
     },
     "description": {
       "type": "string",
-      "description": "A description of the table."
+      "description": "An optional description of the table."
     },
     "external": {
       "type": "boolean",
       "description": "Flag to emit a CREATE EXTERNAL statement from SQL DDL converters. Defaults to False.",
       "default": false
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Optional metadata about the table."
     },
     "storage": {
       "type": "object",
@@ -50,20 +54,6 @@
       "description": "A list of table-level constraints, such as composite primary or foreign keys.",
       "items": {
         "$ref": "#/definitions/table_constraint"
-      }
-    },
-    "metadata": {
-      "type": "object",
-      "properties": {
-        "owner": {
-          "type": "string"
-        },
-        "retention_days": {
-          "type": "integer"
-        },
-        "granularity": {
-          "type": "string"
-        }
       }
     },
     "columns": {
