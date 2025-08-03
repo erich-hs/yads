@@ -543,13 +543,16 @@ class TestFullSpec:
         assert spec.storage.tbl_properties == {"write_compression": "snappy"}
 
     def test_partitioning(self, spec: SchemaSpec):
-        assert len(spec.partitioned_by) == 2
+        assert len(spec.partitioned_by) == 3
         assert spec.partitioned_by[0].column == "c_string_len"
-        assert spec.partitioned_by[1].column == "c_date"
-        assert spec.partitioned_by[1].transform == "month"
+        assert spec.partitioned_by[1].column == "c_string"
+        assert spec.partitioned_by[1].transform == "truncate"
+        assert spec.partitioned_by[1].transform_args == [10]
+        assert spec.partitioned_by[2].column == "c_date"
+        assert spec.partitioned_by[2].transform == "month"
 
     def test_columns(self, spec: SchemaSpec):
-        assert len(spec.columns) == 22
+        assert len(spec.columns) == 23
 
     def test_column_constraints(self, spec: SchemaSpec):
         # Test not_null constraint

@@ -15,6 +15,9 @@ storage:
 
 partitioned_by:
   - column: "c_string_len"
+  - column: "c_string"
+    transform: "truncate"
+    transform_args: [10]
   - column: "c_date"
     transform: "month"
 
@@ -48,7 +51,7 @@ columns:
       length: 255
     description: "A string column with a specific length."
 
-  - name: "c_string_generated"
+  - name: "c_string_upper"
     type: "string"
     description: "A string column with a generated value."
     generated_as:
@@ -105,9 +108,9 @@ columns:
     constraints:
       not_null: true
 
-  - name: "c_date_generated"
-    type: "date"
-    description: "A date column with a generated value."
+  - name: "c_date_month"
+    type: "int"
+    description: "An integer column with a generated value."
     generated_as:
       column: "c_date"
       transform: "month"
@@ -115,6 +118,14 @@ columns:
   - name: "c_timestamp"
     type: "timestamp"
     description: "A timestamp without timezone."
+
+  - name: "c_timestamp_date"
+    type: "date"
+    description: "A date column with a generated value."
+    generated_as:
+      column: "c_timestamp"
+      transform: "cast"
+      transform_args: ["date"]
 
   - name: "c_binary"
     type: "binary"

@@ -2,7 +2,7 @@ CREATE EXTERNAL TABLE catalog.db.full_schema (
   c_uuid UUID NOT NULL,
   c_string TEXT DEFAULT 'default_string',
   c_string_len TEXT(255),
-  c_string_generated TEXT GENERATED ALWAYS AS (UPPER(c_string)),
+  c_string_upper TEXT GENERATED ALWAYS AS (UPPER(c_string)),
   c_int8 TINYINT,
   c_int16 SMALLINT,
   c_int32_identity INT GENERATED ALWAYS AS IDENTITY(1, 1),
@@ -13,8 +13,9 @@ CREATE EXTERNAL TABLE catalog.db.full_schema (
   c_decimal DECIMAL,
   c_decimal_ps DECIMAL(10, 2),
   c_date DATE NOT NULL,
-  c_date_generated DATE GENERATED ALWAYS AS (MONTH(c_date)),
+  c_date_month INT GENERATED ALWAYS AS (MONTH(c_date)),
   c_timestamp TIMESTAMP,
+  c_timestamp_date DATE GENERATED ALWAYS AS (CAST(c_timestamp AS DATE)),
   c_binary BINARY,
   c_interval_ym INTERVAL YEAR TO MONTH,
   c_interval_d INTERVAL DAY,
@@ -29,4 +30,4 @@ USING parquet
 TBLPROPERTIES (
   'write_compression' = 'snappy'
 )
-PARTITIONED BY (c_string_len, month(c_date))
+PARTITIONED BY (c_string_len, TRUNCATE(c_string, 10), MONTH(c_date))
