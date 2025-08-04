@@ -39,7 +39,7 @@ from __future__ import annotations
 from functools import singledispatchmethod
 from typing import Any, List, Literal
 
-from sqlglot import exp
+from sqlglot import exp, ErrorLevel
 from sqlglot.expressions import convert
 
 from yads.constraints import (
@@ -113,12 +113,12 @@ class SQLConverter:
             dialect: Target sqlglot SQL dialect name. See sqlglot's documentation for
                      supported dialects: https://sqlglot.com/sqlglot/dialects.html
             ast_converter: AST converter for transforming SchemaSpec to sqlglot AST.
-                          Defaults to SQLGlotConverter.
+                           Defaults to SQLGlotConverter.
             ast_validator: Validator for applying dialect-specific rules and adjustments.
-                          If None, no validation or adjustment will be performed.
+                           If None, no validation or adjustment will be performed.
             **convert_options: Default options passed to sqlglot's SQL generator.
-                              See sqlglot's documentation for supported options:
-                              https://sqlglot.com/sqlglot/generator.html#Generator
+                               See sqlglot's documentation for supported options:
+                               https://sqlglot.com/sqlglot/generator.html#Generator
 
         Example:
             >>> # Basic converter for Spark SQL
@@ -161,7 +161,9 @@ class SQLConverter:
             mode: Validation mode when an ast_validator is configured:
                 - "raise": Raise ValidationRuleError for any unsupported features.
                 - "warn": Log warnings and automatically adjust AST for compatibility.
-                - "ignore": Silently ignore unsupported features without warnings or modifications.
+                - "ignore": Silently ignore unsupported features without warnings.
+                            The generated SQL DDL might still contain modifications
+                            done by the AST converter.
             **kwargs: Additional options for SQL generation, overriding defaults.
                       See sqlglot's documentation for supported options:
                       https://sqlglot.com/sqlglot/generator.html#Generator
@@ -189,6 +191,14 @@ class SQLConverter:
         )
         if self._ast_validator:
             ast = self._ast_validator.validate(ast, mode=mode)
+        if isinstance(self._ast_converter, SQLGlotConverter):
+            match mode:
+                case "raise":
+                    self._convert_options["unsupported_level"] = ErrorLevel.RAISE
+                case "warn":
+                    self._convert_options["unsupported_level"] = ErrorLevel.WARN
+                case "ignore":
+                    self._convert_options["unsupported_level"] = ErrorLevel.IGNORE
         options = {**self._convert_options, **kwargs}
         return ast.sql(dialect=self._dialect, **options)
 
@@ -296,9 +306,9 @@ class SQLGlotConverter(BaseConverter):
             spec: The yads specification as a SchemaSpec object.
             **kwargs: Optional conversion modifiers:
                 if_not_exists: If True, sets the `exists` property of the `exp.Create`
-                    node to `True`.
+                               node to `True`.
                 or_replace: If True, sets the `replace` property of the `exp.Create`
-                    node to `True`.
+                            node to `True`.
                 ignore_catalog: If True, omits the catalog from the table name.
                 ignore_database: If True, omits the database from the table name.
 
@@ -454,7 +464,7 @@ class SQLGlotConverter(BaseConverter):
 
         Raises:
             UnsupportedFeatureError: When the constraint type is not supported
-                                   by this converter.
+                                     by this converter.
 
         Note:
             Specific constraint handlers are registered using
@@ -537,7 +547,7 @@ class SQLGlotConverter(BaseConverter):
 
         Raises:
             UnsupportedFeatureError: When the constraint type is not supported
-                                   by this converter.
+                                     by this converter.
 
         Note:
             Specific table constraint handlers are registered using
@@ -750,9 +760,9 @@ class SQLGlotConverter(BaseConverter):
 
         Args:
             full_name: Qualified table name with optional catalog and database.
-                      Supports formats: 'table', 'database.table', 'catalog.database.table'.
+                       Supports formats: 'table', 'database.table', 'catalog.database.table'.
             columns: Column names to include in Schema expression. When provided,
-                    returns a `exp.Schema` expression instead of `exp.Table` expression.
+                     returns a `exp.Schema` expression instead of `exp.Table` expression.
             ignore_catalog: If True, omits the catalog from the table name.
             ignore_database: If True, omits the database from the table name.
 
