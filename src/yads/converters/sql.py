@@ -768,17 +768,7 @@ class SQLGlotConverter(BaseConverter):
 
         Returns:
             sqlglot `exp.Table` expression when columns is None, or `exp.Schema` expression
-            when columns are provided. The expression includes proper catalog,
-            database, and table identifiers based on the ignore flags.
-
-        Example:
-            >>> converter._parse_full_table_name("prod.sales.orders")
-            Table(catalog=Identifier(this='prod'), db=Identifier(this='sales'),
-                  this=Identifier(this='orders'))
-            >>> converter._parse_full_table_name("orders", ["id", "name"])
-            Schema(this=Table(...), expressions=[Identifier(this='id'), ...])
-            >>> converter._parse_full_table_name("prod.sales.orders", ignore_catalog=True)
-            Table(db=Identifier(this='sales'), this=Identifier(this='orders'))
+            when columns are provided.
         """
         parts = full_name.split(".")
         table_name = parts[-1]
