@@ -307,6 +307,32 @@ class TestConstraintConversion:
 
 
 class TestTransformConversion:
+    def test_cast_transform_conversion(self):
+        converter = SQLGlotConverter()
+        result = converter._handle_cast_transform("col1", ["TEXT"])
+
+        expected = exp.Cast(
+            this=exp.column("col1"),
+            to=exp.DataType(this=exp.DataType.Type.TEXT),
+        )
+        assert result == expected
+
+    def test_cast_transform_wrong_args_raises_error(self):
+        converter = SQLGlotConverter()
+
+        with pytest.raises(
+            ConversionError, match="The 'cast' transform requires exactly 1 argument"
+        ):
+            converter._handle_cast_transform("col1", ["TEXT", "INT"])
+
+    def test_cast_transform_unknown_type_raises_error(self):
+        converter = SQLGlotConverter()
+        with pytest.raises(
+            UnsupportedFeatureError,
+            match="Transform type 'NOT_A_TYPE' is not a valid sqlglot Type",
+        ):
+            converter._handle_cast_transform("col1", ["not_a_type"])
+
     def test_bucket_transform_conversion(self):
         converter = SQLGlotConverter()
         result = converter._handle_bucket_transform("col1", [10])
@@ -322,7 +348,7 @@ class TestTransformConversion:
 
         with pytest.raises(
             ConversionError,
-            match="The 'bucket' transform requires exactly one argument",
+            match="The 'bucket' transform requires exactly 1 argument",
         ):
             converter._handle_bucket_transform("col1", [10, 20])
 
@@ -341,35 +367,28 @@ class TestTransformConversion:
 
         with pytest.raises(
             ConversionError,
-            match="The 'truncate' transform requires exactly one argument",
+            match="The 'truncate' transform requires exactly 1 argument",
         ):
             converter._handle_truncate_transform("col1", [])
 
-    def test_cast_transform_conversion(self):
+    def test_date_trunc_transform_conversion(self):
         converter = SQLGlotConverter()
-        result = converter._handle_cast_transform("col1", ["TEXT"])
+        result = converter._handle_date_trunc_transform("col1", ["month"])
 
-        expected = exp.Cast(
+        expected = exp.DateTrunc(
+            unit=exp.Literal.string("month"),
             this=exp.column("col1"),
-            to=exp.DataType(this=exp.DataType.Type.TEXT),
         )
         assert result == expected
 
-    def test_cast_transform_wrong_args_raises_error(self):
+    def test_date_trunc_transform_wrong_args_raises_error(self):
         converter = SQLGlotConverter()
 
         with pytest.raises(
-            ConversionError, match="The 'cast' transform requires exactly one argument"
+            ConversionError,
+            match="The 'date_trunc' transform requires exactly 1 argument",
         ):
-            converter._handle_cast_transform("col1", ["TEXT", "INT"])
-
-    def test_cast_transform_unknown_type_raises_error(self):
-        converter = SQLGlotConverter()
-        with pytest.raises(
-            UnsupportedFeatureError,
-            match="Transform type 'NOT_A_TYPE' is not a valid sqlglot Type",
-        ):
-            converter._handle_cast_transform("col1", ["not_a_type"])
+            converter._handle_date_trunc_transform("col1", [])
 
     def test_unknown_transform_fallback(self):
         converter = SQLGlotConverter()

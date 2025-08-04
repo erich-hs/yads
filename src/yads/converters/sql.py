@@ -263,14 +263,6 @@ class SQLGlotConverter(BaseConverter):
     constraint conversion. It maintains the full expressiveness of the yads
     specification while producing valid sqlglot AST nodes.
 
-    Key responsibilities:
-    - Transform yads types to sqlglot `exp.DataType` expressions
-    - Convert column and table constraints to sqlglot `exp.ColumnConstraint` and
-      `exp.Constraint` nodes.
-    - Handle complex types (arrays, structs, maps) with proper nesting.
-    - Process table properties, partitioning, and storage configurations.
-    - Generate appropriate `exp.Create` AST structures.
-
     The converter supports all yads type system features including primitive types,
     complex nested types, constraints, generated columns, partitioning transforms,
     and storage properties. It serves as the core engine for all SQL DDL generation
@@ -289,6 +281,8 @@ class SQLGlotConverter(BaseConverter):
         "bucket": "_handle_bucket_transform",
         "truncate": "_handle_truncate_transform",
         "cast": "_handle_cast_transform",
+        "date_trunc": "_handle_date_trunc_transform",
+        "trunc": "_handle_date_trunc_transform",
     }
 
     def convert(self, spec: SchemaSpec, **kwargs: Any) -> exp.Create:
@@ -660,6 +654,12 @@ class SQLGlotConverter(BaseConverter):
             return handler_method(column, transform_args)
 
         # Fallback to a generic function expression for all other transforms.
+        # Most direct or parametrized transformation functions are supported
+        # via the fallback. I.e.
+        # - `day(original_col)`
+        # - `month(original_col)`
+        # - `year(original_col)`
+        # - `date_format(original_col, 'yyyy-MM-dd')`
         # https://sqlglot.com/sqlglot/expressions.html#func
         return exp.func(
             transform,
@@ -670,10 +670,7 @@ class SQLGlotConverter(BaseConverter):
     def _handle_cast_transform(
         self, column: str, transform_args: list
     ) -> exp.Expression:
-        if len(transform_args) != 1:
-            raise ConversionError(
-                f"The 'cast' transform requires exactly one argument. Got {len(transform_args)}."
-            )
+        self._validate_transform_args("cast", len(transform_args), 1)
         cast_to_type = transform_args[0].upper()
         if cast_to_type not in exp.DataType.Type:
             raise UnsupportedFeatureError(
@@ -687,10 +684,7 @@ class SQLGlotConverter(BaseConverter):
     def _handle_bucket_transform(
         self, column: str, transform_args: list
     ) -> exp.Expression:
-        if len(transform_args) != 1:
-            raise ConversionError(
-                f"The 'bucket' transform requires exactly one argument. Got {len(transform_args)}."
-            )
+        self._validate_transform_args("bucket", len(transform_args), 1)
         return exp.PartitionedByBucket(
             this=exp.column(column),
             expression=exp.convert(transform_args[0]),
@@ -699,14 +693,29 @@ class SQLGlotConverter(BaseConverter):
     def _handle_truncate_transform(
         self, column: str, transform_args: list
     ) -> exp.Expression:
-        if len(transform_args) != 1:
-            raise ConversionError(
-                f"The 'truncate' transform requires exactly one argument. Got {len(transform_args)}."
-            )
+        self._validate_transform_args("truncate", len(transform_args), 1)
         return exp.PartitionByTruncate(
             this=exp.column(column),
             expression=exp.convert(transform_args[0]),
         )
+
+    def _handle_date_trunc_transform(
+        self, column: str, transform_args: list
+    ) -> exp.Expression:
+        self._validate_transform_args("date_trunc", len(transform_args), 1)
+        return exp.DateTrunc(
+            unit=exp.convert(transform_args[0]),
+            this=exp.column(column),
+        )
+
+    def _validate_transform_args(
+        self, transform: str, received_args_len: int, required_args_len: int
+    ) -> None:
+        if received_args_len != required_args_len:
+            raise ConversionError(
+                f"The '{transform}' transform requires exactly {required_args_len}"
+                f" argument(s). Got {received_args_len}."
+            )
 
     # Field and expression collection
     def _convert_field(self, field: Field) -> exp.ColumnDef:
