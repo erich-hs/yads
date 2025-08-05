@@ -9,8 +9,8 @@ Example:
     >>>
     >>> # Define table columns
     >>> columns = [
-    ...     Field(name="id", type=Integer(), constraints=[NotNullConstraint()]),
-    ...     Field(name="name", type=String(length=100))
+    ...     Column(name="id", type=Integer(), constraints=[NotNullConstraint()]),
+    ...     Column(name="name", type=String(length=100))
     ... ]
     >>>
     >>> # Create complete schema specification
@@ -33,7 +33,7 @@ import textwrap
 from dataclasses import dataclass, field
 from typing import Any
 
-from .constraints import ColumnConstraint, TableConstraint
+from .constraints import ColumnConstraint, NotNullConstraint, TableConstraint
 from .exceptions import SchemaValidationError
 from .types import Type
 
@@ -49,35 +49,39 @@ def _format_dict_as_kwargs(d: dict[str, Any], multiline: bool = False) -> str:
 
 
 @dataclass(frozen=True)
-class TransformedColumn:
-    """A column that may have a transformation function applied.
+class TransformedColumnReference:
+    """A reference to a column with an optional transformation function.
 
-    TransformedColumns are used in two contexts:
-    1. Partitioning and clustering specifications - to define how column values
-       should be transformed before partitioning/clustering
-    2. Generated column specifications - to define computed columns derived from
-       other columns (used in Field.generated_as)
+    TransformedColumnReference represents a reference to an existing column that may
+    have a transformation function applied to it. This is used exclusively in two contexts:
+    1. Partitioning specifications (partitioned_by) - to define how column values
+       should be transformed before partitioning
+    2. Generated column specifications (generated_as) - to define computed columns
+       derived from other columns
+
+    This class does not represent an actual column definition, but rather a reference
+    to an existing column with optional transformation logic applied.
 
     Common transformations include bucketing, truncating, and date part extraction.
 
     Example:
         >>> # Simple column reference for partitioning
-        >>> col = TransformedColumn(column="status")
-        >>> str(col)
+        >>> ref = TransformedColumnReference(column="status")
+        >>> str(ref)
         'status'
 
         >>> # Column with a transformation function applied
-        >>> col = TransformedColumn(column="order_date", transform="month")
-        >>> str(col)
+        >>> ref = TransformedColumnReference(column="order_date", transform="month")
+        >>> str(ref)
         'month(order_date)'
 
-        >>> col = TransformedColumn(column="user_id", transform="bucket", transform_args=[50])
-        >>> str(col)
+        >>> ref = TransformedColumnReference(column="user_id", transform="bucket", transform_args=[50])
+        >>> str(ref)
         'bucket(user_id, 50)'
 
         >>> # Generated column example (transform is required for generated columns)
-        >>> col = TransformedColumn(column="order_date", transform="year")
-        >>> # This would be used in: Field(name="order_year", type=Integer(), generated_as=col)
+        >>> ref = TransformedColumnReference(column="order_date", transform="year")
+        >>> # This would be used in: Column(name="order_year", type=Integer(), generated_as=ref)
     """
 
     column: str
@@ -95,21 +99,73 @@ class TransformedColumn:
 
 @dataclass(frozen=True)
 class Field:
-    """A named and typed data field, representing a column in a table or a field in a complex type.
+    """A named and typed data field, representing a field in a complex type.
 
-    Fields are the building blocks of schemas, representing individual data columns
-    with their types, constraints, and optional metadata. They can be used both
-    for top-level table columns and nested fields within complex types like structs.
+    Field is the base class for all named data elements in yads. It represents
+    individual data fields with their types and optional metadata. This class
+    is primarily used for fields within complex types like structs, but also
+    serves as the base class for table columns.
+
+    Example:
+        >>> from yads.types import String, Integer
+        >>>
+        >>> # Simple field for use in complex types
+        >>> field = Field(name="username", type=String())
+        >>>
+        >>> # Field with metadata
+        >>> field = Field(
+        ...     name="user_id",
+        ...     type=Integer(bits=64),
+        ...     description="Unique identifier for the user",
+        ...     metadata={"source": "user_service"}
+        ... )
+    """
+
+    name: str
+    type: Type
+    description: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def has_metadata(self) -> bool:
+        """True if the field has any metadata defined."""
+        return bool(self.metadata)
+
+    def _build_details_repr(self) -> str:
+        details = []
+        if self.description:
+            details.append(f"description={self.description!r}")
+        if self.metadata:
+            details.append(f"metadata={_format_dict_as_kwargs(self.metadata)}")
+
+        if not details:
+            return ""
+
+        pretty_details = ",\n".join(details)
+        return f"(\n{textwrap.indent(pretty_details, '  ')}\n)"
+
+    def __str__(self) -> str:
+        details_repr = self._build_details_repr()
+        return f"{self.name}: {self.type}{details_repr}"
+
+
+@dataclass(frozen=True)
+class Column(Field):
+    """A table column with constraints and optional generation logic.
+
+    Column extends Field to represent database table columns specifically.
+    It adds support for column constraints and generated column definitions,
+    making it the primary building block for table schemas.
 
     Example:
         >>> from yads.types import String, Integer
         >>> from yads.constraints import NotNullConstraint, DefaultConstraint
         >>>
-        >>> # Simple field
-        >>> field = Field(name="username", type=String())
+        >>> # Simple column
+        >>> column = Column(name="username", type=String())
         >>>
-        >>> # Field with constraints and metadata
-        >>> field = Field(
+        >>> # Column with constraints and metadata
+        >>> column = Column(
         ...     name="user_id",
         ...     type=Integer(bits=64),
         ...     constraints=[NotNullConstraint()],
@@ -117,20 +173,38 @@ class Field:
         ...     metadata={"source": "user_service"}
         ... )
         >>>
-        >>> # Generated field
-        >>> field = Field(
+        >>> # Generated column
+        >>> column = Column(
         ...     name="order_year",
         ...     type=Integer(),
-        ...     generated_as=TransformedColumn(column="order_date", transform="year")
+        ...     generated_as=TransformedColumnReference(column="order_date", transform="year")
         ... )
     """
 
-    name: str
-    type: Type
-    description: str | None = None
     constraints: list[ColumnConstraint] = field(default_factory=list)
-    metadata: dict[str, Any] = field(default_factory=dict)
-    generated_as: TransformedColumn | None = None
+    generated_as: TransformedColumnReference | None = None
+
+    @property
+    def is_generated(self) -> bool:
+        """True if this column is a generated/computed column."""
+        return self.generated_as is not None
+
+    @property
+    def is_nullable(self) -> bool:
+        """True if this column allows NULL values (no NOT NULL constraint)."""
+        return not any(
+            isinstance(constraint, NotNullConstraint) for constraint in self.constraints
+        )
+
+    @property
+    def has_constraints(self) -> bool:
+        """True if this column has any constraints defined."""
+        return bool(self.constraints)
+
+    @property
+    def constraint_types(self) -> set[type]:
+        """Set of constraint types applied to this column."""
+        return {type(constraint) for constraint in self.constraints}
 
     def _build_details_repr(self) -> str:
         details = []
@@ -149,10 +223,6 @@ class Field:
 
         pretty_details = ",\n".join(details)
         return f"(\n{textwrap.indent(pretty_details, '  ')}\n)"
-
-    def __str__(self) -> str:
-        details_repr = self._build_details_repr()
-        return f"{self.name}: {self.type}{details_repr}"
 
 
 @dataclass(frozen=True)
@@ -209,7 +279,7 @@ class SchemaSpec:
     Args:
         name: Fully qualified table name (e.g., "catalog.database.table").
         version: Schema version string for tracking changes.
-        columns: List of Field objects defining the table structure.
+        columns: List of Column objects defining the table structure.
         description: Optional human-readable description of the table.
         external: Whether to generate CREATE EXTERNAL TABLE statements.
         storage: Storage configuration including format and properties.
@@ -232,17 +302,17 @@ class SchemaSpec:
         ...     version="1.0.0",
         ...     description="User information table",
         ...     columns=[
-        ...         Field(
+        ...         Column(
         ...             name="id",
         ...             type=Integer(),
         ...             constraints=[NotNullConstraint(), PrimaryKeyConstraint()]
         ...         ),
-        ...         Field(
+        ...         Column(
         ...             name="email",
         ...             type=String(length=255),
         ...             constraints=[NotNullConstraint()]
         ...         ),
-        ...         Field(name="name", type=String())
+        ...         Column(name="name", type=String())
         ...     ]
         ... )
         >>>
@@ -262,11 +332,11 @@ class SchemaSpec:
 
     name: str
     version: str
-    columns: list[Field]
+    columns: list[Column]
     description: str | None = None
     external: bool = False
     storage: Storage | None = None
-    partitioned_by: list[TransformedColumn] = field(default_factory=list)
+    partitioned_by: list[TransformedColumnReference] = field(default_factory=list)
     table_constraints: list[TableConstraint] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -318,20 +388,24 @@ class SchemaSpec:
 
     @property
     def generated_columns(self) -> dict[str, str]:
-        """Mapping of generated column names to their source columns.
-
-        Identifies columns that are computed from other columns rather than
-        stored directly. The keys are generated column names and values are
-        the source column names they derive from.
-
-        Returns:
-            Dictionary mapping generated column names to source column names.
+        """Mapping of generated column names to their source columns with format:
+        `{generated_column_name: source_column_name}`.
         """
         return {
             c.name: c.generated_as.column
             for c in self.columns
             if c.generated_as is not None
         }
+
+    @property
+    def nullable_columns(self) -> set[str]:
+        """Set of column names that allow NULL values."""
+        return {c.name for c in self.columns if c.is_nullable}
+
+    @property
+    def constrained_columns(self) -> set[str]:
+        """Set of column names that have any constraints defined."""
+        return {c.name for c in self.columns if c.has_constraints}
 
     def _build_header_str(self) -> str:
         return f"schema {self.name}(version={self.version!r})"

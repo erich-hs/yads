@@ -18,7 +18,7 @@ from yads.types import (
     Struct,
     Map,
 )
-from yads.spec import Field
+from yads.spec import Column, Field
 from yads.constraints import (
     NotNullConstraint,
     PrimaryKeyConstraint,
@@ -418,16 +418,16 @@ class TestTransformConversion:
 class TestGeneratedColumnConversion:
     def test_generated_column_conversion(self):
         converter = SQLGlotConverter()
-        from yads.spec import TransformedColumn
+        from yads.spec import TransformedColumnReference
 
-        field = Field(
+        column = Column(
             name="generated_col",
             type=String(),
-            generated_as=TransformedColumn(
+            generated_as=TransformedColumnReference(
                 column="source_col", transform="upper", transform_args=[]
             ),
         )
-        result = converter._convert_field(field)
+        result = converter._convert_column(column)
 
         assert result.this.this == "generated_col"
         assert isinstance(result.kind, exp.DataType)
@@ -440,16 +440,16 @@ class TestGeneratedColumnConversion:
 
     def test_generated_column_with_transform_args(self):
         converter = SQLGlotConverter()
-        from yads.spec import TransformedColumn
+        from yads.spec import TransformedColumnReference
 
-        field = Field(
+        column = Column(
             name="generated_col",
             type=String(),
-            generated_as=TransformedColumn(
+            generated_as=TransformedColumnReference(
                 column="source_col", transform="substring", transform_args=[1, 10]
             ),
         )
-        result = converter._convert_field(field)
+        result = converter._convert_column(column)
 
         assert result.this.this == "generated_col"
         assert result.constraints is not None
@@ -461,13 +461,13 @@ class TestGeneratedColumnConversion:
         # The expression should be a function call with the arguments
         assert constraint.kind.expression is not None
 
-    def test_field_without_generated_clause(self):
+    def test_column_without_generated_clause(self):
         converter = SQLGlotConverter()
 
-        field = Field(
+        column = Column(
             name="regular_col", type=String(), constraints=[NotNullConstraint()]
         )
-        result = converter._convert_field(field)
+        result = converter._convert_column(column)
 
         assert result.this.this == "regular_col"
         assert result.constraints is not None
@@ -477,19 +477,19 @@ class TestGeneratedColumnConversion:
         constraint = result.constraints[0]
         assert isinstance(constraint.kind, exp.NotNullColumnConstraint)
 
-    def test_field_with_both_constraints_and_generated(self):
+    def test_column_with_both_constraints_and_generated(self):
         converter = SQLGlotConverter()
-        from yads.spec import TransformedColumn
+        from yads.spec import TransformedColumnReference
 
-        field = Field(
+        column = Column(
             name="complex_col",
             type=String(),
             constraints=[NotNullConstraint()],
-            generated_as=TransformedColumn(
+            generated_as=TransformedColumnReference(
                 column="source_col", transform="upper", transform_args=[]
             ),
         )
-        result = converter._convert_field(field)
+        result = converter._convert_column(column)
 
         # Check that the field has both constraints
         assert result.this.this == "complex_col"
@@ -869,13 +869,13 @@ class TestConvertWithIgnoreArguments:
         assert result.args["exists"] is True
 
     def test_convert_with_partial_qualified_name_ignore_catalog(self):
-        from yads.spec import SchemaSpec, Field
+        from yads.spec import SchemaSpec, Column
         from yads.types import String
 
         spec = SchemaSpec(
             name="sales.orders",
             version="1.0.0",
-            columns=[Field(name="id", type=String())],
+            columns=[Column(name="id", type=String())],
         )
 
         converter = SQLGlotConverter()
@@ -887,13 +887,13 @@ class TestConvertWithIgnoreArguments:
         assert table_expression.catalog == ""
 
     def test_convert_with_partial_qualified_name_ignore_database(self):
-        from yads.spec import SchemaSpec, Field
+        from yads.spec import SchemaSpec, Column
         from yads.types import String
 
         spec = SchemaSpec(
             name="prod.orders",
             version="1.0.0",
-            columns=[Field(name="id", type=String())],
+            columns=[Column(name="id", type=String())],
         )
 
         converter = SQLGlotConverter()

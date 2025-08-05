@@ -653,7 +653,7 @@ class TestFullSpec:
         (
             INVALID_SPEC_DIR / "invalid_type_def.yaml",
             TypeDefinitionError,
-            "The 'type' of a field must be a string",
+            "The 'type' of a column must be a string",
         ),
         (
             INVALID_SPEC_DIR / "invalid_complex_type" / "array_missing_element.yaml",

@@ -66,10 +66,11 @@ from .exceptions import (
     UnknownTypeError,
 )
 from .spec import (
+    Column,
     Field,
     SchemaSpec,
     Storage,
-    TransformedColumn,
+    TransformedColumnReference,
 )
 from .types import (
     TYPE_ALIASES,
@@ -257,7 +258,7 @@ class SpecLoader:
         if "fields" not in type_def:
             raise TypeDefinitionError("Struct type definition must include 'fields'")
 
-        return Struct(fields=[self._parse_column(f) for f in type_def["fields"]])
+        return Struct(fields=[self._parse_field(f) for f in type_def["fields"]])
 
     def _parse_map_type(self, type_def: dict[str, Any]) -> Map:
         if "key" not in type_def or "value" not in type_def:
@@ -335,7 +336,7 @@ class SpecLoader:
 
     def _parse_generation_clause(
         self, gen_clause_def: dict[str, Any] | None
-    ) -> TransformedColumn | None:
+    ) -> TransformedColumnReference | None:
         if not gen_clause_def:
             return None
 
@@ -351,33 +352,56 @@ class SpecLoader:
                 "'transform' cannot be empty in a generation clause."
             )
 
-        return TransformedColumn(
+        return TransformedColumnReference(
             column=gen_clause_def["column"],
             transform=gen_clause_def["transform"],
             transform_args=gen_clause_def.get("transform_args", []),
         )
 
-    def _parse_column(self, col_def: dict[str, Any]) -> Field:
-        for required_field in ("name", "type"):
-            if required_field not in col_def:
-                raise SchemaParsingError(
-                    f"'{required_field}' is a required field in a column definition."
-                )
-        type_name = col_def["type"]
-
-        if not isinstance(type_name, str):
-            raise TypeDefinitionError(
-                f"The 'type' of a field must be a string. Got {type_name!r}."
-            )
+    def _parse_field(self, field_def: dict[str, Any]) -> Field:
+        """Parse a field definition for use in complex types like structs."""
+        self._validate_field_definition(field_def, context="field")
 
         return Field(
+            name=field_def["name"],
+            type=self._parse_type(field_def["type"], field_def),
+            description=field_def.get("description"),
+            metadata=field_def.get("metadata", {}),
+        )
+
+    def _parse_column(self, col_def: dict[str, Any]) -> Column:
+        """Parse a column definition for use in table schemas."""
+        self._validate_field_definition(col_def, context="column")
+
+        return Column(
             name=col_def["name"],
-            type=self._parse_type(type_name, col_def),
+            type=self._parse_type(col_def["type"], col_def),
             description=col_def.get("description"),
-            constraints=self._parse_column_constraints(col_def.get("constraints")),
             metadata=col_def.get("metadata", {}),
+            constraints=self._parse_column_constraints(col_def.get("constraints")),
             generated_as=self._parse_generation_clause(col_def.get("generated_as")),
         )
+
+    def _validate_field_definition(
+        self, field_def: dict[str, Any], context: str = "field"
+    ) -> None:
+        """Validate common field definition requirements.
+
+        Args:
+            field_def: The field/column definition dictionary.
+            context: Either "field" or "column" for appropriate error messages.
+        """
+        for required_field in ("name", "type"):
+            if required_field not in field_def:
+                raise SchemaParsingError(
+                    f"'{required_field}' is a required field in a {context} definition."
+                )
+
+        type_name = field_def["type"]
+        if not isinstance(type_name, str):
+            raise TypeDefinitionError(
+                f"The 'type' of a {context} must be a string. Got {type_name!r}."
+            )
 
     # Table constraint parsers
     def _parse_primary_key_table_constraint(
@@ -449,7 +473,7 @@ class SpecLoader:
 
     def _parse_partitioned_by(
         self, partitioned_by_def: list[dict[str, Any]] | None
-    ) -> list[TransformedColumn]:
+    ) -> list[TransformedColumnReference]:
         if not partitioned_by_def:
             return []
 
@@ -460,7 +484,7 @@ class SpecLoader:
                     "Each item in 'partitioned_by' must have a 'column' key."
                 )
             transformed_columns.append(
-                TransformedColumn(
+                TransformedColumnReference(
                     column=pc["column"],
                     transform=pc.get("transform"),
                     transform_args=pc.get("transform_args", []),

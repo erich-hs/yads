@@ -53,7 +53,7 @@ from yads.constraints import (
 )
 from yads.converters.base import BaseConverter
 from yads.exceptions import ConversionError, UnsupportedFeatureError
-from yads.spec import Field, SchemaSpec, Storage, TransformedColumn
+from yads.spec import Column, Field, SchemaSpec, Storage, TransformedColumnReference
 from yads.types import (
     Array,
     Decimal,
@@ -611,7 +611,7 @@ class SQLGlotConverter(BaseConverter):
         return properties
 
     def _handle_partitioned_by_property(
-        self, value: list[TransformedColumn]
+        self, value: list[TransformedColumnReference]
     ) -> exp.PartitionedByProperty:
         schema_expressions = []
         for col in value:
@@ -723,14 +723,23 @@ class SQLGlotConverter(BaseConverter):
 
     # Field and expression collection
     def _convert_field(self, field: Field) -> exp.ColumnDef:
+        """Convert a Field (used in complex types like structs) to a ColumnDef."""
+        return exp.ColumnDef(
+            this=exp.Identifier(this=field.name),
+            kind=self._convert_type(field.type),
+            constraints=None,  # Fields in complex types don't have constraints
+        )
+
+    def _convert_column(self, column: Column) -> exp.ColumnDef:
+        """Convert a Column (used in table schemas) to a ColumnDef."""
         constraints = []
 
         # Handle generated columns
-        if field.generated_as and field.generated_as.transform:
+        if column.generated_as and column.generated_as.transform:
             expression = self._handle_transformation(
-                field.generated_as.column,
-                field.generated_as.transform,
-                field.generated_as.transform_args,
+                column.generated_as.column,
+                column.generated_as.transform,
+                column.generated_as.transform_args,
             )
             constraints.append(
                 exp.ColumnConstraint(
@@ -740,19 +749,19 @@ class SQLGlotConverter(BaseConverter):
                 )
             )
 
-        # Handle field constraints using single dispatch
-        for constraint in field.constraints:
+        # Handle column constraints using single dispatch
+        for constraint in column.constraints:
             constraints.append(self._convert_column_constraint(constraint))
 
         return exp.ColumnDef(
-            this=exp.Identifier(this=field.name),
-            kind=self._convert_type(field.type),
+            this=exp.Identifier(this=column.name),
+            kind=self._convert_type(column.type),
             constraints=constraints if constraints else None,
         )
 
     def _collect_expressions(self, spec: SchemaSpec) -> list[exp.Expression]:
         expressions: list[exp.Expression] = [
-            self._convert_field(col) for col in spec.columns
+            self._convert_column(col) for col in spec.columns
         ]
         for constraint in spec.table_constraints:
             expressions.append(self._convert_table_constraint(constraint))

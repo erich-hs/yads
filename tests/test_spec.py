@@ -4,34 +4,38 @@ from yads.constraints import NotNullConstraint, PrimaryKeyTableConstraint
 from yads.exceptions import SchemaValidationError
 
 
-class TestTransformedColumn:
+class TestTransformedColumnReference:
     def test_instantiation_and_str_with_transform(self):
-        tc = spec.TransformedColumn(column="a", transform="identity")
+        tc = spec.TransformedColumnReference(column="a", transform="identity")
         assert tc.column == "a"
         assert tc.transform == "identity"
         assert tc.transform_args == []
         assert str(tc) == "identity(a)"
 
     def test_instantiation_with_args_and_str(self):
-        tc = spec.TransformedColumn(column="a", transform="bucket", transform_args=[16])
+        tc = spec.TransformedColumnReference(
+            column="a", transform="bucket", transform_args=[16]
+        )
         assert tc.column == "a"
         assert tc.transform == "bucket"
         assert tc.transform_args == [16]
         assert str(tc) == "bucket(a, 16)"
 
     def test_simple_column(self):
-        tc = spec.TransformedColumn(column="dt")
+        tc = spec.TransformedColumnReference(column="dt")
         assert tc.column == "dt"
         assert tc.transform is None
         assert tc.transform_args == []
         assert str(tc) == "dt"
 
     def test_transformed_column(self):
-        tc = spec.TransformedColumn(column="ts", transform="hour")
+        tc = spec.TransformedColumnReference(column="ts", transform="hour")
         assert str(tc) == "hour(ts)"
 
     def test_transformed_column_with_args(self):
-        tc = spec.TransformedColumn(column="id", transform="bucket", transform_args=[4])
+        tc = spec.TransformedColumnReference(
+            column="id", transform="bucket", transform_args=[4]
+        )
         assert str(tc) == "bucket(id, 4)"
 
 
@@ -41,16 +45,53 @@ class TestField:
         assert field.name == "username"
         assert field.type == types.String()
         assert field.description is None
-        assert field.constraints == []
         assert field.metadata == {}
-        assert field.generated_as is None
+        assert not field.has_metadata
         assert str(field) == "username: string"
 
-    def test_full_field(self):
-        constraint = NotNullConstraint()
-        gen_clause = spec.TransformedColumn(column="other_col", transform="identity")
-
+    def test_field_with_metadata(self):
         field = spec.Field(
+            name="username",
+            type=types.String(length=50),
+            description="User's login name",
+            metadata={"source": "ldap"},
+        )
+        assert field.name == "username"
+        assert field.type == types.String(length=50)
+        assert field.description == "User's login name"
+        assert field.metadata == {"source": "ldap"}
+        assert field.has_metadata
+        expected_str = (
+            "username: string(50)(\n"
+            '  description="User\'s login name",\n'
+            "  metadata={source='ldap'}\n"
+            ")"
+        )
+        assert str(field) == expected_str
+
+
+class TestColumn:
+    def test_simple_column(self):
+        column = spec.Column(name="username", type=types.String())
+        assert column.name == "username"
+        assert column.type == types.String()
+        assert column.description is None
+        assert column.constraints == []
+        assert column.metadata == {}
+        assert column.generated_as is None
+        assert not column.is_generated
+        assert column.is_nullable
+        assert not column.has_constraints
+        assert column.constraint_types == set()
+        assert str(column) == "username: string"
+
+    def test_full_column(self):
+        constraint = NotNullConstraint()
+        gen_clause = spec.TransformedColumnReference(
+            column="other_col", transform="identity"
+        )
+
+        column = spec.Column(
             name="username",
             type=types.String(length=50),
             description="User's login name",
@@ -58,6 +99,17 @@ class TestField:
             metadata={"source": "ldap"},
             generated_as=gen_clause,
         )
+        assert column.name == "username"
+        assert column.type == types.String(length=50)
+        assert column.description == "User's login name"
+        assert column.constraints == [constraint]
+        assert column.metadata == {"source": "ldap"}
+        assert column.generated_as == gen_clause
+        assert column.is_generated
+        assert not column.is_nullable  # Has NotNullConstraint
+        assert column.has_constraints
+        assert column.constraint_types == {NotNullConstraint}
+
         expected_str = (
             "username: string(50)(\n"
             '  description="User\'s login name",\n'
@@ -66,7 +118,7 @@ class TestField:
             "  generated_as=identity(other_col)\n"
             ")"
         )
-        assert str(field) == expected_str
+        assert str(column) == expected_str
 
 
 class TestStorage:
@@ -98,7 +150,7 @@ class TestSchemaSpec:
         return spec.SchemaSpec(
             name="my_table",
             version="1.0.0",
-            columns=[spec.Field(name="id", type=types.Integer())],
+            columns=[spec.Column(name="id", type=types.Integer())],
         )
 
     def test_minimal_spec_instantiation(self, minimal_spec):
@@ -113,19 +165,21 @@ class TestSchemaSpec:
         assert minimal_spec.metadata == {}
 
     def test_spec_properties(self):
-        gen_clause = spec.TransformedColumn(column="raw_id", transform="identity")
+        gen_clause = spec.TransformedColumnReference(
+            column="raw_id", transform="identity"
+        )
         spec_instance = spec.SchemaSpec(
             name="users",
             version="1.0",
             columns=[
-                spec.Field(name="id", type=types.Integer()),
-                spec.Field(name="username", type=types.String()),
-                spec.Field(name="raw_id", type=types.Integer()),
-                spec.Field(
+                spec.Column(name="id", type=types.Integer()),
+                spec.Column(name="username", type=types.String()),
+                spec.Column(name="raw_id", type=types.Integer()),
+                spec.Column(
                     name="gen_id", type=types.Integer(), generated_as=gen_clause
                 ),
             ],
-            partitioned_by=[spec.TransformedColumn(column="username")],
+            partitioned_by=[spec.TransformedColumnReference(column="username")],
         )
         assert spec_instance.column_names == {"id", "username", "gen_id", "raw_id"}
         assert spec_instance.partition_column_names == {"username"}
@@ -145,15 +199,15 @@ class TestSchemaSpec:
             description="A test table.",
             external=True,
             columns=[
-                spec.Field(
+                spec.Column(
                     name="id",
                     type=types.Integer(),
                     constraints=[NotNullConstraint()],
                 ),
-                spec.Field(name="data", type=types.String()),
+                spec.Column(name="data", type=types.String()),
             ],
             storage=spec.Storage(format="parquet", tbl_properties={"k": "v"}),
-            partitioned_by=[spec.TransformedColumn(column="id")],
+            partitioned_by=[spec.TransformedColumnReference(column="id")],
             table_constraints=[pk_constraint],
             metadata={"owner": "tester"},
         )
@@ -194,12 +248,12 @@ class TestSchemaSpecValidation:
         return {
             "name": "test_table",
             "version": "1.0",
-            "columns": [spec.Field(name="id", type=types.Integer())],
+            "columns": [spec.Column(name="id", type=types.Integer())],
         }
 
     def test_duplicate_column_name(self, base_spec_kwargs):
         """Test that duplicate column names raise a ValueError."""
-        base_spec_kwargs["columns"].append(spec.Field(name="id", type=types.String()))
+        base_spec_kwargs["columns"].append(spec.Column(name="id", type=types.String()))
         with pytest.raises(
             SchemaValidationError, match="Duplicate column name found: 'id'"
         ):
@@ -208,7 +262,7 @@ class TestSchemaSpecValidation:
     def test_partition_column_must_be_in_columns(self, base_spec_kwargs):
         """Test that a partition column must also be defined in 'columns'."""
         base_spec_kwargs["partitioned_by"] = [
-            spec.TransformedColumn(column="non_existent")
+            spec.TransformedColumnReference(column="non_existent")
         ]
         with pytest.raises(
             SchemaValidationError,
@@ -218,9 +272,11 @@ class TestSchemaSpecValidation:
 
     def test_generated_column_source_missing(self, base_spec_kwargs):
         """Test that the source for a generated column must exist."""
-        gen_clause = spec.TransformedColumn(column="non_existent", transform="identity")
+        gen_clause = spec.TransformedColumnReference(
+            column="non_existent", transform="identity"
+        )
         base_spec_kwargs["columns"].append(
-            spec.Field(name="gen_col", type=types.Integer(), generated_as=gen_clause)
+            spec.Column(name="gen_col", type=types.Integer(), generated_as=gen_clause)
         )
         with pytest.raises(
             SchemaValidationError,
