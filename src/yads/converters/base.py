@@ -9,10 +9,13 @@ different converters can be composed or chained together to achieve complex
 transformations while maintaining a consistent interface.
 """
 
-from abc import ABC, abstractmethod
-from typing import Any
+from __future__ import annotations
 
-from yads.spec import SchemaSpec
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from yads.spec import SchemaSpec
 
 
 class BaseConverter(ABC):

@@ -13,7 +13,7 @@ yads specification to a constrained SQL DDL string:
         module that returns something other than a SQL DDL string.
     - SQLConverter: Base class for all SQL converters, it's responsible for orchestrating
         the conversion and validation process. It's also able to generate loosely validated
-        SQL DDL strings in any dialect supported by the available version of sqlglot.
+        SQL DDL strings in any dialect implemented by intermediate AST converter.
     - SparkSQLConverter: Specialized converter for Apache Spark SQL with strict validation.
 
 Example:
@@ -37,7 +37,7 @@ Example:
 from __future__ import annotations
 
 from functools import singledispatchmethod
-from typing import Any, List, Literal
+from typing import Any, Literal
 
 from sqlglot import exp, ErrorLevel
 from sqlglot.expressions import convert
@@ -72,19 +72,19 @@ class SQLConverter:
     """Base class for all SQL converters.
 
     SQLConverter orchestrates the conversion pipeline by using an AST converter
-    to generate a sqlglot AST, applying optional validation and adjustment rules,
-    and finally serializing to a SQL string.
+    to generate an intermediate Abstract Syntax Tree (AST), applying optional
+    validation and adjustment rules, and finally serializing to a SQL string.
 
-    The converter supports any SQL dialect supported by the available version of
-    sqlglot and allows for custom validation rules to handle dialect-specific
-    limitations. The validation can operate in different modes to either raise
-    errors, automatically fix issues, or warn about incompatibilities.
+    The converter supports any SQL dialect implemented by the AST converter and
+    allows for custom validation rules to handle dialect-specific limitations.
+    The validation can operate in different modes to either raise errors,
+    automatically fix issues, or warn about incompatibilities.
 
     Attributes:
         _ast_converter: The intermediate AST converter. Defaults to SQLGlotConverter.
-        _dialect: Target SQL dialect name for sqlglot serialization.
+        _dialect: Target SQL dialect name for SQL DDL string serialization.
         _ast_validator: Optional validator for dialect-specific AST processing.
-        _convert_options: Default options for SQL string generation.
+        _convert_options: Default options for SQL DDL string serialization.
 
     Example:
         >>> from yads.converters.sql import SQLConverter
@@ -106,18 +106,20 @@ class SQLConverter:
         ast_validator: AstValidator | None = None,
         **convert_options: Any,
     ):
-        """Initialize the SQL converter with an optional AST converter and validator
-        and default options for sqlglot's SQL generator.
+        """Initialize the SQL converter with an AST converter and validator and default
+        options for SQL DDL string serialization.
 
         Args:
-            dialect: Target sqlglot SQL dialect name. See sqlglot's documentation for
-                     supported dialects: https://sqlglot.com/sqlglot/dialects.html
-            ast_converter: AST converter for transforming SchemaSpec to sqlglot AST.
+            dialect: Target SQL DDL dialect name. For a SQLGlotConverter, see sqlglot's
+                     documentation for supported dialects:
+                     https://sqlglot.com/sqlglot/dialects.html
+            ast_converter: AST converter for transforming SchemaSpec to intermediate AST.
                            Defaults to SQLGlotConverter.
             ast_validator: Validator for applying dialect-specific rules and adjustments.
                            If None, no validation or adjustment will be performed.
-            **convert_options: Default options passed to sqlglot's SQL generator.
-                               See sqlglot's documentation for supported options:
+            **convert_options: Default options passed to the AST converter for SQL DDL
+                               string serialization. For a SQLGlotConverter, see sqlglot's
+                               documentation for supported options:
                                https://sqlglot.com/sqlglot/generator.html#Generator
 
         Example:
@@ -149,8 +151,8 @@ class SQLConverter:
         """Convert a yads SchemaSpec into a SQL DDL string.
 
         This method orchestrates the complete conversion pipeline from SchemaSpec
-        to SQL DDL. It first converts the spec to a sqlglot AST, applies any
-        configured validation rules, and finally serializes to a SQL string.
+        to SQL DDL. It first converts the spec to an intermediate AST, applies any
+        configured validation rules, and finally serializes to a SQL DDL string.
 
         Args:
             spec: The yads specification as a SchemaSpec object.
@@ -164,8 +166,9 @@ class SQLConverter:
                 - "ignore": Silently ignore unsupported features without warnings.
                             The generated SQL DDL might still contain modifications
                             done by the AST converter.
-            **kwargs: Additional options for SQL generation, overriding defaults.
-                      See sqlglot's documentation for supported options:
+            **kwargs: Additional options for SQL DDL string serialization, overriding
+                      defaults. For a SQLGlotConverter, see sqlglot's documentation
+                      for supported options:
                       https://sqlglot.com/sqlglot/generator.html#Generator
 
         Returns:
@@ -234,8 +237,9 @@ class SparkSQLConverter(SQLConverter):
         rules and the "spark" dialect.
 
         Args:
-            **convert_options: Options for SQL generation passed to sqlglot.
-                              See sqlglot's documentation for supported options:
+            **convert_options: Options for SQL DDL string serialization passed to the
+                              AST converter. For a SQLGlotConverter, see sqlglot's
+                              documentation for supported options:
                               https://sqlglot.com/sqlglot/generator.html#Generator
 
         Example:
@@ -245,7 +249,7 @@ class SparkSQLConverter(SQLConverter):
             >>> # Converter with formatted output
             >>> converter = SparkSQLConverter(pretty=True)
         """
-        rules: List[Rule] = [NoFixedLengthStringRule()]
+        rules: list[Rule] = [NoFixedLengthStringRule()]
         validator = AstValidator(rules=rules)
         super().__init__(dialect="spark", ast_validator=validator, **convert_options)
 

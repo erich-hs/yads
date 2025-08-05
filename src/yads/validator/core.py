@@ -33,11 +33,14 @@ from __future__ import annotations
 
 import warnings
 from abc import ABC, abstractmethod
-from typing import List, Literal, cast
+from typing import TYPE_CHECKING, Literal, cast
 
-from sqlglot import exp
+from sqlglot.expressions import Create
 
 from ..exceptions import ValidationRuleError
+
+if TYPE_CHECKING:
+    from sqlglot import exp
 
 
 class ValidationWarning(UserWarning):
@@ -166,8 +169,8 @@ class AstValidator:
 
     AstValidator orchestrates the application of validation rules across an
     entire AST, providing different modes of operation for various use cases.
-    It supports both strict validation (fail-fast) and automatic adjustment
-    (best-effort compatibility) approaches.
+    It supports both strict validation (fail-fast on `mode="raise"`) and
+    automatic adjustment (best-effort compatibility on `mode="warn"`) approaches.
 
     The validator traverses the AST recursively, applying each rule to every
     node. Depending on the mode, it will either collect errors, apply fixes,
@@ -189,15 +192,15 @@ class AstValidator:
         >>>
         >>> # Apply validation in different modes
         >>> try:
-        ...     strict_ast = validator.validate(ast, mode="raise")
+        ...     ast = validator.validate(ast, mode="raise")
         ... except ValidationRuleError as e:
         ...     print(f"Validation failed: {e}")
         >>>
         >>> # Auto-fix with warnings
-        >>> fixed_ast = validator.validate(ast, mode="warn")
+        >>> ast = validator.validate(ast, mode="warn")
         >>>
         >>> # Silently ignore incompatible features
-        >>> checked_ast = validator.validate(ast, mode="ignore")
+        >>> ast = validator.validate(ast, mode="ignore")
     """
 
     def __init__(self, rules: list[Rule]):
@@ -249,7 +252,7 @@ class AstValidator:
             >>> # Ignore mode - proceed silently without changes
             >>> ast = validator.validate(ast, mode="ignore")
         """
-        errors: List[str] = []
+        errors: list[str] = []
 
         def transformer(node: exp.Expression) -> exp.Expression:
             for rule in self.rules:
@@ -283,4 +286,4 @@ class AstValidator:
                 f"Validation for the target dialect failed with the following errors:\n{error_summary}"
             )
 
-        return cast(exp.Create, processed_ast)
+        return cast(Create, processed_ast)

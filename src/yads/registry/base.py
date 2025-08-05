@@ -5,9 +5,13 @@ are responsible for persisting and retrieving schema specifications from various
 storage backends.
 """
 
-from abc import ABC, abstractmethod
+from __future__ import annotations
 
-from yads.spec import SchemaSpec
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from yads.spec import SchemaSpec
 
 
 class BaseRegistry(ABC):
