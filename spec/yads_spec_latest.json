@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "YADS Spec",
-  "description": "A schema for defining data structures in YADS.",
+  "title": "yads spec",
+  "description": "A schema for yads spec definitions.",
   "type": "object",
   "properties": {
     "name": {
@@ -14,7 +14,7 @@
     },
     "description": {
       "type": "string",
-      "description": "An optional description of the table."
+      "description": "An optional description of the table defined by the spec."
     },
     "external": {
       "type": "boolean",
@@ -23,7 +23,7 @@
     },
     "metadata": {
       "type": "object",
-      "description": "Optional metadata about the table."
+      "description": "Optional metadata about the table as a simple key-value store."
     },
     "storage": {
       "type": "object",
@@ -40,7 +40,8 @@
           "type": "object",
           "description": "Key-value pairs for the TBLPROPERTIES clause."
         }
-      }
+      },
+      "additionalProperties": false
     },
     "partitioned_by": {
       "type": "array",
@@ -64,111 +65,230 @@
     }
   },
   "required": ["name", "version", "columns"],
+  "additionalProperties": false,
   "definitions": {
-    "column": {
+    "type": {
+      "type": "string",
+      "description": "The type of a column or field.",
+      "enum": [
+        "int8",
+        "INT8",
+        "tinyint",
+        "TINYINT",
+        "byte",
+        "BYTE",
+        "int16",
+        "INT16",
+        "smallint",
+        "SMALLINT",
+        "short",
+        "SHORT",
+        "int32",
+        "INT32",
+        "int",
+        "INT",
+        "integer",
+        "INTEGER",
+        "int64",
+        "INT64",
+        "bigint",
+        "BIGINT",
+        "long",
+        "LONG",
+        "float",
+        "FLOAT",
+        "float32",
+        "FLOAT32",
+        "float64",
+        "FLOAT64",
+        "double",
+        "DOUBLE",
+        "decimal",
+        "DECIMAL",
+        "numeric",
+        "NUMERIC",
+        "string",
+        "STRING",
+        "text",
+        "TEXT",
+        "varchar",
+        "VARCHAR",
+        "char",
+        "CHAR",
+        "blob",
+        "BLOB",
+        "binary",
+        "BINARY",
+        "bytes",
+        "BYTES",
+        "bool",
+        "BOOL",
+        "boolean",
+        "BOOLEAN",
+        "date",
+        "DATE",
+        "datetime",
+        "DATETIME",
+        "timestamp",
+        "TIMESTAMP",
+        "timestamp_tz",
+        "TIMESTAMP_TZ",
+        "interval",
+        "INTERVAL",
+        "array",
+        "ARRAY",
+        "list",
+        "LIST",
+        "struct",
+        "STRUCT",
+        "record",
+        "RECORD",
+        "map",
+        "MAP",
+        "dictionary",
+        "DICTIONARY",
+        "json",
+        "JSON",
+        "uuid",
+        "UUID"
+      ]
+    },
+    "type_spec": {
       "type": "object",
+      "description": "A type specification that can include type, parameters, and nested type definitions.",
       "properties": {
-        "name": {
-          "type": "string"
-        },
         "type": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        },
-        "constraints": {
-          "$ref": "#/definitions/constraints"
+          "$ref": "#/definitions/type"
         },
         "params": {
           "type": "object",
           "description": "Parameters for parameterized types, such as precision and scale for decimals.",
           "properties": {
-            "length": { "type": "integer" },
-            "precision": { "type": "integer" },
-            "scale": { "type": "integer" },
-            "bits": { "type": "integer" },
+            "length": {
+              "type": "integer",
+              "description": "The length of a string column."
+            },
+            "precision": {
+              "type": "integer",
+              "description": "The precision of a decimal column."
+            },
+            "scale": {
+              "type": "integer",
+              "description": "The scale of a decimal column."
+            },
             "interval_start": {
               "type": "string",
+              "description": "The start of an interval for an interval column.",
               "enum": [
-                "YEAR",
-                "MONTH",
-                "DAY",
-                "HOUR",
-                "MINUTE",
-                "SECOND",
                 "year",
+                "YEAR",
                 "month",
+                "MONTH",
                 "day",
+                "DAY",
                 "hour",
+                "HOUR",
                 "minute",
-                "second"
+                "MINUTE",
+                "second",
+                "SECOND"
               ]
             },
             "interval_end": {
               "type": "string",
+              "description": "The end of an interval for an interval column.",
               "enum": [
-                "YEAR",
-                "MONTH",
-                "DAY",
-                "HOUR",
-                "MINUTE",
-                "SECOND",
                 "year",
+                "YEAR",
                 "month",
+                "MONTH",
                 "day",
+                "DAY",
                 "hour",
+                "HOUR",
                 "minute",
-                "second"
+                "MINUTE",
+                "second",
+                "SECOND"
               ]
-            }
+            },
+            "additionalProperties": false
           }
         },
         "element": {
-          "$ref": "#/definitions/column"
+          "description": "The type of the elements in an array.",
+          "$ref": "#/definitions/type_spec"
         },
         "fields": {
           "type": "array",
+          "description": "The fields of a struct.",
           "items": {
             "$ref": "#/definitions/named_column"
           }
         },
         "key": {
-          "$ref": "#/definitions/column"
+          "description": "The type of a key in a map.",
+          "$ref": "#/definitions/type_spec"
         },
         "value": {
-          "$ref": "#/definitions/column"
-        },
-        "metadata": {
-            "type": "object"
-        },
-        "generated_as": {
-            "$ref": "#/definitions/transformed_column"
+          "description": "The type of a value in a map.",
+          "$ref": "#/definitions/type_spec"
         }
       },
       "required": ["type"]
     },
-    "transformed_column": {
-        "type": "object",
-        "description": "A column that may have a transformation function applied to it. Used for both partitioning/clustering and generated column specifications.",
-        "properties": {
-            "column": { "type": "string" },
-            "transform": { "type": "string" },
-            "transform_args": {
-                "type": "array",
-                "description": "A list of arguments for the transformation function."
+    "column": {
+      "allOf": [
+        { "$ref": "#/definitions/type_spec" },
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Optional name of the column or field."
+            },
+            "description": {
+              "type": "string",
+              "description": "Optional description of the column or field."
+            },
+            "constraints": {
+              "$ref": "#/definitions/constraints"
+            },
+            "generated_as": {
+              "$ref": "#/definitions/transformed_column"
+            },
+            "metadata": {
+              "type": "object"
             }
-        },
-        "required": ["column"]
+          }
+        }
+      ]
+    },
+    "transformed_column": {
+      "type": "object",
+      "description": "A column that may have a transformation function applied to it. Used for both partitioning/clustering and generated column specifications.",
+      "properties": {
+        "column": { "type": "string" },
+        "transform": { "type": "string" },
+        "transform_args": {
+            "type": "array",
+            "description": "A list of unnamed arguments for the transformation function."
+        }
+      },
+      "required": ["column"],
+      "additionalProperties": false
     },
     "named_column": {
-        "allOf": [
-            { "$ref": "#/definitions/column" },
-            { "required": ["name"] }
-        ]
+      "type": "object",
+      "description": "A named column definition.",
+      "allOf": [
+        { "$ref": "#/definitions/column" },
+        { "required": ["name"] }
+      ]
     },
     "table_constraint": {
       "type": "object",
+      "description": "A table-level constraint, such as a primary or foreign key.",
       "properties": {
         "type": {
           "type": "string",
@@ -196,55 +316,79 @@
               }
             }
           },
-          "required": ["table"]
+          "required": ["table"],
+          "additionalProperties": false
         }
       },
-      "required": ["type", "columns", "name"]
+      "required": ["type", "columns", "name"],
+      "additionalProperties": false
     },
     "constraints": {
       "type": "object",
       "properties": {
         "not_null": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Whether the column is not nullable."
         },
         "primary_key": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Whether the column is a primary key."
         },
         "identity": {
-            "type": "object",
-            "description": "Defines an identity column, often used for auto-incrementing keys.",
-            "properties": {
-                "always": { "type": "boolean", "default": true },
-                "start": { "type": "integer" },
-                "increment": { "type": "integer" }
+          "type": "object",
+          "description": "Defines an identity column, often used for auto-incrementing keys.",
+          "properties": {
+            "always": {
+              "type": "boolean",
+              "description": "Whether the identity column is always generated.",
+              "default": true
+            },
+            "start": {
+              "type": "integer",
+              "description": "The starting value for the identity column."
+            },
+            "increment": {
+              "type": "integer",
+              "description": "The increment value for the identity column."
             }
+          }
         },
         "foreign_key": {
           "type": "object",
+          "description": "Defines a foreign key constraint.",
           "properties": {
             "name": {
-              "type": "string"
+              "type": "string",
+              "description": "The name of the foreign key constraint."
             },
             "references": {
               "type": "object",
+              "description": "The referenced table and columns for the foreign key constraint.",
               "properties": {
                 "table": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "The name of the referenced table."
                 },
                 "columns": {
                   "type": "array",
+                  "description": "The columns in the referenced table that are referenced by the foreign key constraint.",
                   "items": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "The name of the referenced column."
                   }
                 }
               },
               "required": ["table"]
             }
           },
-          "required": ["references"]
+          "required": ["references"],
+          "additionalProperties": false
         },
-        "default": {}
-      }
+        "default": {
+          "description": "The default value for the column."
+        }
+      },
+      "additionalProperties": false
     }
   }
 } 
