@@ -7,6 +7,7 @@ and includes suggestions for resolution.
 
 Example:
     >>> try:
+    ...     from yads.loaders import from_dict
     ...     spec = from_dict(invalid_data)
     ... except UnknownTypeError as e:
     ...     print(f"Error: {e}")

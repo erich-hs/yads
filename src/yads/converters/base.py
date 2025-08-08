@@ -58,8 +58,5 @@ class BaseConverter(ABC):
         Returns:
             The converted schema in the target format. The specific type depends
             on the converter (e.g., str for SQL, StructType for PySpark, etc.).
-
-        Raises:
-            NotImplementedError: This abstract method must be implemented by subclasses.
         """
-        raise NotImplementedError
+        ...

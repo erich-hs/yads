@@ -11,7 +11,7 @@ from yads.exceptions import (
     UnknownConstraintError,
     UnknownTypeError,
 )
-from yads.loader import from_dict, from_string, from_yaml
+from yads.loaders import from_dict, from_string, from_yaml
 from yads.spec import SchemaSpec
 from yads.constraints import DefaultConstraint, ForeignKeyTableConstraint
 from yads.types import (

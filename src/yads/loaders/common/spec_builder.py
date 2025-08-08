@@ -1,41 +1,8 @@
-"""Schema specification loading and parsing.
+"""Build a `SchemaSpec` from a normalized dictionary.
 
-This module provides the core functionality for loading yads schema specifications
-from YAML files, strings, or dictionaries. It handles type parsing, constraint
-validation, and comprehensive schema validation to ensure the resulting SchemaSpec
-objects are consistent and complete.
-
-The loader supports the full yads type system including primitives, complex types,
-intervals, and constraints. It provides detailed error messages to help users
-debug specification issues.
-
-Example:
-    >>> import yads
-    >>>
-    >>> # Load from YAML file
-    >>> spec = yads.from_yaml("schema.yaml")
-    >>>
-    >>> # Load from YAML string
-    >>> yaml_content = '''
-    ... name: my_table
-    ... version: "1.0.0"
-    ... columns:
-    ...   - name: id
-    ...     type: integer
-    ...     constraints:
-    ...       not_null: true
-    ... '''
-    >>> spec = yads.from_string(yaml_content)
-    >>>
-    >>> # Load from dictionary
-    >>> data = {
-    ...     "name": "my_table",
-    ...     "version": "1.0.0",
-    ...     "columns": [
-    ...         {"name": "id", "type": "integer", "constraints": {"not_null": True}}
-    ...     ]
-    ... }
-    >>> spec = yads.from_dict(data)
+This module centralizes the logic to turn a parsed specification dictionary
+into a validated `SchemaSpec`. It contains parsing for complex types and
+constraint handling that used to live inside the monolithic loader.
 """
 
 from __future__ import annotations
@@ -43,9 +10,7 @@ from __future__ import annotations
 import warnings
 from typing import Any, Protocol
 
-import yaml
-
-from .constraints import (
+from yads.constraints import (
     CONSTRAINT_EQUIVALENTS,
     ColumnConstraint,
     DefaultConstraint,
@@ -58,21 +23,21 @@ from .constraints import (
     ForeignKeyReference,
     TableConstraint,
 )
-from .exceptions import (
+from yads.exceptions import (
     InvalidConstraintError,
     SchemaParsingError,
     TypeDefinitionError,
     UnknownConstraintError,
     UnknownTypeError,
 )
-from .spec import (
+from yads.spec import (
     Column,
     Field,
     SchemaSpec,
     Storage,
     TransformedColumnReference,
 )
-from .types import (
+from yads.types import (
     TYPE_ALIASES,
     Array,
     Interval,
@@ -91,34 +56,12 @@ class TableConstraintParser(Protocol):
     def __call__(self, const_def: dict[str, Any]) -> TableConstraint: ...
 
 
-class SpecLoader:
-    """Loads and validates YAML/JSON data into a yads SchemaSpec object.
+class SpecBuilder:
+    """Builds and validates a `SchemaSpec` from a dictionary.
 
-    The SpecLoader is responsible for parsing schema definitions from dictionaries
-    (typically loaded from YAML or JSON files) and converting them into strongly-typed
-    yads objects. It handles type parsing, constraint validation, and comprehensive
-    schema validation to ensure the resulting SchemaSpec is consistent and complete.
-
-    Key responsibilities:
-    - Parse all yads types (primitives, intervals, arrays, structs, maps)
-    - Convert constraint definitions to constraint objects
-    - Validate table and column constraint consistency
-    - Ensure referential integrity (partitions, generation clauses, constraints)
-    - Provide helpful error messages for malformed specifications
-
-    Example:
-        >>> data = {
-        ...     "name": "my_table",
-        ...     "version": "1.0.0",
-        ...     "columns": [
-        ...         {"name": "id", "type": "integer", "constraints": {"not_null": True}},
-        ...         {"name": "name", "type": "string"}
-        ...     ]
-        ... }
-        >>> loader = SpecLoader(data)
-        >>> spec = loader.load()
-        >>> print(spec.name)
-        'my_table'
+    This is the single entry point to transform a normalized dictionary
+    into a `SchemaSpec`. It encapsulates type parsing, constraint parsing,
+    storage and partition parsing, and schema-level validations.
     """
 
     _TYPE_PARSERS: dict[type, str] = {
@@ -143,47 +86,14 @@ class SpecLoader:
 
     def __init__(self, data: dict[str, Any]):
         self.data = data
-        self.spec: SchemaSpec | None = None
+        self._spec: SchemaSpec | None = None
 
-    def load(self) -> SchemaSpec:
-        """Loads and validates the schema specification.
-
-        Performs comprehensive parsing and validation of the provided data dictionary,
-        converting it into a validated SchemaSpec object. This includes:
-
-        1. Parsing all field types and constraints
-        2. Validating required fields are present
-        3. Converting storage and partitioning specifications
-        4. Checking referential integrity across the schema
-        5. Ensuring constraint consistency between table and column levels
-
-        Returns:
-            SchemaSpec: A fully validated and parsed schema specification.
-
-        Raises:
-            SchemaParsingError: If any required fields are missing.
-            TypeDefinitionError: If a type definition is invalid.
-            UnknownTypeError: If an unknown type is used.
-            InvalidConstraintError: If a constraint definition is invalid.
-            UnknownConstraintError: If an unknown constraint is used.
-
-        Example:
-            >>> loader = SpecLoader({
-            ...     "name": "users",
-            ...     "version": "2.0.0",
-            ...     "columns": [
-            ...         {"name": "user_id", "type": "uuid", "constraints": {"primary_key": True}},
-            ...         {"name": "email", "type": "string", "constraints": {"not_null": True}}
-            ...     ]
-            ... })
-            >>> spec = loader.load()
-            >>> len(spec.columns)
-            2
-        """
+    def build(self) -> SchemaSpec:
+        """Build and validate the `SchemaSpec` from provided data."""
         for required_field in ("name", "version", "columns"):
             if required_field not in self.data:
                 raise SchemaParsingError(f"'{required_field}' is a required field.")
-        self.spec = SchemaSpec(
+        self._spec = SchemaSpec(
             name=self.data["name"],
             version=self.data["version"],
             description=self.data.get("description"),
@@ -197,8 +107,9 @@ class SpecLoader:
             columns=[self._parse_column(c) for c in self.data["columns"]],
         )
         self._validate_spec()
-        return self.spec
+        return self._spec
 
+    # Type parsing
     def _get_processed_type_params(
         self, type_name: str, type_def: dict[str, Any]
     ) -> dict[str, Any]:
@@ -221,9 +132,8 @@ class SpecLoader:
 
         # For simple types, get processed params and instantiate
         final_params = self._get_processed_type_params(type_name, type_def)
-        return base_type_class(**final_params)
+        return base_type_class(**final_params)  # type: ignore[misc]
 
-    # Type parsers for complex types
     def _parse_interval_type(self, type_def: dict[str, Any]) -> Interval:
         type_name = type_def.get("type", "")
         final_params = self._get_processed_type_params(type_name, type_def)
@@ -273,7 +183,43 @@ class SpecLoader:
             value=self._parse_type(value_def["type"], value_def),
         )
 
-    # Column constraint parsers
+    # Field/Column parsing
+    def _parse_field(self, field_def: dict[str, Any]) -> Field:
+        self._validate_field_definition(field_def, context="field")
+        return Field(
+            name=field_def["name"],
+            type=self._parse_type(field_def["type"], field_def),
+            description=field_def.get("description"),
+            metadata=field_def.get("metadata", {}),
+        )
+
+    def _parse_column(self, col_def: dict[str, Any]) -> Column:
+        self._validate_field_definition(col_def, context="column")
+        return Column(
+            name=col_def["name"],
+            type=self._parse_type(col_def["type"], col_def),
+            description=col_def.get("description"),
+            metadata=col_def.get("metadata", {}),
+            constraints=self._parse_column_constraints(col_def.get("constraints")),
+            generated_as=self._parse_generation_clause(col_def.get("generated_as")),
+        )
+
+    def _validate_field_definition(
+        self, field_def: dict[str, Any], context: str = "field"
+    ) -> None:
+        for required_field in ("name", "type"):
+            if required_field not in field_def:
+                raise SchemaParsingError(
+                    f"'{required_field}' is a required field in a {context} definition."
+                )
+
+        type_name = field_def["type"]
+        if not isinstance(type_name, str):
+            raise TypeDefinitionError(
+                f"The 'type' of a {context} must be a string. Got {type_name!r}."
+            )
+
+    # Column constraint parsing
     def _parse_not_null_constraint(self, value: Any) -> NotNullConstraint:
         if not isinstance(value, bool):
             raise InvalidConstraintError(
@@ -334,6 +280,7 @@ class SpecLoader:
 
         return constraints
 
+    # Generation clauses & partitions
     def _parse_generation_clause(
         self, gen_clause_def: dict[str, Any] | None
     ) -> TransformedColumnReference | None:
@@ -358,52 +305,28 @@ class SpecLoader:
             transform_args=gen_clause_def.get("transform_args", []),
         )
 
-    def _parse_field(self, field_def: dict[str, Any]) -> Field:
-        """Parse a field definition for use in complex types like structs."""
-        self._validate_field_definition(field_def, context="field")
+    def _parse_partitioned_by(
+        self, partitioned_by_def: list[dict[str, Any]] | None
+    ) -> list[TransformedColumnReference]:
+        if not partitioned_by_def:
+            return []
 
-        return Field(
-            name=field_def["name"],
-            type=self._parse_type(field_def["type"], field_def),
-            description=field_def.get("description"),
-            metadata=field_def.get("metadata", {}),
-        )
-
-    def _parse_column(self, col_def: dict[str, Any]) -> Column:
-        """Parse a column definition for use in table schemas."""
-        self._validate_field_definition(col_def, context="column")
-
-        return Column(
-            name=col_def["name"],
-            type=self._parse_type(col_def["type"], col_def),
-            description=col_def.get("description"),
-            metadata=col_def.get("metadata", {}),
-            constraints=self._parse_column_constraints(col_def.get("constraints")),
-            generated_as=self._parse_generation_clause(col_def.get("generated_as")),
-        )
-
-    def _validate_field_definition(
-        self, field_def: dict[str, Any], context: str = "field"
-    ) -> None:
-        """Validate common field definition requirements.
-
-        Args:
-            field_def: The field/column definition dictionary.
-            context: Either "field" or "column" for appropriate error messages.
-        """
-        for required_field in ("name", "type"):
-            if required_field not in field_def:
+        transformed_columns = []
+        for pc in partitioned_by_def:
+            if "column" not in pc:
                 raise SchemaParsingError(
-                    f"'{required_field}' is a required field in a {context} definition."
+                    "Each item in 'partitioned_by' must have a 'column' key."
                 )
-
-        type_name = field_def["type"]
-        if not isinstance(type_name, str):
-            raise TypeDefinitionError(
-                f"The 'type' of a {context} must be a string. Got {type_name!r}."
+            transformed_columns.append(
+                TransformedColumnReference(
+                    column=pc["column"],
+                    transform=pc.get("transform"),
+                    transform_args=pc.get("transform_args", []),
+                )
             )
+        return transformed_columns
 
-    # Table constraint parsers
+    # Table constraint parsing
     def _parse_primary_key_table_constraint(
         self, const_def: dict[str, Any]
     ) -> PrimaryKeyTableConstraint:
@@ -465,43 +388,22 @@ class SpecLoader:
                 )
         return constraints
 
+    # Storage
     def _parse_storage(self, storage_def: dict[str, Any] | None) -> Storage | None:
         if not storage_def:
             return None
-
         return Storage(**storage_def)
 
-    def _parse_partitioned_by(
-        self, partitioned_by_def: list[dict[str, Any]] | None
-    ) -> list[TransformedColumnReference]:
-        if not partitioned_by_def:
-            return []
-
-        transformed_columns = []
-        for pc in partitioned_by_def:
-            if "column" not in pc:
-                raise SchemaParsingError(
-                    "Each item in 'partitioned_by' must have a 'column' key."
-                )
-            transformed_columns.append(
-                TransformedColumnReference(
-                    column=pc["column"],
-                    transform=pc.get("transform"),
-                    transform_args=pc.get("transform_args", []),
-                )
-            )
-        return transformed_columns
-
+    # Post-build validations
     def _validate_spec(self) -> None:
-        if not self.spec:
+        if not self._spec:
             return
-        self._check_for_duplicate_constraint_definitions(self.spec)
-        self._check_for_undefined_columns_in_table_constraints(self.spec)
-        self._check_for_undefined_columns_in_partitioned_by(self.spec)
-        self._check_for_undefined_columns_in_generated_as(self.spec)
+        self._check_for_duplicate_constraint_definitions(self._spec)
+        self._check_for_undefined_columns_in_table_constraints(self._spec)
+        self._check_for_undefined_columns_in_partitioned_by(self._spec)
+        self._check_for_undefined_columns_in_generated_as(self._spec)
 
     def _check_for_duplicate_constraint_definitions(self, spec: "SchemaSpec") -> None:
-        """Check for constraints defined at both column and table level."""
         for col_const_type, tbl_const_type in CONSTRAINT_EQUIVALENTS.items():
             constrained_cols = {
                 c.name
@@ -524,7 +426,6 @@ class SpecLoader:
     def _check_for_undefined_columns_in_table_constraints(
         self, spec: "SchemaSpec"
     ) -> None:
-        """Check that table constraints only reference defined columns."""
         for constraint in spec.table_constraints:
             constrained_columns = set(constraint.get_constrained_columns())
             if not_defined := constrained_columns - spec.column_names:
@@ -542,118 +443,15 @@ class SpecLoader:
     def _check_for_undefined_columns_in_partitioned_by(
         self, spec: "SchemaSpec"
     ) -> None:
-        """Check that partition specifications only reference defined columns."""
         if not_defined := spec.partition_column_names - spec.column_names:
             raise SchemaParsingError(
                 f"Partition spec references undefined columns: {sorted(list(not_defined))}."
             )
 
     def _check_for_undefined_columns_in_generated_as(self, spec: "SchemaSpec") -> None:
-        """Check that generated columns only reference defined columns."""
         for gen_col, source_col in spec.generated_columns.items():
             if source_col not in spec.column_names:
                 raise SchemaParsingError(
                     f"Generated column '{gen_col}' references undefined column: "
                     f"'{source_col}'."
                 )
-
-
-# Loader functions
-def from_dict(data: dict[str, Any]) -> SchemaSpec:
-    """Load a schema specification from a dictionary.
-
-    Parses and validates a schema specification provided as a dictionary.
-
-    Args:
-        data: Dictionary containing the schema specification. Must include
-              'name', 'version', and 'columns' fields at minimum.
-
-    Returns:
-        A validated immutable SchemaSpec object.
-
-    Example:
-        >>> data = {
-        ...     "name": "users",
-        ...     "version": "1.0.0",
-        ...     "columns": [
-        ...         {
-        ...             "name": "id",
-        ...             "type": "integer",
-        ...             "constraints": {"not_null": True, "primary_key": True}
-        ...         },
-        ...         {
-        ...             "name": "email",
-        ...             "type": "string",
-        ...             "params": {"length": 255},
-        ...             "constraints": {"not_null": True}
-        ...         }
-        ...     ]
-        ... }
-        >>> spec = from_dict(data)
-        >>> print(f"Loaded schema: {spec.name} v{spec.version}")
-        Loaded schema: users v1.0.0
-    """
-    return SpecLoader(data).load()
-
-
-def from_string(content: str) -> SchemaSpec:
-    """Load a schema specification from a YAML string.
-
-    Parses YAML content and converts it into a validated SchemaSpec object.
-
-    Args:
-        content: YAML string containing the schema specification.
-
-    Returns:
-        A validated immutable SchemaSpec object.
-
-    Raises:
-        SchemaParsingError: If the YAML content is invalid or doesn't parse
-                          to a dictionary.
-
-    Example:
-        >>> yaml_content = '''
-        ... name: products
-        ... version: "2.1.0"
-        ... description: Product catalog table
-        ... columns:
-        ...   - name: product_id
-        ...     type: string
-        ...     constraints:
-        ...       not_null: true
-        ...       primary_key: true
-        ...   - name: name
-        ...     type: string
-        ...     params:
-        ...       length: 200
-        ... '''
-        >>> spec = from_string(yaml_content)
-        >>> print(f"Loaded {len(spec.columns)} columns")
-        Loaded 2 columns
-    """
-    data = yaml.safe_load(content)
-    if not isinstance(data, dict):
-        raise SchemaParsingError("Loaded YAML content did not parse to a dictionary.")
-    return from_dict(data)
-
-
-def from_yaml(path: str) -> SchemaSpec:
-    """Load a schema specification from a YAML file.
-
-    Reads and parses a YAML file containing a schema specification.
-
-    Args:
-        path: Path to the YAML file containing the schema specification.
-
-    Returns:
-        A validated immutable SchemaSpec object.
-
-    Example:
-        >>> # Load from file
-        >>> spec = from_yaml("schemas/users.yaml")
-        >>> print(f"Loaded schema: {spec.name}")
-        Loaded schema: users
-    """
-    with open(path) as f:
-        content = f.read()
-    return from_string(content)

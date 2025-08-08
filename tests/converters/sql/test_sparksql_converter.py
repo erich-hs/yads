@@ -1,7 +1,7 @@
 import pytest
 from yads.converters.sql import SparkSQLConverter
 from yads.exceptions import ValidationRuleError
-from yads.loader import from_string
+from yads.loaders import from_string
 from yads.spec import SchemaSpec
 
 

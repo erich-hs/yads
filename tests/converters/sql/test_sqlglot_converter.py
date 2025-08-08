@@ -1,7 +1,7 @@
 import pytest
 from sqlglot import parse_one, exp
 from yads.converters.sql import SQLGlotConverter
-from yads.loader import from_yaml
+from yads.loaders import from_yaml
 from yads.types import (
     String,
     Integer,
@@ -817,7 +817,7 @@ class TestTableNameParsing:
 
 class TestConvertWithIgnoreArguments:
     def test_convert_with_ignore_catalog(self):
-        from yads.loader import from_yaml
+        from yads.loaders import from_yaml
 
         spec = from_yaml("tests/fixtures/spec/valid/basic_spec.yaml")
         converter = SQLGlotConverter()
@@ -829,7 +829,7 @@ class TestConvertWithIgnoreArguments:
         assert table_expression.catalog == ""
 
     def test_convert_with_ignore_database(self):
-        from yads.loader import from_yaml
+        from yads.loaders import from_yaml
 
         spec = from_yaml("tests/fixtures/spec/valid/basic_spec.yaml")
         converter = SQLGlotConverter()
@@ -841,7 +841,7 @@ class TestConvertWithIgnoreArguments:
         assert table_expression.catalog == "catalog"
 
     def test_convert_with_ignore_both(self):
-        from yads.loader import from_yaml
+        from yads.loaders import from_yaml
 
         spec = from_yaml("tests/fixtures/spec/valid/basic_spec.yaml")
         converter = SQLGlotConverter()
@@ -853,7 +853,7 @@ class TestConvertWithIgnoreArguments:
         assert table_expression.catalog == ""
 
     def test_convert_with_ignore_arguments_and_other_kwargs(self):
-        from yads.loader import from_yaml
+        from yads.loaders import from_yaml
 
         spec = from_yaml("tests/fixtures/spec/valid/basic_spec.yaml")
         converter = SQLGlotConverter()
