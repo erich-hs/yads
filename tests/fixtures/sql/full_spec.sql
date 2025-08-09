@@ -25,8 +25,8 @@ CREATE EXTERNAL TABLE catalog.db.full_schema (
   CONSTRAINT pk_full_schema PRIMARY KEY (c_uuid, c_date),
   CONSTRAINT fk_other_table FOREIGN KEY (c_int64) REFERENCES other_table (id)
 )
-LOCATION '/data/full.schema'
 USING parquet
+LOCATION '/data/full.schema'
 TBLPROPERTIES (
   'write_compression' = 'snappy'
 )

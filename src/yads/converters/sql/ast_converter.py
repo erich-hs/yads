@@ -317,10 +317,10 @@ class SQLGlotConverter(BaseConverter):
         if not storage:
             return []
         properties: list[exp.Property] = []
-        if storage.location:
-            properties.append(self._handle_location_property(storage.location))
         if storage.format:
             properties.append(self._handle_file_format_property(storage.format))
+        if storage.location:
+            properties.append(self._handle_location_property(storage.location))
         if storage.tbl_properties:
             for key, value in storage.tbl_properties.items():
                 properties.append(self._handle_generic_property(key, value))

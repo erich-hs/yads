@@ -813,6 +813,77 @@ class TestTableNameParsing:
         assert result == expected
 
 
+class TestStoragePropertiesHandling:
+    def test_storage_properties_order_format_before_location(self):
+        """Test that storage properties are processed in correct order: format before location."""
+        from yads.spec import Storage
+
+        converter = SQLGlotConverter()
+        storage = Storage(
+            format="parquet",
+            location="/data/tables/test",
+            tbl_properties={"key1": "value1", "key2": "value2"},
+        )
+
+        properties = converter._handle_storage_properties(storage)
+
+        # Should have 4 properties total: format + location + 2 table properties
+        assert len(properties) == 4
+
+        # Verify format property comes first
+        format_property = properties[0]
+        assert isinstance(format_property, exp.FileFormatProperty)
+        assert format_property.this.this == "parquet"
+
+        # Verify location property comes second
+        location_property = properties[1]
+        assert isinstance(location_property, exp.LocationProperty)
+        assert location_property.this.this == "/data/tables/test"
+
+        # Verify table properties come after format and location
+        tbl_prop1 = properties[2]
+        tbl_prop2 = properties[3]
+        assert isinstance(tbl_prop1, exp.Property)
+        assert isinstance(tbl_prop2, exp.Property)
+
+        # Check that the properties are the expected ones (order may vary for tbl_properties)
+        prop_keys = {prop.this.this for prop in [tbl_prop1, tbl_prop2]}
+        assert prop_keys == {"key1", "key2"}
+
+    def test_storage_properties_partial_storage(self):
+        """Test that storage properties work correctly with partial storage configurations."""
+        from yads.spec import Storage
+
+        converter = SQLGlotConverter()
+
+        # Test with only format
+        storage_format_only = Storage(format="delta")
+        properties = converter._handle_storage_properties(storage_format_only)
+        assert len(properties) == 1
+        assert isinstance(properties[0], exp.FileFormatProperty)
+        assert properties[0].this.this == "delta"
+
+        # Test with only location
+        storage_location_only = Storage(location="/path/to/data")
+        properties = converter._handle_storage_properties(storage_location_only)
+        assert len(properties) == 1
+        assert isinstance(properties[0], exp.LocationProperty)
+        assert properties[0].this.this == "/path/to/data"
+
+        # Test with only table properties
+        storage_props_only = Storage(tbl_properties={"prop": "value"})
+        properties = converter._handle_storage_properties(storage_props_only)
+        assert len(properties) == 1
+        assert isinstance(properties[0], exp.Property)
+        assert properties[0].this.this == "prop"
+
+    def test_storage_properties_none_storage(self):
+        """Test that _handle_storage_properties returns empty list for None storage."""
+        converter = SQLGlotConverter()
+        properties = converter._handle_storage_properties(None)
+        assert properties == []
+
+
 class TestConvertWithIgnoreArguments:
     def test_convert_with_ignore_catalog(self):
         from yads.loaders import from_yaml
