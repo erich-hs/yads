@@ -392,9 +392,7 @@ class TestTransformConversion:
 
     def test_unknown_transform_fallback(self):
         converter = SQLGlotConverter()
-        result = converter._handle_transformation(
-            "col1", "custom_func", ["arg1", "arg2"]
-        )
+        result = converter._handle_transformation("col1", "custom_func", ["arg1", "arg2"])
 
         expected = exp.func(
             "custom_func",

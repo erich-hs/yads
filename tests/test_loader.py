@@ -149,9 +149,7 @@ class TestConstraintParsing:
 
         column = spec.columns[0]
         identity_constraints = [
-            c
-            for c in column.constraints
-            if c.__class__.__name__ == "IdentityConstraint"
+            c for c in column.constraints if c.__class__.__name__ == "IdentityConstraint"
         ]
         assert len(identity_constraints) == 1
         identity = identity_constraints[0]
@@ -167,9 +165,7 @@ class TestConstraintParsing:
 
         column = spec.columns[0]
         identity_constraints = [
-            c
-            for c in column.constraints
-            if c.__class__.__name__ == "IdentityConstraint"
+            c for c in column.constraints if c.__class__.__name__ == "IdentityConstraint"
         ]
         assert len(identity_constraints) == 1
         identity = identity_constraints[0]

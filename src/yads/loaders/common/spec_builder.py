@@ -377,9 +377,7 @@ class SpecBuilder:
                     "Table constraint definition must have a 'type'."
                 )
 
-            if parser_method_name := self._TABLE_CONSTRAINT_PARSERS.get(
-                constraint_type
-            ):
+            if parser_method_name := self._TABLE_CONSTRAINT_PARSERS.get(constraint_type):
                 parser_method = getattr(self, parser_method_name)
                 constraints.append(parser_method(const_def))
             else:
@@ -440,9 +438,7 @@ class SpecBuilder:
                     stacklevel=2,
                 )
 
-    def _check_for_undefined_columns_in_partitioned_by(
-        self, spec: "SchemaSpec"
-    ) -> None:
+    def _check_for_undefined_columns_in_partitioned_by(self, spec: "SchemaSpec") -> None:
         if not_defined := spec.partition_column_names - spec.column_names:
             raise SchemaParsingError(
                 f"Partition spec references undefined columns: {sorted(list(not_defined))}."
@@ -452,6 +448,5 @@ class SpecBuilder:
         for gen_col, source_col in spec.generated_columns.items():
             if source_col not in spec.column_names:
                 raise SchemaParsingError(
-                    f"Generated column '{gen_col}' references undefined column: "
-                    f"'{source_col}'."
+                    f"Generated column '{gen_col}' references undefined column: '{source_col}'."
                 )

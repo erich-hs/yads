@@ -243,9 +243,7 @@ class Decimal(Type):
             raise TypeDefinitionError(
                 f"Decimal 'precision' must be a positive integer, not {self.precision}."
             )
-        if self.scale is not None and (
-            not isinstance(self.scale, int) or self.scale < 0
-        ):
+        if self.scale is not None and (not isinstance(self.scale, int) or self.scale < 0):
             raise TypeDefinitionError(
                 f"Decimal 'scale' must be a positive integer, not {self.scale}."
             )

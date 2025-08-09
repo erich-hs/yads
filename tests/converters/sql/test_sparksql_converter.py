@@ -43,9 +43,7 @@ class TestSparkSQLConverter:
         """
         converter = SparkSQLConverter(pretty=True)
         with pytest.warns(UserWarning, match="Fixed-length strings are not supported"):
-            generated_ddl = converter.convert(
-                spec_with_fixed_length_string, mode="warn"
-            )
+            generated_ddl = converter.convert(spec_with_fixed_length_string, mode="warn")
         expected_ddl = """CREATE TABLE my_db.my_table (
   col1 STRING
 )"""

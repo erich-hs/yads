@@ -175,9 +175,7 @@ class TestSchemaSpec:
                 spec.Column(name="id", type=types.Integer()),
                 spec.Column(name="username", type=types.String()),
                 spec.Column(name="raw_id", type=types.Integer()),
-                spec.Column(
-                    name="gen_id", type=types.Integer(), generated_as=gen_clause
-                ),
+                spec.Column(name="gen_id", type=types.Integer(), generated_as=gen_clause),
             ],
             partitioned_by=[spec.TransformedColumnReference(column="username")],
         )

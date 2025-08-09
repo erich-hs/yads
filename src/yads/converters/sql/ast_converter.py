@@ -155,10 +155,7 @@ class SQLGlotConverter(BaseConverter):
 
     @_convert_type.register(Interval)
     def _(self, yads_type: Interval) -> exp.DataType:
-        if (
-            yads_type.interval_end
-            and yads_type.interval_start != yads_type.interval_end
-        ):
+        if yads_type.interval_end and yads_type.interval_start != yads_type.interval_end:
             return exp.DataType(
                 this=exp.Interval(
                     unit=exp.IntervalSpan(
@@ -322,9 +319,7 @@ class SQLGlotConverter(BaseConverter):
             else:
                 expression = exp.Identifier(this=col.column)
             schema_expressions.append(expression)
-        return exp.PartitionedByProperty(
-            this=exp.Schema(expressions=schema_expressions)
-        )
+        return exp.PartitionedByProperty(this=exp.Schema(expressions=schema_expressions))
 
     def _handle_location_property(self, value: str) -> exp.LocationProperty:
         return exp.LocationProperty(this=convert(value))
@@ -358,9 +353,7 @@ class SQLGlotConverter(BaseConverter):
             transform, exp.column(column), *(exp.convert(arg) for arg in transform_args)
         )
 
-    def _handle_cast_transform(
-        self, column: str, transform_args: list
-    ) -> exp.Expression:
+    def _handle_cast_transform(self, column: str, transform_args: list) -> exp.Expression:
         self._validate_transform_args("cast", len(transform_args), 1)
         cast_to_type = transform_args[0].upper()
         if cast_to_type not in exp.DataType.Type:
@@ -392,16 +385,15 @@ class SQLGlotConverter(BaseConverter):
         self, column: str, transform_args: list
     ) -> exp.Expression:
         self._validate_transform_args("date_trunc", len(transform_args), 1)
-        return exp.DateTrunc(
-            unit=exp.convert(transform_args[0]), this=exp.column(column)
-        )
+        return exp.DateTrunc(unit=exp.convert(transform_args[0]), this=exp.column(column))
 
     def _validate_transform_args(
         self, transform: str, received_args_len: int, required_args_len: int
     ) -> None:
         if received_args_len != required_args_len:
             raise ConversionError(
-                f"The '{transform}' transform requires exactly {required_args_len} argument(s). Got {received_args_len}."
+                f"The '{transform}' transform requires exactly {required_args_len} argument(s)."
+                f" Got {received_args_len}."
             )
 
     # Field/column helpers

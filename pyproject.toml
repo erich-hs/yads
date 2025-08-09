@@ -32,3 +32,6 @@ duckdb = [
 pyspark = [
     "pyspark>=3.1.1,<4.0.0",
 ]
+
+[tool.ruff]
+line-length = 90

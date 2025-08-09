@@ -333,9 +333,7 @@ class ForeignKeyTableConstraint(TableConstraint):
             raise InvalidConstraintError(
                 "ForeignKeyTableConstraint 'columns' cannot be empty."
             )
-        if self.references.columns and len(self.columns) != len(
-            self.references.columns
-        ):
+        if self.references.columns and len(self.columns) != len(self.references.columns):
             raise InvalidConstraintError(
                 f"The number of columns in the foreign key ({len(self.columns)}) must match the number of "
                 f"referenced columns ({len(self.references.columns)})."

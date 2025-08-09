@@ -149,25 +149,19 @@ class TestIntervalType:
         assert str(t) == expected_str
 
     def test_invalid_mixed_category_interval_raises_error(self):
-        with pytest.raises(
-            TypeDefinitionError, match="must belong to the same category"
-        ):
+        with pytest.raises(TypeDefinitionError, match="must belong to the same category"):
             Interval(
                 interval_start=IntervalTimeUnit.YEAR, interval_end=IntervalTimeUnit.DAY
             )
 
     def test_invalid_order_interval_raises_error(self):
-        with pytest.raises(
-            TypeDefinitionError, match="cannot be less significant than"
-        ):
+        with pytest.raises(TypeDefinitionError, match="cannot be less significant than"):
             Interval(
                 interval_start=IntervalTimeUnit.MONTH,
                 interval_end=IntervalTimeUnit.YEAR,
             )
 
-        with pytest.raises(
-            TypeDefinitionError, match="cannot be less significant than"
-        ):
+        with pytest.raises(TypeDefinitionError, match="cannot be less significant than"):
             Interval(
                 interval_start=IntervalTimeUnit.SECOND,
                 interval_end=IntervalTimeUnit.HOUR,
