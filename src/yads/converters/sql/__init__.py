@@ -1,7 +1,7 @@
 from .sql_converter import SQLConverter, SparkSQLConverter
 from .ast_converter import SQLGlotConverter
 from .validators.ast_validator import AstValidator, ValidationWarning
-from .validators.ast_validation_rules import AstValidationRule, NoFixedLengthStringRule
+from .validators.ast_validation_rules import AstValidationRule, DisallowFixedLengthString
 
 __all__ = [
     "SQLConverter",
@@ -10,5 +10,5 @@ __all__ = [
     "AstValidator",
     "AstValidationRule",
     "ValidationWarning",
-    "NoFixedLengthStringRule",
+    "DisallowFixedLengthString",
 ]

@@ -1,9 +1,9 @@
 from .ast_validator import AstValidator, ValidationWarning
-from .ast_validation_rules import AstValidationRule, NoFixedLengthStringRule
+from .ast_validation_rules import AstValidationRule, DisallowFixedLengthString
 
 __all__ = [
     "AstValidator",
     "ValidationWarning",
     "AstValidationRule",
-    "NoFixedLengthStringRule",
+    "DisallowFixedLengthString",
 ]

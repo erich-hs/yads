@@ -32,7 +32,7 @@ class AstValidationRule(ABC):
         """Human-readable description of the rule's adjustment."""
 
 
-class NoFixedLengthStringRule(AstValidationRule):
+class DisallowFixedLengthString(AstValidationRule):
     """Remove fixed-length parameters from string data types (e.g., VARCHAR(50))."""
 
     def _is_fixed_length_string(self, node: exp.Expression) -> TypeGuard[exp.DataType]:

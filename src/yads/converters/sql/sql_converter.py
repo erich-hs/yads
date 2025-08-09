@@ -18,7 +18,7 @@ from .ast_converter import SQLGlotConverter  # type: ignore[reportMissingImports
 from .validators.ast_validator import AstValidator  # type: ignore[reportMissingImports]
 from .validators.ast_validation_rules import (  # type: ignore[reportMissingImports]
     AstValidationRule,
-    NoFixedLengthStringRule,
+    DisallowFixedLengthString,
 )
 
 
@@ -36,12 +36,12 @@ class SQLConverter:
         **convert_options: Default AST converter generation options.
 
     Example:
-        >>> from yads.converters.sql import SQLConverter, AstValidator, NoFixedLengthStringRule
+        >>> from yads.converters.sql import SQLConverter, AstValidator, DisallowFixedLengthString
         >>>
         >>> # Create converter with custom validation
         >>> converter = SQLConverter(
         ...     dialect="snowflake",
-        ...     ast_validator=AstValidator(rules=[NoFixedLengthStringRule()]),
+        ...     ast_validator=AstValidator(rules=[DisallowFixedLengthString()]),
         ...     pretty=True
         ... )
         >>> ddl = converter.convert(spec, mode="raise")
@@ -135,10 +135,10 @@ class SparkSQLConverter(SQLConverter):
 
     Configured with:
     - dialect="spark"
-    - `NoFixedLengthStringRule` to remove fixed-length text parameters
+    - `DisallowFixedLengthString` to remove fixed-length text parameters
     """
 
     def __init__(self, **convert_options: Any):
-        rules: list[AstValidationRule] = [NoFixedLengthStringRule()]
+        rules: list[AstValidationRule] = [DisallowFixedLengthString()]
         validator = AstValidator(rules=rules)
         super().__init__(dialect="spark", ast_validator=validator, **convert_options)

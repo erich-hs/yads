@@ -42,10 +42,10 @@ class AstValidator:
         rules: List of `AstValidationRule` instances to apply during validation.
 
     Example:
-        >>> from yads.converters.sql import AstValidator, NoFixedLengthStringRule
+        >>> from yads.converters.sql import AstValidator, DisallowFixedLengthString
         >>>
         >>> # Create validator with built-in rules
-        >>> rules = [NoFixedLengthStringRule()]
+        >>> rules = [DisallowFixedLengthString()]
         >>> validator = AstValidator(rules=rules)
         >>>
         >>> # Apply validation in different modes

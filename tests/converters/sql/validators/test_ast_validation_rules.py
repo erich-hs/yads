@@ -4,13 +4,13 @@ import pytest
 from sqlglot import parse_one
 from sqlglot.expressions import ColumnDef, DataType
 
-from yads.converters.sql.validators.ast_validation_rules import NoFixedLengthStringRule
+from yads.converters.sql.validators.ast_validation_rules import DisallowFixedLengthString
 
 
-class TestNoFixedLengthStringRule:
+class TestDisallowFixedLengthString:
     @pytest.fixture
-    def rule(self) -> NoFixedLengthStringRule:
-        return NoFixedLengthStringRule()
+    def rule(self) -> DisallowFixedLengthString:
+        return DisallowFixedLengthString()
 
     @pytest.mark.parametrize(
         "sql, expected",
@@ -28,7 +28,7 @@ class TestNoFixedLengthStringRule:
         ],
     )
     def test_validate(
-        self, rule: NoFixedLengthStringRule, sql: str, expected: str | None
+        self, rule: DisallowFixedLengthString, sql: str, expected: str | None
     ):
         """Tests that the rule correctly identifies fixed-length strings."""
         ast = parse_one(f"CREATE TABLE t (col {sql})")
@@ -40,7 +40,7 @@ class TestNoFixedLengthStringRule:
 
         assert rule.validate(data_type) == expected
 
-    def test_adjust(self, rule: NoFixedLengthStringRule):
+    def test_adjust(self, rule: DisallowFixedLengthString):
         """Tests that the rule correctly removes the length from a fixed-length string."""
         sql = "CREATE TABLE t (col VARCHAR(50))"
         ast = parse_one(sql)
@@ -54,6 +54,6 @@ class TestNoFixedLengthStringRule:
         assert adjusted_node.this == DataType.Type.VARCHAR
         assert not adjusted_node.expressions
 
-    def test_adjustment_description(self, rule: NoFixedLengthStringRule):
+    def test_adjustment_description(self, rule: DisallowFixedLengthString):
         """Tests that the adjustment description is correct."""
         assert rule.adjustment_description == "The length parameter will be removed."
