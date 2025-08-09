@@ -24,7 +24,18 @@ from ...constraints import (
 )
 from ...exceptions import ConversionError, UnsupportedFeatureError
 from ...spec import Column, Field, SchemaSpec, Storage, TransformedColumnReference
-from ...types import Array, Decimal, Float, Integer, Interval, Map, String, Struct, Type
+from ...types import (
+    Array,
+    Decimal,
+    Float,
+    Integer,
+    Interval,
+    Map,
+    String,
+    Struct,
+    Type,
+    Void,
+)
 from ..base import BaseConverter
 
 
@@ -164,6 +175,15 @@ class SQLGlotConverter(BaseConverter):
         return exp.DataType(
             this=exp.DataType.Type.DECIMAL,
             expressions=expressions if expressions else None,
+        )
+
+    @_convert_type.register(Void)
+    def _(self, yads_type: Void) -> exp.DataType:
+        # VOID is not a valid sqlglot type, but can be defined as a Spark type.
+        # https://docs.databricks.com/aws/en/sql/language-manual/data-types/null-type
+        return exp.DataType(
+            this=exp.DataType.Type.USERDEFINED,
+            kind="VOID",
         )
 
     @_convert_type.register(Interval)

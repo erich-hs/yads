@@ -10,8 +10,12 @@ from yads.types import (
     Decimal,
     Date,
     Timestamp,
+    TimestampTZ,
+    TimestampLTZ,
+    TimestampNTZ,
     Binary,
     UUID,
+    Void,
     Interval,
     IntervalTimeUnit,
     Array,
@@ -538,11 +542,16 @@ class TestTypeConversion:
                     ],
                 ),
             ),
+            # Void type - handled by type handler
+            (Void(), exp.DataType(this=exp.DataType.Type.USERDEFINED, kind="VOID")),
             # Boolean type - fallback to build
             (Boolean(), exp.DataType.build("boolean")),
             # Temporal types - fallback to build
             (Date(), exp.DataType.build("date")),
             (Timestamp(), exp.DataType.build("timestamp")),
+            (TimestampTZ(), exp.DataType.build("timestamptz")),
+            (TimestampLTZ(), exp.DataType.build("timestampltz")),
+            (TimestampNTZ(), exp.DataType.build("timestampntz")),
             # Binary types - fallback to build
             (Binary(), exp.DataType.build("binary")),
             # Other types - fallback to build

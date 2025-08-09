@@ -27,6 +27,7 @@ from yads.types import (
     TimestampNTZ,
     Binary,
     UUID,
+    Void,
     Interval,
     IntervalTimeUnit,
     Array,
@@ -770,6 +771,22 @@ def test_invalid_yaml_content_raises_error():
         from_string(content)
 
 
+def test_unquoted_null_type_gives_helpful_error():
+    """Test that unquoted 'null' in YAML gives a helpful error message."""
+    content = """
+name: test_schema
+version: 1.0.0
+columns:
+  - name: col1
+    type: null  # This will parse as None, not "null"
+"""
+    with pytest.raises(
+        TypeDefinitionError,
+        match=r"Use quoted \"null\" or the synonym 'void' instead to specify a void type",
+    ):
+        from_string(content)
+
+
 class TestTypeLoading:
     def _create_minimal_spec_with_type(self, type_def: dict) -> dict:
         return {
@@ -836,6 +853,8 @@ class TestTypeLoading:
             ({"type": "bytes"}, Binary(), "binary"),
             # Other types
             ({"type": "uuid"}, UUID(), "uuid"),
+            ({"type": "null"}, Void(), "void"),
+            ({"type": "void"}, Void(), "void"),
             # ({"type": "json"}, JSON(), "json"),  # Not supported yet
             # Interval types
             (

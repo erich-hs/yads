@@ -13,6 +13,7 @@ from yads.types import (
     IntervalTimeUnit,
     JSON,
     Map,
+    Void,
     String,
     Struct,
     Timestamp,
@@ -212,6 +213,7 @@ class TestSimpleTypes:
             (Binary, "binary"),
             (JSON, "json"),
             (UUID, "uuid"),
+            (Void, "void"),
         ],
     )
     def test_simple_type_creation_and_str(self, type_class, expected_str):
@@ -276,6 +278,8 @@ class TestTypeAliases:
             ("json", JSON, {}),
             # Other Types
             ("uuid", UUID, {}),
+            ("null", Void, {}),
+            ("void", Void, {}),
         ],
     )
     def test_type_aliases(self, alias, expected_type, expected_params):

@@ -248,6 +248,11 @@ class SpecBuilder:
 
         type_name = field_def["type"]
         if not isinstance(type_name, str):
+            if type_name is None:
+                raise TypeDefinitionError(
+                    f"The 'type' of a {context} must be a string. Got None. "
+                    f"Use quoted \"null\" or the synonym 'void' instead to specify a void type."
+                )
             raise TypeDefinitionError(
                 f"The 'type' of a {context} must be a string. Got {type_name!r}."
             )

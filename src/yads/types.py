@@ -54,6 +54,7 @@ __all__ = [
     "Binary",
     "JSON",
     "UUID",
+    "Void",
     "Interval",
     "IntervalTimeUnit",
     "Array",
@@ -378,6 +379,18 @@ class UUID(Type):
     """
 
 
+@dataclass(frozen=True)
+class Void(Type):
+    """Represents a NULL or VOID type.
+
+    Example:
+        >>> Void()
+        >>>
+        >>> # Use in field definition
+        >>> Field(name="optional_field", type=Void())
+    """
+
+
 class IntervalTimeUnit(str, Enum):
     """Time unit enumeration for interval types.
 
@@ -631,4 +644,6 @@ TYPE_ALIASES: dict[str, tuple[type[Type], dict[str, Any]]] = {
     "json": (JSON, {}),
     # Other Types
     "uuid": (UUID, {}),
+    "void": (Void, {}),
+    "null": (Void, {}),
 }

@@ -131,8 +131,18 @@
         "DATETIME",
         "timestamp",
         "TIMESTAMP",
+        "timestamptz",
+        "TIMESTAMPTZ",
         "timestamp_tz",
         "TIMESTAMP_TZ",
+        "timestampltz",
+        "TIMESTAMPLTZ",
+        "timestamp_ltz",
+        "TIMESTAMP_LTZ",
+        "timestampntz",
+        "TIMESTAMPNTZ",
+        "timestamp_ntz",
+        "TIMESTAMP_NTZ",
         "interval",
         "INTERVAL",
         "array",
@@ -150,7 +160,11 @@
         "json",
         "JSON",
         "uuid",
-        "UUID"
+        "UUID",
+        "void",
+        "VOID",
+        "null",
+        "NULL"
       ]
     },
     "type_spec": {
