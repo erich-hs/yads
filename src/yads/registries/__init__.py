@@ -1,3 +1,3 @@
-from .base import BaseRegistry  # type: ignore[reportMissingImports]
+from .base import BaseRegistry
 
 __all__ = ["BaseRegistry"]
