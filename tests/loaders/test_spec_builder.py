@@ -32,8 +32,8 @@ from yads.types import (
 )
 
 # Define paths to the fixture directories
-VALID_SPEC_DIR = Path(__file__).parent / "fixtures" / "spec" / "valid"
-INVALID_SPEC_DIR = Path(__file__).parent / "fixtures" / "spec" / "invalid"
+VALID_SPEC_DIR = Path(__file__).parent.parent / "fixtures" / "spec" / "valid"
+INVALID_SPEC_DIR = Path(__file__).parent.parent / "fixtures" / "spec" / "invalid"
 
 # Get all valid spec files
 valid_spec_files = list(VALID_SPEC_DIR.glob("*.yaml"))
@@ -574,7 +574,7 @@ class TestValidationMethods:
         assert "not found in schema" in str(excinfo.value)
 
 
-class TestFullSpec:
+class TestFullSpecFromYaml:
     @pytest.fixture(scope="class")
     def spec(self) -> SchemaSpec:
         return from_yaml(str(VALID_SPEC_DIR / "full_spec.yaml"))
