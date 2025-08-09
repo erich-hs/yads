@@ -5,6 +5,8 @@ from yads.types import (
     Array,
     Binary,
     Boolean,
+    Geography,
+    Geometry,
     Date,
     Decimal,
     Float,
@@ -280,6 +282,9 @@ class TestTypeAliases:
             ("uuid", UUID, {}),
             ("null", Void, {}),
             ("void", Void, {}),
+            # Spatial Types
+            ("geometry", Geometry, {}),
+            ("geography", Geography, {}),
         ],
     )
     def test_type_aliases(self, alias, expected_type, expected_params):

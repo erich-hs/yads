@@ -14,8 +14,11 @@ from yads.types import (
     TimestampLTZ,
     TimestampNTZ,
     Binary,
+    JSON,
     UUID,
     Void,
+    Geometry,
+    Geography,
     Interval,
     IntervalTimeUnit,
     Array,
@@ -554,6 +557,11 @@ class TestTypeConversion:
             (TimestampNTZ(), exp.DataType.build("timestampntz")),
             # Binary types - fallback to build
             (Binary(), exp.DataType.build("binary")),
+            # Spatial types - fallback to build
+            (Geometry(), exp.DataType.build("geometry")),
+            (Geography(), exp.DataType.build("geography")),
+            # JSON type - fallback to build
+            (JSON(), exp.DataType.build("json")),
             # Other types - fallback to build
             (UUID(), exp.DataType.build("uuid")),
         ],

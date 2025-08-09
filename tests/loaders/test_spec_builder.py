@@ -26,8 +26,11 @@ from yads.types import (
     TimestampLTZ,
     TimestampNTZ,
     Binary,
+    JSON,
     UUID,
     Void,
+    Geometry,
+    Geography,
     Interval,
     IntervalTimeUnit,
     Array,
@@ -851,11 +854,25 @@ class TestTypeLoading:
             ({"type": "binary"}, Binary(), "binary"),
             ({"type": "blob"}, Binary(), "binary"),
             ({"type": "bytes"}, Binary(), "binary"),
+            # Spatial types
+            ({"type": "geometry"}, Geometry(), "geometry"),
+            ({"type": "geography"}, Geography(), "geography"),
+            (
+                {"type": "geometry", "params": {"srid": 4326}},
+                Geometry(srid=4326),
+                "geometry(4326)",
+            ),
+            (
+                {"type": "geography", "params": {"srid": 4326}},
+                Geography(srid=4326),
+                "geography(4326)",
+            ),
+            # JSON type
+            ({"type": "json"}, JSON(), "json"),
             # Other types
             ({"type": "uuid"}, UUID(), "uuid"),
             ({"type": "null"}, Void(), "void"),
             ({"type": "void"}, Void(), "void"),
-            # ({"type": "json"}, JSON(), "json"),  # Not supported yet
             # Interval types
             (
                 {"type": "interval", "params": {"interval_start": "YEAR"}},

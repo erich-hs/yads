@@ -55,6 +55,8 @@ __all__ = [
     "JSON",
     "UUID",
     "Void",
+    "Geometry",
+    "Geography",
     "Interval",
     "IntervalTimeUnit",
     "Array",
@@ -391,6 +393,56 @@ class Void(Type):
     """
 
 
+@dataclass(frozen=True)
+class Geometry(Type):
+    """Geometric object type with optional SRID.
+
+    Represents planar geometry values such as points, linestrings, and polygons.
+
+    Args:
+        srid: Spatial reference identifier, for example an integer code or
+            the string ``"ANY"``. If ``None``, no SRID is rendered.
+
+    Examples:
+        >>> Geometry()
+        >>> Geometry(srid=0)
+        >>> Geometry(srid="ANY")
+
+    """
+
+    srid: int | str | None = None
+
+    def __str__(self) -> str:
+        if self.srid is None:
+            return "geometry"
+        return f"geometry({self.srid})"
+
+
+@dataclass(frozen=True)
+class Geography(Type):
+    """Geographic object type with optional SRID.
+
+    Represents geographic values in a spherical coordinate system.
+
+    Args:
+        srid: Spatial reference identifier, e.g., integer code or the string
+            ``"ANY"``. If ``None``, no SRID is rendered.
+
+    Examples:
+        >>> Geography()
+        >>> Geography(srid=4326)
+        >>> Geography(srid="ANY")
+
+    """
+
+    srid: int | str | None = None
+
+    def __str__(self) -> str:
+        if self.srid is None:
+            return "geography"
+        return f"geography({self.srid})"
+
+
 class IntervalTimeUnit(str, Enum):
     """Time unit enumeration for interval types.
 
@@ -642,6 +694,9 @@ TYPE_ALIASES: dict[str, tuple[type[Type], dict[str, Any]]] = {
     "map": (Map, {}),
     "dictionary": (Map, {}),
     "json": (JSON, {}),
+    # Spatial Types
+    "geometry": (Geometry, {}),
+    "geography": (Geography, {}),
     # Other Types
     "uuid": (UUID, {}),
     "void": (Void, {}),
