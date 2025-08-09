@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from sqlglot import ErrorLevel
+from sqlglot.expressions import DataType
 
 from ...spec import SchemaSpec
 from ..base import BaseConverter
@@ -19,6 +20,7 @@ from .validators.ast_validator import AstValidator  # type: ignore[reportMissing
 from .validators.ast_validation_rules import (  # type: ignore[reportMissingImports]
     AstValidationRule,
     DisallowFixedLengthString,
+    DisallowType,
 )
 
 
@@ -139,6 +141,9 @@ class SparkSQLConverter(SQLConverter):
     """
 
     def __init__(self, **convert_options: Any):
-        rules: list[AstValidationRule] = [DisallowFixedLengthString()]
+        rules: list[AstValidationRule] = [
+            DisallowFixedLengthString(),
+            DisallowType(disallowed_types=[DataType.Type.JSON]),
+        ]
         validator = AstValidator(rules=rules)
         super().__init__(dialect="spark", ast_validator=validator, **convert_options)
