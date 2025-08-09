@@ -90,9 +90,22 @@ class SpecBuilder:
 
     def build(self) -> SchemaSpec:
         """Build and validate the `SchemaSpec` from provided data."""
-        for required_field in ("name", "version", "columns"):
-            if required_field not in self.data:
-                raise SchemaParsingError(f"'{required_field}' is a required field.")
+        self._validate_keys(
+            self.data,
+            allowed_keys={
+                "name",
+                "version",
+                "description",
+                "external",
+                "metadata",
+                "storage",
+                "partitioned_by",
+                "table_constraints",
+                "columns",
+            },
+            required_keys={"name", "version", "columns"},
+            context="schema definition",
+        )
         self._spec = SchemaSpec(
             name=self.data["name"],
             version=self.data["version"],
@@ -108,6 +121,26 @@ class SpecBuilder:
         )
         self._validate_spec()
         return self._spec
+
+    def _validate_keys(
+        self,
+        obj: dict[str, Any],
+        *,
+        allowed_keys: set[str],
+        required_keys: set[str] | None = None,
+        context: str,
+    ) -> None:
+        unknown = set(obj.keys()) - allowed_keys
+        if unknown:
+            unknown_sorted = ", ".join(sorted(unknown))
+            raise SchemaParsingError(f"Unknown key(s) in {context}: {unknown_sorted}.")
+        if required_keys:
+            missing = required_keys - set(obj.keys())
+            if missing:
+                missing_sorted = ", ".join(sorted(missing))
+                raise SchemaParsingError(
+                    f"Missing required key(s) in {context}: {missing_sorted}."
+                )
 
     # Type parsing
     def _get_processed_type_params(
@@ -219,6 +252,21 @@ class SpecBuilder:
                 f"The 'type' of a {context} must be a string. Got {type_name!r}."
             )
 
+        # Validate allowed keys based on context
+        type_spec_keys = {"type", "params", "element", "fields", "key", "value"}
+        common_field_keys = {"name", "description", "metadata"}
+        if context == "column":
+            allowed = common_field_keys | type_spec_keys | {"constraints", "generated_as"}
+        else:  # context == "field"
+            allowed = common_field_keys | type_spec_keys
+
+        self._validate_keys(
+            field_def,
+            allowed_keys=allowed,
+            required_keys={"name", "type"},
+            context=f"{context} definition",
+        )
+
     # Column constraint parsing
     def _parse_not_null_constraint(self, value: Any) -> NotNullConstraint:
         if not isinstance(value, bool):
@@ -287,11 +335,13 @@ class SpecBuilder:
         if not gen_clause_def:
             return None
 
-        for required_field in ("column", "transform"):
-            if required_field not in gen_clause_def:
-                raise SchemaParsingError(
-                    f"'{required_field}' is a required field in a generation clause."
-                )
+        # Validate keys and requirements for generation clause
+        self._validate_keys(
+            gen_clause_def,
+            allowed_keys={"column", "transform", "transform_args"},
+            required_keys={"column", "transform"},
+            context="generation clause",
+        )
 
         # For generated columns, transform is required
         if not gen_clause_def["transform"]:
@@ -313,10 +363,12 @@ class SpecBuilder:
 
         transformed_columns = []
         for pc in partitioned_by_def:
-            if "column" not in pc:
-                raise SchemaParsingError(
-                    "Each item in 'partitioned_by' must have a 'column' key."
-                )
+            self._validate_keys(
+                pc,
+                allowed_keys={"column", "transform", "transform_args"},
+                required_keys={"column"},
+                context="partitioned_by item",
+            )
             transformed_columns.append(
                 TransformedColumnReference(
                     column=pc["column"],
@@ -390,6 +442,13 @@ class SpecBuilder:
     def _parse_storage(self, storage_def: dict[str, Any] | None) -> Storage | None:
         if not storage_def:
             return None
+        # Validate allowed storage keys per schema
+        self._validate_keys(
+            storage_def,
+            allowed_keys={"format", "location", "tbl_properties"},
+            required_keys=set(),
+            context="storage definition",
+        )
         return Storage(**storage_def)
 
     # Post-build validations

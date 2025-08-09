@@ -219,7 +219,7 @@ class TestGenerationClauseParsing:
         spec_dict = self._create_spec_with_generated_column({"transform": "upper"})
         with pytest.raises(
             SchemaParsingError,
-            match="'column' is a required field in a generation clause",
+            match=r"Missing required key\(s\) in generation clause: column\.",
         ):
             from_dict(spec_dict)
 
@@ -227,7 +227,7 @@ class TestGenerationClauseParsing:
         spec_dict = self._create_spec_with_generated_column({"column": "source_col"})
         with pytest.raises(
             SchemaParsingError,
-            match="'transform' is a required field in a generation clause",
+            match=r"Missing required key\(s\) in generation clause: transform\.",
         ):
             from_dict(spec_dict)
 
@@ -238,6 +238,16 @@ class TestGenerationClauseParsing:
         with pytest.raises(
             SchemaParsingError,
             match="'transform' cannot be empty in a generation clause",
+        ):
+            from_dict(spec_dict)
+
+    def test_generation_clause_unknown_key_raises_error(self):
+        spec_dict = self._create_spec_with_generated_column(
+            {"column": "source_col", "transform": "upper", "params": [1]}
+        )
+        with pytest.raises(
+            SchemaParsingError,
+            match=r"Unknown key\(s\) in generation clause: params\.",
         ):
             from_dict(spec_dict)
 
@@ -404,6 +414,22 @@ class TestStorageParsing:
         assert spec.storage.location == "/path/to/data"
         assert spec.storage.tbl_properties == {"compression": "snappy"}
 
+    def test_storage_with_unknown_key_raises_error(self):
+        spec_dict = {
+            "name": "test_schema",
+            "version": "1.0.0",
+            "columns": [{"name": "col1", "type": "string"}],
+            "storage": {
+                "format": "parquet",
+                "invalid_key": True,
+            },
+        }
+        with pytest.raises(
+            SchemaParsingError,
+            match=r"Unknown key\(s\) in storage definition: invalid_key\.",
+        ):
+            from_dict(spec_dict)
+
     def test_partitioned_by_missing_column_raises_error(self):
         spec_dict = {
             "name": "test_schema",
@@ -413,7 +439,20 @@ class TestStorageParsing:
         }
         with pytest.raises(
             SchemaParsingError,
-            match="Each item in 'partitioned_by' must have a 'column' key",
+            match=r"Missing required key\(s\) in partitioned_by item: column\.",
+        ):
+            from_dict(spec_dict)
+
+    def test_partitioned_by_unknown_key_raises_error(self):
+        spec_dict = {
+            "name": "test_schema",
+            "version": "1.0.0",
+            "columns": [{"name": "col1", "type": "string"}],
+            "partitioned_by": [{"column": "col1", "params": [1]}],
+        }
+        with pytest.raises(
+            SchemaParsingError,
+            match=r"Unknown key\(s\) in partitioned_by item: params\.",
         ):
             from_dict(spec_dict)
 
@@ -449,6 +488,21 @@ class TestPartitioningParsing:
         assert second_partition.column == "date_col"
         assert second_partition.transform == "year"
         assert second_partition.transform_args == [2023]
+
+
+class TestTopLevelSpecValidation:
+    def test_schema_with_unknown_top_level_key_raises_error(self):
+        spec_dict = {
+            "name": "test_schema",
+            "version": "1.0.0",
+            "foo": "bar",
+            "columns": [{"name": "col1", "type": "string"}],
+        }
+        with pytest.raises(
+            SchemaParsingError,
+            match=r"Unknown key\(s\) in schema definition: foo\.",
+        ):
+            from_dict(spec_dict)
 
 
 class TestValidationMethods:
@@ -619,17 +673,17 @@ class TestFullSpec:
         (
             INVALID_SPEC_DIR / "missing_required_field" / "missing_name.yaml",
             SchemaParsingError,
-            "'name' is a required field",
+            r"Missing required key\(s\) in schema definition: name\.",
         ),
         (
             INVALID_SPEC_DIR / "missing_required_field" / "missing_version.yaml",
             SchemaParsingError,
-            "'version' is a required field",
+            r"Missing required key\(s\) in schema definition: version\.",
         ),
         (
             INVALID_SPEC_DIR / "missing_required_field" / "missing_columns.yaml",
             SchemaParsingError,
-            "'columns' is a required field",
+            r"Missing required key\(s\) in schema definition: columns\.",
         ),
         (
             INVALID_SPEC_DIR / "missing_column_field" / "missing_name.yaml",
