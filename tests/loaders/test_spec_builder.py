@@ -22,6 +22,9 @@ from yads.types import (
     Decimal,
     Date,
     Timestamp,
+    TimestampTZ,
+    TimestampLTZ,
+    TimestampNTZ,
     Binary,
     UUID,
     Interval,
@@ -821,7 +824,12 @@ class TestTypeLoading:
             ({"type": "date"}, Date(), "date"),
             ({"type": "timestamp"}, Timestamp(), "timestamp"),
             ({"type": "datetime"}, Timestamp(), "timestamp"),
-            # ({"type": "timestamp_tz"}, TimestampTZ(), "timestamptz"),  # Not supported yet
+            ({"type": "timestamptz"}, TimestampTZ(), "timestamptz"),
+            ({"type": "timestamp_tz"}, TimestampTZ(), "timestamptz"),
+            ({"type": "timestampltz"}, TimestampLTZ(), "timestampltz"),
+            ({"type": "timestamp_ltz"}, TimestampLTZ(), "timestampltz"),
+            ({"type": "timestampntz"}, TimestampNTZ(), "timestampntz"),
+            ({"type": "timestamp_ntz"}, TimestampNTZ(), "timestampntz"),
             # Binary types
             ({"type": "binary"}, Binary(), "binary"),
             ({"type": "blob"}, Binary(), "binary"),

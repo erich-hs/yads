@@ -120,6 +120,8 @@ class SQLGlotConverter(BaseConverter):
         # - Date
         # - Timestamp
         # - TimestampTZ
+        # - TimestampLTZ
+        # - TimestampNTZ
         # - Binary
         # - JSON
         # - UUID

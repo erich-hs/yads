@@ -49,6 +49,8 @@ __all__ = [
     "Date",
     "Timestamp",
     "TimestampTZ",
+    "TimestampLTZ",
+    "TimestampNTZ",
     "Binary",
     "JSON",
     "UUID",
@@ -274,8 +276,8 @@ class Timestamp(Type):
     """Date and time type without timezone information.
 
     Represents a specific point in time including date and time components,
-    but without timezone awareness. Maps to TIMESTAMP or DATETIME types
-    in SQL dialects.
+    with implicit timezone awareness (dependant on the target SQL dialect).
+    Maps to TIMESTAMP or DATETIME types in SQL dialects.
 
     Example:
         >>> Timestamp()
@@ -297,6 +299,36 @@ class TimestampTZ(Type):
         >>>
         >>> # Use in field definition
         >>> Field(name="order_time", type=TimestampTZ())
+    """
+
+
+@dataclass(frozen=True)
+class TimestampLTZ(Type):
+    """Date and time type with local timezone information.
+
+    Similar to Timestamp but includes local timezone awareness. Maps to
+    TIMESTAMP WITH TIME ZONE or equivalent types in SQL dialects.
+
+    Example:
+        >>> TimestampLTZ()
+        >>>
+        >>> # Use in field definition
+        >>> Field(name="order_time", type=TimestampLTZ())
+    """
+
+
+@dataclass(frozen=True)
+class TimestampNTZ(Type):
+    """Date and time type without timezone information.
+
+    Similar to Timestamp but without timezone awareness. Maps to
+    TIMESTAMP or DATETIME types in SQL dialects.
+
+    Example:
+        >>> TimestampNTZ()
+        >>>
+        >>> # Use in field definition
+        >>> Field(name="order_time", type=TimestampNTZ())
     """
 
 
@@ -582,7 +614,12 @@ TYPE_ALIASES: dict[str, tuple[type[Type], dict[str, Any]]] = {
     "date": (Date, {}),
     "datetime": (Timestamp, {}),
     "timestamp": (Timestamp, {}),
+    "timestamptz": (TimestampTZ, {}),
     "timestamp_tz": (TimestampTZ, {}),
+    "timestampltz": (TimestampLTZ, {}),
+    "timestamp_ltz": (TimestampLTZ, {}),
+    "timestampntz": (TimestampNTZ, {}),
+    "timestamp_ntz": (TimestampNTZ, {}),
     "interval": (Interval, {}),
     # Complex Types
     "array": (Array, {}),
