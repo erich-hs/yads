@@ -1,6 +1,6 @@
 import pytest
 from yads.converters.sql import SparkSQLConverter
-from yads.exceptions import ValidationRuleError
+from yads.exceptions import AstValidationError
 from yads.loaders import from_string
 from yads.spec import SchemaSpec
 
@@ -30,7 +30,7 @@ class TestSparkSQLConverter:
         """
         converter = SparkSQLConverter()
         with pytest.raises(
-            ValidationRuleError, match="Fixed-length strings are not supported"
+            AstValidationError, match="Fixed-length strings are not supported"
         ):
             converter.convert(spec_with_fixed_length_string, mode="raise")
 

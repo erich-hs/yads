@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import pytest
-from sqlglot import exp, parse_one
+from sqlglot import parse_one
+from sqlglot.expressions import ColumnDef, DataType
 
-from yads.validator.rules import NoFixedLengthStringRule
+from yads.converters.sql.validators.ast_validation_rules import NoFixedLengthStringRule
 
 
 class TestNoFixedLengthStringRule:
@@ -32,9 +33,9 @@ class TestNoFixedLengthStringRule:
         """Tests that the rule correctly identifies fixed-length strings."""
         ast = parse_one(f"CREATE TABLE t (col {sql})")
         assert ast
-        column_def = ast.find(exp.ColumnDef)
+        column_def = ast.find(ColumnDef)
         assert column_def
-        data_type = column_def.find(exp.DataType)
+        data_type = column_def.find(DataType)
         assert data_type
 
         assert rule.validate(data_type) == expected
@@ -44,13 +45,13 @@ class TestNoFixedLengthStringRule:
         sql = "CREATE TABLE t (col VARCHAR(50))"
         ast = parse_one(sql)
         assert ast
-        data_type = ast.find(exp.DataType)
+        data_type = ast.find(DataType)
         assert data_type
 
         adjusted_node = rule.adjust(data_type)
 
-        assert isinstance(adjusted_node, exp.DataType)
-        assert adjusted_node.this == exp.DataType.Type.VARCHAR
+        assert isinstance(adjusted_node, DataType)
+        assert adjusted_node.this == DataType.Type.VARCHAR
         assert not adjusted_node.expressions
 
     def test_adjustment_description(self, rule: NoFixedLengthStringRule):

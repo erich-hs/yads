@@ -181,10 +181,9 @@ Here's a simplified example of a custom converter for a fictional "AwesomeDB":
 
 ```python
 # in yads/converters/sql.py
-from yads.converters.sql import SQLConverter
-from yads.validator import AstValidator, Rule
+from yads.converters.sql import SQLConverter, AstValidator, AstValidationRule
 
-class DisallowLongVarcharsRule(Rule):
+class DisallowLongVarcharsRule(AstValidationRule):
     # ... implementation for the rule ...
 
 class AwesomeDBConverter(SQLConverter):

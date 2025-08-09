@@ -1,45 +1,16 @@
-"""SQL DDL converters for transforming yads specifications into SQL statements.
+"""AST converter from yads `SchemaSpec` to sqlglot AST expressions.
 
-This module provides converters that transform yads SchemaSpec objects into SQL DDL
-(Data Definition Language) statements for various database dialects. The conversion
-process follows a multi-stage pipeline designed to handle dialect-specific features
-and constraints while maintaining the expressiveness of the original specification.
-
-The conversion process follows a "wide-to-narrow" approach, from the most expressive
-yads specification to a constrained SQL DDL string:
-    - SQLGLotConverter: Core converter that transforms the canonical yads specification
-        into a sqlglot AST (Abstract Syntax Tree). The AST is the intermediate representation
-        that is used by all other converters in this module. It's the only converter in this
-        module that returns something other than a SQL DDL string.
-    - SQLConverter: Base class for all SQL converters, it's responsible for orchestrating
-        the conversion and validation process. It's also able to generate loosely validated
-        SQL DDL strings in any dialect implemented by intermediate AST converter.
-    - SparkSQLConverter: Specialized converter for Apache Spark SQL with strict validation.
-
-Example:
-    >>> import yads
-    >>> from yads.converters.sql import SparkSQLConverter
-    >>>
-    >>> # Load schema specification
-    >>> spec = yads.from_yaml("table_spec.yaml")
-    >>>
-    >>> # Convert to Spark SQL DDL
-    >>> converter = SparkSQLConverter()
-    >>> ddl = converter.convert(spec, pretty=True, if_not_exists=True)
-    >>> print(ddl)
-    CREATE TABLE IF NOT EXISTS my_table (
-        id BIGINT NOT NULL,
-        name STRING,
-        created_at TIMESTAMP
-    )
+Contains the `SQLGlotConverter`, which is responsible for producing a
+dialect-agnostic `sqlglot` AST representing a CREATE TABLE statement
+from the canonical `SchemaSpec` format.
 """
 
 from __future__ import annotations
 
 from functools import singledispatchmethod
-from typing import Any, Literal
+from typing import Any
 
-from sqlglot import exp, ErrorLevel
+from sqlglot import exp
 from sqlglot.expressions import convert
 
 from yads.constraints import (
@@ -51,207 +22,10 @@ from yads.constraints import (
     PrimaryKeyConstraint,
     PrimaryKeyTableConstraint,
 )
-from yads.converters.base import BaseConverter
-from yads.exceptions import ConversionError, UnsupportedFeatureError
-from yads.spec import Column, Field, SchemaSpec, Storage, TransformedColumnReference
-from yads.types import (
-    Array,
-    Decimal,
-    Float,
-    Integer,
-    Interval,
-    Map,
-    String,
-    Struct,
-    Type,
-)
-from yads.validator import AstValidator, NoFixedLengthStringRule, Rule
-
-
-class SQLConverter:
-    """Base class for all SQL converters.
-
-    SQLConverter orchestrates the conversion pipeline by using an AST converter
-    to generate an intermediate Abstract Syntax Tree (AST), applying optional
-    validation and adjustment rules, and finally serializing to a SQL string.
-
-    The converter supports any SQL dialect implemented by the AST converter and
-    allows for custom validation rules to handle dialect-specific limitations.
-    The validation can operate in different modes to either raise errors,
-    automatically fix issues, or warn about incompatibilities.
-
-    Attributes:
-        _ast_converter: The intermediate AST converter. Defaults to SQLGlotConverter.
-        _dialect: Target SQL dialect name for SQL DDL string serialization.
-        _ast_validator: Optional validator for dialect-specific AST processing.
-        _convert_options: Default options for SQL DDL string serialization.
-
-    Example:
-        >>> from yads.converters.sql import SQLConverter
-        >>> from yads.validator import AstValidator
-        >>>
-        >>> # Create converter with custom validation
-        >>> converter = SQLConverter(
-        ...     dialect="snowflake",
-        ...     ast_validator=AstValidator(rules=[CustomRule()]),
-        ...     pretty=True
-        ... )
-        >>> ddl = converter.convert(spec)
-    """
-
-    def __init__(
-        self,
-        dialect: str,
-        ast_converter: BaseConverter | None = None,
-        ast_validator: AstValidator | None = None,
-        **convert_options: Any,
-    ):
-        """Initialize the SQL converter with an AST converter and validator and default
-        options for SQL DDL string serialization.
-
-        Args:
-            dialect: Target SQL DDL dialect name. For a SQLGlotConverter, see sqlglot's
-                     documentation for supported dialects:
-                     https://sqlglot.com/sqlglot/dialects.html
-            ast_converter: AST converter for transforming SchemaSpec to intermediate AST.
-                           Defaults to SQLGlotConverter.
-            ast_validator: Validator for applying dialect-specific rules and adjustments.
-                           If None, no validation or adjustment will be performed.
-            **convert_options: Default options passed to the AST converter for SQL DDL
-                               string serialization. For a SQLGlotConverter, see sqlglot's
-                               documentation for supported options:
-                               https://sqlglot.com/sqlglot/generator.html#Generator
-
-        Example:
-            >>> # Basic converter for Spark SQL
-            >>> converter = SQLConverter("spark")
-            >>>
-            >>> # Converter with custom formatting
-            >>> converter = SQLConverter(
-            ...     "snowflake",
-            ...     pretty=True,
-            ...     identify=True
-            ... )
-        """
-        self._ast_converter = ast_converter or SQLGlotConverter()
-        self._dialect = dialect
-        self._ast_validator = ast_validator
-        self._convert_options = convert_options
-
-    def convert(
-        self,
-        spec: SchemaSpec,
-        if_not_exists: bool = False,
-        or_replace: bool = False,
-        ignore_catalog: bool = False,
-        ignore_database: bool = False,
-        mode: Literal["raise", "warn", "ignore"] = "warn",
-        **kwargs: Any,
-    ) -> str:
-        """Convert a yads SchemaSpec into a SQL DDL string.
-
-        This method orchestrates the complete conversion pipeline from SchemaSpec
-        to SQL DDL. It first converts the spec to an intermediate AST, applies any
-        configured validation rules, and finally serializes to a SQL DDL string.
-
-        Args:
-            spec: The yads specification as a SchemaSpec object.
-            if_not_exists: If True, add `IF NOT EXISTS` clause to the DDL statement.
-            or_replace: If True, add `OR REPLACE` clause to the DDL statement.
-            ignore_catalog: If True, omits the catalog from the table name.
-            ignore_database: If True, omits the database from the table name.
-            mode: Validation mode when an ast_validator is configured:
-                - "raise": Raise ValidationRuleError for any unsupported features.
-                - "warn": Log warnings and automatically adjust AST for compatibility.
-                - "ignore": Silently ignore unsupported features without warnings.
-                            The generated SQL DDL might still contain modifications
-                            done by the AST converter.
-            **kwargs: Additional options for SQL DDL string serialization, overriding
-                      defaults. For a SQLGlotConverter, see sqlglot's documentation
-                      for supported options:
-                      https://sqlglot.com/sqlglot/generator.html#Generator
-
-        Returns:
-            SQL DDL CREATE TABLE statement as a string.
-
-        Raises:
-            ValidationRuleError: In raise mode when unsupported features are detected.
-            ConversionError: When the underlying conversion process fails.
-
-        Example:
-            >>> ddl = converter.convert(
-            ...     spec,
-            ...     if_not_exists=True,
-            ...     pretty=True
-            ... )
-        """
-        ast = self._ast_converter.convert(
-            spec,
-            if_not_exists=if_not_exists,
-            or_replace=or_replace,
-            ignore_catalog=ignore_catalog,
-            ignore_database=ignore_database,
-        )
-        if self._ast_validator:
-            ast = self._ast_validator.validate(ast, mode=mode)
-        if isinstance(self._ast_converter, SQLGlotConverter):
-            match mode:
-                case "raise":
-                    self._convert_options["unsupported_level"] = ErrorLevel.RAISE
-                case "warn":
-                    self._convert_options["unsupported_level"] = ErrorLevel.WARN
-                case "ignore":
-                    self._convert_options["unsupported_level"] = ErrorLevel.IGNORE
-        options = {**self._convert_options, **kwargs}
-        return ast.sql(dialect=self._dialect, **options)
-
-
-class SparkSQLConverter(SQLConverter):
-    """Specialized SQL converter for Apache Spark SQL with built-in validation.
-
-    SparkSQLConverter extends SQLConverter to provide Spark-specific validation
-    rules to ensure compatibility with Spark SQL's feature set.
-
-    The converter applies the following validation rules:
-    - NoFixedLengthStringRule: Disallow fixed-length string types (CHAR/VARCHAR with length).
-
-    Example:
-        >>> from yads.converters.sql import SparkSQLConverter
-        >>>
-        >>> # Create Spark-specific converter
-        >>> converter = SparkSQLConverter(pretty=True)
-        >>> ddl = converter.convert(spec, if_not_exists=True)
-        >>>
-        >>> # Result will be valid Spark SQL with appropriate adjustments
-        >>> print(ddl)
-        CREATE TABLE IF NOT EXISTS my_table (
-            id BIGINT,
-            name STRING  -- Fixed-length strings converted to STRING
-        ) USING DELTA
-    """
-
-    def __init__(self, **convert_options: Any):
-        """Initialize Spark SQL converter with built-in validation rules.
-
-        Creates a SparkSQLConverter configured with Spark-specific validation
-        rules and the "spark" dialect.
-
-        Args:
-            **convert_options: Options for SQL DDL string serialization passed to the
-                              AST converter. For a SQLGlotConverter, see sqlglot's
-                              documentation for supported options:
-                              https://sqlglot.com/sqlglot/generator.html#Generator
-
-        Example:
-            >>> # Basic Spark converter
-            >>> converter = SparkSQLConverter()
-            >>>
-            >>> # Converter with formatted output
-            >>> converter = SparkSQLConverter(pretty=True)
-        """
-        rules: list[Rule] = [NoFixedLengthStringRule()]
-        validator = AstValidator(rules=rules)
-        super().__init__(dialect="spark", ast_validator=validator, **convert_options)
+from ..base import BaseConverter
+from ...exceptions import ConversionError, UnsupportedFeatureError
+from ...spec import Column, Field, SchemaSpec, Storage, TransformedColumnReference
+from ...types import Array, Decimal, Float, Integer, Interval, Map, String, Struct, Type
 
 
 class SQLGlotConverter(BaseConverter):
@@ -280,7 +54,6 @@ class SQLGlotConverter(BaseConverter):
         >>> sql = ast.sql(dialect="spark")
     """
 
-    # Class-level constants for transform handlers
     _TRANSFORM_HANDLERS: dict[str, str] = {
         "bucket": "_handle_bucket_transform",
         "truncate": "_handle_truncate_transform",
@@ -341,25 +114,6 @@ class SQLGlotConverter(BaseConverter):
 
     @singledispatchmethod
     def _convert_type(self, yads_type: Type) -> exp.DataType:
-        """Convert a yads Type to a sqlglot `exp.DataType` expression.
-
-        This is the main dispatch method for type conversion. It uses single
-        dispatch to delegate to specialized handlers for each yads type.
-        The fallback implementation delegates to sqlglot's DataType.build
-        method for basic type conversion.
-
-        Args:
-            yads_type: The yads type to convert.
-
-        Returns:
-            sqlglot `exp.DataType` expression representing the equivalent SQL type.
-
-        Note:
-            This method serves as the base case for single dispatch. Specific
-            type handlers are registered using `@_convert_type.register(TypeClass)`.
-        """
-        # Fallback to default sqlglot DataType.build method.
-        # https://sqlglot.com/sqlglot/expressions.html#DataType.build
         return exp.DataType.build(str(yads_type))
 
     @_convert_type.register(Integer)
@@ -370,7 +124,6 @@ class SQLGlotConverter(BaseConverter):
             return exp.DataType(this=exp.DataType.Type.SMALLINT)
         if yads_type.bits == 64:
             return exp.DataType(this=exp.DataType.Type.BIGINT)
-        # Default to INT for 32-bit or unspecified
         return exp.DataType(this=exp.DataType.Type.INT)
 
     @_convert_type.register(Float)
@@ -395,7 +148,6 @@ class SQLGlotConverter(BaseConverter):
         if yads_type.precision is not None:
             expressions.append(exp.DataTypeParam(this=convert(yads_type.precision)))
             expressions.append(exp.DataTypeParam(this=convert(yads_type.scale)))
-
         return exp.DataType(
             this=exp.DataType.Type.DECIMAL,
             expressions=expressions if expressions else None,
@@ -448,29 +200,6 @@ class SQLGlotConverter(BaseConverter):
 
     @singledispatchmethod
     def _convert_column_constraint(self, constraint: Any) -> exp.ColumnConstraint:
-        """Convert a yads column constraint to a sqlglot `exp.ColumnConstraint` expression.
-
-        This is the main dispatch method for column constraint conversion. It uses
-        single dispatch to delegate to specialized handlers for each constraint type.
-        The base implementation raises an error for unsupported constraints.
-
-        Args:
-            constraint: The yads column constraint to convert.
-
-        Returns:
-            sqlglot ColumnConstraint expression representing the SQL constraint.
-
-        Raises:
-            UnsupportedFeatureError: When the constraint type is not supported
-                                     by this converter.
-
-        Note:
-            Specific constraint handlers are registered using
-            `@_convert_column_constraint.register(ConstraintClass)`.
-        """
-        # TODO: Revisit this after implementing a global setting to either
-        # raise or warn when the spec is more expressive than the handlers
-        # available in the converter.
         raise UnsupportedFeatureError(
             f"SQLGlotConverter does not support constraint: {type(constraint)}."
         )
@@ -493,17 +222,19 @@ class SQLGlotConverter(BaseConverter):
     def _(self, constraint: IdentityConstraint) -> exp.ColumnConstraint:
         start_expr: exp.Expression | None = None
         if constraint.start is not None:
-            if constraint.start < 0:
-                start_expr = exp.Neg(this=convert(abs(constraint.start)))
-            else:
-                start_expr = convert(constraint.start)
+            start_expr = (
+                exp.Neg(this=convert(abs(constraint.start)))
+                if constraint.start < 0
+                else convert(constraint.start)
+            )
 
         increment_expr: exp.Expression | None = None
         if constraint.increment is not None:
-            if constraint.increment < 0:
-                increment_expr = exp.Neg(this=convert(abs(constraint.increment)))
-            else:
-                increment_expr = convert(constraint.increment)
+            increment_expr = (
+                exp.Neg(this=convert(abs(constraint.increment)))
+                if constraint.increment < 0
+                else convert(constraint.increment)
+            )
 
         return exp.ColumnConstraint(
             kind=exp.GeneratedAsIdentityColumnConstraint(
@@ -520,40 +251,14 @@ class SQLGlotConverter(BaseConverter):
                 constraint.references.table, constraint.references.columns
             ),
         )
-
         if constraint.name:
             return exp.ColumnConstraint(
-                this=exp.Identifier(this=constraint.name),
-                kind=reference_expression,
+                this=exp.Identifier(this=constraint.name), kind=reference_expression
             )
-
         return exp.ColumnConstraint(kind=reference_expression)
 
     @singledispatchmethod
     def _convert_table_constraint(self, constraint: Any) -> exp.Expression:
-        """Convert a yads table constraint to a sqlglot `exp.Expression` expression.
-
-        This is the main dispatch method for table-level constraint conversion.
-        Table constraints affect multiple columns and are defined at the table
-        level rather than on individual columns.
-
-        Args:
-            constraint: The yads table constraint to convert.
-
-        Returns:
-            sqlglot Expression representing the SQL table constraint.
-
-        Raises:
-            UnsupportedFeatureError: When the constraint type is not supported
-                                     by this converter.
-
-        Note:
-            Specific table constraint handlers are registered using
-            `@_convert_table_constraint.register(ConstraintClass)`.
-        """
-        # TODO: Revisit this after implementing a global setting to either
-        # raise or warn when the spec is more expressive than the handlers
-        # available in the converter.
         raise UnsupportedFeatureError(
             f"SQLGlotConverter does not support table constraint: {type(constraint)}."
         )
@@ -563,8 +268,7 @@ class SQLGlotConverter(BaseConverter):
         pk_expression = exp.PrimaryKey(
             expressions=[
                 exp.Ordered(
-                    this=exp.Column(this=exp.Identifier(this=c)),
-                    nulls_first=True,
+                    this=exp.Column(this=exp.Identifier(this=c)), nulls_first=True
                 )
                 for c in constraint.columns
             ]
@@ -586,19 +290,16 @@ class SQLGlotConverter(BaseConverter):
             expressions=[exp.Identifier(this=c) for c in constraint.columns],
             reference=reference_expression,
         )
-
         if constraint.name:
             return exp.Constraint(
-                this=exp.Identifier(this=constraint.name),
-                expressions=[fk_expression],
+                this=exp.Identifier(this=constraint.name), expressions=[fk_expression]
             )
         raise ConversionError("Foreign key constraint must have a name.")
 
-    # Property handlers
+    # Properties
     def _handle_storage_properties(self, storage: Storage | None) -> list[exp.Property]:
         if not storage:
             return []
-
         properties: list[exp.Property] = []
         if storage.location:
             properties.append(self._handle_location_property(storage.location))
@@ -607,7 +308,6 @@ class SQLGlotConverter(BaseConverter):
         if storage.tbl_properties:
             for key, value in storage.tbl_properties.items():
                 properties.append(self._handle_generic_property(key, value))
-
         return properties
 
     def _handle_partitioned_by_property(
@@ -615,7 +315,6 @@ class SQLGlotConverter(BaseConverter):
     ) -> exp.PartitionedByProperty:
         schema_expressions = []
         for col in value:
-            expression: exp.Expression
             if col.transform:
                 expression = self._handle_transformation(
                     col.column, col.transform, col.transform_args
@@ -623,7 +322,6 @@ class SQLGlotConverter(BaseConverter):
             else:
                 expression = exp.Identifier(this=col.column)
             schema_expressions.append(expression)
-
         return exp.PartitionedByProperty(
             this=exp.Schema(expressions=schema_expressions)
         )
@@ -656,19 +354,8 @@ class SQLGlotConverter(BaseConverter):
         if handler_method_name := self._TRANSFORM_HANDLERS.get(transform):
             handler_method = getattr(self, handler_method_name)
             return handler_method(column, transform_args)
-
-        # Fallback to a generic function expression for all other transforms.
-        # Most direct or parametrized transformation functions are supported
-        # via the fallback. I.e.
-        # - `day(original_col)`
-        # - `month(original_col)`
-        # - `year(original_col)`
-        # - `date_format(original_col, 'yyyy-MM-dd')`
-        # https://sqlglot.com/sqlglot/expressions.html#func
         return exp.func(
-            transform,
-            exp.column(column),
-            *(exp.convert(arg) for arg in transform_args),
+            transform, exp.column(column), *(exp.convert(arg) for arg in transform_args)
         )
 
     def _handle_cast_transform(
@@ -690,8 +377,7 @@ class SQLGlotConverter(BaseConverter):
     ) -> exp.Expression:
         self._validate_transform_args("bucket", len(transform_args), 1)
         return exp.PartitionedByBucket(
-            this=exp.column(column),
-            expression=exp.convert(transform_args[0]),
+            this=exp.column(column), expression=exp.convert(transform_args[0])
         )
 
     def _handle_truncate_transform(
@@ -699,8 +385,7 @@ class SQLGlotConverter(BaseConverter):
     ) -> exp.Expression:
         self._validate_transform_args("truncate", len(transform_args), 1)
         return exp.PartitionByTruncate(
-            this=exp.column(column),
-            expression=exp.convert(transform_args[0]),
+            this=exp.column(column), expression=exp.convert(transform_args[0])
         )
 
     def _handle_date_trunc_transform(
@@ -708,8 +393,7 @@ class SQLGlotConverter(BaseConverter):
     ) -> exp.Expression:
         self._validate_transform_args("date_trunc", len(transform_args), 1)
         return exp.DateTrunc(
-            unit=exp.convert(transform_args[0]),
-            this=exp.column(column),
+            unit=exp.convert(transform_args[0]), this=exp.column(column)
         )
 
     def _validate_transform_args(
@@ -717,24 +401,19 @@ class SQLGlotConverter(BaseConverter):
     ) -> None:
         if received_args_len != required_args_len:
             raise ConversionError(
-                f"The '{transform}' transform requires exactly {required_args_len}"
-                f" argument(s). Got {received_args_len}."
+                f"The '{transform}' transform requires exactly {required_args_len} argument(s). Got {received_args_len}."
             )
 
-    # Field and expression collection
+    # Field/column helpers
     def _convert_field(self, field: Field) -> exp.ColumnDef:
-        """Convert a Field (used in complex types like structs) to a ColumnDef."""
         return exp.ColumnDef(
             this=exp.Identifier(this=field.name),
             kind=self._convert_type(field.type),
-            constraints=None,  # Fields in complex types don't have constraints
+            constraints=None,
         )
 
     def _convert_column(self, column: Column) -> exp.ColumnDef:
-        """Convert a Column (used in table schemas) to a ColumnDef."""
         constraints = []
-
-        # Handle generated columns
         if column.generated_as and column.generated_as.transform:
             expression = self._handle_transformation(
                 column.generated_as.column,
@@ -748,11 +427,8 @@ class SQLGlotConverter(BaseConverter):
                     )
                 )
             )
-
-        # Handle column constraints using single dispatch
         for constraint in column.constraints:
             constraints.append(self._convert_column_constraint(constraint))
-
         return exp.ColumnDef(
             this=exp.Identifier(this=column.name),
             kind=self._convert_type(column.type),
@@ -774,24 +450,6 @@ class SQLGlotConverter(BaseConverter):
         ignore_catalog: bool = False,
         ignore_database: bool = False,
     ) -> exp.Table | exp.Schema:
-        """Parse a qualified table name into a sqlglot `exp.Table` or `exp.Schema` expression.
-
-        Parses table names in the format 'catalog.database.table' or 'database.table'
-        or 'table' and creates appropriate sqlglot expressions. When columns are
-        provided, returns a `exp.Schema` expression suitable for constraint references.
-
-        Args:
-            full_name: Qualified table name with optional catalog and database.
-                       Supports formats: 'table', 'database.table', 'catalog.database.table'.
-            columns: Column names to include in Schema expression. When provided,
-                     returns a `exp.Schema` expression instead of `exp.Table` expression.
-            ignore_catalog: If True, omits the catalog from the table name.
-            ignore_database: If True, omits the database from the table name.
-
-        Returns:
-            sqlglot `exp.Table` expression when columns is None, or `exp.Schema` expression
-            when columns are provided.
-        """
         parts = full_name.split(".")
         table_name = parts[-1]
         db_name = None

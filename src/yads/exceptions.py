@@ -1,18 +1,4 @@
-"""Custom exceptions.
-
-This module provides a comprehensive exception hierarchy, designed to give users
-clear, actionable error messages while enabling programmatic error handling.
-The hierarchy is organized by functional areas (schema, types, constraints, etc.)
-and includes suggestions for resolution.
-
-Example:
-    >>> try:
-    ...     from yads.loaders import from_dict
-    ...     spec = from_dict(invalid_data)
-    ... except UnknownTypeError as e:
-    ...     print(f"Error: {e}")
-    ...     print(f"Suggestions: {e.suggestions}")
-"""
+"""Custom yads exceptions."""
 
 from __future__ import annotations
 
@@ -79,12 +65,6 @@ class SchemaParsingError(SchemaError):
 
     Raised when the input format is invalid, required fields are missing,
     or the structure doesn't conform to the expected schema format.
-
-    Example:
-        >>> raise SchemaParsingError(
-        ...     "Missing required field 'version' in schema 'users'",
-        ...     suggestions=["Add a 'version' field to your schema definition"]
-        ... )
     """
 
 
@@ -94,12 +74,6 @@ class SchemaValidationError(SchemaError):
     Raised when the schema is structurally valid but has logical inconsistencies,
     such as referential integrity violations, duplicate columns, or conflicting
     constraints.
-
-    Example:
-        >>> raise SchemaValidationError(
-        ...     "Partition column 'status' is not defined in the schema (defined columns: id, name)",
-        ...     suggestions=["Add 'status' column to schema", "Remove 'status' from partitioned_by"]
-        ... )
     """
 
 
@@ -109,12 +83,6 @@ class TypeDefinitionError(YadsValidationError):
 
     Raised when type definitions have invalid parameters, conflicting settings,
     or other structural issues.
-
-    Example:
-        >>> raise TypeDefinitionError(
-        ...     "String 'length' must be a positive integer, got -5",
-        ...     suggestions=["Use a positive integer for string length"]
-        ... )
     """
 
 
@@ -122,15 +90,6 @@ class UnknownTypeError(TypeDefinitionError):
     """Unknown or unsupported type name.
 
     Raised when attempting to use a type that is not recognized by yads.
-
-    Example:
-        >>> raise UnknownTypeError(
-        ...     "Unknown type 'invalid_type' for field 'user_id'",
-        ...     suggestions=[
-        ...         "Check for typos in the type name",
-        ...         "Use one of the supported types: string, integer, float, etc."
-        ...     ]
-        ... )
     """
 
 
@@ -147,15 +106,6 @@ class UnknownConstraintError(ConstraintError):
     """Unknown constraint type.
 
     Raised when attempting to use a constraint that is not recognized by yads.
-
-    Example:
-        >>> raise UnknownConstraintError(
-        ...     "Unknown constraint 'invalid_constraint' for field 'user_id'",
-        ...     suggestions=[
-        ...         "Check for typos in the constraint name",
-        ...         "Use one of the supported constraints: not_null, primary_key, etc."
-        ...     ]
-        ... )
     """
 
 
@@ -163,12 +113,6 @@ class InvalidConstraintError(ConstraintError):
     """Invalid constraint parameters or configuration.
 
     Raised when constraint parameters are invalid, missing, or have incorrect types.
-
-    Example:
-        >>> raise InvalidConstraintError(
-        ...     "The 'not_null' constraint expects a boolean value, got 'yes' for field 'email'",
-        ...     suggestions=["Use true or false for the not_null constraint"]
-        ... )
     """
 
 
@@ -177,15 +121,6 @@ class ConstraintConflictError(ConstraintError):
 
     Raised when constraints are defined in conflicting ways, such as the same
     constraint being defined at both column and table level.
-
-    Example:
-        >>> raise ConstraintConflictError(
-        ...     "Column 'id' has primary_key defined at both column and table level",
-        ...     suggestions=[
-        ...         "Remove the column-level primary_key constraint",
-        ...         "Remove the table-level primary_key constraint"
-        ...     ]
-        ... )
     """
 
 
@@ -203,12 +138,6 @@ class ConversionError(ConverterError):
 
     Raised when the conversion process fails due to incompatible data structures,
     missing handlers, or other conversion issues.
-
-    Example:
-        >>> raise ConversionError(
-        ...     "Failed to convert Map type to SQL representation for field 'metadata'",
-        ...     suggestions=["Use a supported type for SQL conversion"]
-        ... )
     """
 
 
@@ -217,28 +146,13 @@ class UnsupportedFeatureError(ConverterError):
 
     Raised when attempting to convert a yads feature that is not supported
     by the target format or dialect.
-
-    Example:
-        >>> raise UnsupportedFeatureError(
-        ...     "Fixed-length strings are not supported in Spark SQL for field 'code'",
-        ...     suggestions=[
-        ...         "Remove the length parameter",
-        ...         "Use mode='fix' to automatically adjust the schema"
-        ...     ]
-        ... )
     """
 
 
 # Validator Exceptions
-class ValidationRuleError(YadsValidationError):
+class AstValidationError(YadsValidationError):
     """Validation rule processing errors.
 
     Raised when there are issues with validation rule definition, execution,
     or processing.
-
-    Example:
-        >>> raise ValidationRuleError(
-        ...     "Validation rule 'NoFixedLengthStringRule' failed to process DataType node",
-        ...     suggestions=["Check the rule implementation", "Verify the input AST"]
-        ... )
     """
