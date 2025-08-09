@@ -22,10 +22,10 @@ from ...constraints import (
     PrimaryKeyConstraint,
     PrimaryKeyTableConstraint,
 )
-from ..base import BaseConverter
 from ...exceptions import ConversionError, UnsupportedFeatureError
 from ...spec import Column, Field, SchemaSpec, Storage, TransformedColumnReference
 from ...types import Array, Decimal, Float, Integer, Interval, Map, String, Struct, Type
+from ..base import BaseConverter
 
 
 class SQLGlotConverter(BaseConverter):
@@ -114,23 +114,17 @@ class SQLGlotConverter(BaseConverter):
 
     @singledispatchmethod
     def _convert_type(self, yads_type: Type) -> exp.DataType:
+        # Fallback to default sqlglot DataType.build method.
+        # The following non-parametrized yads types are handled via the fallback:
+        # - Boolean
+        # - Date
+        # - Timestamp
+        # - TimestampTZ
+        # - Binary
+        # - JSON
+        # - UUID
+        # https://sqlglot.com/sqlglot/expressions.html#DataType.build
         return exp.DataType.build(str(yads_type))
-
-    @_convert_type.register(Integer)
-    def _(self, yads_type: Integer) -> exp.DataType:
-        if yads_type.bits == 8:
-            return exp.DataType(this=exp.DataType.Type.TINYINT)
-        if yads_type.bits == 16:
-            return exp.DataType(this=exp.DataType.Type.SMALLINT)
-        if yads_type.bits == 64:
-            return exp.DataType(this=exp.DataType.Type.BIGINT)
-        return exp.DataType(this=exp.DataType.Type.INT)
-
-    @_convert_type.register(Float)
-    def _(self, yads_type: Float) -> exp.DataType:
-        if yads_type.bits == 64:
-            return exp.DataType(this=exp.DataType.Type.DOUBLE)
-        return exp.DataType(this=exp.DataType.Type.FLOAT)
 
     @_convert_type.register(String)
     def _(self, yads_type: String) -> exp.DataType:
@@ -141,6 +135,23 @@ class SQLGlotConverter(BaseConverter):
             this=exp.DataType.Type.TEXT,
             expressions=expressions if expressions else None,
         )
+
+    @_convert_type.register(Integer)
+    def _(self, yads_type: Integer) -> exp.DataType:
+        if yads_type.bits == 8:
+            return exp.DataType(this=exp.DataType.Type.TINYINT)
+        if yads_type.bits == 16:
+            return exp.DataType(this=exp.DataType.Type.SMALLINT)
+        if yads_type.bits == 64:
+            return exp.DataType(this=exp.DataType.Type.BIGINT)
+        # Default to INT for 32-bit or unspecified
+        return exp.DataType(this=exp.DataType.Type.INT)
+
+    @_convert_type.register(Float)
+    def _(self, yads_type: Float) -> exp.DataType:
+        if yads_type.bits == 64:
+            return exp.DataType(this=exp.DataType.Type.DOUBLE)
+        return exp.DataType(this=exp.DataType.Type.FLOAT)
 
     @_convert_type.register(Decimal)
     def _(self, yads_type: Decimal) -> exp.DataType:
@@ -197,6 +208,9 @@ class SQLGlotConverter(BaseConverter):
 
     @singledispatchmethod
     def _convert_column_constraint(self, constraint: Any) -> exp.ColumnConstraint:
+        # TODO: Revisit this after implementing a global setting to either
+        # raise or warn when the spec is more expressive than the handlers
+        # available in the converter.
         raise UnsupportedFeatureError(
             f"SQLGlotConverter does not support constraint: {type(constraint)}."
         )
@@ -256,6 +270,9 @@ class SQLGlotConverter(BaseConverter):
 
     @singledispatchmethod
     def _convert_table_constraint(self, constraint: Any) -> exp.Expression:
+        # TODO: Revisit this after implementing a global setting to either
+        # raise or warn when the spec is more expressive than the handlers
+        # available in the converter.
         raise UnsupportedFeatureError(
             f"SQLGlotConverter does not support table constraint: {type(constraint)}."
         )
@@ -349,6 +366,15 @@ class SQLGlotConverter(BaseConverter):
         if handler_method_name := self._TRANSFORM_HANDLERS.get(transform):
             handler_method = getattr(self, handler_method_name)
             return handler_method(column, transform_args)
+
+        # Fallback to a generic function expression for all other transforms.
+        # Most direct or parametrized transformation functions are supported
+        # via the fallback. I.e.
+        # - `day(original_col)`
+        # - `month(original_col)`
+        # - `year(original_col)`
+        # - `date_format(original_col, 'yyyy-MM-dd')`
+        # https://sqlglot.com/sqlglot/expressions.html#func
         return exp.func(
             transform, exp.column(column), *(exp.convert(arg) for arg in transform_args)
         )

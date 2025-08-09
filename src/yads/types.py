@@ -192,21 +192,6 @@ class Float(Type):
 
 
 @dataclass(frozen=True)
-class Boolean(Type):
-    """Boolean type representing true/false values.
-
-    Maps to BOOLEAN types in SQL dialects or equivalent binary representations
-    in data processing frameworks.
-
-    Example:
-        >>> Boolean()
-        >>>
-        >>> # Use in field definition
-        >>> Field(name="is_active", type=Boolean())
-    """
-
-
-@dataclass(frozen=True)
 class Decimal(Type):
     """Fixed-precision decimal type.
 
@@ -252,6 +237,21 @@ class Decimal(Type):
         if self.precision is not None and self.scale is not None:
             return f"decimal({self.precision}, {self.scale})"
         return "decimal"
+
+
+@dataclass(frozen=True)
+class Boolean(Type):
+    """Boolean type representing true/false values.
+
+    Maps to BOOLEAN types in SQL dialects or equivalent binary representations
+    in data processing frameworks.
+
+    Example:
+        >>> Boolean()
+        >>>
+        >>> # Use in field definition
+        >>> Field(name="is_active", type=Boolean())
+    """
 
 
 @dataclass(frozen=True)
@@ -547,6 +547,11 @@ class Map(Type):
 
 
 TYPE_ALIASES: dict[str, tuple[type[Type], dict[str, Any]]] = {
+    # String Types
+    "string": (String, {}),
+    "text": (String, {}),
+    "varchar": (String, {}),
+    "char": (String, {}),
     # Numeric Types
     "int8": (Integer, {"bits": 8}),
     "tinyint": (Integer, {"bits": 8}),
@@ -566,18 +571,13 @@ TYPE_ALIASES: dict[str, tuple[type[Type], dict[str, Any]]] = {
     "double": (Float, {"bits": 64}),
     "decimal": (Decimal, {}),
     "numeric": (Decimal, {}),
-    # String Types
-    "string": (String, {}),
-    "text": (String, {}),
-    "varchar": (String, {}),
-    "char": (String, {}),
+    # Boolean Types
+    "bool": (Boolean, {}),
+    "boolean": (Boolean, {}),
     # Binary Types
     "blob": (Binary, {}),
     "binary": (Binary, {}),
     "bytes": (Binary, {}),
-    # Boolean Types
-    "bool": (Boolean, {}),
-    "boolean": (Boolean, {}),
     # Temporal Types
     "date": (Date, {}),
     "datetime": (Timestamp, {}),

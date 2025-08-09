@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Literal, cast
 from sqlglot.expressions import Create
 
 from ....exceptions import AstValidationError
-from .ast_validation_rules import AstValidationRule  # type: ignore[reportMissingImports]
+from .ast_validation_rules import AstValidationRule
 
 if TYPE_CHECKING:
     from sqlglot import exp
