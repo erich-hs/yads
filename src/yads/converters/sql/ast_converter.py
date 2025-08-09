@@ -13,7 +13,7 @@ from typing import Any
 from sqlglot import exp
 from sqlglot.expressions import convert
 
-from yads.constraints import (
+from ...constraints import (
     DefaultConstraint,
     ForeignKeyConstraint,
     ForeignKeyTableConstraint,

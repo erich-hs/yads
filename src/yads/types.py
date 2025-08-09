@@ -33,7 +33,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
-from yads.exceptions import TypeDefinitionError
+from .exceptions import TypeDefinitionError
 
 if TYPE_CHECKING:
     from .spec import Field
@@ -508,7 +508,7 @@ class Struct(Type):
         ... ])
     """
 
-    fields: list["Field"]
+    fields: list[Field]
 
     def __str__(self) -> str:
         fields_str = ",\n".join(str(field) for field in self.fields)

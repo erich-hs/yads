@@ -1,19 +1,19 @@
 import yads
-from yads.converters import SQLConverter
+from yads.converters import SQLGlotConverter
 
 simple_spec = yads.from_yaml("examples/specs/simple_spec.yaml")
-full_spec = yads.from_yaml("tests/fixtures/spec/valid/full_spec.yaml")
+# full_spec = yads.from_yaml("tests/fixtures/spec/valid/full_spec.yaml")
 
 ### DuckDB
 # import duckdb
-duckdb_converter = SQLConverter(dialect="duckdb", pretty=True)
-# sqlglot_converter = SQLGlotConverter()
+# duckdb_converter = SQLConverter(dialect="duckdb", pretty=True)
+sqlglot_converter = SQLGlotConverter()
 
-duckdb_sql_ddl = duckdb_converter.convert(full_spec)
+# duckdb_sql_ddl = duckdb_converter.convert(full_spec)
 
-# ast = sqlglot_converter.convert(full_spec)
+ast = sqlglot_converter.convert(simple_spec)
 
-# print(repr(ast))
+print(repr(ast))
 
 # with open("tests/fixtures/sql/full_spec.sql", "r") as f:
 #     sql_from_fixture = f.read()
@@ -21,7 +21,7 @@ duckdb_sql_ddl = duckdb_converter.convert(full_spec)
 # ast_from_fixture = parse_one(sql_from_fixture)
 # print(repr(ast_from_fixture))
 
-print(duckdb_sql_ddl)
+# print(duckdb_sql_ddl)
 
 # print("\n--- Testing DDL with DuckDB ---")
 # con = duckdb.connect()

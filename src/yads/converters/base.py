@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from yads.spec import SchemaSpec
+    from ..spec import SchemaSpec
 
 
 class BaseConverter(ABC):

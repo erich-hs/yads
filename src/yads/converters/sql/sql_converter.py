@@ -1,7 +1,7 @@
 """SQL converters orchestrating AST conversion and SQL generation.
 
 This module contains high-level SQL converters that:
-- Build a sqlglot AST from a `SchemaSpec` using an AST converter
+- Build an Abstract Syntax Tree (AST) from a `SchemaSpec` using an AST converter
 - Optionally validate/adjust the AST using AST validation rules
 - Serialize the final AST to a SQL string for a target dialect
 """
@@ -12,9 +12,8 @@ from typing import Any, Literal
 
 from sqlglot import ErrorLevel
 
-from yads.converters.base import BaseConverter
-from yads.spec import SchemaSpec
-
+from ...spec import SchemaSpec
+from ..base import BaseConverter
 from .ast_converter import SQLGlotConverter  # type: ignore[reportMissingImports]
 from .validators.ast_validator import AstValidator  # type: ignore[reportMissingImports]
 from .validators.ast_validation_rules import (  # type: ignore[reportMissingImports]
@@ -27,14 +26,14 @@ class SQLConverter:
     """Base class for SQL DDL generation.
 
     The converter composes:
-    - An AST converter that transforms a `SchemaSpec` into a sqlglot AST
-    - An optional AST validator that enforces or adjusts dialect compatibility
+    - An AST converter.
+    - An optional AST validator that enforces or adjusts dialect compatibility.
 
     Args:
-        dialect: Target SQL dialect name accepted by sqlglot.
+        dialect: Target SQL dialect name accepted by the AST converter.
         ast_converter: AST builder. Defaults to `SQLGlotConverter`.
         ast_validator: Optional validator for dialect-specific adjustments.
-        **convert_options: Default sqlglot generation options.
+        **convert_options: Default AST converter generation options.
 
     Example:
         >>> from yads.converters.sql import SQLConverter, AstValidator, NoFixedLengthStringRule

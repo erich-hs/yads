@@ -10,7 +10,7 @@ from __future__ import annotations
 import warnings
 from typing import Any, Protocol
 
-from yads.constraints import (
+from ...constraints import (
     CONSTRAINT_EQUIVALENTS,
     ColumnConstraint,
     DefaultConstraint,
@@ -23,21 +23,21 @@ from yads.constraints import (
     ForeignKeyReference,
     TableConstraint,
 )
-from yads.exceptions import (
+from ...exceptions import (
     InvalidConstraintError,
     SchemaParsingError,
     TypeDefinitionError,
     UnknownConstraintError,
     UnknownTypeError,
 )
-from yads.spec import (
+from ...spec import (
     Column,
     Field,
     SchemaSpec,
     Storage,
     TransformedColumnReference,
 )
-from yads.types import (
+from ...types import (
     TYPE_ALIASES,
     Array,
     Interval,

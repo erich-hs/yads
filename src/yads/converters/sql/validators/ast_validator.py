@@ -13,8 +13,7 @@ from typing import TYPE_CHECKING, Literal, cast
 
 from sqlglot.expressions import Create
 
-from yads.exceptions import AstValidationError
-
+from ....exceptions import AstValidationError
 from .ast_validation_rules import AstValidationRule  # type: ignore[reportMissingImports]
 
 if TYPE_CHECKING:

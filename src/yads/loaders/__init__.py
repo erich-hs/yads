@@ -13,8 +13,8 @@ from typing import Any
 import yaml
 
 from ..exceptions import SchemaParsingError
-from ..loaders.common import SpecBuilder
 from ..spec import SchemaSpec
+from .common import SpecBuilder
 
 
 def from_dict(data: dict[str, Any]) -> SchemaSpec:
