@@ -2,28 +2,29 @@ import pytest
 from yads.exceptions import TypeDefinitionError
 from yads.types import (
     TYPE_ALIASES,
-    Array,
-    Binary,
-    Boolean,
-    Geography,
-    Geometry,
-    Date,
-    Decimal,
-    Float,
-    Integer,
-    Interval,
-    IntervalTimeUnit,
-    JSON,
-    Map,
-    Void,
+    Type,
     String,
-    Struct,
+    Integer,
+    Float,
+    Decimal,
+    Boolean,
+    Binary,
+    Date,
     Timestamp,
     TimestampTZ,
     TimestampLTZ,
     TimestampNTZ,
-    Type,
+    IntervalTimeUnit,
+    Interval,
+    Array,
+    Struct,
+    Map,
+    JSON,
+    Geography,
+    Geometry,
     UUID,
+    Void,
+    Variant,
 )
 
 
@@ -207,15 +208,16 @@ class TestSimpleTypes:
         "type_class, expected_str",
         [
             (Boolean, "boolean"),
+            (Binary, "binary"),
             (Date, "date"),
             (Timestamp, "timestamp"),
             (TimestampTZ, "timestamptz"),
             (TimestampLTZ, "timestampltz"),
             (TimestampNTZ, "timestampntz"),
-            (Binary, "binary"),
             (JSON, "json"),
             (UUID, "uuid"),
             (Void, "void"),
+            (Variant, "variant"),
         ],
     )
     def test_simple_type_creation_and_str(self, type_class, expected_str):
@@ -228,6 +230,11 @@ class TestTypeAliases:
     @pytest.mark.parametrize(
         "alias, expected_type, expected_params",
         [
+            # String Types
+            ("string", String, {}),
+            ("text", String, {}),
+            ("varchar", String, {}),
+            ("char", String, {}),
             # Numeric Types
             ("int8", Integer, {"bits": 8}),
             ("tinyint", Integer, {"bits": 8}),
@@ -247,18 +254,13 @@ class TestTypeAliases:
             ("double", Float, {"bits": 64}),
             ("decimal", Decimal, {}),
             ("numeric", Decimal, {}),
-            # String Types
-            ("string", String, {}),
-            ("text", String, {}),
-            ("varchar", String, {}),
-            ("char", String, {}),
+            # Boolean Types
+            ("bool", Boolean, {}),
+            ("boolean", Boolean, {}),
             # Binary Types
             ("blob", Binary, {}),
             ("binary", Binary, {}),
             ("bytes", Binary, {}),
-            # Boolean Types
-            ("bool", Boolean, {}),
-            ("boolean", Boolean, {}),
             # Temporal Types
             ("date", Date, {}),
             ("datetime", Timestamp, {}),
@@ -278,13 +280,14 @@ class TestTypeAliases:
             ("map", Map, {}),
             ("dictionary", Map, {}),
             ("json", JSON, {}),
-            # Other Types
-            ("uuid", UUID, {}),
-            ("null", Void, {}),
-            ("void", Void, {}),
             # Spatial Types
             ("geometry", Geometry, {}),
             ("geography", Geography, {}),
+            # Other Types
+            ("uuid", UUID, {}),
+            ("void", Void, {}),
+            ("null", Void, {}),
+            ("variant", Variant, {}),
         ],
     )
     def test_type_aliases(self, alias, expected_type, expected_params):

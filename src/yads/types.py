@@ -46,22 +46,23 @@ __all__ = [
     "Float",
     "Decimal",
     "Boolean",
+    "Binary",
     "Date",
     "Timestamp",
     "TimestampTZ",
     "TimestampLTZ",
     "TimestampNTZ",
-    "Binary",
-    "JSON",
-    "UUID",
-    "Void",
-    "Geometry",
-    "Geography",
-    "Interval",
     "IntervalTimeUnit",
+    "Interval",
     "Array",
     "Struct",
     "Map",
+    "JSON",
+    "Geometry",
+    "Geography",
+    "UUID",
+    "Void",
+    "Variant",
 ]
 
 
@@ -260,6 +261,22 @@ class Boolean(Type):
 
 
 @dataclass(frozen=True)
+class Binary(Type):
+    """Binary data type for storing byte sequences.
+
+    Used for storing arbitrary binary data such as images, documents,
+    or serialized objects. Maps to BLOB, BINARY, or VARBINARY types
+    in SQL dialects.
+
+    Example:
+        >>> Binary()
+        >>>
+        >>> # Use in field definition
+        >>> Field(name="document", type=Binary())
+    """
+
+
+@dataclass(frozen=True)
 class Date(Type):
     """Calendar date type representing year, month, and day.
 
@@ -333,114 +350,6 @@ class TimestampNTZ(Type):
         >>> # Use in field definition
         >>> Field(name="order_time", type=TimestampNTZ())
     """
-
-
-@dataclass(frozen=True)
-class Binary(Type):
-    """Binary data type for storing byte sequences.
-
-    Used for storing arbitrary binary data such as images, documents,
-    or serialized objects. Maps to BLOB, BINARY, or VARBINARY types
-    in SQL dialects.
-
-    Example:
-        >>> Binary()
-        >>>
-        >>> # Use in field definition
-        >>> Field(name="document", type=Binary())
-    """
-
-
-@dataclass(frozen=True)
-class JSON(Type):
-    """JSON document type for semi-structured data.
-
-    Stores JSON documents with native support for JSON operations
-    in compatible databases.
-
-    Example:
-        >>> JSON()
-        >>>
-        >>> # Use in field definition
-        >>> Field(name="metadata", type=JSON())
-    """
-
-
-@dataclass(frozen=True)
-class UUID(Type):
-    """Universally Unique Identifier type.
-
-    Represents 128-bit UUID values, commonly used for primary keys
-    and unique identifiers in distributed systems.
-
-    Example:
-        >>> UUID()
-        >>>
-        >>> # Use in field definition
-        >>> Field(name="user_id", type=UUID())
-    """
-
-
-@dataclass(frozen=True)
-class Void(Type):
-    """Represents a NULL or VOID type.
-
-    Example:
-        >>> Void()
-        >>>
-        >>> # Use in field definition
-        >>> Field(name="optional_field", type=Void())
-    """
-
-
-@dataclass(frozen=True)
-class Geometry(Type):
-    """Geometric object type with optional SRID.
-
-    Represents planar geometry values such as points, linestrings, and polygons.
-
-    Args:
-        srid: Spatial reference identifier, for example an integer code or
-            the string ``"ANY"``. If ``None``, no SRID is rendered.
-
-    Examples:
-        >>> Geometry()
-        >>> Geometry(srid=0)
-        >>> Geometry(srid="ANY")
-
-    """
-
-    srid: int | str | None = None
-
-    def __str__(self) -> str:
-        if self.srid is None:
-            return "geometry"
-        return f"geometry({self.srid})"
-
-
-@dataclass(frozen=True)
-class Geography(Type):
-    """Geographic object type with optional SRID.
-
-    Represents geographic values in a spherical coordinate system.
-
-    Args:
-        srid: Spatial reference identifier, e.g., integer code or the string
-            ``"ANY"``. If ``None``, no SRID is rendered.
-
-    Examples:
-        >>> Geography()
-        >>> Geography(srid=4326)
-        >>> Geography(srid="ANY")
-
-    """
-
-    srid: int | str | None = None
-
-    def __str__(self) -> str:
-        if self.srid is None:
-            return "geography"
-        return f"geography({self.srid})"
 
 
 class IntervalTimeUnit(str, Enum):
@@ -643,6 +552,110 @@ class Map(Type):
         return f"map<{self.key}, {self.value}>"
 
 
+@dataclass(frozen=True)
+class JSON(Type):
+    """JSON document type for semi-structured data.
+
+    Stores JSON documents with native support for JSON operations
+    in compatible databases.
+
+    Example:
+        >>> JSON()
+        >>>
+        >>> # Use in field definition
+        >>> Field(name="metadata", type=JSON())
+    """
+
+
+@dataclass(frozen=True)
+class Geometry(Type):
+    """Geometric object type with optional SRID.
+
+    Represents planar geometry values such as points, linestrings, and polygons.
+
+    Args:
+        srid: Spatial reference identifier, for example an integer code or
+            the string ``"ANY"``. If ``None``, no SRID is rendered.
+
+    Examples:
+        >>> Geometry()
+        >>> Geometry(srid=0)
+        >>> Geometry(srid="ANY")
+
+    """
+
+    srid: int | str | None = None
+
+    def __str__(self) -> str:
+        if self.srid is None:
+            return "geometry"
+        return f"geometry({self.srid})"
+
+
+@dataclass(frozen=True)
+class Geography(Type):
+    """Geographic object type with optional SRID.
+
+    Represents geographic values in a spherical coordinate system.
+
+    Args:
+        srid: Spatial reference identifier, e.g., integer code or the string
+            ``"ANY"``. If ``None``, no SRID is rendered.
+
+    Examples:
+        >>> Geography()
+        >>> Geography(srid=4326)
+        >>> Geography(srid="ANY")
+
+    """
+
+    srid: int | str | None = None
+
+    def __str__(self) -> str:
+        if self.srid is None:
+            return "geography"
+        return f"geography({self.srid})"
+
+
+@dataclass(frozen=True)
+class UUID(Type):
+    """Universally Unique Identifier type.
+
+    Represents 128-bit UUID values, commonly used for primary keys
+    and unique identifiers in distributed systems.
+
+    Example:
+        >>> UUID()
+        >>>
+        >>> # Use in field definition
+        >>> Field(name="user_id", type=UUID())
+    """
+
+
+@dataclass(frozen=True)
+class Void(Type):
+    """Represents a NULL or VOID type.
+
+    Example:
+        >>> Void()
+        >>>
+        >>> # Use in field definition
+        >>> Field(name="optional_field", type=Void())
+    """
+
+
+@dataclass(frozen=True)
+class Variant(Type):
+    """Variant type representing a union of potentially different types.
+
+    Represents a value that can be one of several types. Maps to VARIANT types in SQL dialects.
+
+    Example:
+        >>> Variant(types=[String(), Integer()])
+        >>> Variant(types=[String(), Integer(), Float()])
+    """
+
+
 TYPE_ALIASES: dict[str, tuple[type[Type], dict[str, Any]]] = {
     # String Types
     "string": (String, {}),
@@ -701,4 +714,5 @@ TYPE_ALIASES: dict[str, tuple[type[Type], dict[str, Any]]] = {
     "uuid": (UUID, {}),
     "void": (Void, {}),
     "null": (Void, {}),
+    "variant": (Variant, {}),
 }

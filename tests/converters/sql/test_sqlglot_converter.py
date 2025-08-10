@@ -6,24 +6,25 @@ from yads.types import (
     String,
     Integer,
     Float,
-    Boolean,
     Decimal,
+    Boolean,
+    Binary,
     Date,
     Timestamp,
     TimestampTZ,
     TimestampLTZ,
     TimestampNTZ,
-    Binary,
-    JSON,
-    UUID,
-    Void,
-    Geometry,
-    Geography,
-    Interval,
     IntervalTimeUnit,
+    Interval,
     Array,
     Struct,
     Map,
+    JSON,
+    Geometry,
+    Geography,
+    UUID,
+    Void,
+    Variant,
 )
 from yads.spec import Column, Field
 from yads.constraints import (
@@ -545,25 +546,26 @@ class TestTypeConversion:
                     ],
                 ),
             ),
+            # Boolean type - fallback to build
+            (Boolean(), exp.DataType(this=exp.DataType.Type.BOOLEAN)),
+            # Binary types - fallback to build
+            (Binary(), exp.DataType(this=exp.DataType.Type.BINARY)),
+            # Temporal types - fallback to build
+            (Date(), exp.DataType(this=exp.DataType.Type.DATE)),
+            (Timestamp(), exp.DataType(this=exp.DataType.Type.TIMESTAMP)),
+            (TimestampTZ(), exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ)),
+            (TimestampLTZ(), exp.DataType(this=exp.DataType.Type.TIMESTAMPLTZ)),
+            (TimestampNTZ(), exp.DataType(this=exp.DataType.Type.TIMESTAMPNTZ)),
+            # JSON type - fallback to build
+            (JSON(), exp.DataType(this=exp.DataType.Type.JSON)),
+            # Spatial types - fallback to build
+            (Geometry(), exp.DataType(this=exp.DataType.Type.GEOMETRY)),
+            (Geography(), exp.DataType(this=exp.DataType.Type.GEOGRAPHY)),
             # Void type - handled by type handler
             (Void(), exp.DataType(this=exp.DataType.Type.USERDEFINED, kind="VOID")),
-            # Boolean type - fallback to build
-            (Boolean(), exp.DataType.build("boolean")),
-            # Temporal types - fallback to build
-            (Date(), exp.DataType.build("date")),
-            (Timestamp(), exp.DataType.build("timestamp")),
-            (TimestampTZ(), exp.DataType.build("timestamptz")),
-            (TimestampLTZ(), exp.DataType.build("timestampltz")),
-            (TimestampNTZ(), exp.DataType.build("timestampntz")),
-            # Binary types - fallback to build
-            (Binary(), exp.DataType.build("binary")),
-            # Spatial types - fallback to build
-            (Geometry(), exp.DataType.build("geometry")),
-            (Geography(), exp.DataType.build("geography")),
-            # JSON type - fallback to build
-            (JSON(), exp.DataType.build("json")),
             # Other types - fallback to build
-            (UUID(), exp.DataType.build("uuid")),
+            (UUID(), exp.DataType(this=exp.DataType.Type.UUID)),
+            (Variant(), exp.DataType(this=exp.DataType.Type.VARIANT)),
         ],
     )
     def test_simple_type_conversion(self, yads_type, expected_datatype):

@@ -18,24 +18,25 @@ from yads.types import (
     String,
     Integer,
     Float,
-    Boolean,
     Decimal,
+    Boolean,
+    Binary,
     Date,
     Timestamp,
     TimestampTZ,
     TimestampLTZ,
     TimestampNTZ,
-    Binary,
-    JSON,
-    UUID,
-    Void,
-    Geometry,
-    Geography,
-    Interval,
     IntervalTimeUnit,
+    Interval,
     Array,
     Struct,
     Map,
+    JSON,
+    Geometry,
+    Geography,
+    UUID,
+    Void,
+    Variant,
 )
 
 # Define paths to the fixture directories
@@ -803,76 +804,41 @@ class TestTypeLoading:
         [
             # String types
             ({"type": "string"}, String(), "string"),
-            ({"type": "text"}, String(), "string"),
-            ({"type": "varchar"}, String(), "string"),
-            ({"type": "char"}, String(), "string"),
             (
                 {"type": "string", "params": {"length": 255}},
                 String(length=255),
                 "string(255)",
             ),
             # Integer types
-            ({"type": "integer"}, Integer(bits=32), "integer(bits=32)"),
             ({"type": "int8"}, Integer(bits=8), "integer(bits=8)"),
-            ({"type": "tinyint"}, Integer(bits=8), "integer(bits=8)"),
-            ({"type": "byte"}, Integer(bits=8), "integer(bits=8)"),
             ({"type": "int16"}, Integer(bits=16), "integer(bits=16)"),
-            ({"type": "smallint"}, Integer(bits=16), "integer(bits=16)"),
-            ({"type": "short"}, Integer(bits=16), "integer(bits=16)"),
             ({"type": "int32"}, Integer(bits=32), "integer(bits=32)"),
-            ({"type": "int"}, Integer(bits=32), "integer(bits=32)"),
             ({"type": "int64"}, Integer(bits=64), "integer(bits=64)"),
-            ({"type": "bigint"}, Integer(bits=64), "integer(bits=64)"),
-            ({"type": "long"}, Integer(bits=64), "integer(bits=64)"),
             # Float types
-            ({"type": "float"}, Float(bits=32), "float(bits=32)"),
             ({"type": "float32"}, Float(bits=32), "float(bits=32)"),
             ({"type": "float64"}, Float(bits=64), "float(bits=64)"),
-            ({"type": "double"}, Float(bits=64), "float(bits=64)"),
-            # Boolean types
-            ({"type": "boolean"}, Boolean(), "boolean"),
-            ({"type": "bool"}, Boolean(), "boolean"),
             # Decimal types
             ({"type": "decimal"}, Decimal(), "decimal"),
-            ({"type": "numeric"}, Decimal(), "decimal"),
             (
                 {"type": "decimal", "params": {"precision": 10, "scale": 2}},
                 Decimal(precision=10, scale=2),
                 "decimal(10, 2)",
             ),
+            # Boolean types
+            ({"type": "boolean"}, Boolean(), "boolean"),
+            # Binary types
+            ({"type": "binary"}, Binary(), "binary"),
+            ({"type": "blob"}, Binary(), "binary"),
+            ({"type": "bytes"}, Binary(), "binary"),
             # Temporal types
             ({"type": "date"}, Date(), "date"),
             ({"type": "timestamp"}, Timestamp(), "timestamp"),
-            ({"type": "datetime"}, Timestamp(), "timestamp"),
             ({"type": "timestamptz"}, TimestampTZ(), "timestamptz"),
             ({"type": "timestamp_tz"}, TimestampTZ(), "timestamptz"),
             ({"type": "timestampltz"}, TimestampLTZ(), "timestampltz"),
             ({"type": "timestamp_ltz"}, TimestampLTZ(), "timestampltz"),
             ({"type": "timestampntz"}, TimestampNTZ(), "timestampntz"),
             ({"type": "timestamp_ntz"}, TimestampNTZ(), "timestampntz"),
-            # Binary types
-            ({"type": "binary"}, Binary(), "binary"),
-            ({"type": "blob"}, Binary(), "binary"),
-            ({"type": "bytes"}, Binary(), "binary"),
-            # Spatial types
-            ({"type": "geometry"}, Geometry(), "geometry"),
-            ({"type": "geography"}, Geography(), "geography"),
-            (
-                {"type": "geometry", "params": {"srid": 4326}},
-                Geometry(srid=4326),
-                "geometry(4326)",
-            ),
-            (
-                {"type": "geography", "params": {"srid": 4326}},
-                Geography(srid=4326),
-                "geography(4326)",
-            ),
-            # JSON type
-            ({"type": "json"}, JSON(), "json"),
-            # Other types
-            ({"type": "uuid"}, UUID(), "uuid"),
-            ({"type": "null"}, Void(), "void"),
-            ({"type": "void"}, Void(), "void"),
             # Interval types
             (
                 {"type": "interval", "params": {"interval_start": "YEAR"}},
@@ -926,6 +892,26 @@ class TestTypeLoading:
                 ),
                 "interval(DAY to SECOND)",
             ),
+            # Complex types
+            ({"type": "json"}, JSON(), "json"),
+            # Other complex types have dedicated tests below
+            # Spatial types
+            ({"type": "geometry"}, Geometry(), "geometry"),
+            ({"type": "geography"}, Geography(), "geography"),
+            (
+                {"type": "geometry", "params": {"srid": 4326}},
+                Geometry(srid=4326),
+                "geometry(4326)",
+            ),
+            (
+                {"type": "geography", "params": {"srid": 4326}},
+                Geography(srid=4326),
+                "geography(4326)",
+            ),
+            # Other types
+            ({"type": "uuid"}, UUID(), "uuid"),
+            ({"type": "void"}, Void(), "void"),
+            ({"type": "variant"}, Variant(), "variant"),
         ],
     )
     def test_simple_type_loading(self, type_def, expected_type, expected_str):
