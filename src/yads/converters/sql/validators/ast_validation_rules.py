@@ -82,7 +82,6 @@ class DisallowType(AstValidationRule):
     def __init__(
         self,
         disallow_type: DataType.Type,
-        *,
         fallback_type: DataType.Type = DataType.Type.TEXT,
     ):
         self.disallow_type: DataType.Type = disallow_type
@@ -107,4 +106,4 @@ class DisallowType(AstValidationRule):
 
     @property
     def adjustment_description(self) -> str:
-        return f"The data type will be replaced with {self.fallback_type.name}."
+        return f"The data type will be replaced with '{self.fallback_type.name}'."

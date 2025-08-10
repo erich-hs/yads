@@ -19,7 +19,6 @@ from .ast_converter import SQLGlotConverter  # type: ignore[reportMissingImports
 from .validators.ast_validator import AstValidator  # type: ignore[reportMissingImports]
 from .validators.ast_validation_rules import (  # type: ignore[reportMissingImports]
     AstValidationRule,
-    DisallowFixedLengthString,
     DisallowType,
 )
 
@@ -137,13 +136,16 @@ class SparkSQLConverter(SQLConverter):
 
     Configured with:
     - dialect="spark"
-    - `DisallowFixedLengthString` to remove fixed-length text parameters
+    - `DisallowType` to replace disallowed types with fallback types
     """
 
     def __init__(self, **convert_options: Any):
         rules: list[AstValidationRule] = [
-            DisallowFixedLengthString(),
-            DisallowType(disallow_type=DataType.Type.JSON),
+            DisallowType(
+                disallow_type=DataType.Type.JSON,
+            ),
+            DisallowType(disallow_type=DataType.Type.GEOMETRY),
+            DisallowType(disallow_type=DataType.Type.GEOGRAPHY),
         ]
         validator = AstValidator(rules=rules)
         super().__init__(dialect="spark", ast_validator=validator, **convert_options)

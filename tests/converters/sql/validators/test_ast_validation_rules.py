@@ -100,7 +100,9 @@ class TestDisallowType:
         assert not adjusted_node.expressions
 
     def test_adjustment_description(self, rule: DisallowType):
-        assert rule.adjustment_description == "The data type will be replaced with TEXT."
+        assert (
+            rule.adjustment_description == "The data type will be replaced with 'TEXT'."
+        )
 
     def test_adjust_with_custom_fallback(self):
         rule = DisallowType(
@@ -117,5 +119,6 @@ class TestDisallowType:
         assert adjusted_node.this == DataType.Type.VARCHAR
         assert not adjusted_node.expressions
         assert (
-            rule.adjustment_description == "The data type will be replaced with VARCHAR."
+            rule.adjustment_description
+            == "The data type will be replaced with 'VARCHAR'."
         )
