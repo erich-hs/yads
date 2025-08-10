@@ -117,7 +117,7 @@ columns:
 
   - name: "c_timestamp"
     type: "timestamp"
-    description: "A timestamp without timezone."
+    description: "A timestamp."
 
   - name: "c_timestamp_date"
     type: "date"
@@ -126,6 +126,18 @@ columns:
       column: "c_timestamp"
       transform: "cast"
       transform_args: ["date"]
+
+  - name: "c_timestamp_tz"
+    type: "timestamptz"
+    description: "A timestamp with timezone."
+
+  - name: "c_timestamp_ltz"
+    type: "timestampltz"
+    description: "A timestamp with local timezone."
+
+  - name: "c_timestamp_ntz"
+    type: "timestampntz"
+    description: "A timestamp without timezone."
 
   - name: "c_binary"
     type: "binary"
@@ -168,3 +180,27 @@ columns:
         type: "string"
         description: "A nested string."
     description: "A struct column."
+  
+  - name: "c_json"
+    type: "json"
+    description: "A JSON column."
+
+  - name: "c_geometry"
+    type: "geometry"
+    params:
+      srid: 4326
+    description: "A geometry column."
+
+  - name: "c_geography"
+    type: "geography"
+    params:
+      srid: 4326
+    description: "A geography column."
+  
+  - name: "c_void"
+    type: "void"
+    description: "A void column."
+
+  - name: "c_variant"
+    type: "variant"
+    description: "A variant column."

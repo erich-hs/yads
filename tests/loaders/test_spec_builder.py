@@ -610,7 +610,7 @@ class TestFullSpecFromYaml:
         assert spec.partitioned_by[2].transform == "month"
 
     def test_columns(self, spec: SchemaSpec):
-        assert len(spec.columns) == 23
+        assert len(spec.columns) == 31
 
     def test_column_constraints(self, spec: SchemaSpec):
         # Test not_null constraint
