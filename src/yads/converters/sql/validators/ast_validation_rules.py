@@ -64,22 +64,32 @@ class DisallowFixedLengthString(AstValidationRule):
 
 
 class DisallowType(AstValidationRule):
-    """Disallow specific SQL data types and replace them with TEXT.
+    """Disallow a specific SQL data type and replace it with a fallback type.
 
-    This rule flags any occurrence of a disallowed `sqlglot.exp.DataType` in the
-    AST. When adjustment is requested, the offending type is replaced by the
-    generic `TEXT` data type.
+    This rule flags any occurrence of a specific disallowed
+    `sqlglot.expressions.DataType` in the AST. When adjustment is requested,
+    the offending type is replaced by the provided fallback type (defaults to
+    `TEXT`).
 
     Args:
-        disallowed_types: A collection of `sqlglot.expressions.DataType.Type`
-            enum members that should be disallowed.
+        disallow_type: The `sqlglot.expressions.DataType.Type` enum member that
+            should be disallowed.
+        fallback_type: The `sqlglot.expressions.DataType.Type` enum member to
+            use when replacing the disallowed type during adjustment. Defaults
+            to ``DataType.Type.TEXT``.
     """
 
-    def __init__(self, disallowed_types: list[DataType.Type] | set[DataType.Type]):
-        self.disallowed_types: set[DataType.Type] = set(disallowed_types)
+    def __init__(
+        self,
+        disallow_type: DataType.Type,
+        *,
+        fallback_type: DataType.Type = DataType.Type.TEXT,
+    ):
+        self.disallow_type: DataType.Type = disallow_type
+        self.fallback_type: DataType.Type = fallback_type
 
     def _is_disallowed_type(self, node: exp.Expression) -> TypeGuard[exp.DataType]:
-        return isinstance(node, DataType) and node.this in self.disallowed_types
+        return isinstance(node, DataType) and node.this == self.disallow_type
 
     def validate(self, node: exp.Expression) -> str | None:
         if self._is_disallowed_type(node):
@@ -92,9 +102,9 @@ class DisallowType(AstValidationRule):
 
     def adjust(self, node: exp.Expression) -> exp.Expression:
         if self._is_disallowed_type(node):
-            return DataType(this=DataType.Type.TEXT)
+            return DataType(this=self.fallback_type)
         return node
 
     @property
     def adjustment_description(self) -> str:
-        return "The data type will be replaced with TEXT."
+        return f"The data type will be replaced with {self.fallback_type.name}."

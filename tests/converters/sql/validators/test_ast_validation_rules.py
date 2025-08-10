@@ -44,7 +44,6 @@ class TestDisallowFixedLengthString:
         assert rule.validate(data_type) == expected
 
     def test_adjust(self, rule: DisallowFixedLengthString):
-        """Tests that the rule correctly removes the length from a fixed-length string."""
         sql = "CREATE TABLE t (col VARCHAR(50))"
         ast = parse_one(sql)
         assert ast
@@ -65,7 +64,7 @@ class TestDisallowFixedLengthString:
 class TestDisallowType:
     @pytest.fixture
     def rule(self) -> DisallowType:
-        return DisallowType(disallowed_types=[DataType.Type.JSON])
+        return DisallowType(disallow_type=DataType.Type.JSON)
 
     @pytest.mark.parametrize(
         "sql, expected",
@@ -102,3 +101,21 @@ class TestDisallowType:
 
     def test_adjustment_description(self, rule: DisallowType):
         assert rule.adjustment_description == "The data type will be replaced with TEXT."
+
+    def test_adjust_with_custom_fallback(self):
+        rule = DisallowType(
+            disallow_type=DataType.Type.JSON, fallback_type=DataType.Type.VARCHAR
+        )
+        ast = parse_one("CREATE TABLE t (col JSON)")
+        assert ast
+        data_type = ast.find(DataType)
+        assert data_type
+
+        adjusted_node = rule.adjust(data_type)
+
+        assert isinstance(adjusted_node, DataType)
+        assert adjusted_node.this == DataType.Type.VARCHAR
+        assert not adjusted_node.expressions
+        assert (
+            rule.adjustment_description == "The data type will be replaced with VARCHAR."
+        )

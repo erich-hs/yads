@@ -143,7 +143,7 @@ class SparkSQLConverter(SQLConverter):
     def __init__(self, **convert_options: Any):
         rules: list[AstValidationRule] = [
             DisallowFixedLengthString(),
-            DisallowType(disallowed_types=[DataType.Type.JSON]),
+            DisallowType(disallow_type=DataType.Type.JSON),
         ]
         validator = AstValidator(rules=rules)
         super().__init__(dialect="spark", ast_validator=validator, **convert_options)
