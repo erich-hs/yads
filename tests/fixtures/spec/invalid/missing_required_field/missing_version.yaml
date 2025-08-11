@@ -1,4 +1,4 @@
-name: "test.schema"
+name: "test.spec"
 columns:
   - name: "col1"
     type: "string" 

@@ -1,4 +1,4 @@
-CREATE TABLE catalog.db.intervals_schema (
+CREATE TABLE catalog.db.intervals_spec (
   interval_year INTERVAL YEAR,
   interval_month INTERVAL MONTH,
   interval_year_to_month INTERVAL YEAR TO MONTH,

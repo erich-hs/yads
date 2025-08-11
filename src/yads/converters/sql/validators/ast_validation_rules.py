@@ -37,32 +37,6 @@ class AstValidationRule(ABC):
         """Human-readable description of the rule's adjustment."""
 
 
-class DisallowFixedLengthString(AstValidationRule):
-    """Remove fixed-length parameters from string data types (e.g., VARCHAR(50))."""
-
-    def _is_fixed_length_string(self, node: exp.Expression) -> TypeGuard[exp.DataType]:
-        return (
-            isinstance(node, DataType)
-            and node.this in DataType.TEXT_TYPES
-            and bool(node.expressions)
-        )
-
-    def validate(self, node: exp.Expression) -> str | None:
-        if self._is_fixed_length_string(node):
-            column_name = _get_ancestor_column_name(node)
-            return f"Fixed-length strings are not supported for column '{column_name}'."
-        return None
-
-    def adjust(self, node: exp.Expression) -> exp.Expression:
-        if self._is_fixed_length_string(node):
-            node.set("expressions", None)
-        return node
-
-    @property
-    def adjustment_description(self) -> str:
-        return "The length parameter will be removed."
-
-
 class DisallowType(AstValidationRule):
     """Disallow a specific SQL data type and replace it with a fallback type.
 
@@ -107,3 +81,29 @@ class DisallowType(AstValidationRule):
     @property
     def adjustment_description(self) -> str:
         return f"The data type will be replaced with '{self.fallback_type.name}'."
+
+
+class DisallowFixedLengthString(AstValidationRule):
+    """Remove fixed-length parameters from string data types (e.g., VARCHAR(50))."""
+
+    def _is_fixed_length_string(self, node: exp.Expression) -> TypeGuard[exp.DataType]:
+        return (
+            isinstance(node, DataType)
+            and node.this in DataType.TEXT_TYPES
+            and bool(node.expressions)
+        )
+
+    def validate(self, node: exp.Expression) -> str | None:
+        if self._is_fixed_length_string(node):
+            column_name = _get_ancestor_column_name(node)
+            return f"Fixed-length strings are not supported for column '{column_name}'."
+        return None
+
+    def adjust(self, node: exp.Expression) -> exp.Expression:
+        if self._is_fixed_length_string(node):
+            node.set("expressions", None)
+        return node
+
+    @property
+    def adjustment_description(self) -> str:
+        return "The length parameter will be removed."

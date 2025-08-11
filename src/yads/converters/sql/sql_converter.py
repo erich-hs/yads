@@ -1,7 +1,7 @@
 """SQL converters orchestrating AST conversion and SQL generation.
 
 This module contains high-level SQL converters that:
-- Build an Abstract Syntax Tree (AST) from a `SchemaSpec` using an AST converter
+- Build an Abstract Syntax Tree (AST) from a `YadsSpec` using an AST converter
 - Optionally validate/adjust the AST using AST validation rules
 - Serialize the final AST to a SQL string for a target dialect
 """
@@ -13,7 +13,7 @@ from typing import Any, Literal
 from sqlglot import ErrorLevel
 from sqlglot.expressions import DataType
 
-from ...spec import SchemaSpec
+from ...spec import YadsSpec
 from ..base import BaseConverter
 from .ast_converter import SQLGlotConverter  # type: ignore[reportMissingImports]
 from .validators.ast_validator import AstValidator  # type: ignore[reportMissingImports]
@@ -62,7 +62,7 @@ class SQLConverter:
 
     def convert(
         self,
-        spec: SchemaSpec,
+        spec: YadsSpec,
         if_not_exists: bool = False,
         or_replace: bool = False,
         ignore_catalog: bool = False,
@@ -70,14 +70,14 @@ class SQLConverter:
         mode: Literal["raise", "warn", "ignore"] = "warn",
         **kwargs: Any,
     ) -> str:
-        """Convert a yads SchemaSpec into a SQL DDL string.
+        """Convert a yads `YadsSpec` into a SQL DDL string.
 
-        This method orchestrates the conversion pipeline from SchemaSpec to SQL DDL.
+        This method orchestrates the conversion pipeline from `YadsSpec` to SQL DDL.
         It first converts the spec to an intermediate AST, applies any configured
         validation rules, and finally serializes to a SQL DDL string.
 
         Args:
-            spec: The yads specification as a SchemaSpec object.
+            spec: The yads specification as a `YadsSpec` object.
             if_not_exists: If True, add `IF NOT EXISTS` clause to the DDL statement.
             or_replace: If True, add `OR REPLACE` clause to the DDL statement.
             ignore_catalog: If True, omits the catalog from the table name.
@@ -89,7 +89,7 @@ class SQLConverter:
                             The generated SQL DDL might still contain modifications
                             done by the AST converter.
             **kwargs: Additional options for SQL DDL string serialization, overriding
-                      defaults. For a SQLGlotConverter, see sqlglot's documentation
+                      defaults. For a `SQLGlotConverter`, see sqlglot's documentation
                       for supported options:
                       https://sqlglot.com/sqlglot/generator.html#Generator
 

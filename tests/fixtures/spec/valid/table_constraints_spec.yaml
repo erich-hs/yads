@@ -1,6 +1,6 @@
-name: "catalog.db.test_schema"
+name: "catalog.db.test_spec"
 version: "1.0"
-description: "A test schema with table constraints."
+description: "A test spec with table constraints."
 table_constraints:
   - type: "primary_key"
     name: "test_pk"

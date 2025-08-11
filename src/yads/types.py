@@ -1,4 +1,4 @@
-"""Data type definitions for yads specifications.
+"""Data type definitions for yads specs.
 
 This module provides the canonical type system for yads, defining primitive types
 (strings, numbers, dates), complex types (arrays, structs, maps), and specialized
@@ -10,18 +10,18 @@ sufficient detail for accurate conversion to specific SQL dialects and data proc
 frameworks.
 
 Example:
-    >>> from yads.types import String, Integer, Decimal, Struct
+    >>> import yads.types as ytypes
     >>> from yads.spec import Field
     >>>
     >>> # Create basic types
-    >>> name_type = String(length=100)
-    >>> age_type = Integer(bits=32)
+    >>> name_type = ytypes.String(length=100)
+    >>> age_type = ytypes.Integer(bits=32)
     >>>
     >>> # Create complex types
-    >>> address_type = Struct(fields=[
-    ...     Field(name="street", type=String()),
-    ...     Field(name="city", type=String()),
-    ...     Field(name="zip", type=String(length=10))
+    >>> address_type = ytypes.Struct(fields=[
+    ...     Field(name="street", type=ytypes.String()),
+    ...     Field(name="city", type=ytypes.String()),
+    ...     Field(name="zip", type=ytypes.String(length=10))
     ... ])
 """
 
@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 
 
 __all__ = [
-    "Type",
+    "YadsType",
     "String",
     "Integer",
     "Float",
@@ -66,7 +66,7 @@ __all__ = [
 ]
 
 
-class Type(ABC):
+class YadsType(ABC):
     """Abstract base class for all yads data types.
 
     All type definitions in yads inherit from this base class, providing
@@ -79,7 +79,7 @@ class Type(ABC):
 
 
 @dataclass(frozen=True)
-class String(Type):
+class String(YadsType):
     """Variable-length string type with optional maximum length constraint.
 
     Represents text data that can be converted to STRING-like types in various
@@ -119,7 +119,7 @@ class String(Type):
 
 
 @dataclass(frozen=True)
-class Integer(Type):
+class Integer(YadsType):
     """Signed integer type with optional bit-width specification.
 
     Represents whole numbers that can be converted to various integer types
@@ -159,7 +159,7 @@ class Integer(Type):
 
 
 @dataclass(frozen=True)
-class Float(Type):
+class Float(YadsType):
     """IEEE floating-point number type with optional precision specification.
 
     Represents approximate numeric values with fractional components.
@@ -198,7 +198,7 @@ class Float(Type):
 
 
 @dataclass(frozen=True)
-class Decimal(Type):
+class Decimal(YadsType):
     """Fixed-precision decimal type.
 
     Args:
@@ -246,7 +246,7 @@ class Decimal(Type):
 
 
 @dataclass(frozen=True)
-class Boolean(Type):
+class Boolean(YadsType):
     """Boolean type representing true/false values.
 
     Maps to BOOLEAN types in SQL dialects or equivalent binary representations
@@ -261,7 +261,7 @@ class Boolean(Type):
 
 
 @dataclass(frozen=True)
-class Binary(Type):
+class Binary(YadsType):
     """Binary data type for storing byte sequences.
 
     Used for storing arbitrary binary data such as images, documents,
@@ -277,7 +277,7 @@ class Binary(Type):
 
 
 @dataclass(frozen=True)
-class Date(Type):
+class Date(YadsType):
     """Calendar date type representing year, month, and day.
 
     Maps to DATE-like types in SQL dialects or data-processing frameworks.
@@ -292,7 +292,7 @@ class Date(Type):
 
 
 @dataclass(frozen=True)
-class Timestamp(Type):
+class Timestamp(YadsType):
     """Date and time type without timezone information.
 
     Represents a specific point in time including date and time components,
@@ -308,7 +308,7 @@ class Timestamp(Type):
 
 
 @dataclass(frozen=True)
-class TimestampTZ(Type):
+class TimestampTZ(YadsType):
     """Date and time type with timezone information.
 
     Similar to Timestamp but includes timezone awareness. Maps to
@@ -323,7 +323,7 @@ class TimestampTZ(Type):
 
 
 @dataclass(frozen=True)
-class TimestampLTZ(Type):
+class TimestampLTZ(YadsType):
     """Date and time type with local timezone information.
 
     Similar to Timestamp but includes local timezone awareness. Maps to
@@ -338,7 +338,7 @@ class TimestampLTZ(Type):
 
 
 @dataclass(frozen=True)
-class TimestampNTZ(Type):
+class TimestampNTZ(YadsType):
     """Date and time type without timezone information.
 
     Similar to Timestamp but without timezone awareness. Maps to
@@ -369,7 +369,7 @@ class IntervalTimeUnit(str, Enum):
 
 
 @dataclass(frozen=True)
-class Interval(Type):
+class Interval(YadsType):
     """Time interval type representing a duration between two time points.
 
     Intervals can represent durations like "3 months", "2 days", or
@@ -459,7 +459,7 @@ class Interval(Type):
 
 
 @dataclass(frozen=True)
-class Array(Type):
+class Array(YadsType):
     """Array type containing elements of a homogeneous type.
 
     Represents ordered collections where all elements share the same type.
@@ -480,14 +480,14 @@ class Array(Type):
         >>> Array(element=Array(element=String()))
     """
 
-    element: Type
+    element: YadsType
 
     def __str__(self) -> str:
         return f"array<{self.element}>"
 
 
 @dataclass(frozen=True)
-class Struct(Type):
+class Struct(YadsType):
     """Structured type containing named fields of potentially different types.
 
     Represents complex objects with named fields. Maps to STRUCT/ROW types in
@@ -523,7 +523,7 @@ class Struct(Type):
 
 
 @dataclass(frozen=True)
-class Map(Type):
+class Map(YadsType):
     """Key-value mapping type with homogeneous key and value types.
 
     Represents associative arrays or dictionaries where all keys share one type
@@ -545,15 +545,15 @@ class Map(Type):
         >>> Map(key=String(), value=Array(element=String()))
     """
 
-    key: Type
-    value: Type
+    key: YadsType
+    value: YadsType
 
     def __str__(self) -> str:
         return f"map<{self.key}, {self.value}>"
 
 
 @dataclass(frozen=True)
-class JSON(Type):
+class JSON(YadsType):
     """JSON document type for semi-structured data.
 
     Stores JSON documents with native support for JSON operations
@@ -568,7 +568,7 @@ class JSON(Type):
 
 
 @dataclass(frozen=True)
-class Geometry(Type):
+class Geometry(YadsType):
     """Geometric object type with optional SRID.
 
     Represents planar geometry values such as points, linestrings, and polygons.
@@ -593,7 +593,7 @@ class Geometry(Type):
 
 
 @dataclass(frozen=True)
-class Geography(Type):
+class Geography(YadsType):
     """Geographic object type with optional SRID.
 
     Represents geographic values in a spherical coordinate system.
@@ -618,7 +618,7 @@ class Geography(Type):
 
 
 @dataclass(frozen=True)
-class UUID(Type):
+class UUID(YadsType):
     """Universally Unique Identifier type.
 
     Represents 128-bit UUID values, commonly used for primary keys
@@ -633,7 +633,7 @@ class UUID(Type):
 
 
 @dataclass(frozen=True)
-class Void(Type):
+class Void(YadsType):
     """Represents a NULL or VOID type.
 
     Example:
@@ -645,7 +645,7 @@ class Void(Type):
 
 
 @dataclass(frozen=True)
-class Variant(Type):
+class Variant(YadsType):
     """Variant type representing a union of potentially different types.
 
     Represents a value that can be one of several types. Maps to VARIANT types in SQL dialects.
@@ -656,7 +656,7 @@ class Variant(Type):
     """
 
 
-TYPE_ALIASES: dict[str, tuple[type[Type], dict[str, Any]]] = {
+TYPE_ALIASES: dict[str, tuple[type[YadsType], dict[str, Any]]] = {
     # String Types
     "string": (String, {}),
     "text": (String, {}),

@@ -91,13 +91,13 @@ print(ddl)
 
 ### Creating a Core Converter
 
-Core converters are responsible for the primary transformation of a `yads` `SchemaSpec` into a different object representation, such as a PySpark `StructType` or a PyArrow `Schema`. These converters form the foundation of `yads`'s extensibility.
+Core converters are responsible for the primary transformation of a `yads` `YadsSpec` into a different object representation, such as a PySpark `StructType` or a PyArrow `Schema`. These converters form the foundation of `yads`'s extensibility.
 
 To create a new core converter, the following steps are required:
 
 1.  **Subclass `BaseConverter`**: Create a new class that inherits from `yads.converters.base.BaseConverter`.
-2.  **Implement the `convert` Method**: This method takes a `SchemaSpec` as input and should return the target object, such as a PySpark `StructType`.
-3.  **Implement Type and Field Handlers**: Within the converter, create methods to handle the conversion of `yads` types (e.g., `String`, `Decimal`, `Struct`) into their counterparts in the target framework. This typically involves a dispatch mechanism that maps `yads` types to specific handling functions.
+2.  **Implement the `convert` Method**: This method takes a `YadsSpec` as input and should return the target object, such as a PySpark `StructType`.
+3.  **Implement YadsType and Field Handlers**: Within the converter, create methods to handle the conversion of `yads` types (e.g., `String`, `Decimal`, `Struct`) into their counterparts in the target framework. This typically involves a dispatch mechanism that maps `yads` types to specific handling functions.
 
 Here is a simplified example of a `PySparkConverter`:
 
@@ -111,18 +111,18 @@ from pyspark.sql.types import (
 )
 
 from yads.converters.base import BaseConverter
-from yads.spec import SchemaSpec, Field
-from yads.types import String, Decimal, Type
+from yads.spec import YadsSpec, Field
+import yads.types as ytypes
 
 
 class PySparkConverter(BaseConverter):
     def __init__(self):
         self._type_handlers = {
-            String: self._handle_string_type,
-            Decimal: self._handle_decimal_type,
+            ytypes.String: self._handle_string_type,
+            ytypes.Decimal: self._handle_decimal_type,
         }
 
-    def convert(self, spec: SchemaSpec) -> StructType:
+    def convert(self, spec: YadsSpec) -> StructType:
         return StructType([self._convert_field(field) for field in spec.columns])
 
     def _convert_field(self, field: Field) -> StructField:
@@ -134,16 +134,16 @@ class PySparkConverter(BaseConverter):
             metadata={"description": field.description},
         )
 
-    def _convert_type(self, yads_type: Type):
+    def _convert_type(self, yads_type: ytypes.YadsType):
         if handler := self._type_handlers.get(type(yads_type)):
             return handler(yads_type)
         # Fallback or error for unsupported types
         return StringType()
 
-    def _handle_string_type(self, yads_type: String) -> StringType:
+    def _handle_string_type(self, yads_type: ytypes.String) -> StringType:
         return StringType()
 
-    def _handle_decimal_type(self, yads_type: Decimal) -> DecimalType:
+    def _handle_decimal_type(self, yads_type: ytypes.Decimal) -> DecimalType:
         return DecimalType(precision=yads_type.precision, scale=yads_type.scale)
 ```
 
@@ -155,8 +155,8 @@ To add support for a new SQL dialect, you'll typically need to follow a structur
 
 The process of converting a `yads` specification into a target format (like a SQL DDL) follows these general steps:
 
-1.  **Parsing**: The YAML/JSON spec is parsed into a `SchemaSpec` object.
-2.  **Core Conversion**: A core converter (e.g., `SQLGlotConverter`) transforms the `SchemaSpec` into a generic intermediate representation, like a `sqlglot` Abstract Syntax Tree (AST).
+1.  **Parsing**: The YAML/JSON spec is parsed into a `YadsSpec` object.
+2.  **Core Conversion**: A core converter (e.g., `SQLGlotConverter`) transforms the `YadsSpec` into a generic intermediate representation, like a `sqlglot` Abstract Syntax Tree (AST).
 3.  **Validation and Adjustment (Optional)**: For formats with specific constraints (like SQL dialects), an `AstValidator` can be used to process the intermediate representation. It applies a set of rules to check for unsupported features and adjusts the AST accordingly.
 4.  **Serialization**: The final representation is serialized into the target output format (e.g., a SQL string).
 

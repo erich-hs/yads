@@ -2,7 +2,7 @@ import pytest
 from yads.exceptions import TypeDefinitionError
 from yads.types import (
     TYPE_ALIASES,
-    Type,
+    YadsType,
     String,
     Integer,
     Float,
@@ -222,7 +222,7 @@ class TestSimpleTypes:
     )
     def test_simple_type_creation_and_str(self, type_class, expected_str):
         t = type_class()
-        assert isinstance(t, Type)
+        assert isinstance(t, YadsType)
         assert str(t) == expected_str
 
 

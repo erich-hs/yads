@@ -1,7 +1,7 @@
-"""Base converter interface for schema transformations.
+"""Base converter interface for spec transformations.
 
 This module defines the abstract base class for all yads converters. Converters
-are responsible for transforming SchemaSpec objects into target formats such as
+are responsible for transforming YadsSpec objects into target formats such as
 SQL DDL, framework-specific schemas or other representations.
 """
 
@@ -11,13 +11,13 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from ..spec import SchemaSpec
+    from ..spec import YadsSpec
 
 
 class BaseConverter(ABC):
-    """Abstract base class for schema converters."""
+    """Abstract base class for spec converters."""
 
     @abstractmethod
-    def convert(self, spec: SchemaSpec, **kwargs: Any) -> Any:
-        """Convert a SchemaSpec to the target format."""
+    def convert(self, spec: YadsSpec, **kwargs: Any) -> Any:
+        """Convert a YadsSpec to the target format."""
         ...

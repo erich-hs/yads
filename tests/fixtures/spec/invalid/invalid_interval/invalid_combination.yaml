@@ -1,4 +1,4 @@
-name: "invalid.interval.schema"
+name: "invalid.interval.spec"
 version: "1.0.0"
 columns:
   - name: "invalid_interval"

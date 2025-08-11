@@ -2,11 +2,11 @@ import pytest
 from yads.converters.sql import SparkSQLConverter
 from yads.exceptions import AstValidationError
 from yads.loaders import from_string
-from yads.spec import SchemaSpec
+from yads.spec import YadsSpec
 
 
 @pytest.fixture
-def spec_with_json_type() -> SchemaSpec:
+def spec_with_json_type() -> YadsSpec:
     """Returns a spec with a JSON column."""
     yaml_string = """
     name: my_db.my_table
@@ -19,7 +19,7 @@ def spec_with_json_type() -> SchemaSpec:
 
 
 class TestSparkSQLConverter:
-    def test_convert_raise_mode_raises_error(self, spec_with_json_type: SchemaSpec):
+    def test_convert_raise_mode_raises_error(self, spec_with_json_type: YadsSpec):
         """
         Tests that the SparkSQLConverter raises a ValueError in 'raise' mode
         when encountering a JSON column.
@@ -31,7 +31,7 @@ class TestSparkSQLConverter:
         ):
             converter.convert(spec_with_json_type, mode="raise")
 
-    def test_convert_warn_mode_updates_type(self, spec_with_json_type: SchemaSpec):
+    def test_convert_warn_mode_updates_type(self, spec_with_json_type: YadsSpec):
         """
         Tests that the SparkSQLConverter updates the type of a JSON column to
         STRING in 'warn' mode.
@@ -46,7 +46,7 @@ class TestSparkSQLConverter:
 )"""
         assert generated_ddl.strip() == expected_ddl
 
-    def test_convert_ignore_mode_does_nothing(self, spec_with_json_type: SchemaSpec):
+    def test_convert_ignore_mode_does_nothing(self, spec_with_json_type: YadsSpec):
         """
         Tests that the SparkSQLConverter keeps the JSON column in 'ignore' mode
         and does nothing.

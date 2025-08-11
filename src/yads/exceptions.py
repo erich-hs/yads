@@ -46,32 +46,32 @@ class YadsError(Exception):
 class YadsValidationError(YadsError):
     """Base for all validation-related errors.
 
-    This exception is raised when validation fails during schema parsing,
+    This exception is raised when validation fails during spec parsing,
     type checking, constraint validation, or other validation operations.
     """
 
 
-# Schema/Spec Exceptions
-class SchemaError(YadsValidationError):
-    """Schema definition and validation errors.
+# Spec Exceptions
+class SpecError(YadsValidationError):
+    """Spec definition and validation errors.
 
-    Raised when there are issues with schema structure, field definitions,
-    or overall schema consistency.
+    Raised when there are issues with spec structure, field definitions,
+    or overall spec consistency.
     """
 
 
-class SchemaParsingError(SchemaError):
-    """Errors during schema parsing from YAML/JSON.
+class SpecParsingError(SpecError):
+    """Errors during spec parsing from YAML/JSON.
 
     Raised when the input format is invalid, required fields are missing,
-    or the structure doesn't conform to the expected schema format.
+    or the structure doesn't conform to the expected spec format.
     """
 
 
-class SchemaValidationError(SchemaError):
-    """Schema consistency and integrity validation errors.
+class SpecValidationError(SpecError):
+    """Spec consistency and integrity validation errors.
 
-    Raised when the schema is structurally valid but has logical inconsistencies,
+    Raised when the spec is structurally valid but has logical inconsistencies,
     such as referential integrity violations, duplicate columns, or conflicting
     constraints.
     """

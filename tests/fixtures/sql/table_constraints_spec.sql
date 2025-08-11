@@ -1,4 +1,4 @@
-CREATE TABLE catalog.db.test_schema (
+CREATE TABLE catalog.db.test_spec (
   id INT,
   name TEXT,
   order_id UUID,

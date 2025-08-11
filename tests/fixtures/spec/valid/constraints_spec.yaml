@@ -1,4 +1,4 @@
-name: "catalog.db.constraints_schema"
+name: "catalog.db.constraints_spec"
 version: "1.0.0"
 columns:
   - name: "id"

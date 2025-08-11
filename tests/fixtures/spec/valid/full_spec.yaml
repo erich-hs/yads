@@ -1,6 +1,6 @@
-name: "catalog.db.full_schema"
+name: "catalog.db.full_spec"
 version: "2.1.0"
-description: "A full schema with all features."
+description: "A full spec with all features."
 external: true
 
 metadata:
@@ -9,7 +9,7 @@ metadata:
 
 storage:
   format: "parquet"
-  location: "/data/full.schema"
+  location: "/data/full.spec"
   tbl_properties:
     write_compression: "snappy"
 
@@ -23,7 +23,7 @@ partitioned_by:
 
 table_constraints:
   - type: "primary_key"
-    name: "pk_full_schema"
+    name: "pk_full_spec"
     columns: ["c_uuid", "c_date"]
   - type: "foreign_key"
     name: "fk_other_table"

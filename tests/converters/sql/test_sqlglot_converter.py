@@ -912,7 +912,7 @@ class TestConvertWithIgnoreArguments:
         result = converter.convert(spec, ignore_catalog=True)
 
         table_expression = result.this.this
-        assert table_expression.this.this == "test_schema"
+        assert table_expression.this.this == "test_spec"
         assert table_expression.db == "db"
         assert table_expression.catalog == ""
 
@@ -924,7 +924,7 @@ class TestConvertWithIgnoreArguments:
         result = converter.convert(spec, ignore_database=True)
 
         table_expression = result.this.this
-        assert table_expression.this.this == "test_schema"
+        assert table_expression.this.this == "test_spec"
         assert table_expression.db == ""
         assert table_expression.catalog == "catalog"
 
@@ -936,7 +936,7 @@ class TestConvertWithIgnoreArguments:
         result = converter.convert(spec, ignore_catalog=True, ignore_database=True)
 
         table_expression = result.this.this
-        assert table_expression.this.this == "test_schema"
+        assert table_expression.this.this == "test_spec"
         assert table_expression.db == ""
         assert table_expression.catalog == ""
 
@@ -950,17 +950,17 @@ class TestConvertWithIgnoreArguments:
         )
 
         table_expression = result.this.this
-        assert table_expression.this.this == "test_schema"
+        assert table_expression.this.this == "test_spec"
         assert table_expression.db == ""
         assert table_expression.catalog == ""
 
         assert result.args["exists"] is True
 
     def test_convert_with_partial_qualified_name_ignore_catalog(self):
-        from yads.spec import SchemaSpec, Column
+        from yads.spec import YadsSpec, Column
         from yads.types import String
 
-        spec = SchemaSpec(
+        spec = YadsSpec(
             name="sales.orders",
             version="1.0.0",
             columns=[Column(name="id", type=String())],
@@ -975,10 +975,10 @@ class TestConvertWithIgnoreArguments:
         assert table_expression.catalog == ""
 
     def test_convert_with_partial_qualified_name_ignore_database(self):
-        from yads.spec import SchemaSpec, Column
+        from yads.spec import YadsSpec, Column
         from yads.types import String
 
-        spec = SchemaSpec(
+        spec = YadsSpec(
             name="prod.orders",
             version="1.0.0",
             columns=[Column(name="id", type=String())],

@@ -1,4 +1,4 @@
-name: "catalog.db.nested_schema"
+name: "catalog.db.nested_spec"
 version: "1.0.0"
 columns:
   - name: "items"

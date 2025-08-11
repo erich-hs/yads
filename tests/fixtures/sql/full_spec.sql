@@ -1,4 +1,4 @@
-CREATE EXTERNAL TABLE catalog.db.full_schema (
+CREATE EXTERNAL TABLE catalog.db.full_spec (
   c_uuid UUID NOT NULL,
   c_string TEXT DEFAULT 'default_string',
   c_string_len TEXT(255),
@@ -30,11 +30,11 @@ CREATE EXTERNAL TABLE catalog.db.full_schema (
   c_geography GEOGRAPHY(4326),
   c_void VOID,
   c_variant VARIANT,
-  CONSTRAINT pk_full_schema PRIMARY KEY (c_uuid, c_date),
+  CONSTRAINT pk_full_spec PRIMARY KEY (c_uuid, c_date),
   CONSTRAINT fk_other_table FOREIGN KEY (c_int64) REFERENCES other_table (id)
 )
 USING parquet
-LOCATION '/data/full.schema'
+LOCATION '/data/full.spec'
 TBLPROPERTIES (
   'write_compression' = 'snappy'
 )

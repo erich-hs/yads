@@ -1,7 +1,7 @@
 import pytest
 from yads import spec, types
 from yads.constraints import NotNullConstraint, PrimaryKeyTableConstraint
-from yads.exceptions import SchemaValidationError
+from yads.exceptions import SpecValidationError
 
 
 class TestTransformedColumnReference:
@@ -144,10 +144,10 @@ class TestStorage:
         assert str(storage) == expected_str
 
 
-class TestSchemaSpec:
+class TestYadsSpec:
     @pytest.fixture
-    def minimal_spec(self) -> spec.SchemaSpec:
-        return spec.SchemaSpec(
+    def minimal_spec(self) -> spec.YadsSpec:
+        return spec.YadsSpec(
             name="my_table",
             version="1.0.0",
             columns=[spec.Column(name="id", type=types.Integer())],
@@ -168,7 +168,7 @@ class TestSchemaSpec:
         gen_clause = spec.TransformedColumnReference(
             column="raw_id", transform="identity"
         )
-        spec_instance = spec.SchemaSpec(
+        spec_instance = spec.YadsSpec(
             name="users",
             version="1.0",
             columns=[
@@ -185,13 +185,13 @@ class TestSchemaSpec:
 
     def test_str_representation_minimal(self, minimal_spec):
         expected_str = (
-            "schema my_table(version='1.0.0')(\n  columns=[\n    id: integer\n  ]\n)"
+            "spec my_table(version='1.0.0')(\n  columns=[\n    id: integer\n  ]\n)"
         )
         assert str(minimal_spec) == expected_str
 
     def test_str_representation_full(self):
         pk_constraint = PrimaryKeyTableConstraint(columns=["id"])
-        spec_instance = spec.SchemaSpec(
+        spec_instance = spec.YadsSpec(
             name="my_table",
             version="1.0",
             description="A test table.",
@@ -209,7 +209,7 @@ class TestSchemaSpec:
             table_constraints=[pk_constraint],
             metadata={"owner": "tester"},
         )
-        expected_str = """schema my_table(version='1.0')(
+        expected_str = """spec my_table(version='1.0')(
   description='A test table.'
   metadata={
     owner='tester'
@@ -239,10 +239,10 @@ class TestSchemaSpec:
         assert str(spec_instance) == expected_str
 
 
-class TestSchemaSpecValidation:
+class TestYadsSpecValidation:
     @pytest.fixture
     def base_spec_kwargs(self) -> dict:
-        """Provides a base set of kwargs for creating a SchemaSpec."""
+        """Provides a base set of kwargs for creating a `YadsSpec`."""
         return {
             "name": "test_table",
             "version": "1.0",
@@ -253,9 +253,9 @@ class TestSchemaSpecValidation:
         """Test that duplicate column names raise a ValueError."""
         base_spec_kwargs["columns"].append(spec.Column(name="id", type=types.String()))
         with pytest.raises(
-            SchemaValidationError, match="Duplicate column name found: 'id'"
+            SpecValidationError, match="Duplicate column name found: 'id'"
         ):
-            spec.SchemaSpec(**base_spec_kwargs)
+            spec.YadsSpec(**base_spec_kwargs)
 
     def test_partition_column_must_be_in_columns(self, base_spec_kwargs):
         """Test that a partition column must also be defined in 'columns'."""
@@ -263,10 +263,10 @@ class TestSchemaSpecValidation:
             spec.TransformedColumnReference(column="non_existent")
         ]
         with pytest.raises(
-            SchemaValidationError,
+            SpecValidationError,
             match="Partition column 'non_existent' must be defined as a column in the schema",
         ):
-            spec.SchemaSpec(**base_spec_kwargs)
+            spec.YadsSpec(**base_spec_kwargs)
 
     def test_generated_column_source_missing(self, base_spec_kwargs):
         """Test that the source for a generated column must exist."""
@@ -277,14 +277,14 @@ class TestSchemaSpecValidation:
             spec.Column(name="gen_col", type=types.Integer(), generated_as=gen_clause)
         )
         with pytest.raises(
-            SchemaValidationError,
+            SpecValidationError,
             match="Source column 'non_existent' for generated column 'gen_col'",
         ):
-            spec.SchemaSpec(**base_spec_kwargs)
+            spec.YadsSpec(**base_spec_kwargs)
 
     def test_table_constraint_column_missing(self, base_spec_kwargs):
         """Test that a column in a table constraint must exist."""
         pk_constraint = PrimaryKeyTableConstraint(columns=["pk", "id"])
         base_spec_kwargs["table_constraints"] = [pk_constraint]
-        with pytest.raises(SchemaValidationError, match="Column 'pk' in constraint"):
-            spec.SchemaSpec(**base_spec_kwargs)
+        with pytest.raises(SpecValidationError, match="Column 'pk' in constraint"):
+            spec.YadsSpec(**base_spec_kwargs)

@@ -1,4 +1,4 @@
-name: "catalog.db.test_schema"
+name: "catalog.db.test_spec"
 version: "1.0.0"
 columns:
   - name: "id"

@@ -1,8 +1,8 @@
-"""AST converter from yads `SchemaSpec` to sqlglot AST expressions.
+"""AST converter from yads `YadsSpec` to sqlglot AST expressions.
 
 Contains the `SQLGlotConverter`, which is responsible for producing a
 dialect-agnostic `sqlglot` AST representing a CREATE TABLE statement
-from the canonical `SchemaSpec` format.
+from the canonical `YadsSpec` format.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from ...constraints import (
     PrimaryKeyTableConstraint,
 )
 from ...exceptions import ConversionError, UnsupportedFeatureError
-from ...spec import Column, Field, SchemaSpec, Storage, TransformedColumnReference
+from ...spec import Column, Field, YadsSpec, Storage, TransformedColumnReference
 from ...types import (
     Array,
     Decimal,
@@ -33,22 +33,22 @@ from ...types import (
     Map,
     String,
     Struct,
-    Type,
+    YadsType,
     Void,
 )
 from ..base import BaseConverter
 
 
 class SQLGlotConverter(BaseConverter):
-    """Core converter that transforms yads specifications into sqlglot AST expressions.
+    """Core converter that transforms yads specs into sqlglot AST expressions.
 
     SQLGlotConverter is the foundational converter that handles the transformation
-    from yads' high-level schema specifications to sqlglot's Abstract Syntax Tree
+    from yads' high-level canonical spec to sqlglot's Abstract Syntax Tree
     representation. This AST serves as a dialect-agnostic intermediate representation
     that can then be serialized into SQL for specific database systems.
 
     The converter uses single dispatch methods to handle different yads types,
-    constraints, and schema elements, providing extensible type mapping and
+    constraints, and spec elements, providing extensible type mapping and
     constraint conversion. It maintains the full expressiveness of the yads
     specification while producing valid sqlglot AST nodes.
 
@@ -73,19 +73,15 @@ class SQLGlotConverter(BaseConverter):
         "trunc": "_handle_date_trunc_transform",
     }
 
-    def convert(self, spec: SchemaSpec, **kwargs: Any) -> exp.Create:
-        """Convert a yads SchemaSpec into a sqlglot `exp.Create` AST expression.
-
-        This method performs the core transformation from yads' specification format
-        to sqlglot's AST representation. It processes all aspects of the schema
-        including columns, constraints, storage properties, and table metadata.
+    def convert(self, spec: YadsSpec, **kwargs: Any) -> exp.Create:
+        """Convert a yads `YadsSpec` into a sqlglot `exp.Create` AST expression.
 
         The resulting AST is dialect-agnostic and can be serialized to SQL for
         any database system supported by sqlglot. The conversion preserves all
-        schema information and applies appropriate sqlglot expression types.
+        spec information and applies appropriate sqlglot expression types.
 
         Args:
-            spec: The yads specification as a SchemaSpec object.
+            spec: The yads spec as a `YadsSpec` object.
             **kwargs: Optional conversion modifiers:
                 if_not_exists: If True, sets the `exists` property of the `exp.Create`
                                node to `True`.
@@ -97,7 +93,7 @@ class SQLGlotConverter(BaseConverter):
         Returns:
             sqlglot `exp.Create` expression representing a CREATE TABLE statement.
             The AST includes table schema, constraints, properties, and metadata
-            from the yads specification.
+            from the yads spec.
 
         Example:
             >>> converter = SQLGlotConverter()
@@ -124,7 +120,7 @@ class SQLGlotConverter(BaseConverter):
         )
 
     @singledispatchmethod
-    def _convert_type(self, yads_type: Type) -> exp.DataType:
+    def _convert_type(self, yads_type: YadsType) -> exp.DataType:
         # Fallback to default sqlglot DataType.build method.
         # The following non-parametrized yads types are handled via the fallback:
         # - Boolean
@@ -372,7 +368,7 @@ class SQLGlotConverter(BaseConverter):
     def _handle_generic_property(self, key: str, value: Any) -> exp.Property:
         return exp.Property(this=convert(key), value=convert(value))
 
-    def _collect_properties(self, spec: SchemaSpec) -> list[exp.Property]:
+    def _collect_properties(self, spec: YadsSpec) -> list[exp.Property]:
         properties: list[exp.Property] = []
         if spec.external:
             properties.append(self._handle_external_property())
@@ -475,7 +471,7 @@ class SQLGlotConverter(BaseConverter):
             constraints=constraints if constraints else None,
         )
 
-    def _collect_expressions(self, spec: SchemaSpec) -> list[exp.Expression]:
+    def _collect_expressions(self, spec: YadsSpec) -> list[exp.Expression]:
         expressions: list[exp.Expression] = [
             self._convert_column(col) for col in spec.columns
         ]

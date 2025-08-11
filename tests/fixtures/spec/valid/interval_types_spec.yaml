@@ -1,4 +1,4 @@
-name: "catalog.db.intervals_schema"
+name: "catalog.db.intervals_spec"
 version: "1.0.0"
 columns:
   - name: "interval_year"

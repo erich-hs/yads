@@ -1,7 +1,7 @@
-"""Build a `SchemaSpec` from a normalized dictionary.
+"""Build a `YadsSpec` from a normalized dictionary.
 
 This module centralizes the logic to turn a parsed specification dictionary
-into a validated `SchemaSpec`. It contains parsing for complex types and
+into a validated `YadsSpec`. It contains parsing for complex types and
 constraint handling that used to live inside the monolithic loader.
 """
 
@@ -25,7 +25,7 @@ from ...constraints import (
 )
 from ...exceptions import (
     InvalidConstraintError,
-    SchemaParsingError,
+    SpecParsingError,
     TypeDefinitionError,
     UnknownConstraintError,
     UnknownTypeError,
@@ -33,7 +33,7 @@ from ...exceptions import (
 from ...spec import (
     Column,
     Field,
-    SchemaSpec,
+    YadsSpec,
     Storage,
     TransformedColumnReference,
 )
@@ -44,7 +44,7 @@ from ...types import (
     IntervalTimeUnit,
     Map,
     Struct,
-    Type,
+    YadsType,
 )
 
 
@@ -57,11 +57,11 @@ class TableConstraintParser(Protocol):
 
 
 class SpecBuilder:
-    """Builds and validates a `SchemaSpec` from a dictionary.
+    """Builds and validates a `YadsSpec` from a dictionary.
 
     This is the single entry point to transform a normalized dictionary
-    into a `SchemaSpec`. It encapsulates type parsing, constraint parsing,
-    storage and partition parsing, and schema-level validations.
+    into a `YadsSpec`. It encapsulates type parsing, constraint parsing,
+    storage and partition parsing, and spec-level validations.
     """
 
     _TYPE_PARSERS: dict[type, str] = {
@@ -86,10 +86,10 @@ class SpecBuilder:
 
     def __init__(self, data: dict[str, Any]):
         self.data = data
-        self._spec: SchemaSpec | None = None
+        self._spec: YadsSpec | None = None
 
-    def build(self) -> SchemaSpec:
-        """Build and validate the `SchemaSpec` from provided data."""
+    def build(self) -> YadsSpec:
+        """Build and validate the `YadsSpec` from provided data."""
         self._validate_keys(
             self.data,
             allowed_keys={
@@ -104,9 +104,9 @@ class SpecBuilder:
                 "columns",
             },
             required_keys={"name", "version", "columns"},
-            context="schema definition",
+            context="spec definition",
         )
-        self._spec = SchemaSpec(
+        self._spec = YadsSpec(
             name=self.data["name"],
             version=self.data["version"],
             description=self.data.get("description"),
@@ -133,12 +133,12 @@ class SpecBuilder:
         unknown = set(obj.keys()) - allowed_keys
         if unknown:
             unknown_sorted = ", ".join(sorted(unknown))
-            raise SchemaParsingError(f"Unknown key(s) in {context}: {unknown_sorted}.")
+            raise SpecParsingError(f"Unknown key(s) in {context}: {unknown_sorted}.")
         if required_keys:
             missing = required_keys - set(obj.keys())
             if missing:
                 missing_sorted = ", ".join(sorted(missing))
-                raise SchemaParsingError(
+                raise SpecParsingError(
                     f"Missing required key(s) in {context}: {missing_sorted}."
                 )
 
@@ -150,7 +150,7 @@ class SpecBuilder:
         default_params = TYPE_ALIASES[type_name.lower()][1]
         return {**default_params, **type_params}
 
-    def _parse_type(self, type_name: str, type_def: dict[str, Any]) -> Type:
+    def _parse_type(self, type_name: str, type_def: dict[str, Any]) -> YadsType:
         type_name_lower = type_name.lower()
 
         if (alias := TYPE_ALIASES.get(type_name_lower)) is None:
@@ -242,7 +242,7 @@ class SpecBuilder:
     ) -> None:
         for required_field in ("name", "type"):
             if required_field not in field_def:
-                raise SchemaParsingError(
+                raise SpecParsingError(
                     f"'{required_field}' is a required field in a {context} definition."
                 )
 
@@ -340,7 +340,6 @@ class SpecBuilder:
         if not gen_clause_def:
             return None
 
-        # Validate keys and requirements for generation clause
         self._validate_keys(
             gen_clause_def,
             allowed_keys={"column", "transform", "transform_args"},
@@ -350,9 +349,7 @@ class SpecBuilder:
 
         # For generated columns, transform is required
         if not gen_clause_def["transform"]:
-            raise SchemaParsingError(
-                "'transform' cannot be empty in a generation clause."
-            )
+            raise SpecParsingError("'transform' cannot be empty in a generation clause.")
 
         return TransformedColumnReference(
             column=gen_clause_def["column"],
@@ -447,7 +444,6 @@ class SpecBuilder:
     def _parse_storage(self, storage_def: dict[str, Any] | None) -> Storage | None:
         if not storage_def:
             return None
-        # Validate allowed storage keys per schema
         self._validate_keys(
             storage_def,
             allowed_keys={"format", "location", "tbl_properties"},
@@ -465,7 +461,7 @@ class SpecBuilder:
         self._check_for_undefined_columns_in_partitioned_by(self._spec)
         self._check_for_undefined_columns_in_generated_as(self._spec)
 
-    def _check_for_duplicate_constraint_definitions(self, spec: "SchemaSpec") -> None:
+    def _check_for_duplicate_constraint_definitions(self, spec: YadsSpec) -> None:
         for col_const_type, tbl_const_type in CONSTRAINT_EQUIVALENTS.items():
             constrained_cols = {
                 c.name
@@ -485,9 +481,7 @@ class SpecBuilder:
                     stacklevel=2,
                 )
 
-    def _check_for_undefined_columns_in_table_constraints(
-        self, spec: "SchemaSpec"
-    ) -> None:
+    def _check_for_undefined_columns_in_table_constraints(self, spec: YadsSpec) -> None:
         for constraint in spec.table_constraints:
             constrained_columns = set(constraint.get_constrained_columns())
             if not_defined := constrained_columns - spec.column_names:
@@ -502,15 +496,15 @@ class SpecBuilder:
                     stacklevel=2,
                 )
 
-    def _check_for_undefined_columns_in_partitioned_by(self, spec: "SchemaSpec") -> None:
+    def _check_for_undefined_columns_in_partitioned_by(self, spec: YadsSpec) -> None:
         if not_defined := spec.partition_column_names - spec.column_names:
-            raise SchemaParsingError(
+            raise SpecParsingError(
                 f"Partition spec references undefined columns: {sorted(list(not_defined))}."
             )
 
-    def _check_for_undefined_columns_in_generated_as(self, spec: "SchemaSpec") -> None:
+    def _check_for_undefined_columns_in_generated_as(self, spec: YadsSpec) -> None:
         for gen_col, source_col in spec.generated_columns.items():
             if source_col not in spec.column_names:
-                raise SchemaParsingError(
+                raise SpecParsingError(
                     f"Generated column '{gen_col}' references undefined column: '{source_col}'."
                 )

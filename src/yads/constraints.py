@@ -1,4 +1,4 @@
-"""Constraint definitions for data validation and schema enforcement.
+"""Constraint definitions for data validation and spec enforcement.
 
 This module provides constraint classes for both column-level and table-level
 data validation. Constraints define rules that data must satisfy, such as
@@ -8,15 +8,19 @@ The constraint system supports both column-level constraints (applied to individ
 columns) and table-level constraints (applied across multiple columns).
 
 Example:
-    >>> from yads.constraints import NotNullConstraint, PrimaryKeyConstraint
-    >>> from yads.constraints import ForeignKeyReference, ForeignKeyConstraint
+    >>> from yads.constraints import (
+    ...     NotNullConstraint,
+    ...     PrimaryKeyConstraint,
+    ...     ForeignKeyReference,
+    ...     ForeignKeyConstraint,
+    ... )
     >>> from yads.spec import Field
-    >>> from yads.types import String, Integer
+    >>> import yads.types as ytypes
     >>>
     >>> # Column with multiple constraints
     >>> user_id_field = Field(
     ...     name="user_id",
-    ...     type=Integer(),
+    ...     type=ytypes.Integer(),
     ...     constraints=[
     ...         NotNullConstraint(),
     ...         PrimaryKeyConstraint()
@@ -26,7 +30,7 @@ Example:
     >>> # Foreign key constraint
     >>> order_user_field = Field(
     ...     name="user_id",
-    ...     type=Integer(),
+    ...     type=ytypes.Integer(),
     ...     constraints=[
     ...         ForeignKeyConstraint(
     ...             references=ForeignKeyReference(table="users", columns=["id"])
@@ -100,10 +104,11 @@ class NotNullConstraint(ColumnConstraint):
     """Constraint requiring that column values cannot be NULL.
 
     Example:
+        >>> import yads.types as ytypes
         >>> # Add to a field definition
         >>> Field(
         ...     name="email",
-        ...     type=String(),
+        ...     type=ytypes.String(),
         ...     constraints=[NotNullConstraint()]
         ... )
     """
@@ -117,10 +122,11 @@ class PrimaryKeyConstraint(ColumnConstraint):
     """Constraint designating a column as the primary key.
 
     Example:
+        >>> import yads.types as ytypes
         >>> # Single-column primary key
         >>> Field(
         ...     name="id",
-        ...     type=Integer(),
+        ...     type=ytypes.Integer(),
         ...     constraints=[PrimaryKeyConstraint()]
         ... )
     """
@@ -141,6 +147,7 @@ class DefaultConstraint(ColumnConstraint):
         value: The default value to use. Can be any JSON-serializable type.
 
     Example:
+        >>> import yads.types as ytypes
         >>> # String default
         >>> DefaultConstraint(value="pending")
 
@@ -153,7 +160,7 @@ class DefaultConstraint(ColumnConstraint):
         >>> # Use in field definition
         >>> Field(
         ...     name="status",
-        ...     type=String(),
+        ...     type=ytypes.String(),
         ...     constraints=[DefaultConstraint(value="active")]
         ... )
     """

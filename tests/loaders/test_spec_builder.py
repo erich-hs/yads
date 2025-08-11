@@ -5,14 +5,14 @@ from pathlib import Path
 from yads.constraints import NotNullConstraint, PrimaryKeyTableConstraint
 from yads.exceptions import (
     InvalidConstraintError,
-    SchemaParsingError,
-    SchemaValidationError,
+    SpecParsingError,
+    SpecValidationError,
     TypeDefinitionError,
     UnknownConstraintError,
     UnknownTypeError,
 )
 from yads.loaders import from_dict, from_string, from_yaml
-from yads.spec import SchemaSpec
+from yads.spec import YadsSpec
 from yads.constraints import DefaultConstraint, ForeignKeyTableConstraint
 from yads.types import (
     String,
@@ -65,28 +65,28 @@ def valid_spec_dict(valid_spec_content):
 class TestFromDict:
     def test_with_valid_spec(self, valid_spec_dict):
         spec = from_dict(valid_spec_dict)
-        assert isinstance(spec, SchemaSpec)
+        assert isinstance(spec, YadsSpec)
         assert spec.name == valid_spec_dict["name"]
 
 
 class TestFromString:
     def test_with_valid_spec(self, valid_spec_content, valid_spec_dict):
         spec = from_string(valid_spec_content)
-        assert isinstance(spec, SchemaSpec)
+        assert isinstance(spec, YadsSpec)
         assert spec.name == valid_spec_dict["name"]
 
 
 class TestFromYaml:
     def test_with_valid_spec(self, valid_spec_path, valid_spec_dict):
         spec = from_yaml(str(valid_spec_path))
-        assert isinstance(spec, SchemaSpec)
+        assert isinstance(spec, YadsSpec)
         assert spec.name == valid_spec_dict["name"]
 
 
 class TestConstraintParsing:
     def _create_minimal_spec_with_constraint(self, constraint_def: dict) -> dict:
         return {
-            "name": "test_schema",
+            "name": "test_spec",
             "version": "1.0.0",
             "columns": [
                 {
@@ -215,7 +215,7 @@ class TestGenerationClauseParsing:
             column_def["generated_as"] = generated_as_def
 
         return {
-            "name": "test_schema",
+            "name": "test_spec",
             "version": "1.0.0",
             "columns": [
                 {"name": "source_col", "type": "string"},
@@ -226,7 +226,7 @@ class TestGenerationClauseParsing:
     def test_generation_clause_missing_column_raises_error(self):
         spec_dict = self._create_spec_with_generated_column({"transform": "upper"})
         with pytest.raises(
-            SchemaParsingError,
+            SpecParsingError,
             match=r"Missing required key\(s\) in generation clause: column\.",
         ):
             from_dict(spec_dict)
@@ -234,7 +234,7 @@ class TestGenerationClauseParsing:
     def test_generation_clause_missing_transform_raises_error(self):
         spec_dict = self._create_spec_with_generated_column({"column": "source_col"})
         with pytest.raises(
-            SchemaParsingError,
+            SpecParsingError,
             match=r"Missing required key\(s\) in generation clause: transform\.",
         ):
             from_dict(spec_dict)
@@ -244,7 +244,7 @@ class TestGenerationClauseParsing:
             {"column": "source_col", "transform": ""}
         )
         with pytest.raises(
-            SchemaParsingError,
+            SpecParsingError,
             match="'transform' cannot be empty in a generation clause",
         ):
             from_dict(spec_dict)
@@ -254,7 +254,7 @@ class TestGenerationClauseParsing:
             {"column": "source_col", "transform": "upper", "params": [1]}
         )
         with pytest.raises(
-            SchemaParsingError,
+            SpecParsingError,
             match=r"Unknown key\(s\) in generation clause: params\.",
         ):
             from_dict(spec_dict)
@@ -279,7 +279,7 @@ class TestGenerationClauseParsing:
 class TestTableConstraintParsing:
     def _create_spec_with_table_constraint(self, constraint_def: dict) -> dict:
         return {
-            "name": "test_schema",
+            "name": "test_spec",
             "version": "1.0.0",
             "columns": [
                 {"name": "col1", "type": "string"},
@@ -406,7 +406,7 @@ class TestTableConstraintParsing:
 class TestStorageParsing:
     def test_storage_parsing(self):
         spec_dict = {
-            "name": "test_schema",
+            "name": "test_spec",
             "version": "1.0.0",
             "columns": [{"name": "col1", "type": "string"}],
             "storage": {
@@ -424,7 +424,7 @@ class TestStorageParsing:
 
     def test_storage_with_unknown_key_raises_error(self):
         spec_dict = {
-            "name": "test_schema",
+            "name": "test_spec",
             "version": "1.0.0",
             "columns": [{"name": "col1", "type": "string"}],
             "storage": {
@@ -433,33 +433,33 @@ class TestStorageParsing:
             },
         }
         with pytest.raises(
-            SchemaParsingError,
+            SpecParsingError,
             match=r"Unknown key\(s\) in storage definition: invalid_key\.",
         ):
             from_dict(spec_dict)
 
     def test_partitioned_by_missing_column_raises_error(self):
         spec_dict = {
-            "name": "test_schema",
+            "name": "test_spec",
             "version": "1.0.0",
             "columns": [{"name": "col1", "type": "string"}],
             "partitioned_by": [{"transform": "year"}],
         }
         with pytest.raises(
-            SchemaParsingError,
+            SpecParsingError,
             match=r"Missing required key\(s\) in partitioned_by item: column\.",
         ):
             from_dict(spec_dict)
 
     def test_partitioned_by_unknown_key_raises_error(self):
         spec_dict = {
-            "name": "test_schema",
+            "name": "test_spec",
             "version": "1.0.0",
             "columns": [{"name": "col1", "type": "string"}],
             "partitioned_by": [{"column": "col1", "params": [1]}],
         }
         with pytest.raises(
-            SchemaParsingError,
+            SpecParsingError,
             match=r"Unknown key\(s\) in partitioned_by item: params\.",
         ):
             from_dict(spec_dict)
@@ -468,7 +468,7 @@ class TestStorageParsing:
 class TestPartitioningParsing:
     def test_partitioned_by_parsing(self):
         spec_dict = {
-            "name": "test_schema",
+            "name": "test_spec",
             "version": "1.0.0",
             "columns": [
                 {"name": "col1", "type": "string"},
@@ -499,16 +499,16 @@ class TestPartitioningParsing:
 
 
 class TestTopLevelSpecValidation:
-    def test_schema_with_unknown_top_level_key_raises_error(self):
+    def test_spec_with_unknown_top_level_key_raises_error(self):
         spec_dict = {
-            "name": "test_schema",
+            "name": "test_spec",
             "version": "1.0.0",
             "foo": "bar",
             "columns": [{"name": "col1", "type": "string"}],
         }
         with pytest.raises(
-            SchemaParsingError,
-            match=r"Unknown key\(s\) in schema definition: foo\.",
+            SpecParsingError,
+            match=r"Unknown key\(s\) in spec definition: foo\.",
         ):
             from_dict(spec_dict)
 
@@ -516,7 +516,7 @@ class TestTopLevelSpecValidation:
 class TestValidationMethods:
     def test_validate_columns_duplicate_names(self):
         spec_dict = {
-            "name": "test_schema",
+            "name": "test_spec",
             "version": "1.0.0",
             "columns": [
                 {"name": "col1", "type": "string"},
@@ -524,26 +524,26 @@ class TestValidationMethods:
             ],
         }
         with pytest.raises(
-            SchemaValidationError, match="Duplicate column name found: 'col1'"
+            SpecValidationError, match="Duplicate column name found: 'col1'"
         ):
             from_dict(spec_dict)
 
     def test_validate_partitions_undefined_column(self):
         spec_dict = {
-            "name": "test_schema",
+            "name": "test_spec",
             "version": "1.0.0",
             "columns": [{"name": "col1", "type": "string"}],
             "partitioned_by": [{"column": "undefined_col"}],
         }
         with pytest.raises(
-            SchemaValidationError,
+            SpecValidationError,
             match="Partition column 'undefined_col' must be defined as a column in the schema",
         ):
             from_dict(spec_dict)
 
     def test_validate_generated_columns_undefined_source(self):
         spec_dict = {
-            "name": "test_schema",
+            "name": "test_spec",
             "version": "1.0.0",
             "columns": [
                 {
@@ -557,14 +557,14 @@ class TestValidationMethods:
             ],
         }
         with pytest.raises(
-            SchemaValidationError,
+            SpecValidationError,
             match="Source column 'undefined_source' for generated column 'generated_col' not found in schema",
         ):
             from_dict(spec_dict)
 
     def test_validate_table_constraints_undefined_column(self):
         spec_dict = {
-            "name": "test_schema",
+            "name": "test_spec",
             "version": "1.0.0",
             "columns": [{"name": "col1", "type": "string"}],
             "table_constraints": [
@@ -575,7 +575,7 @@ class TestValidationMethods:
                 }
             ],
         }
-        with pytest.raises(SchemaValidationError) as excinfo:
+        with pytest.raises(SpecValidationError) as excinfo:
             from_dict(spec_dict)
 
         assert "Column 'undefined_col'" in str(excinfo.value)
@@ -584,23 +584,23 @@ class TestValidationMethods:
 
 class TestFullSpecFromYaml:
     @pytest.fixture(scope="class")
-    def spec(self) -> SchemaSpec:
+    def spec(self) -> YadsSpec:
         return from_yaml(str(VALID_SPEC_DIR / "full_spec.yaml"))
 
-    def test_top_level_attributes(self, spec: SchemaSpec):
-        assert spec.name == "catalog.db.full_schema"
+    def test_top_level_attributes(self, spec: YadsSpec):
+        assert spec.name == "catalog.db.full_spec"
         assert spec.version == "2.1.0"
-        assert spec.description == "A full schema with all features."
+        assert spec.description == "A full spec with all features."
         assert spec.metadata == {"owner": "data-team", "sensitive": False}
         assert spec.external is True
 
-    def test_storage_attributes(self, spec: SchemaSpec):
+    def test_storage_attributes(self, spec: YadsSpec):
         assert spec.storage is not None
-        assert spec.storage.location == "/data/full.schema"
+        assert spec.storage.location == "/data/full.spec"
         assert spec.storage.format == "parquet"
         assert spec.storage.tbl_properties == {"write_compression": "snappy"}
 
-    def test_partitioning(self, spec: SchemaSpec):
+    def test_partitioning(self, spec: YadsSpec):
         assert len(spec.partitioned_by) == 3
         assert spec.partitioned_by[0].column == "c_string_len"
         assert spec.partitioned_by[1].column == "c_string"
@@ -609,10 +609,10 @@ class TestFullSpecFromYaml:
         assert spec.partitioned_by[2].column == "c_date"
         assert spec.partitioned_by[2].transform == "month"
 
-    def test_columns(self, spec: SchemaSpec):
+    def test_columns(self, spec: YadsSpec):
         assert len(spec.columns) == 31
 
-    def test_column_constraints(self, spec: SchemaSpec):
+    def test_column_constraints(self, spec: YadsSpec):
         # Test not_null constraint
         c_with_not_null = {
             c.name
@@ -637,7 +637,7 @@ class TestFullSpecFromYaml:
         assert c_with_default["c_string"] is not None
         assert c_with_default["c_string"].value == "default_string"
 
-    def test_table_constraints(self, spec: SchemaSpec):
+    def test_table_constraints(self, spec: YadsSpec):
         assert len(spec.table_constraints) == 2
 
         pk_constraint = next(
@@ -649,7 +649,7 @@ class TestFullSpecFromYaml:
             None,
         )
         assert pk_constraint is not None
-        assert pk_constraint.name == "pk_full_schema"
+        assert pk_constraint.name == "pk_full_spec"
         assert pk_constraint.columns == ["c_uuid", "c_date"]
 
         fk_constraint = next(
@@ -666,7 +666,7 @@ class TestFullSpecFromYaml:
         assert fk_constraint.references.table == "other_table"
         assert fk_constraint.references.columns == ["id"]
 
-    def test_get_column(self, spec: SchemaSpec):
+    def test_get_column(self, spec: YadsSpec):
         column = next((c for c in spec.columns if c.name == "c_uuid"), None)
         assert column is not None
         assert column.name == "c_uuid"
@@ -680,27 +680,27 @@ class TestFullSpecFromYaml:
     [
         (
             INVALID_SPEC_DIR / "missing_required_field" / "missing_name.yaml",
-            SchemaParsingError,
-            r"Missing required key\(s\) in schema definition: name\.",
+            SpecParsingError,
+            r"Missing required key\(s\) in spec definition: name\.",
         ),
         (
             INVALID_SPEC_DIR / "missing_required_field" / "missing_version.yaml",
-            SchemaParsingError,
-            r"Missing required key\(s\) in schema definition: version\.",
+            SpecParsingError,
+            r"Missing required key\(s\) in spec definition: version\.",
         ),
         (
             INVALID_SPEC_DIR / "missing_required_field" / "missing_columns.yaml",
-            SchemaParsingError,
-            r"Missing required key\(s\) in schema definition: columns\.",
+            SpecParsingError,
+            r"Missing required key\(s\) in spec definition: columns\.",
         ),
         (
             INVALID_SPEC_DIR / "missing_column_field" / "missing_name.yaml",
-            SchemaParsingError,
+            SpecParsingError,
             "'name' is a required field in a column definition",
         ),
         (
             INVALID_SPEC_DIR / "missing_column_field" / "missing_type.yaml",
-            SchemaParsingError,
+            SpecParsingError,
             "'type' is a required field in a column definition",
         ),
         (
@@ -740,12 +740,12 @@ class TestFullSpecFromYaml:
         ),
         (
             INVALID_SPEC_DIR / "generated_as_undefined_column.yaml",
-            SchemaValidationError,
+            SpecValidationError,
             "Source column 'non_existent_col' for generated column 'col2' not found in schema.",
         ),
         (
             INVALID_SPEC_DIR / "partitioned_by_undefined_column.yaml",
-            SchemaValidationError,
+            SpecValidationError,
             "Partition column 'non_existent_col' must be defined as a column in the schema.",
         ),
         (
@@ -770,7 +770,7 @@ def test_from_string_with_invalid_spec_raises_error(spec_path, error_type, error
 def test_invalid_yaml_content_raises_error():
     content = "- item1\n- item2"  # A list, not a dictionary
     with pytest.raises(
-        SchemaParsingError, match="Loaded YAML content did not parse to a dictionary"
+        SpecParsingError, match="Loaded YAML content did not parse to a dictionary"
     ):
         from_string(content)
 
@@ -778,7 +778,7 @@ def test_invalid_yaml_content_raises_error():
 def test_unquoted_null_type_gives_helpful_error():
     """Test that unquoted 'null' in YAML gives a helpful error message."""
     content = """
-name: test_schema
+name: test_spec
 version: 1.0.0
 columns:
   - name: col1
@@ -794,7 +794,7 @@ columns:
 class TestTypeLoading:
     def _create_minimal_spec_with_type(self, type_def: dict) -> dict:
         return {
-            "name": "test_schema",
+            "name": "test_spec",
             "version": "1.0.0",
             "columns": [{"name": "test_column", **type_def}],
         }

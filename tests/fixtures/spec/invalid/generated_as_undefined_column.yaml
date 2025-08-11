@@ -1,4 +1,4 @@
-name: "generated.as.undefined.column.schema"
+name: "generated.as.undefined.column.spec"
 version: "1.0.0"
 columns:
   - name: "col1"

@@ -1,6 +1,6 @@
-"""Entry points for loading `SchemaSpec` from various sources.
+"""Entry points for loading `YadsSpec` from various sources.
 
-This module exposes simple functions to construct a `SchemaSpec` from:
+This module exposes simple functions to construct a `YadsSpec` from:
 - YAML files (`from_yaml`)
 - YAML strings (`from_string`)
 - Python dictionaries (`from_dict`)
@@ -12,19 +12,19 @@ from typing import Any
 
 import yaml
 
-from ..exceptions import SchemaParsingError
-from ..spec import SchemaSpec
+from ..exceptions import SpecParsingError
+from ..spec import YadsSpec
 from .common import SpecBuilder
 
 
-def from_dict(data: dict[str, Any]) -> SchemaSpec:
-    """Load a `SchemaSpec` from a dictionary representation.
+def from_dict(data: dict[str, Any]) -> YadsSpec:
+    """Load a `YadsSpec` from a dictionary representation.
 
     Args:
         data: Parsed specification dictionary.
 
     Returns:
-        A validated immutable `SchemaSpec` instance.
+        A validated immutable `YadsSpec` instance.
 
     Example:
         >>> data = {
@@ -45,26 +45,26 @@ def from_dict(data: dict[str, Any]) -> SchemaSpec:
         ...     ]
         ... }
         >>> spec = from_dict(data)
-        >>> print(f"Loaded schema: {spec.name} v{spec.version}")
-        Loaded schema: users v1.0.0
+        >>> print(f"Loaded spec: {spec.name} v{spec.version}")
+        Loaded spec: users v1.0.0
     """
 
     return SpecBuilder(data).build()
 
 
-def from_string(content: str) -> SchemaSpec:
-    """Load a schema specification from a YAML string.
+def from_string(content: str) -> YadsSpec:
+    """Load a spec from a YAML string.
 
-    Parses YAML content and converts it into a validated SchemaSpec object.
+    Parses YAML content and converts it into a validated `YadsSpec` object.
 
     Args:
-        content: YAML string containing the schema specification.
+        content: YAML string containing the spec.
 
     Returns:
-        A validated immutable SchemaSpec object.
+        A validated immutable `YadsSpec` object.
 
     Raises:
-        SchemaParsingError: If the YAML content is invalid or doesn't parse
+        SpecParsingError: If the YAML content is invalid or doesn't parse
                           to a dictionary.
 
     Example:
@@ -90,26 +90,26 @@ def from_string(content: str) -> SchemaSpec:
 
     data = yaml.safe_load(content)
     if not isinstance(data, dict):
-        raise SchemaParsingError("Loaded YAML content did not parse to a dictionary.")
+        raise SpecParsingError("Loaded YAML content did not parse to a dictionary.")
     return from_dict(data)
 
 
-def from_yaml(path: str) -> SchemaSpec:
-    """Load a schema specification from a YAML file.
+def from_yaml(path: str) -> YadsSpec:
+    """Load a spec from a YAML file.
 
-    Reads and parses a YAML file containing a schema specification.
+    Reads and parses a YAML file containing a spec.
 
     Args:
-        path: Path to the YAML file containing the schema specification.
+        path: Path to the YAML file containing the spec.
 
     Returns:
-        A validated immutable SchemaSpec object.
+        A validated immutable `YadsSpec` object.
 
     Example:
         >>> # Load from file
-        >>> spec = from_yaml("schemas/users.yaml")
-        >>> print(f"Loaded schema: {spec.name}")
-        Loaded schema: users
+        >>> spec = from_yaml("specs/users.yaml")
+        >>> print(f"Loaded spec: {spec.name}")
+        Loaded spec: users
     """
 
     with open(path) as f:

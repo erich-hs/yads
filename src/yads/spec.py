@@ -1,20 +1,21 @@
-"""Core schema specification data structures for yads.
+"""Core spec data structures for yads.
 
-This module defines the fundamental data structures that represent schema specifications
-in yads. These immutable data classes form the canonical representation of the yads spec.
+This module defines the fundamental data structures that represent the
+canonical yads specification.
+
 
 Example:
-    >>> from yads.types import String, Integer
     >>> from yads.constraints import NotNullConstraint
+    >>> import yads.types as ytypes
     >>>
     >>> # Define table columns
     >>> columns = [
-    ...     Column(name="id", type=Integer(), constraints=[NotNullConstraint()]),
-    ...     Column(name="name", type=String(length=100))
+    ...     Column(name="id", type=ytypes.Integer(), constraints=[NotNullConstraint()]),
+    ...     Column(name="name", type=ytypes.String(length=100))
     ... ]
     >>>
-    >>> # Create complete schema specification
-    >>> spec = SchemaSpec(
+    >>> # Create a complete spec
+    >>> spec = YadsSpec(
     ...     name="users",
     ...     version="1.0.0",
     ...     columns=columns,
@@ -34,8 +35,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .constraints import ColumnConstraint, NotNullConstraint, TableConstraint
-from .exceptions import SchemaValidationError
-from .types import Type
+from .exceptions import SpecValidationError
+from .types import YadsType
 
 
 def _format_dict_as_kwargs(d: dict[str, Any], multiline: bool = False) -> str:
@@ -79,9 +80,10 @@ class TransformedColumnReference:
         >>> str(ref)
         'bucket(user_id, 50)'
 
+        >>> import yads.types as ytypes
         >>> # Generated column example (transform is required for generated columns)
         >>> ref = TransformedColumnReference(column="order_date", transform="year")
-        >>> # This would be used in: Column(name="order_year", type=Integer(), generated_as=ref)
+        >>> # This would be used in: Column(name="order_year", type=ytypes.Integer(), generated_as=ref)
     """
 
     column: str
@@ -107,22 +109,22 @@ class Field:
     serves as the base class for table columns.
 
     Example:
-        >>> from yads.types import String, Integer
+        >>> import yads.types as ytypes
         >>>
         >>> # Simple field for use in complex types
-        >>> field = Field(name="username", type=String())
+        >>> field = Field(name="username", type=ytypes.String())
         >>>
         >>> # Field with metadata
         >>> field = Field(
         ...     name="user_id",
-        ...     type=Integer(bits=64),
+        ...     type=ytypes.Integer(bits=64),
         ...     description="Unique identifier for the user",
         ...     metadata={"source": "user_service"}
         ... )
     """
 
     name: str
-    type: Type
+    type: YadsType
     description: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -158,16 +160,16 @@ class Column(Field):
     making it the primary building block for table schemas.
 
     Example:
-        >>> from yads.types import String, Integer
         >>> from yads.constraints import NotNullConstraint, DefaultConstraint
+        >>> import yads.types as ytypes
         >>>
         >>> # Simple column
-        >>> column = Column(name="username", type=String())
+        >>> column = Column(name="username", type=ytypes.String())
         >>>
         >>> # Column with constraints and metadata
         >>> column = Column(
         ...     name="user_id",
-        ...     type=Integer(bits=64),
+        ...     type=ytypes.Integer(bits=64),
         ...     constraints=[NotNullConstraint()],
         ...     description="Unique identifier for the user",
         ...     metadata={"source": "user_service"}
@@ -176,7 +178,7 @@ class Column(Field):
         >>> # Generated column
         >>> column = Column(
         ...     name="order_year",
-        ...     type=Integer(),
+        ...     type=ytypes.Integer(),
         ...     generated_as=TransformedColumnReference(column="order_date", transform="year")
         ... )
     """
@@ -267,58 +269,58 @@ class Storage:
 
 
 @dataclass(frozen=True)
-class SchemaSpec:
-    """Complete yads schema specification.
+class YadsSpec:
+    """Complete yads specification.
 
-    SchemaSpec is the central data structure in yads that represents a complete
+    YadsSpec is the central data structure in yads that represents a complete
     table definition including columns, constraints, storage properties, and
     metadata. It serves as the input for all converters and validation processes.
 
-    The schema specification is immutable.
+    The yads specification is immutable.
 
     Args:
         name: Fully qualified table name (e.g., "catalog.database.table").
-        version: Schema version string for tracking changes.
+        version: spec version string for tracking changes.
         columns: List of Column objects defining the table structure.
         description: Optional human-readable description of the table.
         external: Whether to generate CREATE EXTERNAL TABLE statements.
         storage: Storage configuration including format and properties.
-        partitioned_by: List of partitioning specifications.
+        partitioned_by: List of partition columns.
         table_constraints: List of table-level constraints (e.g., composite keys).
         metadata: Additional metadata as key-value pairs.
 
     Raises:
-        SchemaValidationError: If the schema contains validation errors such as
+        SpecValidationError: If the spec contains validation errors such as
                              duplicate column names, undefined partition columns,
                              or invalid constraint references.
 
     Example:
-        >>> from yads.types import String, Integer
         >>> from yads.constraints import NotNullConstraint, PrimaryKeyConstraint
+        >>> import yads.types as ytypes
         >>>
-        >>> # Create a simple schema
-        >>> spec = SchemaSpec(
+        >>> # Create a simple spec
+        >>> spec = YadsSpec(
         ...     name="users",
         ...     version="1.0.0",
         ...     description="User information table",
         ...     columns=[
         ...         Column(
         ...             name="id",
-        ...             type=Integer(),
+        ...             type=ytypes.Integer(),
         ...             constraints=[NotNullConstraint(), PrimaryKeyConstraint()]
         ...         ),
         ...         Column(
         ...             name="email",
-        ...             type=String(length=255),
+        ...             type=ytypes.String(length=255),
         ...             constraints=[NotNullConstraint()]
         ...         ),
-        ...         Column(name="name", type=String())
+        ...         Column(name="name", type=ytypes.String())
         ...     ]
         ... )
         >>>
-        >>> # Access schema properties
-        >>> print(f"Schema: {spec.name} v{spec.version}")
-        Schema: users v1.0.0
+        >>> # Access spec properties
+        >>> print(f"Spec: {spec.name} v{spec.version}")
+        Spec: users v1.0.0
         >>> print(f"Columns: {len(spec.columns)}")
         Columns: 3
         >>> print(f"Column names: {spec.column_names}")
@@ -350,20 +352,20 @@ class SchemaSpec:
         names = set()
         for c in self.columns:
             if c.name in names:
-                raise SchemaValidationError(f"Duplicate column name found: {c.name!r}.")
+                raise SpecValidationError(f"Duplicate column name found: {c.name!r}.")
             names.add(c.name)
 
     def _validate_partitions(self):
         for p_col in self.partition_column_names:
             if p_col not in self.column_names:
-                raise SchemaValidationError(
+                raise SpecValidationError(
                     f"Partition column {p_col!r} must be defined as a column in the schema."
                 )
 
     def _validate_generated_columns(self):
         for gen_col, source_col in self.generated_columns.items():
             if source_col not in self.column_names:
-                raise SchemaValidationError(
+                raise SpecValidationError(
                     f"Source column {source_col!r} for generated column {gen_col!r} "
                     "not found in schema."
                 )
@@ -372,18 +374,18 @@ class SchemaSpec:
         for constraint in self.table_constraints:
             for col in constraint.get_constrained_columns():
                 if col not in self.column_names:
-                    raise SchemaValidationError(
+                    raise SpecValidationError(
                         f"Column {col!r} in constraint {constraint} not found in schema."
                     )
 
     @property
     def column_names(self) -> set[str]:
-        """Set of all column names defined in the schema."""
+        """Set of all column names defined in the spec."""
         return {c.name for c in self.columns}
 
     @property
     def partition_column_names(self) -> set[str]:
-        """Set of column names referenced in partitioning specifications."""
+        """Set of column names referenced as partition columns."""
         return {p.column for p in self.partitioned_by}
 
     @property
@@ -408,7 +410,7 @@ class SchemaSpec:
         return {c.name for c in self.columns if c.has_constraints}
 
     def _build_header_str(self) -> str:
-        return f"schema {self.name}(version={self.version!r})"
+        return f"spec {self.name}(version={self.version!r})"
 
     def _build_body_str(self) -> str:
         parts = []

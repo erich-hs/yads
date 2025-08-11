@@ -1,4 +1,4 @@
-name: "catalog.db.map_schema"
+name: "catalog.db.map_spec"
 version: "1.0.0"
 columns:
   - name: "metadata"

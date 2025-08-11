@@ -1,4 +1,4 @@
-name: "invalid.constraint.schema"
+name: "invalid.constraint.spec"
 version: "1.0.0"
 columns:
   - name: "id"
