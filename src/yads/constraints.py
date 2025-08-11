@@ -1,3 +1,44 @@
+"""Constraint definitions for data validation and spec enforcement.
+
+This module provides constraint classes for both column-level and table-level
+data validation. Constraints define rules that data must satisfy, such as
+non-null requirements, primary key uniqueness, and foreign key relationships.
+
+The constraint system supports both column-level constraints (applied to individual
+columns) and table-level constraints (applied across multiple columns).
+
+Example:
+    >>> from yads.constraints import (
+    ...     NotNullConstraint,
+    ...     PrimaryKeyConstraint,
+    ...     ForeignKeyReference,
+    ...     ForeignKeyConstraint,
+    ... )
+    >>> from yads.spec import Field
+    >>> import yads.types as ytypes
+    >>>
+    >>> # Column with multiple constraints
+    >>> user_id_field = Field(
+    ...     name="user_id",
+    ...     type=ytypes.Integer(),
+    ...     constraints=[
+    ...         NotNullConstraint(),
+    ...         PrimaryKeyConstraint()
+    ...     ]
+    ... )
+    >>>
+    >>> # Foreign key constraint
+    >>> order_user_field = Field(
+    ...     name="user_id",
+    ...     type=ytypes.Integer(),
+    ...     constraints=[
+    ...         ForeignKeyConstraint(
+    ...             references=ForeignKeyReference(table="users", columns=["id"])
+    ...         )
+    ...     ]
+    ... )
+"""
+
 from __future__ import annotations
 
 import textwrap
@@ -5,13 +46,43 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
 
+from .exceptions import InvalidConstraintError
+
 
 @dataclass(frozen=True)
-class Reference:
-    """Represents a reference for a foreign key constraint."""
+class ForeignKeyReference:
+    """Reference specification for foreign key constraints.
+
+    Defines the target table and optional column list for a foreign key
+    relationship. Used by both column-level and table-level foreign key
+    constraints to specify what the constraint references.
+
+    Args:
+        table: Name of the referenced table.
+        columns: List of column names in the referenced table.
+
+    Raises:
+        InvalidConstraintError: If columns is an empty list.
+
+    Example:
+        >>> # Reference primary key of users table
+        >>> ForeignKeyReference(table="users")
+
+        >>> # Reference specific columns
+        >>> ForeignKeyReference(table="users", columns=["id"])
+
+        >>> # Multi-column reference
+        >>> ForeignKeyReference(table="orders", columns=["order_id", "line_number"])
+    """
 
     table: str
     columns: list[str] | None = None
+
+    def __post_init__(self):
+        if self.columns == []:
+            raise InvalidConstraintError(
+                "ForeignKeyReference 'columns' cannot be an empty list."
+            )
 
     def __str__(self) -> str:
         if self.columns:
@@ -21,12 +92,26 @@ class Reference:
 
 # Column Constraints
 class ColumnConstraint(ABC):
-    """Abstract base class for all column-level constraints."""
+    """Abstract base class for column-level constraints.
+
+    Column constraints are applied to individual columns and define
+    validation rules that values in that column must satisfy.
+    """
 
 
 @dataclass(frozen=True)
 class NotNullConstraint(ColumnConstraint):
-    """A NOT NULL constraint on a column."""
+    """Constraint requiring that column values cannot be NULL.
+
+    Example:
+        >>> import yads.types as ytypes
+        >>> # Add to a field definition
+        >>> Field(
+        ...     name="email",
+        ...     type=ytypes.String(),
+        ...     constraints=[NotNullConstraint()]
+        ... )
+    """
 
     def __str__(self) -> str:
         return "NotNullConstraint()"
@@ -34,7 +119,17 @@ class NotNullConstraint(ColumnConstraint):
 
 @dataclass(frozen=True)
 class PrimaryKeyConstraint(ColumnConstraint):
-    """A PRIMARY KEY constraint on a column."""
+    """Constraint designating a column as the primary key.
+
+    Example:
+        >>> import yads.types as ytypes
+        >>> # Single-column primary key
+        >>> Field(
+        ...     name="id",
+        ...     type=ytypes.Integer(),
+        ...     constraints=[PrimaryKeyConstraint()]
+        ... )
+    """
 
     def __str__(self) -> str:
         return "PrimaryKeyConstraint()"
@@ -42,7 +137,33 @@ class PrimaryKeyConstraint(ColumnConstraint):
 
 @dataclass(frozen=True)
 class DefaultConstraint(ColumnConstraint):
-    """A DEFAULT constraint on a column."""
+    """Constraint providing a default value for a column.
+
+    Specifies the value to use when no explicit value is provided
+    during insert operations. The default value should be compatible
+    with the column's data type.
+
+    Args:
+        value: The default value to use. Can be any JSON-serializable type.
+
+    Example:
+        >>> import yads.types as ytypes
+        >>> # String default
+        >>> DefaultConstraint(value="pending")
+
+        >>> # Numeric default
+        >>> DefaultConstraint(value=0)
+
+        >>> # Boolean default
+        >>> DefaultConstraint(value=True)
+
+        >>> # Use in field definition
+        >>> Field(
+        ...     name="status",
+        ...     type=ytypes.String(),
+        ...     constraints=[DefaultConstraint(value="active")]
+        ... )
+    """
 
     value: Any
 
@@ -52,9 +173,26 @@ class DefaultConstraint(ColumnConstraint):
 
 @dataclass(frozen=True)
 class ForeignKeyConstraint(ColumnConstraint):
-    """A FOREIGN KEY constraint on a column."""
+    """Column-level foreign key constraint.
 
-    references: Reference
+    Args:
+        references: The ForeignKeyReference specifying the target table and columns.
+        name: Optional name for the constraint.
+
+    Example:
+        >>> # Simple foreign key to users table
+        >>> ForeignKeyConstraint(
+        ...     references=ForeignKeyReference(table="users")
+        ... )
+
+        >>> # Named foreign key with specific column
+        >>> ForeignKeyConstraint(
+        ...     name="fk_order_customer",
+        ...     references=ForeignKeyReference(table="customers", columns=["id"])
+        ... )
+    """
+
+    references: ForeignKeyReference
     name: str | None = None
 
     def __str__(self) -> str:
@@ -69,33 +207,85 @@ class ForeignKeyConstraint(ColumnConstraint):
 
 @dataclass(frozen=True)
 class IdentityConstraint(ColumnConstraint):
-    """An identity column constraint, often used for auto-incrementing keys."""
+    """Constraint for auto-incrementing identity columns.
+
+    Args:
+        always: If True, values are always generated (GENERATED ALWAYS).
+               If False, allows manual value insertion (GENERATED BY DEFAULT).
+        start: Starting value for the sequence. If None, uses database default.
+        increment: Increment step for each new value. If None, uses database default.
+
+    Raises:
+        InvalidConstraintError: If increment is zero.
+
+    Example:
+        >>> # Basic identity column
+        >>> IdentityConstraint()
+
+        >>> # Custom start and increment
+        >>> IdentityConstraint(start=1000, increment=10)
+
+        >>> # Allow manual insertion
+        >>> IdentityConstraint(always=False, start=1, increment=1)
+    """
 
     always: bool = True
     start: int | None = None
     increment: int | None = None
 
+    def __post_init__(self):
+        if self.increment == 0:
+            raise InvalidConstraintError(
+                f"Identity 'increment' must be a non-zero integer, not {self.increment}."
+            )
+
 
 # Table Constraints
 @dataclass(frozen=True)
 class TableConstraint(ABC):
-    """Abstract base class for all table-level constraints."""
+    """Abstract base class for table-level constraints.
+
+    Table constraints operate across multiple columns and are defined
+    at the table level rather than on individual columns.
+    """
 
     @abstractmethod
     def get_constrained_columns(self) -> list[str]:
-        """Returns the list of columns targeted by the constraint."""
-        ...
+        """Return the list of column names involved in this constraint."""
 
 
 @dataclass(frozen=True)
 class PrimaryKeyTableConstraint(TableConstraint):
-    """A table-level PRIMARY KEY constraint, for single or composite keys."""
+    """Table-level primary key constraint.
+
+    Args:
+        columns: List of column names that form the composite primary key.
+        name: Optional name for the constraint.
+
+    Raises:
+        InvalidConstraintError: If columns list is empty.
+
+    Example:
+        >>> # Composite primary key
+        >>> PrimaryKeyTableConstraint(
+        ...     columns=["order_id", "line_number"],
+        ...     name="pk_order_lines"
+        ... )
+
+        >>> # Simple composite key without name
+        >>> PrimaryKeyTableConstraint(columns=["year", "month", "category"])
+    """
 
     columns: list[str]
     name: str | None = None
 
+    def __post_init__(self):
+        if not self.columns:
+            raise InvalidConstraintError(
+                "PrimaryKeyTableConstraint 'columns' cannot be empty."
+            )
+
     def get_constrained_columns(self) -> list[str]:
-        """Returns the list of columns constrained as a primary key."""
         return self.columns
 
     def __str__(self) -> str:
@@ -114,14 +304,49 @@ class PrimaryKeyTableConstraint(TableConstraint):
 
 @dataclass(frozen=True)
 class ForeignKeyTableConstraint(TableConstraint):
-    """A table-level FOREIGN KEY constraint, for single or composite keys."""
+    """Table-level foreign key constraint for composite relationships.
+
+    Defines a foreign key across multiple columns, useful for referencing
+    composite primary keys in other tables. The number of columns must match
+    the number of referenced columns.
+
+    Args:
+        columns: List of column names in this table that form the foreign key.
+        references: The ForeignKeyReference specifying the target table and columns.
+        name: Optional name for the constraint.
+
+    Raises:
+        InvalidConstraintError: If columns list is empty or if the number of
+                              columns doesn't match the referenced columns.
+
+    Example:
+        >>> # Composite foreign key
+        >>> ForeignKeyTableConstraint(
+        ...     columns=["customer_id", "customer_region"],
+        ...     references=ForeignKeyReference(
+        ...         table="customers",
+        ...         columns=["id", "region"]
+        ...     ),
+        ...     name="fk_order_customer"
+        ... )
+    """
 
     columns: list[str]
-    references: Reference
+    references: ForeignKeyReference
     name: str | None = None
 
+    def __post_init__(self):
+        if not self.columns:
+            raise InvalidConstraintError(
+                "ForeignKeyTableConstraint 'columns' cannot be empty."
+            )
+        if self.references.columns and len(self.columns) != len(self.references.columns):
+            raise InvalidConstraintError(
+                f"The number of columns in the foreign key ({len(self.columns)}) must match the number of "
+                f"referenced columns ({len(self.references.columns)})."
+            )
+
     def get_constrained_columns(self) -> list[str]:
-        """Returns the list of columns constrained by the foreign key."""
         return self.columns
 
     def __str__(self) -> str:
@@ -139,8 +364,6 @@ class ForeignKeyTableConstraint(TableConstraint):
         return f"ForeignKeyTableConstraint(\n{indented_parts}\n)"
 
 
-# A mapping from column-level constraints to their table-level counterparts.
-# This helps in identifying when a constraint is defined in two places.
 CONSTRAINT_EQUIVALENTS: dict[type[ColumnConstraint], type[TableConstraint]] = {
     PrimaryKeyConstraint: PrimaryKeyTableConstraint,
     ForeignKeyConstraint: ForeignKeyTableConstraint,

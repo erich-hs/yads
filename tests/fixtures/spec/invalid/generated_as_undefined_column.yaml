@@ -1,0 +1,10 @@
+name: "generated.as.undefined.column.spec"
+version: "1.0.0"
+columns:
+  - name: "col1"
+    type: "integer"
+  - name: "col2"
+    type: "integer"
+    generated_as:
+      column: "non_existent_col"
+      transform: "identity" 

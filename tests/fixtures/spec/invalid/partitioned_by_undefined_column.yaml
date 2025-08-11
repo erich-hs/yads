@@ -1,0 +1,7 @@
+name: "partitioned.by.undefined.column.spec"
+version: "1.0.0"
+partitioned_by:
+  - column: "non_existent_col"
+columns:
+  - name: "col1"
+    type: "integer" 

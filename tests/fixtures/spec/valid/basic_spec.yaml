@@ -1,0 +1,9 @@
+name: "catalog.db.test_spec"
+version: "1.0.0"
+columns:
+  - name: "id"
+    type: "integer"
+    constraints:
+      not_null: true
+  - name: "name"
+    type: "string" 

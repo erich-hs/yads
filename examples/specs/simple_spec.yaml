@@ -1,25 +1,18 @@
-name: "warehouse.orders.customer_orders"
-version: "2.1.0"
-description: "Represents a single customer order, including line items and shipping details."
-
-options:
-  is_external: true
+name: customer_orders
+version: "1.0"
 
 columns:
-  - name: "order_id"
-    type: "uuid"
-    description: "The unique identifier for the order (PK)."
-    constraints:
-      not_null: true
+  - name: original_col
+    type: string
 
-  - name: "order_id_2"
-    type: "string"
-    description: "Another other id."
-    constraints:
-      primary_key: true
+  - name: generated_col
+    type: date
+    generated_as:
+      column: original_col
+      transform: truncate
+      transform_args: [50]
 
-  - name: "company_id"
-    type: "string"
-    description: "The ID of the company that placed the order (PK)."
-    constraints:
-      not_null: true
+partitioned_by:
+  - column: original_col
+    transform: truncate
+    transform_args: [50]

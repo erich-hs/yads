@@ -26,16 +26,15 @@ You can generate a `CREATE TABLE` statement for a specific SQL dialect from your
 
 ```python
 import yads
-from yads.converters.sql import SqlConverter
+from yads.converters import SparkSQLConverter
 
 # Load the specification from a YAML file
 spec = yads.from_yaml("examples/specs/yads_spec.yaml")
 
-# Initialize a converter for the "spark" dialect
-spark_sql_converter = SqlConverter(dialect="spark")
-
-# Generate the DDL statement
-ddl = spark_sql_converter.convert(spec, pretty=True)
+# The SparkSQLConverter will automatically handle the "spark" dialect
+# and perform Spark-specific validation on your spec.
+spark_converter = SparkSQLConverter()
+ddl = spark_converter.convert(spec, pretty=True)
 
 print(ddl)
 ```
@@ -43,149 +42,160 @@ print(ddl)
 This will produce the following SQL DDL:
 
 ```sql
-CREATE OR REPLACE TABLE warehouse.orders.customer_orders (
-  order_id UUID NOT NULL PRIMARY KEY,
+CREATE EXTERNAL TABLE IF NOT EXISTS prod_db.fact_sales.customer_orders_pro (
+  order_id STRING NOT NULL,
   customer_id INT NOT NULL,
-  order_date DATE NOT NULL,
-  order_total DECIMAL(10, 2) NOT NULL DEFAULT 0.5,
-  shipping_address VARCHAR(255),
-  line_items ARRAY<STRUCT<product_id INT NOT NULL, quantity INT NOT NULL, price DECIMAL(8, 2) NOT NULL>>,
-  tags ARRAY<STRING>,
-  metadata_tags MAP<VARCHAR(50), VARCHAR(255)>,
-  created_at TIMESTAMPTZ NOT NULL
+  order_ts TIMESTAMP NOT NULL,
+  total_amount DECIMAL(12, 2) NOT NULL DEFAULT 0.0,
+  order_status STRING DEFAULT 'pending',
+  product_category STRING,
+  shipping_details STRUCT<address: STRING NOT NULL, city: STRING, postal_code: STRING>,
+  tags MAP<STRING, STRING>,
+  CONSTRAINT pk_customer_orders_pro PRIMARY KEY (order_id)
 )
+USING ICEBERG
+LOCATION '/warehouse/sales/customer_orders_pro'
 PARTITIONED BY (
-  order_date,
-  MONTH(created_at)
+  MONTH(order_ts),
+  order_status
 )
-LOCATION '/warehouse/orders/customer_orders'
 TBLPROPERTIES (
-  'table_type' = 'iceberg',
-  'format' = 'parquet',
-  'write_compression' = 'snappy'
+  'write.target-file-size-bytes' = '536870912',
+  'read.split.target-size' = '268435456'
 )
 ```
 
 ### Available Converters
 
-Currently, `yads` supports generating SQL DDL statements via the `SqlConverter`. Support for other output formats, such as PySpark or PyArrow schemas, is planned for future releases.
+Currently, `yads` supports generating SQL DDL statements via the `SQLConverter`. Support for other output formats, such as PySpark or PyArrow schemas, is planned for future releases.
+
+#### Officially Supported SQL Dialects
+
+While the generic `SQLConverter` can generate DDL for any dialect supported by `sqlglot`, we also provide officially supported converters for specific dialects. These specialized converters (e.g., `SparkSQLConverter`) perform additional validation to ensure that the generated DDL is fully compatible with the target dialect, providing a higher level of reliability.
+
+To use an officially supported converter, simply import and instantiate it directly:
+
+```python
+from yads.converters import SparkSQLConverter
+
+# The SparkSQLConverter will automatically handle the "spark" dialect
+# and perform Spark-specific validation on your spec.
+spark_converter = SparkSQLConverter()
+ddl = spark_converter.convert(spec, pretty=True)
+print(ddl)
+```
+
+## Extending yads
+
+`yads` is designed to be easily extensible, allowing you to add support for new SQL dialects or other formats. This guide provides a brief overview of how to extend `yads` with custom converters and validation rules.
+
+### Creating a Core Converter
+
+Core converters are responsible for the primary transformation of a `yads` `YadsSpec` into a different object representation, such as a PySpark `StructType` or a PyArrow `Schema`. These converters form the foundation of `yads`'s extensibility.
+
+To create a new core converter, the following steps are required:
+
+1.  **Subclass `BaseConverter`**: Create a new class that inherits from `yads.converters.base.BaseConverter`.
+2.  **Implement the `convert` Method**: This method takes a `YadsSpec` as input and should return the target object, such as a PySpark `StructType`.
+3.  **Implement YadsType and Field Handlers**: Within the converter, create methods to handle the conversion of `yads` types (e.g., `String`, `Decimal`, `Struct`) into their counterparts in the target framework. This typically involves a dispatch mechanism that maps `yads` types to specific handling functions.
+
+Here is a simplified example of a `PySparkConverter`:
+
+```python
+# in yads/converters/spark.py
+from pyspark.sql.types import (
+    StructType,
+    StructField,
+    StringType,
+    DecimalType
+)
+
+from yads.converters.base import BaseConverter
+from yads.spec import YadsSpec, Field
+import yads.types as ytypes
+
+
+class PySparkConverter(BaseConverter):
+    def __init__(self):
+        self._type_handlers = {
+            ytypes.String: self._handle_string_type,
+            ytypes.Decimal: self._handle_decimal_type,
+        }
+
+    def convert(self, spec: YadsSpec) -> StructType:
+        return StructType([self._convert_field(field) for field in spec.columns])
+
+    def _convert_field(self, field: Field) -> StructField:
+        spark_type = self._convert_type(field.type)
+        return StructField(
+            name=field.name,
+            dataType=spark_type,
+            nullable=not field.is_not_nullable,
+            metadata={"description": field.description},
+        )
+
+    def _convert_type(self, yads_type: ytypes.YadsType):
+        if handler := self._type_handlers.get(type(yads_type)):
+            return handler(yads_type)
+        # Fallback or error for unsupported types
+        return StringType()
+
+    def _handle_string_type(self, yads_type: ytypes.String) -> StringType:
+        return StringType()
+
+    def _handle_decimal_type(self, yads_type: ytypes.Decimal) -> DecimalType:
+        return DecimalType(precision=yads_type.precision, scale=yads_type.scale)
+```
+
+### Creating a SQL Converter
+
+To add support for a new SQL dialect, you'll typically need to follow a structured conversion and validation flow.
+
+#### The Conversion and Validation Flow
+
+The process of converting a `yads` specification into a target format (like a SQL DDL) follows these general steps:
+
+1.  **Parsing**: The YAML/JSON spec is parsed into a `YadsSpec` object.
+2.  **Core Conversion**: A core converter (e.g., `SQLGlotConverter`) transforms the `YadsSpec` into a generic intermediate representation, like a `sqlglot` Abstract Syntax Tree (AST).
+3.  **Validation and Adjustment (Optional)**: For formats with specific constraints (like SQL dialects), an `AstValidator` can be used to process the intermediate representation. It applies a set of rules to check for unsupported features and adjusts the AST accordingly.
+4.  **Serialization**: The final representation is serialized into the target output format (e.g., a SQL string).
+
+> [!NOTE]
+> The SQL DDL conversion pipeline follows a **"wide-to-narrow"** approach, designed to keep data definitions flexible, yet with minimal loss of expressiveness:
+> -   **`yads` Spec (Most Expressive)**: The spec is the single source of truth. It's designed to capture the data model in detail, independent of any specific dialect or format's limitations. It is always treated as immutable.
+> -   **`sqlglot` AST (Generic & Expressive)**: From the spec, a generic `sqlglot` AST is built. This tree is also highly expressive and serves as a common, dialect-agnostic representation of the table schema.
+> -   **SQL Converter (Specific & Strict)**: The final converter "narrows" the generic AST into valid DDL for a specific SQL dialect. The `AstValidator` ensures that any feature from the spec is gracefully handled—either by raising an error (in `strict` mode) or by adjusting the AST to fit the dialect's constraints.
+> This flow ensures that the `yads` spec remains the ultimate source of truth, while still allowing for the practical generation of correct, dialect-specific SQL.
+
+#### Steps to Create a SQL Converter
+
+To add support for a new SQL dialect, you'll typically need to:
+
+1.  **Create a Converter Class**: Subclass `SQLConverter` (e.g., `MyNewSQLConverter`).
+2.  **Implement Validation Rules**: If the dialect has features that are not universally supported, create new validation rules by subclassing `yads.validator.Rule`. Each rule needs to implement:
+    *   `validate()`: To check the AST for a specific issue.
+    *   `adjust()`: To modify the AST to resolve the issue.
+3.  **Wire it Up**: In your new converter's `__init__`, instantiate `AstValidator` with your list of rules and pass it to the `SQLConverter`'s constructor.
+
+Here's a simplified example of a custom converter for a fictional "AwesomeDB":
+
+```python
+# in yads/converters/sql.py
+from yads.converters.sql import SQLConverter, AstValidator, AstValidationRule
+
+class DisallowLongVarcharsRule(AstValidationRule):
+    # ... implementation for the rule ...
+
+class AwesomeDBConverter(SQLConverter):
+    def __init__(self, **convert_options: Any):
+        rules = [DisallowLongVarcharsRule()]
+        validator = AstValidator(rules=rules)
+        super().__init__(dialect="awesomedb", ast_validator=validator, **convert_options)
+```
+
+By following this pattern, you can keep dialect-specific logic cleanly separated, making the codebase easier to maintain and extend.
+
 
 ## Contributing
 
-We welcome contributions to `yads`!
-
-### How to Create a New Converter
-
-To create a new converter from a `SchemaSpec` to another format (e.g., a PyArrow or PySpark schema), you can follow these steps.
-
-#### 1. Create a Converter Class
-
-Define a custom converter that inherits from `BaseConverter`.
-
-```python
-# src/yads/converters/my_format_converter.py
-from typing import Any
-
-from yads.converters.base import BaseConverter
-from yads.spec import Field, SchemaSpec
-from yads.types import (
-    Array,
-    Map,
-    Struct,
-    Type,
-    # ... import other yads types as needed
-)
-
-
-class MyFormatConverter(BaseConverter):
-    """
-    A converter from a yads SchemaSpec to MyFormat.
-    """
-
-    def convert(self, spec: SchemaSpec) -> Any:
-        """
-        Converts a SchemaSpec object into MyFormat.
-        """
-        # Your implementation here
-        pass
-```
-
-#### 2. Implement the `convert` Method
-
-The `convert` method is the entry point. It should transform the list of `yads.spec.Field` objects from `spec.columns` into your target schema representation.
-
-```python
-# Example implementation
-def convert(self, spec: SchemaSpec) -> "MyTargetSchema":
-    target_fields = [self._convert_field(field) for field in spec.columns]
-    return MyTargetSchema(fields=target_fields)
-```
-
-#### 3. Handle Fields and Types with a Dispatcher
-
-To maintain an extensible design, use a dispatcher pattern to handle different `yads` types. In your converter's `__init__`, create a dictionary that maps `yads` type classes to specific handler methods.
-
-```python
-from yads import types
-
-class MyFormatConverter(BaseConverter):
-    def __init__(self):
-        self._type_handlers = {
-            types.String: self._handle_string,
-            types.Integer: self._handle_integer,
-            types.Decimal: self._handle_decimal,
-            types.Array: self._handle_array,
-            types.Struct: self._handle_struct,
-            types.Map: self._handle_map,
-            # ... add handlers for all supported yads types
-        }
-
-    def convert(self, spec: SchemaSpec) -> "MyTargetSchema":
-        target_fields = [self._convert_field(field) for field in spec.columns]
-        return MyTargetSchema(fields=target_fields)
-
-    def _convert_field(self, field: Field) -> "MyTargetField":
-        """Converts a yads Field to a target field format."""
-        target_type = self._convert_type(field.type)
-        return MyTargetField(name=field.name, type=target_type)
-
-    def _convert_type(self, yads_type: Type) -> "MyTargetType":
-        """Dispatches to the appropriate type handler."""
-        handler = self._type_handlers.get(type(yads_type))
-        if not handler:
-            raise NotImplementedError(f"No handler for type: {type(yads_type)}")
-        return handler(yads_type)
-
-    # --- Type Handlers ---
-
-    def _handle_string(self, yads_type: types.String) -> "MyTargetType":
-        # Logic to convert YADS String to MyTargetType
-        # e.g., return MyStringType(length=yads_type.length)
-        pass
-
-    def _handle_integer(self, yads_type: types.Integer) -> "MyTargetType":
-        # Logic to convert YADS Integer
-        pass
-
-    def _handle_decimal(self, yads_type: types.Decimal) -> "MyTargetType":
-        # Logic for decimal with precision and scale
-        pass
-
-    def _handle_array(self, yads_type: types.Array) -> "MyTargetType":
-        # Recursively convert the element type
-        element_type = self._convert_type(yads_type.element)
-        return MyTargetArray(element_type)
-
-    def _handle_struct(self, yads_type: types.Struct) -> "MyTargetType":
-        # Recursively convert fields of the struct
-        struct_fields = [self._convert_field(f) for f in yads_type.fields]
-        return MyTargetStruct(struct_fields)
-
-    def _handle_map(self, yads_type: types.Map) -> "MyTargetType":
-        # Recursively convert key and value types
-        key_type = self._convert_type(yads_type.key)
-        value_type = self._convert_type(yads_type.value)
-        return MyTargetMap(key_type, value_type)
-```
-
-This approach ensures that new types can be supported by simply adding a new handler method and updating the `_type_handlers` dictionary, without modifying the existing logic.
+Contributions are welcome! Please open an issue or submit a pull request.

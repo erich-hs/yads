@@ -2,104 +2,34 @@
 Example script to generate DDL from a yads table specification.
 """
 
+import yads
+from yads.converters.sql import SQLGlotConverter
 from sqlglot import parse_one
 
 
 def main():
-    """
-    Reads a `yads` YAML specification and prints the generated DDL.
-    """
-    sql_str = """
-CREATE TABLE default.people10m (
-  id INT,
-  firstName STRING,
-  middleName STRING,
-  lastName STRING,
-  gender STRING,
-  birthDate TIMESTAMP,
-  dateOfBirth DATE GENERATED ALWAYS AS (CAST(birthDate AS DATE)),
-  ssn STRING,
-  salary INT
-)
-"""
-    print(sql_str)
-    ast = parse_one(sql_str)
-    print("Generated AST:")
-    print(repr(ast))
+    spec = yads.from_yaml("examples/specs/simple_spec.yaml")
+    converter = SQLGlotConverter()
 
-    print("\n" + "=" * 80 + "\n")
+    ast_from_spec = converter.convert(spec)
 
-    sql_str = """
-CREATE TABLE events(
-eventId BIGINT,
-data STRING,
-eventType STRING,
-eventTime TIMESTAMP,
-eventDate DATE GENERATED ALWAYS AS (CAST(eventTime AS DATE))
-)
-PARTITIONED BY (eventType, eventDate)
-"""
-    print(sql_str)
-    ast = parse_one(sql_str)
-    print("Generated AST:")
-    print(repr(ast))
+    print("--- AST ---")
+    print(repr(ast_from_spec))
 
-    print("\n" + "=" * 80 + "\n")
+    print("\n--- Spark SQL ---")
+    print(ast_from_spec.sql(dialect="spark", pretty=True))
 
-    sql_str = """
-CREATE TABLE events(
-eventId BIGINT,
-data STRING,
-eventType STRING,
-eventTime TIMESTAMP,
-year INT GENERATED ALWAYS AS (YEAR(eventTime)),
-month INT GENERATED ALWAYS AS (MONTH(eventTime)),
-day INT GENERATED ALWAYS AS (DAY(eventTime))
-)
-PARTITIONED BY (eventType, year, month, day)
-"""
-    print(sql_str)
-    ast = parse_one(sql_str)
-    print("Generated AST:")
-    print(repr(ast))
+    print("\n--- AST from SQL ---")
+    with open("examples/specs/simple_spec.sql", "r") as f:
+        sql_str = f.read()
+    ast_from_sql = parse_one(sql_str)
+    print(repr(ast_from_sql))
 
-    print("\n" + "=" * 80 + "\n")
-
-    sql_str = """
-CREATE TABLE orders (
-  order_id BIGINT,
-  customer_id BIGINT,
-  order_date DATE,
-  total_amount DOUBLE
-)
-USING iceberg
-PARTITIONED BY (bucket(customer_id, 10), bucket(order_date, 5))
-"""
-    print(sql_str)
-    ast = parse_one(sql_str)
-    print("Generated AST:")
-    print(repr(ast))
-
-    print("\n" + "=" * 80 + "\n")
-
-    sql_str = """
-CREATE TABLE user_data (
-  user_id BIGINT,
-  email STRING,
-  name STRING,
-  created_at TIMESTAMP
-) 
-USING iceberg
-PARTITIONED BY (TRUNCATE(3, email));
-"""
-    print(sql_str)
-    ast = parse_one(sql_str)
-    print("Generated AST:")
-    print(repr(ast))
-
-    print("\n" + "=" * 80 + "\n")
+    print("\n--- AST are equal? ---")
+    print(ast_from_spec == ast_from_sql)
 
 
+### TODO:
 # Cluster by examples to be implemented
 #     sql_str = """
 # -- cluster by expressions

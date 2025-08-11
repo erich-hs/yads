@@ -1,0 +1,7 @@
+name: "invalid.constraint.spec"
+version: "1.0.0"
+columns:
+  - name: "id"
+    type: "uuid"
+    constraints:
+      invalid_constraint: true 

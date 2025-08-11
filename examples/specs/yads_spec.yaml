@@ -1,10 +1,7 @@
 name: "prod_db.fact_sales.customer_orders_pro"
 version: "3.0.0"
-description: "A comprehensive example showcasing advanced features of the YADS spec for a customer orders table."
-
-options:
-  if_not_exists: true
-  is_external: true
+description: "A comprehensive example showcasing advanced features of the yads spec for a customer orders table."
+external: true
 
 storage:
   format: "iceberg"

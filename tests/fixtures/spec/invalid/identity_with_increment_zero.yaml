@@ -1,0 +1,8 @@
+name: "my_table"
+version: "1.0"
+columns:
+  - name: "id_col"
+    type: "integer"
+    constraints:
+      identity:
+        increment: 0 
