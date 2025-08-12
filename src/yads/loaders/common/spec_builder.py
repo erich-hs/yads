@@ -317,12 +317,15 @@ class SpecBuilder:
             increment=increment,
         )
 
-    def _parse_column_constraints(
-        self, constraints_def: dict[str, Any] | None
-    ) -> list[ColumnConstraint]:
+    def _parse_column_constraints(self, constraints_def: Any) -> list[ColumnConstraint]:
         constraints: list[ColumnConstraint] = []
-        if not constraints_def:
+        if constraints_def is None:
             return constraints
+        # Ensure constraints are provided as a mapping even if empty
+        if not isinstance(constraints_def, dict):
+            raise SpecParsingError(
+                f"The 'constraints' attribute of a column must be a dictionary. Got {constraints_def!r} of type {type(constraints_def)}."
+            )
 
         for key, value in constraints_def.items():
             if parser_method_name := self._COLUMN_CONSTRAINT_PARSERS.get(key):

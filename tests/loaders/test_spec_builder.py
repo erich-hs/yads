@@ -198,6 +198,14 @@ class TestConstraintParsing:
         assert fk.references.table == "other_table"
         assert fk.references.columns == ["id"]
 
+    def test_constraints_attribute_as_list_raises_error(self):
+        spec_dict = self._create_minimal_spec_with_constraint([{"primary_key": True}])
+        with pytest.raises(
+            SpecParsingError,
+            match=r"The 'constraints' attribute of a column must be a dictionary",
+        ):
+            from_dict(spec_dict)
+
 
 # %% Generated column clause parsing
 class TestGenerationClauseParsing:
