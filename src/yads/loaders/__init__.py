@@ -1,27 +1,41 @@
 """Entry points for loading `YadsSpec` from various sources.
 
-This module exposes simple functions to construct a `YadsSpec` from:
-- YAML files (`from_yaml`)
-- YAML strings (`from_string`)
-- Python dictionaries (`from_dict`)
+This module provides simple functions for loading a `YadsSpec` from common
+formats:
+
+- `from_yaml_string`: Load from YAML content provided as a string.
+- `from_yaml_path`: Load from a filesystem path to a YAML file.
+- `from_yaml_stream`: Load from a file-like stream (text or binary).
+- `from_yaml`: Convenience loader that accepts a path (``str`` or
+  ``pathlib.Path``) or a file-like stream. It does not accept arbitrary
+  content strings.
+
+All functions return a validated immutable `YadsSpec` instance.
 """
 
 from __future__ import annotations
 
-from typing import Any
+from pathlib import Path
+from typing import IO, Any, cast
 
-import yaml
-
-from ..exceptions import SpecParsingError
 from ..spec import YadsSpec
-from .common import SpecBuilder
+from .base import DictLoader
+from .yaml_loader import YamlLoader
+
+__all__ = [
+    "from_dict",
+    "from_yaml_string",
+    "from_yaml_path",
+    "from_yaml_stream",
+    "from_yaml",
+]
 
 
 def from_dict(data: dict[str, Any]) -> YadsSpec:
-    """Load a `YadsSpec` from a dictionary representation.
+    """Load a `YadsSpec` from a dictionary.
 
     Args:
-        data: Parsed specification dictionary.
+        data: The dictionary representation of the spec.
 
     Returns:
         A validated immutable `YadsSpec` instance.
@@ -34,13 +48,10 @@ def from_dict(data: dict[str, Any]) -> YadsSpec:
         ...         {
         ...             "name": "id",
         ...             "type": "integer",
-        ...             "constraints": {"not_null": True, "primary_key": True}
         ...         },
         ...         {
         ...             "name": "email",
         ...             "type": "string",
-        ...             "params": {"length": 255},
-        ...             "constraints": {"not_null": True}
         ...         }
         ...     ]
         ... }
@@ -48,70 +59,102 @@ def from_dict(data: dict[str, Any]) -> YadsSpec:
         >>> print(f"Loaded spec: {spec.name} v{spec.version}")
         Loaded spec: users v1.0.0
     """
+    return DictLoader(data).load()
 
-    return SpecBuilder(data).build()
 
-
-def from_string(content: str) -> YadsSpec:
-    """Load a spec from a YAML string.
-
-    Parses YAML content and converts it into a validated `YadsSpec` object.
+def from_yaml_string(content: str) -> YadsSpec:
+    """Load a spec from YAML string content.
 
     Args:
-        content: YAML string containing the spec.
+        content: YAML content as a string.
 
     Returns:
-        A validated immutable `YadsSpec` object.
+        A validated immutable `YadsSpec` instance.
+
+    Example:
+        >>> content = \"""
+        ... name: users
+        ... version: 1.0.0
+        ... columns:
+        ...   - name: id
+        ...     type: integer
+        ...   - name: email
+        ...     type: string
+        ... \"""
+        >>> spec = from_yaml_string(content)
+        >>> print(f"Loaded spec: {spec.name} v{spec.version}")
+        Loaded spec: users v1.0.0
+    """
+    return YamlLoader(content).load()
+
+
+def from_yaml_path(path: str | Path, *, encoding: str = "utf-8") -> YadsSpec:
+    """Load a spec from a YAML file path.
+
+    Args:
+        path: Filesystem path to a YAML file.
+        encoding: Text encoding used to read the file.
+
+    Returns:
+        A validated immutable `YadsSpec` instance.
 
     Raises:
-        SpecParsingError: If the YAML content is invalid or doesn't parse
-                          to a dictionary.
+        FileNotFoundError: If the file does not exist.
 
     Example:
-        >>> yaml_content = '''
-        ... name: products
-        ... version: "2.1.0"
-        ... description: Product catalog table
-        ... columns:
-        ...   - name: product_id
-        ...     type: string
-        ...     constraints:
-        ...       not_null: true
-        ...       primary_key: true
-        ...   - name: name
-        ...     type: string
-        ...     params:
-        ...       length: 200
-        ... '''
-        >>> spec = from_string(yaml_content)
-        >>> print(f"Loaded {len(spec.columns)} columns")
-        Loaded 2 columns
+        >>> spec = from_yaml_path("specs/users.yaml")
+        >>> print(f"Loaded spec: {spec.name} v{spec.version}")
+        Loaded spec: users v1.0.0
     """
-
-    data = yaml.safe_load(content)
-    if not isinstance(data, dict):
-        raise SpecParsingError("Loaded YAML content did not parse to a dictionary.")
-    return from_dict(data)
+    text = Path(path).read_text(encoding=encoding)
+    return YamlLoader(text).load()
 
 
-def from_yaml(path: str) -> YadsSpec:
-    """Load a spec from a YAML file.
+def from_yaml_stream(stream: IO[str] | IO[bytes], *, encoding: str = "utf-8") -> YadsSpec:
+    """Load a spec from a file-like stream.
 
-    Reads and parses a YAML file containing a spec.
+    The stream is not closed by this function.
 
     Args:
-        path: Path to the YAML file containing the spec.
+        stream: File-like object opened in text or binary mode.
+        encoding: Used only if `stream` is binary.
 
     Returns:
-        A validated immutable `YadsSpec` object.
+        A validated immutable `YadsSpec` instance.
 
     Example:
-        >>> # Load from file
-        >>> spec = from_yaml("specs/users.yaml")
-        >>> print(f"Loaded spec: {spec.name}")
-        Loaded spec: users
+        >>> with open("specs/users.yaml", "r") as f:
+        ...     spec = from_yaml_stream(f)
+        >>> print(f"Loaded spec: {spec.name} v{spec.version}")
+        Loaded spec: users v1.0.0
     """
+    raw = stream.read()
+    text = raw.decode(encoding) if isinstance(raw, (bytes, bytearray)) else raw
+    return YamlLoader(text).load()
 
-    with open(path) as f:
-        content = f.read()
-    return from_string(content)
+
+def from_yaml(
+    source: str | Path | IO[str] | IO[bytes], *, encoding: str = "utf-8"
+) -> YadsSpec:
+    """Load a spec from a path or a file-like stream.
+
+    This convenience loader avoids ambiguity by not accepting arbitrary content
+    strings. Pass content strings to `from_yaml_string` instead.
+
+    Args:
+        source: A filesystem path (``str`` or ``pathlib.Path``) or a file-like
+            object opened in text or binary mode.
+        encoding: Text encoding used when reading files or decoding binary
+            streams.
+
+    Returns:
+        A validated immutable `YadsSpec` instance.
+
+    Example:
+        >>> spec = from_yaml("specs/users.yaml")
+        >>> print(f"Loaded spec: {spec.name} v{spec.version}")
+        Loaded spec: users v1.0.0
+    """
+    if hasattr(source, "read"):
+        return from_yaml_stream(cast(IO[str] | IO[bytes], source), encoding=encoding)
+    return from_yaml_path(cast(str | Path, source), encoding=encoding)

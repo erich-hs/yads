@@ -1,7 +1,8 @@
-from .loaders import from_yaml, from_string, from_dict
+from .loaders import from_yaml, from_dict
+from .spec import YadsSpec
 
 __all__ = [
     "from_yaml",
-    "from_string",
     "from_dict",
+    "YadsSpec",
 ]

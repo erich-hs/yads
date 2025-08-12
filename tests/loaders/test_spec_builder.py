@@ -11,7 +11,7 @@ from yads.exceptions import (
     UnknownConstraintError,
     UnknownTypeError,
 )
-from yads.loaders import from_dict, from_string, from_yaml
+from yads.loaders import from_dict, from_yaml_path, from_yaml_string
 from yads.spec import YadsSpec
 from yads.constraints import DefaultConstraint, ForeignKeyTableConstraint
 from yads.types import (
@@ -65,20 +65,6 @@ def valid_spec_dict(valid_spec_content):
 class TestFromDict:
     def test_with_valid_spec(self, valid_spec_dict):
         spec = from_dict(valid_spec_dict)
-        assert isinstance(spec, YadsSpec)
-        assert spec.name == valid_spec_dict["name"]
-
-
-class TestFromString:
-    def test_with_valid_spec(self, valid_spec_content, valid_spec_dict):
-        spec = from_string(valid_spec_content)
-        assert isinstance(spec, YadsSpec)
-        assert spec.name == valid_spec_dict["name"]
-
-
-class TestFromYaml:
-    def test_with_valid_spec(self, valid_spec_path, valid_spec_dict):
-        spec = from_yaml(str(valid_spec_path))
         assert isinstance(spec, YadsSpec)
         assert spec.name == valid_spec_dict["name"]
 
@@ -582,10 +568,10 @@ class TestValidationMethods:
         assert "not found in schema" in str(excinfo.value)
 
 
-class TestFullSpecFromYaml:
+class TestFullSpecBuilding:
     @pytest.fixture(scope="class")
     def spec(self) -> YadsSpec:
-        return from_yaml(str(VALID_SPEC_DIR / "full_spec.yaml"))
+        return from_yaml_path(VALID_SPEC_DIR / "full_spec.yaml")
 
     def test_top_level_attributes(self, spec: YadsSpec):
         assert spec.name == "catalog.db.full_spec"
@@ -764,15 +750,7 @@ def test_from_string_with_invalid_spec_raises_error(spec_path, error_type, error
     with open(spec_path) as f:
         content = f.read()
     with pytest.raises(error_type, match=error_msg):
-        from_string(content)
-
-
-def test_invalid_yaml_content_raises_error():
-    content = "- item1\n- item2"  # A list, not a dictionary
-    with pytest.raises(
-        SpecParsingError, match="Loaded YAML content did not parse to a dictionary"
-    ):
-        from_string(content)
+        from_yaml_string(content)
 
 
 def test_unquoted_null_type_gives_helpful_error():
@@ -788,7 +766,7 @@ columns:
         TypeDefinitionError,
         match=r"Use quoted \"null\" or the synonym 'void' instead to specify a void type",
     ):
-        from_string(content)
+        from_yaml_string(content)
 
 
 class TestTypeLoading:

@@ -1,7 +1,8 @@
 import pytest
+
 from yads.converters.sql import SparkSQLConverter
 from yads.exceptions import AstValidationError
-from yads.loaders import from_string
+from yads.loaders import from_yaml_string
 from yads.spec import YadsSpec
 
 
@@ -15,7 +16,7 @@ def spec_with_json_type() -> YadsSpec:
       - name: col1
         type: json
     """
-    return from_string(yaml_string)
+    return from_yaml_string(yaml_string)
 
 
 class TestSparkSQLConverter:

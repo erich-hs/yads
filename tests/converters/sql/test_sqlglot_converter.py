@@ -1,7 +1,7 @@
 import pytest
 from sqlglot import parse_one, exp
 from yads.converters.sql import SQLGlotConverter
-from yads.loaders import from_yaml
+from yads.loaders import from_yaml_path
 from yads.types import (
     String,
     Integer,
@@ -87,7 +87,7 @@ def test_converter(spec_path, expected_sql_path):
     The comparison is done on the AST level, not on the raw SQL string, to ensure
     that the semantic structure is correct, regardless of formatting differences.
     """
-    spec = from_yaml(spec_path)
+    spec = from_yaml_path(spec_path)
     converter = SQLGlotConverter()
     generated_ast = converter.convert(spec)
 
@@ -905,9 +905,9 @@ class TestStoragePropertiesHandling:
 
 class TestConvertWithIgnoreArguments:
     def test_convert_with_ignore_catalog(self):
-        from yads.loaders import from_yaml
+        from yads.loaders import from_yaml_path
 
-        spec = from_yaml("tests/fixtures/spec/valid/basic_spec.yaml")
+        spec = from_yaml_path("tests/fixtures/spec/valid/basic_spec.yaml")
         converter = SQLGlotConverter()
         result = converter.convert(spec, ignore_catalog=True)
 
@@ -917,9 +917,9 @@ class TestConvertWithIgnoreArguments:
         assert table_expression.catalog == ""
 
     def test_convert_with_ignore_database(self):
-        from yads.loaders import from_yaml
+        from yads.loaders import from_yaml_path
 
-        spec = from_yaml("tests/fixtures/spec/valid/basic_spec.yaml")
+        spec = from_yaml_path("tests/fixtures/spec/valid/basic_spec.yaml")
         converter = SQLGlotConverter()
         result = converter.convert(spec, ignore_database=True)
 
@@ -929,9 +929,9 @@ class TestConvertWithIgnoreArguments:
         assert table_expression.catalog == "catalog"
 
     def test_convert_with_ignore_both(self):
-        from yads.loaders import from_yaml
+        from yads.loaders import from_yaml_path
 
-        spec = from_yaml("tests/fixtures/spec/valid/basic_spec.yaml")
+        spec = from_yaml_path("tests/fixtures/spec/valid/basic_spec.yaml")
         converter = SQLGlotConverter()
         result = converter.convert(spec, ignore_catalog=True, ignore_database=True)
 
@@ -941,9 +941,9 @@ class TestConvertWithIgnoreArguments:
         assert table_expression.catalog == ""
 
     def test_convert_with_ignore_arguments_and_other_kwargs(self):
-        from yads.loaders import from_yaml
+        from yads.loaders import from_yaml_path
 
-        spec = from_yaml("tests/fixtures/spec/valid/basic_spec.yaml")
+        spec = from_yaml_path("tests/fixtures/spec/valid/basic_spec.yaml")
         converter = SQLGlotConverter()
         result = converter.convert(
             spec, ignore_catalog=True, ignore_database=True, if_not_exists=True
