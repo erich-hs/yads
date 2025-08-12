@@ -15,6 +15,13 @@ if TYPE_CHECKING:
     from sqlglot.expressions import Expression, Create
 
 
+# ==========================================================
+# AstValidator tests
+# Scope: rule application across modes: raise, warn, ignore
+# ==========================================================
+
+
+# %% Mocks
 class MockRule(AstValidationRule):
     def validate(self, node: Expression) -> str | None:
         if isinstance(node, DataType) and node.this == DataType.Type.TEXT:
@@ -31,6 +38,7 @@ class MockRule(AstValidationRule):
         return "It will be converted to VARCHAR."
 
 
+# %% Fixtures
 @pytest.fixture
 def ast_validator() -> AstValidator:
     return AstValidator(rules=[MockRule()])
@@ -44,6 +52,7 @@ def create_table_ast() -> Create:
     return ast
 
 
+# %% Validation modes
 class TestAstValidator:
     def test_validate_raise_mode_raises_error(
         self, ast_validator: AstValidator, create_table_ast: Create

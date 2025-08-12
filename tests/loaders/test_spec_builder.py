@@ -43,6 +43,13 @@ from yads.types import (
 VALID_SPEC_DIR = Path(__file__).parent.parent / "fixtures" / "spec" / "valid"
 INVALID_SPEC_DIR = Path(__file__).parent.parent / "fixtures" / "spec" / "invalid"
 
+# ======================================================================
+# Spec builder tests
+# Scope: parsing (dict/yaml), constraint parsing, generation, storage,
+# partitioning, top-level parsing errors, semantic validation, full spec,
+# invalid spec matrix, and type loading.
+# ======================================================================
+
 # Get all valid spec files
 valid_spec_files = list(VALID_SPEC_DIR.glob("*.yaml"))
 
@@ -69,6 +76,7 @@ class TestFromDict:
         assert spec.name == valid_spec_dict["name"]
 
 
+# %% Column constraint parsing
 class TestConstraintParsing:
     def _create_minimal_spec_with_constraint(self, constraint_def: dict) -> dict:
         return {
@@ -191,6 +199,7 @@ class TestConstraintParsing:
         assert fk.references.columns == ["id"]
 
 
+# %% Generated column clause parsing
 class TestGenerationClauseParsing:
     def _create_spec_with_generated_column(self, generated_as_def: dict | None) -> dict:
         column_def: dict = {
@@ -262,6 +271,7 @@ class TestGenerationClauseParsing:
         assert generated_col.generated_as.transform_args == ["arg1"]
 
 
+# %% Table constraint parsing
 class TestTableConstraintParsing:
     def _create_spec_with_table_constraint(self, constraint_def: dict) -> dict:
         return {
@@ -389,6 +399,7 @@ class TestTableConstraintParsing:
         assert fk_constraint.references.columns == ["id"]
 
 
+# %% Storage parsing
 class TestStorageParsing:
     def test_storage_parsing(self):
         spec_dict = {
@@ -451,6 +462,7 @@ class TestStorageParsing:
             from_dict(spec_dict)
 
 
+# %% Partitioning parsing
 class TestPartitioningParsing:
     def test_partitioned_by_parsing(self):
         spec_dict = {
@@ -484,7 +496,8 @@ class TestPartitioningParsing:
         assert second_partition.transform_args == [2023]
 
 
-class TestTopLevelSpecValidation:
+# %% Top-level spec parsing errors
+class TestTopLevelSpecParsingErrors:
     def test_spec_with_unknown_top_level_key_raises_error(self):
         spec_dict = {
             "name": "test_spec",
@@ -499,7 +512,8 @@ class TestTopLevelSpecValidation:
             from_dict(spec_dict)
 
 
-class TestValidationMethods:
+# %% Semantic validation
+class TestSemanticValidation:
     def test_validate_columns_duplicate_names(self):
         spec_dict = {
             "name": "test_spec",
@@ -568,6 +582,7 @@ class TestValidationMethods:
         assert "not found in schema" in str(excinfo.value)
 
 
+# %% Full spec building (integration)
 class TestFullSpecBuilding:
     @pytest.fixture(scope="class")
     def spec(self) -> YadsSpec:
@@ -661,6 +676,7 @@ class TestFullSpecBuilding:
         assert not column.metadata
 
 
+# %% Invalid spec matrix (parametrized)
 @pytest.mark.parametrize(
     "spec_path, error_type, error_msg",
     [
@@ -753,8 +769,8 @@ def test_from_string_with_invalid_spec_raises_error(spec_path, error_type, error
         from_yaml_string(content)
 
 
+# %% Type loading
 def test_unquoted_null_type_gives_helpful_error():
-    """Test that unquoted 'null' in YAML gives a helpful error message."""
     content = """
 name: test_spec
 version: 1.0.0

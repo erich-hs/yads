@@ -40,6 +40,13 @@ from yads.constraints import (
 from yads.exceptions import ConversionError, UnsupportedFeatureError
 
 
+# ======================================================================
+# SQLGlotConverter tests
+# Scope: conversion to sqlglot AST, types, constraints, transforms, names
+# ======================================================================
+
+
+# %% Integration tests
 @pytest.mark.parametrize(
     "spec_path, expected_sql_path",
     [
@@ -73,20 +80,7 @@ from yads.exceptions import ConversionError, UnsupportedFeatureError
         ),
     ],
 )
-def test_converter(spec_path, expected_sql_path):
-    """
-    Tests that the converter generates the expected SQL AST.
-
-    This test operates by:
-    1. Loading a YAML specification from a file.
-    2. Converting the specification to a sqlglot AST using the SQLGlotConverter.
-    3. Reading the expected SQL DDL from a corresponding .sql file.
-    4. Parsing the expected SQL into a sqlglot AST.
-    5. Comparing the generated AST with the expected AST.
-
-    The comparison is done on the AST level, not on the raw SQL string, to ensure
-    that the semantic structure is correct, regardless of formatting differences.
-    """
+def test_convert_matches_expected_ast_from_fixtures(spec_path, expected_sql_path):
     spec = from_yaml_path(spec_path)
     converter = SQLGlotConverter()
     generated_ast = converter.convert(spec)
@@ -102,6 +96,7 @@ def test_converter(spec_path, expected_sql_path):
     )
 
 
+# %% Constraint conversion
 class TestConstraintConversion:
     def test_not_null_constraint_conversion(self):
         converter = SQLGlotConverter()
@@ -314,6 +309,7 @@ class TestConstraintConversion:
             converter._convert_table_constraint(constraint)
 
 
+# %% Transform handling
 class TestTransformConversion:
     def test_cast_transform_conversion(self):
         converter = SQLGlotConverter()
@@ -410,7 +406,7 @@ class TestTransformConversion:
         )
         assert result == expected
 
-    def test_known_transform_handling(self):
+    def test_handle_transformation_known_transform_bucket(self):
         converter = SQLGlotConverter()
         result = converter._handle_transformation("col1", "bucket", [10])
 
@@ -421,6 +417,7 @@ class TestTransformConversion:
         assert result == expected
 
 
+# %% Generated column conversion
 class TestGeneratedColumnConversion:
     def test_generated_column_conversion(self):
         converter = SQLGlotConverter()
@@ -508,10 +505,8 @@ class TestGeneratedColumnConversion:
         assert exp.NotNullColumnConstraint in constraint_types
 
 
+# %% Type conversion
 class TestTypeConversion:
-    def setUp(self):
-        self.converter = SQLGlotConverter()
-
     @pytest.mark.parametrize(
         "yads_type, expected_datatype",
         [
@@ -736,6 +731,7 @@ class TestTypeConversion:
         assert nested_field_def.kind.this == exp.DataType.Type.STRUCT
 
 
+# %% Table name parsing
 class TestTableNameParsing:
     def test_parse_full_table_name_with_catalog_and_database(self):
         converter = SQLGlotConverter()
@@ -832,9 +828,9 @@ class TestTableNameParsing:
         assert result == expected
 
 
+# %% Storage properties
 class TestStoragePropertiesHandling:
     def test_storage_properties_order_format_before_location(self):
-        """Test that storage properties are processed in correct order: format before location."""
         from yads.spec import Storage
 
         converter = SQLGlotConverter()
@@ -870,7 +866,6 @@ class TestStoragePropertiesHandling:
         assert prop_keys == {"key1", "key2"}
 
     def test_storage_properties_partial_storage(self):
-        """Test that storage properties work correctly with partial storage configurations."""
         from yads.spec import Storage
 
         converter = SQLGlotConverter()
@@ -897,12 +892,12 @@ class TestStoragePropertiesHandling:
         assert properties[0].this.this == "prop"
 
     def test_storage_properties_none_storage(self):
-        """Test that _handle_storage_properties returns empty list for None storage."""
         converter = SQLGlotConverter()
         properties = converter._handle_storage_properties(None)
         assert properties == []
 
 
+# %% Convert arguments
 class TestConvertWithIgnoreArguments:
     def test_convert_with_ignore_catalog(self):
         from yads.loaders import from_yaml_path

@@ -10,6 +10,13 @@ from yads.converters.sql.validators.ast_validation_rules import (
 )
 
 
+# ==========================================================
+# AST validation rules tests
+# Scope: unit rules: DisallowFixedLengthString, DisallowType
+# ==========================================================
+
+
+# %% DisallowFixedLengthString
 class TestDisallowFixedLengthString:
     @pytest.fixture
     def rule(self) -> DisallowFixedLengthString:
@@ -30,10 +37,9 @@ class TestDisallowFixedLengthString:
             ("INT", None),
         ],
     )
-    def test_validate(
+    def test_validate_fixed_length_strings(
         self, rule: DisallowFixedLengthString, sql: str, expected: str | None
     ):
-        """Tests that the rule correctly identifies fixed-length strings."""
         ast = parse_one(f"CREATE TABLE t (col {sql})")
         assert ast
         column_def = ast.find(ColumnDef)
@@ -43,7 +49,9 @@ class TestDisallowFixedLengthString:
 
         assert rule.validate(data_type) == expected
 
-    def test_adjust(self, rule: DisallowFixedLengthString):
+    def test_adjust_removes_length_and_normalizes_type(
+        self, rule: DisallowFixedLengthString
+    ):
         sql = "CREATE TABLE t (col VARCHAR(50))"
         ast = parse_one(sql)
         assert ast
@@ -57,10 +65,10 @@ class TestDisallowFixedLengthString:
         assert not adjusted_node.expressions
 
     def test_adjustment_description(self, rule: DisallowFixedLengthString):
-        """Tests that the adjustment description is correct."""
         assert rule.adjustment_description == "The length parameter will be removed."
 
 
+# %% DisallowType
 class TestDisallowType:
     @pytest.fixture
     def rule(self) -> DisallowType:
@@ -77,7 +85,9 @@ class TestDisallowType:
             ("STRING", None),
         ],
     )
-    def test_validate(self, rule: DisallowType, sql: str, expected: str | None):
+    def test_validate_disallowed_type_json(
+        self, rule: DisallowType, sql: str, expected: str | None
+    ):
         ast = parse_one(f"CREATE TABLE t (col {sql})")
         assert ast
         column_def = ast.find(ColumnDef)
@@ -87,7 +97,7 @@ class TestDisallowType:
 
         assert rule.validate(data_type) == expected
 
-    def test_adjust(self, rule: DisallowType):
+    def test_adjust_replaces_disallowed_type_with_default(self, rule: DisallowType):
         ast = parse_one("CREATE TABLE t (col JSON)")
         assert ast
         data_type = ast.find(DataType)
