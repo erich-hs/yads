@@ -78,10 +78,14 @@ class AstValidator:
                     case "raise":
                         errors.append(f"{error}")
                     case "warn":
-                        warnings.warn(
-                            f"{error} {rule.adjustment_description}",
-                            ValidationWarning,
-                            stacklevel=3,
+                        # Emit a concise warning without verbose absolute file paths.
+                        # Use warn_explicit to control the displayed filename/module.
+                        warnings.warn_explicit(
+                            message=f"{error} {rule.adjustment_description}",
+                            category=ValidationWarning,
+                            filename="yads.converters.sql.validators",
+                            lineno=1,
+                            module=__name__,
                         )
                         node = rule.adjust(node)
                     case "ignore":

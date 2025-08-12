@@ -136,7 +136,10 @@ class SparkSQLConverter(SQLConverter):
 
     Configured with:
     - dialect="spark"
-    - `DisallowType` to replace disallowed types with fallback types
+    - `DisallowType` to replace disallowed types with fallback types:
+        - JSON → STRING
+        - GEOMETRY → STRING
+        - GEOGRAPHY → STRING
     """
 
     def __init__(self, **convert_options: Any):
