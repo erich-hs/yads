@@ -9,7 +9,14 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, TypeGuard
 
-from sqlglot.expressions import DataType, ColumnDef
+from sqlglot.expressions import (
+    DataType,
+    ColumnDef,
+    ColumnConstraint,
+    GeneratedAsIdentityColumnConstraint,
+    PrimaryKey,
+    Ordered,
+)
 
 if TYPE_CHECKING:
     from sqlglot import exp
@@ -50,7 +57,7 @@ class DisallowType(AstValidationRule):
             should be disallowed.
         fallback_type: The `sqlglot.expressions.DataType.Type` enum member to
             use when replacing the disallowed type during adjustment. Defaults
-            to ``DataType.Type.TEXT``.
+            to `DataType.Type.TEXT`.
     """
 
     def __init__(
@@ -107,3 +114,146 @@ class DisallowFixedLengthString(AstValidationRule):
     @property
     def adjustment_description(self) -> str:
         return "The length parameter will be removed."
+
+
+class DisallowParameterizedGeometryType(AstValidationRule):
+    """Disallow parameterized GEOMETRY types such as GEOMETRY(4326).
+
+    Some dialects (e.g., DuckDB) do not accept SRID or any parameter bound to
+    the GEOMETRY type in column definitions. This rule flags any GEOMETRY type
+    carrying parameters and, when adjusting, removes those parameters while
+    keeping the GEOMETRY type.
+    """
+
+    def _is_parameterized_geometry(self, node: exp.Expression) -> TypeGuard[exp.DataType]:
+        return (
+            isinstance(node, DataType)
+            and node.this == DataType.Type.GEOMETRY
+            and bool(node.expressions)
+        )
+
+    def validate(self, node: exp.Expression) -> str | None:
+        if self._is_parameterized_geometry(node):
+            column_name = _get_ancestor_column_name(node)
+            return (
+                f"Parameterized 'GEOMETRY' is not supported for column '{column_name}'."
+            )
+        return None
+
+    def adjust(self, node: exp.Expression) -> exp.Expression:
+        if self._is_parameterized_geometry(node):
+            node.set("expressions", None)
+        return node
+
+    @property
+    def adjustment_description(self) -> str:
+        return "The parameters will be removed."
+
+
+class DisallowVoidType(AstValidationRule):
+    """Disallow VOID type and replace it with TEXT.
+
+    The converter represents VOID as a USERDEFINED data type with
+    kind='VOID'. This rule matches that representation to provide a clear
+    validation message and replacement behavior.
+    """
+
+    def validate(self, node: exp.Expression) -> str | None:
+        if isinstance(node, DataType) and node.this == DataType.Type.USERDEFINED:
+            # "kind" holds the textual type name when USERDEFINED is used
+            kind = (node.args.get("kind") or "").upper()
+            if kind == "VOID":
+                column_name = _get_ancestor_column_name(node)
+                return f"Data type 'VOID' is not supported for column '{column_name}'."
+        return None
+
+    def adjust(self, node: exp.Expression) -> exp.Expression:
+        if isinstance(node, DataType) and node.this == DataType.Type.USERDEFINED:
+            kind = (node.args.get("kind") or "").upper()
+            if kind == "VOID":
+                return DataType(this=DataType.Type.TEXT)
+        return node
+
+    @property
+    def adjustment_description(self) -> str:
+        return "The data type will be replaced with 'TEXT'."
+
+
+class DisallowGeneratedIdentity(AstValidationRule):
+    """Disallow ``GENERATED ALWAYS AS IDENTITY`` column constraint.
+
+    Matches identity generation constraints attached to a column definition and
+    removes them during adjustment.
+    """
+
+    def _has_identity_constraint(self, node: ColumnDef) -> bool:
+        constraints: list[ColumnConstraint] | None = node.args.get("constraints")
+        if not constraints:
+            return False
+        for constraint in constraints:
+            if isinstance(constraint, ColumnConstraint) and isinstance(
+                constraint.kind, GeneratedAsIdentityColumnConstraint
+            ):
+                # Only flag true IDENTITY (sequence) clauses, not generated columns
+                # Generated columns carry an 'expression' argument
+                if not constraint.kind.args.get("expression"):
+                    return True
+        return False
+
+    def validate(self, node: exp.Expression) -> str | None:
+        if isinstance(node, ColumnDef) and self._has_identity_constraint(node):
+            column_name = node.this.name
+            return (
+                "GENERATED ALWAYS AS IDENTITY is not supported for column "
+                f"'{column_name}'."
+            )
+        return None
+
+    def adjust(self, node: exp.Expression) -> exp.Expression:
+        if isinstance(node, ColumnDef) and self._has_identity_constraint(node):
+            constraints: list[ColumnConstraint] | None = node.args.get("constraints")
+            if constraints:
+                filtered = [
+                    c
+                    for c in constraints
+                    if not isinstance(c.kind, GeneratedAsIdentityColumnConstraint)
+                ]
+                node.set("constraints", filtered or None)
+        return node
+
+    @property
+    def adjustment_description(self) -> str:
+        return "The identity generation clause will be removed."
+
+
+class DisallowTableConstraintPrimaryKeyNullsFirst(AstValidationRule):
+    """Remove NULLS FIRST from table-level PRIMARY KEY constraints.
+
+    Some dialects, including DuckDB, do not take a NULLS ordering modifier in
+    PRIMARY KEY column lists. This rule detects NULLS FIRST markers on the
+    ordered PK columns and removes them.
+    """
+
+    def _has_nulls_first(self, node: PrimaryKey) -> bool:
+        expressions = node.args.get("expressions") or []
+        for expr in expressions:
+            if isinstance(expr, Ordered) and expr.args.get("nulls_first") is True:
+                return True
+        return False
+
+    def validate(self, node: exp.Expression) -> str | None:
+        if isinstance(node, PrimaryKey) and self._has_nulls_first(node):
+            return "NULLS FIRST is not supported in PRIMARY KEY constraints."
+        return None
+
+    def adjust(self, node: exp.Expression) -> exp.Expression:
+        if isinstance(node, PrimaryKey) and self._has_nulls_first(node):
+            expressions = node.args.get("expressions") or []
+            for expr in expressions:
+                if isinstance(expr, Ordered) and expr.args.get("nulls_first") is True:
+                    expr.set("nulls_first", None)
+        return node
+
+    @property
+    def adjustment_description(self) -> str:
+        return "The NULLS FIRST attribute will be removed."

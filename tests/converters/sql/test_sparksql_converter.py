@@ -42,7 +42,7 @@ class TestSparkSQLConverterDialect:
         assert ddl.strip() == expected_sql
 
 
-# %% Validation rules wiring (JSON/GEOMETRY/GEOGRAPHY)
+# %% Validation rules wiring
 class TestSparkSQLConverterValidation:
     @pytest.mark.parametrize(
         "yads_type, original_type_sql",

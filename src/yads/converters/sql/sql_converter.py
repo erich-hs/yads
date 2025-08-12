@@ -20,6 +20,10 @@ from .validators.ast_validator import AstValidator  # type: ignore[reportMissing
 from .validators.ast_validation_rules import (  # type: ignore[reportMissingImports]
     AstValidationRule,
     DisallowType,
+    DisallowParameterizedGeometryType,
+    DisallowVoidType,
+    DisallowGeneratedIdentity,
+    DisallowTableConstraintPrimaryKeyNullsFirst,
 )
 
 
@@ -136,10 +140,10 @@ class SparkSQLConverter(SQLConverter):
 
     Configured with:
     - dialect="spark"
-    - `DisallowType` to replace disallowed types with fallback types:
-        - JSON → STRING
-        - GEOMETRY → STRING
-        - GEOGRAPHY → STRING
+    - Rules:
+      - Disallow JSON → replace with STRING
+      - Disallow GEOMETRY → replace with STRING
+      - Disallow GEOGRAPHY → replace with STRING
     """
 
     def __init__(self, **convert_options: Any):
@@ -152,3 +156,33 @@ class SparkSQLConverter(SQLConverter):
         ]
         validator = AstValidator(rules=rules)
         super().__init__(dialect="spark", ast_validator=validator, **convert_options)
+
+
+class DuckdbSQLConverter(SQLConverter):
+    """DuckDB SQL converter with built-in validation rules.
+
+    Configured with:
+    - dialect="duckdb"
+    - Rules:
+      - Disallow TimestampLTZ → replace with TimestampTZ
+      - Disallow VOID → replace with STRING
+      - Disallow GEOGRAPHY → replace with STRING
+      - Disallow parametrized GEOMETRY → strip parameters
+    """
+
+    def __init__(self, **convert_options: Any):
+        rules: list[AstValidationRule] = [
+            # TIMESTAMPLTZ is not supported in DuckDB; map to TIMESTAMPTZ
+            DisallowType(
+                disallow_type=DataType.Type.TIMESTAMPLTZ,
+                fallback_type=DataType.Type.TIMESTAMPTZ,
+            ),
+            DisallowVoidType(),
+            DisallowType(disallow_type=DataType.Type.GEOGRAPHY),
+            DisallowParameterizedGeometryType(),
+            DisallowType(disallow_type=DataType.Type.VARIANT),
+            DisallowGeneratedIdentity(),
+            DisallowTableConstraintPrimaryKeyNullsFirst(),
+        ]
+        validator = AstValidator(rules=rules)
+        super().__init__(dialect="duckdb", ast_validator=validator, **convert_options)
