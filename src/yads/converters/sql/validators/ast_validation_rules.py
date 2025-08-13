@@ -179,8 +179,8 @@ class DisallowVoidType(AstValidationRule):
         return "The data type will be replaced with 'TEXT'."
 
 
-class DisallowGeneratedIdentity(AstValidationRule):
-    """Disallow ``GENERATED ALWAYS AS IDENTITY`` column constraint.
+class DisallowColumnConstraintGeneratedIdentity(AstValidationRule):
+    """Disallow GENERATED ALWAYS AS IDENTITY column constraint.
 
     Matches identity generation constraints attached to a column definition and
     removes them during adjustment.

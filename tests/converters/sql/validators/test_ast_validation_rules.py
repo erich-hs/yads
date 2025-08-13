@@ -9,7 +9,7 @@ from yads.converters.sql.validators.ast_validation_rules import (
     DisallowType,
     DisallowParameterizedGeometryType,
     DisallowVoidType,
-    DisallowGeneratedIdentity,
+    DisallowColumnConstraintGeneratedIdentity,
     DisallowTableConstraintPrimaryKeyNullsFirst,
 )
 
@@ -227,13 +227,15 @@ class TestDisallowVoidType:
         )
 
 
-# %% DisallowGeneratedIdentity
-class TestDisallowGeneratedIdentity:
+# %% DisallowColumnConstraintGeneratedIdentity
+class TestDisallowColumnConstraintGeneratedIdentity:
     @pytest.fixture
-    def rule(self) -> DisallowGeneratedIdentity:
-        return DisallowGeneratedIdentity()
+    def rule(self) -> DisallowColumnConstraintGeneratedIdentity:
+        return DisallowColumnConstraintGeneratedIdentity()
 
-    def test_validate_detects_identity_constraint(self, rule: DisallowGeneratedIdentity):
+    def test_validate_detects_identity_constraint(
+        self, rule: DisallowColumnConstraintGeneratedIdentity
+    ):
         sql = """
         CREATE TABLE t (
           c1 INT GENERATED ALWAYS AS IDENTITY(1, 1),
@@ -248,7 +250,9 @@ class TestDisallowGeneratedIdentity:
             == "GENERATED ALWAYS AS IDENTITY is not supported for column 'c1'."
         )
 
-    def test_adjust_removes_identity_constraint(self, rule: DisallowGeneratedIdentity):
+    def test_adjust_removes_identity_constraint(
+        self, rule: DisallowColumnConstraintGeneratedIdentity
+    ):
         sql = "CREATE TABLE t (c1 INT GENERATED ALWAYS AS IDENTITY(1, 1))"
         ast = parse_one(sql)
         coldef = ast.find(ColumnDef)

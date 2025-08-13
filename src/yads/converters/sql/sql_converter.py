@@ -22,7 +22,7 @@ from .validators.ast_validation_rules import (  # type: ignore[reportMissingImpo
     DisallowType,
     DisallowParameterizedGeometryType,
     DisallowVoidType,
-    DisallowGeneratedIdentity,
+    DisallowColumnConstraintGeneratedIdentity,
     DisallowTableConstraintPrimaryKeyNullsFirst,
 )
 
@@ -168,6 +168,9 @@ class DuckdbSQLConverter(SQLConverter):
       - Disallow VOID → replace with STRING
       - Disallow GEOGRAPHY → replace with STRING
       - Disallow parametrized GEOMETRY → strip parameters
+      - Disallow VARIANT → replace with STRING
+      - Disallow column-level IDENTITY → remove constraint
+      - Disallow NULLS FIRST in table-level PRIMARY KEY constraints → remove NULLS FIRST
     """
 
     def __init__(self, **convert_options: Any):
@@ -181,7 +184,7 @@ class DuckdbSQLConverter(SQLConverter):
             DisallowType(disallow_type=DataType.Type.GEOGRAPHY),
             DisallowParameterizedGeometryType(),
             DisallowType(disallow_type=DataType.Type.VARIANT),
-            DisallowGeneratedIdentity(),
+            DisallowColumnConstraintGeneratedIdentity(),
             DisallowTableConstraintPrimaryKeyNullsFirst(),
         ]
         validator = AstValidator(rules=rules)
