@@ -1,5 +1,5 @@
 CREATE TABLE customer_orders (
-    original_col TEXT,
-    generated_col TEXT GENERATED ALWAYS AS (truncate(50, original_col))
+    col_1 INT PRIMARY KEY,
+    col_2 INT,
+    CONSTRAINT pk_customer_orders PRIMARY KEY (col_2)
 )
-PARTITIONED BY (truncate(50, original_col))
