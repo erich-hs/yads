@@ -200,7 +200,7 @@
           "properties": {
             "length": {
               "type": "integer",
-              "description": "The length of a string column."
+              "description": "The length of a string or binary column."
             },
             "bits": {
               "type": "integer",
@@ -228,6 +228,15 @@
             "tz": {
               "type": "string",
               "description": "IANA timezone string for local timestamp (timestampltz)."
+            },
+            "size": {
+              "type": "integer",
+              "description": "The maximum number of elements in an array (fixed-size)."
+            },
+            "ordered": {
+              "type": "boolean",
+              "description": "Whether the map type has ordered keys.",
+              "default": false
             },
             "interval_start": {
               "type": "string",

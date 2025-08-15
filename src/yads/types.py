@@ -302,12 +302,34 @@ class Binary(YadsType):
     or serialized objects. Maps to BLOB, BINARY, or VARBINARY types
     in SQL dialects.
 
+    Args:
+        length: Optional maximum number of bytes. If None, represents
+            variable-length binary.
+
+    Raises:
+        TypeDefinitionError: If `length` is provided and is not a
+            positive integer.
+
     Example:
         >>> Binary()
         >>>
         >>> # Use in field definition
         >>> Field(name="document", type=Binary())
+        >>> Field(name="hash", type=Binary(length=32))
     """
+
+    length: int | None = None
+
+    def __post_init__(self):
+        if self.length is not None and self.length <= 0:
+            raise TypeDefinitionError(
+                f"Binary 'length' must be a positive integer, not {self.length}."
+            )
+
+    def __str__(self) -> str:
+        if self.length is not None:
+            return f"binary({self.length})"
+        return "binary"
 
 
 @dataclass(frozen=True)
@@ -677,6 +699,8 @@ class Array(YadsType):
 
     Args:
         element: The type of elements contained in the array.
+        size: Optional maximum size for fixed-size arrays. If None, the
+            array is variable-length.
 
     Example:
         >>> # Array of strings
@@ -690,8 +714,11 @@ class Array(YadsType):
     """
 
     element: YadsType
+    size: int | None = None
 
     def __str__(self) -> str:
+        if self.size is not None:
+            return f"array<{self.element}, size={self.size}>"
         return f"array<{self.element}>"
 
 
@@ -742,6 +769,7 @@ class Map(YadsType):
     Args:
         key: The type of all keys in the map.
         value: The type of all values in the map.
+        ordered: Whether the map has ordered keys. Defaults to False.
 
     Example:
         >>> # String-to-string mapping
@@ -756,8 +784,11 @@ class Map(YadsType):
 
     key: YadsType
     value: YadsType
+    ordered: bool = False
 
     def __str__(self) -> str:
+        if self.ordered:
+            return f"map<{self.key}, {self.value}, ordered=True>"
         return f"map<{self.key}, {self.value}>"
 
 

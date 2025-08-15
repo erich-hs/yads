@@ -233,11 +233,21 @@ class TestComplexTypes:
         assert t.element.element.bits == 32
         assert str(t) == "array<array<integer(bits=32)>>"
 
+    def test_array_with_size(self):
+        t = Array(element=String(), size=3)
+        assert t.size == 3
+        assert str(t) == "array<string, size=3>"
+
     def test_map_type(self):
         t = Map(key=String(), value=Integer())
         assert isinstance(t.key, String)
         assert isinstance(t.value, Integer)
         assert str(t) == "map<string, integer>"
+
+    def test_map_ordered_true(self):
+        t = Map(key=String(), value=Integer(), ordered=True)
+        assert t.ordered is True
+        assert str(t) == "map<string, integer, ordered=True>"
 
     def test_struct_type_is_not_tested_here(self):
         """
@@ -253,7 +263,6 @@ class TestSimpleTypes:
         "type_class, expected_str",
         [
             (Boolean, "boolean"),
-            (Binary, "binary"),
             (JSON, "json"),
             (UUID, "uuid"),
             (Void, "void"),
@@ -264,6 +273,25 @@ class TestSimpleTypes:
         t = type_class()
         assert isinstance(t, YadsType)
         assert str(t) == expected_str
+
+
+class TestBinaryType:
+    def test_binary_default(self):
+        t = Binary()
+        assert t.length is None
+        assert str(t) == "binary"
+
+    def test_binary_with_length(self):
+        t = Binary(length=16)
+        assert t.length == 16
+        assert str(t) == "binary(16)"
+
+    @pytest.mark.parametrize("invalid_length", [0, -1, -100])
+    def test_binary_invalid_length_raises_error(self, invalid_length):
+        with pytest.raises(
+            TypeDefinitionError, match="Binary 'length' must be a positive integer."
+        ):
+            Binary(length=invalid_length)
 
 
 class TestDateType:
