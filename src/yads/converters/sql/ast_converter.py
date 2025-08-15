@@ -169,6 +169,7 @@ class SQLGlotConverter(BaseConverter):
     def _(self, yads_type: Float) -> exp.DataType:
         if yads_type.bits == 64:
             return exp.DataType(this=exp.DataType.Type.DOUBLE)
+        # sqlglot has FLOAT but not a distinct HALF type in most dialects; map 16/32 to FLOAT
         return exp.DataType(this=exp.DataType.Type.FLOAT)
 
     @_convert_type.register(Decimal)

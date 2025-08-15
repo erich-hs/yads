@@ -529,6 +529,7 @@ class TestTypeConversion:
             (Integer(bits=64), exp.DataType(this=exp.DataType.Type.BIGINT)),
             # Float types - handled by type handler
             (Float(), exp.DataType(this=exp.DataType.Type.FLOAT)),
+            (Float(bits=16), exp.DataType(this=exp.DataType.Type.FLOAT)),
             (Float(bits=32), exp.DataType(this=exp.DataType.Type.FLOAT)),
             (Float(bits=64), exp.DataType(this=exp.DataType.Type.DOUBLE)),
             # Decimal types - handled by type handler

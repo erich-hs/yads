@@ -825,6 +825,7 @@ class TestTypeLoading:
                 "integer(bits=32, signed=False)",
             ),
             # Float types
+            ({"type": "float16"}, Float(bits=16), "float(bits=16)"),
             ({"type": "float32"}, Float(bits=32), "float(bits=32)"),
             ({"type": "float64"}, Float(bits=64), "float(bits=64)"),
             # Decimal types

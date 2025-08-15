@@ -113,6 +113,8 @@
         "LONG",
         "float",
         "FLOAT",
+        "float16",
+        "FLOAT16",
         "float32",
         "FLOAT32",
         "float64",

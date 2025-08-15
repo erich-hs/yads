@@ -96,17 +96,17 @@ class TestFloatType:
         assert t.bits is None
         assert str(t) == "float"
 
-    @pytest.mark.parametrize("bits", [32, 64])
+    @pytest.mark.parametrize("bits", [16, 32, 64])
     def test_float_with_valid_bits(self, bits):
         t = Float(bits=bits)
         assert t.bits == bits
         assert str(t) == f"float(bits={bits})"
 
-    @pytest.mark.parametrize("invalid_bits", [-1, 0, 1, 8, 16, 128])
+    @pytest.mark.parametrize("invalid_bits", [-1, 0, 1, 8, 128])
     def test_float_with_invalid_bits_raises_error(self, invalid_bits):
         with pytest.raises(
             TypeDefinitionError,
-            match=f"Float 'bits' must be one of 32 or 64, not {invalid_bits}.",
+            match=f"Float 'bits' must be one of 16, 32, or 64, not {invalid_bits}.",
         ):
             Float(bits=invalid_bits)
 
@@ -414,6 +414,7 @@ class TestTypeAliases:
             ("uint64", Integer, {"bits": 64, "signed": False}),
             ("bigint", Integer, {"bits": 64}),
             ("long", Integer, {"bits": 64}),
+            ("float16", Float, {"bits": 16}),
             ("float", Float, {"bits": 32}),
             ("float32", Float, {"bits": 32}),
             ("float64", Float, {"bits": 64}),

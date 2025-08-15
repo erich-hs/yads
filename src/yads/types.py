@@ -181,16 +181,20 @@ class Float(YadsType):
     Represents approximate numeric values with fractional components.
 
     Args:
-        bits: Number of bits for the float. Must be 32 or 64.
-              32-bit corresponds to single precision, 64-bit to double precision.
-              If None, uses the default float type for the target system.
+        bits: Number of bits for the float. Must be 16, 32, or 64.
+              16-bit corresponds to half precision, 32-bit to single precision,
+              and 64-bit to double precision. If None, uses the default float
+              type for the target system.
 
     Raises:
-        TypeDefinitionError: If bits is not 32 or 64.
+        TypeDefinitionError: If bits is not 16, 32, or 64.
 
     Example:
         >>> # Default float (typically 64-bit)
         >>> Float()
+
+        >>> # Half precision
+        >>> Float(bits=16)
 
         >>> # Single precision
         >>> Float(bits=32)
@@ -202,9 +206,9 @@ class Float(YadsType):
     bits: int | None = None
 
     def __post_init__(self):
-        if self.bits is not None and self.bits not in {32, 64}:
+        if self.bits is not None and self.bits not in {16, 32, 64}:
             raise TypeDefinitionError(
-                f"Float 'bits' must be one of 32 or 64, not {self.bits}."
+                f"Float 'bits' must be one of 16, 32, or 64, not {self.bits}."
             )
 
     def __str__(self) -> str:
@@ -870,6 +874,7 @@ TYPE_ALIASES: dict[str, tuple[type[YadsType], dict[str, Any]]] = {
     "uint64": (Integer, {"bits": 64, "signed": False}),
     "bigint": (Integer, {"bits": 64}),
     "long": (Integer, {"bits": 64}),
+    "float16": (Float, {"bits": 16}),
     "float": (Float, {"bits": 32}),
     "float32": (Float, {"bits": 32}),
     "float64": (Float, {"bits": 64}),
