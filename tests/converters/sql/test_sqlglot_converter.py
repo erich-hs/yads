@@ -10,10 +10,12 @@ from yads.types import (
     Boolean,
     Binary,
     Date,
+    Time,
     Timestamp,
     TimestampTZ,
     TimestampLTZ,
     TimestampNTZ,
+    Duration,
     IntervalTimeUnit,
     Interval,
     Array,
@@ -545,8 +547,9 @@ class TestTypeConversion:
             (Boolean(), exp.DataType(this=exp.DataType.Type.BOOLEAN)),
             # Binary types - fallback to build
             (Binary(), exp.DataType(this=exp.DataType.Type.BINARY)),
-            # Temporal types - fallback to build
+            # Temporal types
             (Date(), exp.DataType(this=exp.DataType.Type.DATE)),
+            (Time(), exp.DataType(this=exp.DataType.Type.TIME)),
             (Timestamp(), exp.DataType(this=exp.DataType.Type.TIMESTAMP)),
             (TimestampTZ(), exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ)),
             (TimestampLTZ(), exp.DataType(this=exp.DataType.Type.TIMESTAMPLTZ)),
@@ -729,6 +732,14 @@ class TestTypeConversion:
         assert nested_field_def.this.this == "nested_struct"
         assert isinstance(nested_field_def.kind, exp.DataType)
         assert nested_field_def.kind.this == exp.DataType.Type.STRUCT
+
+    @pytest.mark.parametrize("yads_type", [Duration()])
+    def test_unsupported_types(self, yads_type):
+        converter = SQLGlotConverter()
+        with pytest.raises(
+            UnsupportedFeatureError, match="SQLGlotConverter does not support type:"
+        ):
+            converter._convert_type(yads_type)
 
 
 # %% Table name parsing

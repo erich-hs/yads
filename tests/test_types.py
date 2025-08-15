@@ -10,10 +10,12 @@ from yads.types import (
     Boolean,
     Binary,
     Date,
+    Time,
     Timestamp,
     TimestampTZ,
     TimestampLTZ,
     TimestampNTZ,
+    Duration,
     IntervalTimeUnit,
     Interval,
     Array,
@@ -210,10 +212,6 @@ class TestSimpleTypes:
             (Boolean, "boolean"),
             (Binary, "binary"),
             (Date, "date"),
-            (Timestamp, "timestamp"),
-            (TimestampTZ, "timestamptz"),
-            (TimestampLTZ, "timestampltz"),
-            (TimestampNTZ, "timestampntz"),
             (JSON, "json"),
             (UUID, "uuid"),
             (Void, "void"),
@@ -224,6 +222,112 @@ class TestSimpleTypes:
         t = type_class()
         assert isinstance(t, YadsType)
         assert str(t) == expected_str
+
+
+class TestTimestampTypes:
+    def test_timestamp_default_and_str(self):
+        t = Timestamp()
+        assert t.unit == "ns"
+        assert str(t) == "timestamp(ns)"
+
+    def test_timestamptz_default_and_str(self):
+        t = TimestampTZ()
+        assert t.unit == "ns"
+        assert str(t) == "timestamptz(ns)"
+
+    def test_timestampltz_default_and_str(self):
+        t = TimestampLTZ()
+        assert t.unit == "ns"
+        assert str(t) == "timestampltz(ns)"
+
+    def test_timestampntz_default_and_str(self):
+        t = TimestampNTZ()
+        assert t.unit == "ns"
+        assert str(t) == "timestampntz(ns)"
+
+    @pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
+    def test_timestamp_valid_units(self, unit):
+        t = Timestamp(unit=unit)
+        assert t.unit == unit
+        assert str(t) == f"timestamp({unit})"
+
+    @pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
+    def test_timestamptz_valid_units(self, unit):
+        t = TimestampTZ(unit=unit)
+        assert t.unit == unit
+        assert str(t) == f"timestamptz({unit})"
+
+    @pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
+    def test_timestampltz_valid_units(self, unit):
+        t = TimestampLTZ(unit=unit)
+        assert t.unit == unit
+        assert str(t) == f"timestampltz({unit})"
+
+    @pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
+    def test_timestampntz_valid_units(self, unit):
+        t = TimestampNTZ(unit=unit)
+        assert t.unit == unit
+        assert str(t) == f"timestampntz({unit})"
+
+    @pytest.mark.parametrize("unit", ["m", "seconds", "NS", 1, None])
+    def test_timestamp_invalid_units_raise(self, unit):
+        with pytest.raises(TypeDefinitionError, match="Timestamp 'unit' must be one of"):
+            Timestamp(unit=unit)
+
+    @pytest.mark.parametrize("unit", ["m", "seconds", "NS", 1, None])
+    def test_timestamptz_invalid_units_raise(self, unit):
+        with pytest.raises(
+            TypeDefinitionError, match="TimestampTZ 'unit' must be one of"
+        ):
+            TimestampTZ(unit=unit)
+
+    @pytest.mark.parametrize("unit", ["m", "seconds", "NS", 1, None])
+    def test_timestampltz_invalid_units_raise(self, unit):
+        with pytest.raises(
+            TypeDefinitionError, match="TimestampLTZ 'unit' must be one of"
+        ):
+            TimestampLTZ(unit=unit)
+
+    @pytest.mark.parametrize("unit", ["m", "seconds", "NS", 1, None])
+    def test_timestampntz_invalid_units_raise(self, unit):
+        with pytest.raises(
+            TypeDefinitionError, match="TimestampNTZ 'unit' must be one of"
+        ):
+            TimestampNTZ(unit=unit)
+
+
+class TestTimeAndDurationTypes:
+    def test_time_default_and_str(self):
+        t = Time()
+        assert t.unit == "ns"
+        assert str(t) == "time(ns)"
+
+    def test_duration_default_and_str(self):
+        d = Duration()
+        assert d.unit == "ns"
+        assert str(d) == "duration(ns)"
+
+    @pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
+    def test_time_valid_units(self, unit):
+        t = Time(unit=unit)
+        assert t.unit == unit
+        assert str(t) == f"time({unit})"
+
+    @pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
+    def test_duration_valid_units(self, unit):
+        d = Duration(unit=unit)
+        assert d.unit == unit
+        assert str(d) == f"duration({unit})"
+
+    @pytest.mark.parametrize("unit", ["m", "seconds", "NS", 1, None])
+    def test_time_invalid_units_raise(self, unit):
+        with pytest.raises(TypeDefinitionError, match="Time 'unit' must be one of"):
+            Time(unit=unit)
+
+    @pytest.mark.parametrize("unit", ["m", "seconds", "NS", 1, None])
+    def test_duration_invalid_units_raise(self, unit):
+        with pytest.raises(TypeDefinitionError, match="Duration 'unit' must be one of"):
+            Duration(unit=unit)
 
 
 class TestTypeAliases:
@@ -263,6 +367,7 @@ class TestTypeAliases:
             ("bytes", Binary, {}),
             # Temporal Types
             ("date", Date, {}),
+            ("time", Time, {}),
             ("datetime", Timestamp, {}),
             ("timestamp", Timestamp, {}),
             ("timestamptz", TimestampTZ, {}),
@@ -271,6 +376,7 @@ class TestTypeAliases:
             ("timestamp_ltz", TimestampLTZ, {}),
             ("timestampntz", TimestampNTZ, {}),
             ("timestamp_ntz", TimestampNTZ, {}),
+            ("duration", Duration, {}),
             ("interval", Interval, {}),
             # Complex Types
             ("array", Array, {}),

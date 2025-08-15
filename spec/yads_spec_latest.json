@@ -127,6 +127,8 @@
         "BYTES",
         "date",
         "DATE",
+        "time",
+        "TIME",
         "datetime",
         "DATETIME",
         "timestamp",
@@ -143,6 +145,8 @@
         "TIMESTAMPNTZ",
         "timestamp_ntz",
         "TIMESTAMP_NTZ",
+        "duration",
+        "DURATION",
         "interval",
         "INTERVAL",
         "array",
@@ -195,6 +199,11 @@
             "scale": {
               "type": "integer",
               "description": "The scale of a decimal column."
+            },
+            "unit": {
+              "type": "string",
+              "description": "Time precision unit. One of s, ms, us, ns.",
+              "enum": ["s", "ms", "us", "ns"]
             },
             "interval_start": {
               "type": "string",

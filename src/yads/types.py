@@ -31,7 +31,7 @@ import textwrap
 from abc import ABC
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from .exceptions import TypeDefinitionError
 
@@ -48,10 +48,12 @@ __all__ = [
     "Boolean",
     "Binary",
     "Date",
+    "Time",
     "Timestamp",
     "TimestampTZ",
     "TimestampLTZ",
     "TimestampNTZ",
+    "Duration",
     "IntervalTimeUnit",
     "Interval",
     "Array",
@@ -292,6 +294,38 @@ class Date(YadsType):
 
 
 @dataclass(frozen=True)
+class Time(YadsType):
+    """Time-of-day type with fractional precision.
+
+    Represents a wall-clock time without a date component. Precision is expressed
+    via a time unit granularity.
+
+    Args:
+        unit: Smallest time unit for values. One of `"s"`, `"ms"`, `"us"`,
+            or `"ns"`. Defaults to `"ns"`.
+
+    Raises:
+        TypeDefinitionError: If `unit` is not one of the supported values.
+
+    Example:
+        >>> Time()              # defaults to nanoseconds
+        >>> Time(unit="ms")
+    """
+
+    unit: Literal["s", "ms", "us", "ns"] = "ns"
+
+    def __post_init__(self):
+        valid_units = {"s", "ms", "us", "ns"}
+        if self.unit not in valid_units:
+            raise TypeDefinitionError(
+                f"Time 'unit' must be one of {sorted(valid_units)}, not {self.unit}."
+            )
+
+    def __str__(self) -> str:
+        return f"time({self.unit})"
+
+
+@dataclass(frozen=True)
 class Timestamp(YadsType):
     """Date and time type without timezone information.
 
@@ -299,12 +333,29 @@ class Timestamp(YadsType):
     with implicit timezone awareness (dependant on the target SQL dialect).
     Maps to TIMESTAMP or DATETIME types in SQL dialects.
 
+    Args:
+        unit: Smallest time unit for values. One of `"s"`, `"ms"`, `"us"`,
+            or `"ns"`. Defaults to `"ns"`.
+
     Example:
         >>> Timestamp()
+        >>> Timestamp(unit="ms")
         >>>
         >>> # Use in field definition
         >>> Field(name="created_at", type=Timestamp())
     """
+
+    unit: Literal["s", "ms", "us", "ns"] = "ns"
+
+    def __post_init__(self):
+        valid_units = {"s", "ms", "us", "ns"}
+        if self.unit not in valid_units:
+            raise TypeDefinitionError(
+                f"Timestamp 'unit' must be one of {valid_units}, not {self.unit}."
+            )
+
+    def __str__(self) -> str:
+        return f"timestamp({self.unit})"
 
 
 @dataclass(frozen=True)
@@ -314,12 +365,29 @@ class TimestampTZ(YadsType):
     Similar to Timestamp but includes timezone awareness. Maps to
     TIMESTAMP WITH TIME ZONE or equivalent types in SQL dialects.
 
+    Args:
+        unit: Smallest time unit for values. One of `"s"`, `"ms"`, `"us"`,
+            or `"ns"`. Defaults to `"ns"`.
+
     Example:
         >>> TimestampTZ()
+        >>> TimestampTZ(unit="us")
         >>>
         >>> # Use in field definition
         >>> Field(name="order_time", type=TimestampTZ())
     """
+
+    unit: Literal["s", "ms", "us", "ns"] = "ns"
+
+    def __post_init__(self):
+        valid_units = {"s", "ms", "us", "ns"}
+        if self.unit not in valid_units:
+            raise TypeDefinitionError(
+                f"TimestampTZ 'unit' must be one of {valid_units}, not {self.unit}."
+            )
+
+    def __str__(self) -> str:
+        return f"timestamptz({self.unit})"
 
 
 @dataclass(frozen=True)
@@ -329,12 +397,29 @@ class TimestampLTZ(YadsType):
     Similar to Timestamp but includes local timezone awareness. Maps to
     TIMESTAMP WITH TIME ZONE or equivalent types in SQL dialects.
 
+    Args:
+        unit: Smallest time unit for values. One of `"s"`, `"ms"`, `"us"`,
+            or `"ns"`. Defaults to `"ns"`.
+
     Example:
         >>> TimestampLTZ()
+        >>> TimestampLTZ(unit="s")
         >>>
         >>> # Use in field definition
         >>> Field(name="order_time", type=TimestampLTZ())
     """
+
+    unit: Literal["s", "ms", "us", "ns"] = "ns"
+
+    def __post_init__(self):
+        valid_units = {"s", "ms", "us", "ns"}
+        if self.unit not in valid_units:
+            raise TypeDefinitionError(
+                f"TimestampLTZ 'unit' must be one of {valid_units}, not {self.unit}."
+            )
+
+    def __str__(self) -> str:
+        return f"timestampltz({self.unit})"
 
 
 @dataclass(frozen=True)
@@ -344,12 +429,61 @@ class TimestampNTZ(YadsType):
     Similar to Timestamp but without timezone awareness. Maps to
     TIMESTAMP or DATETIME types in SQL dialects.
 
+    Args:
+        unit: Smallest time unit for values. One of `"s"`, `"ms"`, `"us"`,
+            or `"ns"`. Defaults to `"ns"`.
+
     Example:
         >>> TimestampNTZ()
+        >>> TimestampNTZ(unit="ms")
         >>>
         >>> # Use in field definition
         >>> Field(name="order_time", type=TimestampNTZ())
     """
+
+    unit: Literal["s", "ms", "us", "ns"] = "ns"
+
+    def __post_init__(self):
+        valid_units = {"s", "ms", "us", "ns"}
+        if self.unit not in valid_units:
+            raise TypeDefinitionError(
+                f"TimestampNTZ 'unit' must be one of {valid_units}, not {self.unit}."
+            )
+
+    def __str__(self) -> str:
+        return f"timestampntz({self.unit})"
+
+
+@dataclass(frozen=True)
+class Duration(YadsType):
+    """Logical duration type with fractional precision.
+
+    Represents an elapsed amount of time. Precision is expressed via a unit
+    granularity.
+
+    Args:
+        unit: Smallest time unit for values. One of `"s"`, `"ms"`, `"us"`,
+            or `"ns"`. Defaults to `"ns"`.
+
+    Raises:
+        TypeDefinitionError: If `unit` is not one of the supported values.
+
+    Example:
+        >>> Duration()
+        >>> Duration(unit="ms")
+    """
+
+    unit: Literal["s", "ms", "us", "ns"] = "ns"
+
+    def __post_init__(self):
+        valid_units = {"s", "ms", "us", "ns"}
+        if self.unit not in valid_units:
+            raise TypeDefinitionError(
+                f"Duration 'unit' must be one of {valid_units}, not {self.unit}."
+            )
+
+    def __str__(self) -> str:
+        return f"duration({self.unit})"
 
 
 class IntervalTimeUnit(str, Enum):
@@ -575,7 +709,7 @@ class Geometry(YadsType):
 
     Args:
         srid: Spatial reference identifier, for example an integer code or
-            the string ``"ANY"``. If ``None``, no SRID is rendered.
+            the string `"ANY"`. If `None`, no SRID is rendered.
 
     Examples:
         >>> Geometry()
@@ -600,7 +734,7 @@ class Geography(YadsType):
 
     Args:
         srid: Spatial reference identifier, e.g., integer code or the string
-            ``"ANY"``. If ``None``, no SRID is rendered.
+            `"ANY"`. If `None`, no SRID is rendered.
 
     Examples:
         >>> Geography()
@@ -690,6 +824,7 @@ TYPE_ALIASES: dict[str, tuple[type[YadsType], dict[str, Any]]] = {
     "bytes": (Binary, {}),
     # Temporal Types
     "date": (Date, {}),
+    "time": (Time, {}),
     "datetime": (Timestamp, {}),
     "timestamp": (Timestamp, {}),
     "timestamptz": (TimestampTZ, {}),
@@ -698,6 +833,7 @@ TYPE_ALIASES: dict[str, tuple[type[YadsType], dict[str, Any]]] = {
     "timestamp_ltz": (TimestampLTZ, {}),
     "timestampntz": (TimestampNTZ, {}),
     "timestamp_ntz": (TimestampNTZ, {}),
+    "duration": (Duration, {}),
     "interval": (Interval, {}),
     # Complex Types
     "array": (Array, {}),

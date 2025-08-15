@@ -12,6 +12,7 @@ from typing import Any
 
 from sqlglot import exp
 from sqlglot.expressions import convert
+from sqlglot.errors import ParseError
 
 from ...constraints import (
     DefaultConstraint,
@@ -29,6 +30,11 @@ from ...types import (
     Decimal,
     Float,
     Integer,
+    Timestamp,
+    TimestampTZ,
+    TimestampLTZ,
+    TimestampNTZ,
+    Time,
     Interval,
     Map,
     String,
@@ -125,15 +131,18 @@ class SQLGlotConverter(BaseConverter):
         # The following non-parametrized yads types are handled via the fallback:
         # - Boolean
         # - Date
-        # - Timestamp
-        # - TimestampTZ
-        # - TimestampLTZ
-        # - TimestampNTZ
         # - Binary
         # - JSON
         # - UUID
         # https://sqlglot.com/sqlglot/expressions.html#DataType.build
-        return exp.DataType.build(str(yads_type))
+        try:
+            return exp.DataType.build(str(yads_type))
+        except ParseError:
+            # Currently unsupported:
+            # - Duration
+            raise UnsupportedFeatureError(
+                f"SQLGlotConverter does not support type: {yads_type}."
+            )
 
     @_convert_type.register(String)
     def _(self, yads_type: String) -> exp.DataType:
@@ -172,6 +181,27 @@ class SQLGlotConverter(BaseConverter):
             this=exp.DataType.Type.DECIMAL,
             expressions=expressions if expressions else None,
         )
+
+    # Explicit mappings for parametrized temporal types to keep AST stable regardless of unit
+    @_convert_type.register(Timestamp)
+    def _(self, yads_type: Timestamp) -> exp.DataType:
+        return exp.DataType(this=exp.DataType.Type.TIMESTAMP)
+
+    @_convert_type.register(TimestampTZ)
+    def _(self, yads_type: TimestampTZ) -> exp.DataType:
+        return exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ)
+
+    @_convert_type.register(TimestampLTZ)
+    def _(self, yads_type: TimestampLTZ) -> exp.DataType:
+        return exp.DataType(this=exp.DataType.Type.TIMESTAMPLTZ)
+
+    @_convert_type.register(TimestampNTZ)
+    def _(self, yads_type: TimestampNTZ) -> exp.DataType:
+        return exp.DataType(this=exp.DataType.Type.TIMESTAMPNTZ)
+
+    @_convert_type.register(Time)
+    def _(self, yads_type: Time) -> exp.DataType:
+        return exp.DataType(this=exp.DataType.Type.TIME)
 
     @_convert_type.register(Void)
     def _(self, yads_type: Void) -> exp.DataType:
