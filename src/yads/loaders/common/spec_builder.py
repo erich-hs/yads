@@ -224,6 +224,7 @@ class SpecBuilder:
             type=self._parse_type(field_def["type"], field_def),
             description=field_def.get("description"),
             metadata=field_def.get("metadata", {}),
+            constraints=self._parse_column_constraints(field_def.get("constraints")),
         )
 
     def _parse_column(self, col_def: dict[str, Any]) -> Column:
@@ -259,9 +260,9 @@ class SpecBuilder:
 
         # Validate allowed keys based on context
         type_spec_keys = {"type", "params", "element", "fields", "key", "value"}
-        common_field_keys = {"name", "description", "metadata"}
+        common_field_keys = {"name", "description", "metadata", "constraints"}
         if context == "column":
-            allowed = common_field_keys | type_spec_keys | {"constraints", "generated_as"}
+            allowed = common_field_keys | type_spec_keys | {"generated_as"}
         else:  # context == "field"
             allowed = common_field_keys | type_spec_keys
 

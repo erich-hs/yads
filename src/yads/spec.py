@@ -14,6 +14,12 @@ Example:
     ...     Column(name="name", type=ytypes.String(length=100))
     ... ]
     >>>
+    >>> # Constraints may also be specified on nested fields (e.g., in Struct)
+    >>> address_type = ytypes.Struct(fields=[
+    ...     Field(name="street", type=ytypes.String(), constraints=[NotNullConstraint()]),
+    ...     Field(name="city", type=ytypes.String()),
+    ... ])
+    >>>
     >>> # Create a complete spec
     >>> spec = YadsSpec(
     ...     name="users",
@@ -32,7 +38,7 @@ from __future__ import annotations
 
 import textwrap
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Type
 
 from .constraints import ColumnConstraint, NotNullConstraint, TableConstraint
 from .exceptions import SpecValidationError
@@ -104,39 +110,64 @@ class Field:
     """A named and typed data field, representing a field in a complex type.
 
     Field is the base class for all named data elements in yads. It represents
-    individual data fields with their types and optional metadata. This class
-    is primarily used for fields within complex types like structs, but also
-    serves as the base class for table columns.
+    individual data fields with their types, constraints, and optional metadata.
+    This class is primarily used for fields within complex types like structs, but
+    also serves as the base class for table columns.
 
     Example:
         >>> import yads.types as ytypes
+        >>> from yads.constraints import NotNullConstraint
         >>>
         >>> # Simple field for use in complex types
         >>> field = Field(name="username", type=ytypes.String())
+        >>> field.is_nullable
+        True
         >>>
-        >>> # Field with metadata
+        >>> # Field with metadata and constraints
         >>> field = Field(
         ...     name="user_id",
         ...     type=ytypes.Integer(bits=64),
         ...     description="Unique identifier for the user",
-        ...     metadata={"source": "user_service"}
+        ...     metadata={"source": "user_service"},
+        ...     constraints=[NotNullConstraint()],
         ... )
+        >>> field.is_nullable
+        False
     """
 
     name: str
     type: YadsType
     description: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    constraints: list[ColumnConstraint] = field(default_factory=list)
 
     @property
     def has_metadata(self) -> bool:
         """True if the field has any metadata defined."""
         return bool(self.metadata)
 
+    @property
+    def is_nullable(self) -> bool:
+        """True if this field allows NULL values (no NOT NULL constraint)."""
+        return not any(isinstance(c, NotNullConstraint) for c in self.constraints)
+
+    @property
+    def has_constraints(self) -> bool:
+        """True if this field has any constraints defined."""
+        return bool(self.constraints)
+
+    @property
+    def constraint_types(self) -> set[Type[ColumnConstraint]]:
+        """Set of constraint types applied to this field."""
+        return {type(constraint) for constraint in self.constraints}
+
     def _build_details_repr(self) -> str:
         details = []
         if self.description:
             details.append(f"description={self.description!r}")
+        if self.constraints:
+            constraints_str = ", ".join(map(str, self.constraints))
+            details.append(f"constraints=[{constraints_str}]")
         if self.metadata:
             details.append(f"metadata={_format_dict_as_kwargs(self.metadata)}")
 
@@ -153,11 +184,11 @@ class Field:
 
 @dataclass(frozen=True)
 class Column(Field):
-    """A table column with constraints and optional generation logic.
+    """A table column with optional generation logic.
 
     Column extends Field to represent database table columns specifically.
-    It adds support for column constraints and generated column definitions,
-    making it the primary building block for table schemas.
+    It adds support for generated column definitions, making it the primary
+    building block for table schemas.
 
     Example:
         >>> from yads.constraints import NotNullConstraint, DefaultConstraint
@@ -183,30 +214,12 @@ class Column(Field):
         ... )
     """
 
-    constraints: list[ColumnConstraint] = field(default_factory=list)
     generated_as: TransformedColumnReference | None = None
 
     @property
     def is_generated(self) -> bool:
         """True if this column is a generated/computed column."""
         return self.generated_as is not None
-
-    @property
-    def is_nullable(self) -> bool:
-        """True if this column allows NULL values (no NOT NULL constraint)."""
-        return not any(
-            isinstance(constraint, NotNullConstraint) for constraint in self.constraints
-        )
-
-    @property
-    def has_constraints(self) -> bool:
-        """True if this column has any constraints defined."""
-        return bool(self.constraints)
-
-    @property
-    def constraint_types(self) -> set[type]:
-        """Set of constraint types applied to this column."""
-        return {type(constraint) for constraint in self.constraints}
 
     def _build_details_repr(self) -> str:
         details = []
