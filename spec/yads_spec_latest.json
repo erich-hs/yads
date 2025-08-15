@@ -218,7 +218,7 @@
             },
             "scale": {
               "type": "integer",
-              "description": "The scale of a decimal column."
+              "description": "The scale of a decimal column. May be negative to indicate rounding to the left of the decimal point."
             },
             "unit": {
               "type": "string",

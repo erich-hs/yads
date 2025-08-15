@@ -126,7 +126,7 @@ class Integer(YadsType):
 
     Represents whole numbers that can be converted to various integer types
     in SQL dialects and data processing frameworks. The bit-width determines
-    the range of values that can be stored. The ``signed`` flag controls
+    the range of values that can be stored. The `signed` flag controls
     whether values are signed or unsigned.
 
     Args:
@@ -135,8 +135,8 @@ class Integer(YadsType):
         signed: Whether the integer is signed. Defaults to True.
 
     Raises:
-        TypeDefinitionError: If ``bits`` is not one of the valid values or
-            if ``signed`` is not a boolean.
+        TypeDefinitionError: If `bits` is not one of the valid values or
+            if `signed` is not a boolean.
 
     Example:
         >>> # Default integer
@@ -223,7 +223,11 @@ class Decimal(YadsType):
 
     Args:
         precision: Total number of digits (before and after decimal point).
-        scale: Number of digits after the decimal point.
+        scale: Number of digits after the decimal point. Can be negative to
+            indicate rounding to the left of the decimal point.
+        bits: Decimal arithmetic/storage width. One of `128` or `256`.
+            Defaults to `None` (unspecified). Compatibility between bit width
+            and precision is delegated to target converters.
 
     Both precision and scale must be specified together, or both omitted
     for a default decimal type.
@@ -242,6 +246,7 @@ class Decimal(YadsType):
 
     precision: int | None = None
     scale: int | None = None
+    bits: int | None = None
 
     def __post_init__(self):
         if (self.precision is None) != (self.scale is None):
@@ -254,14 +259,23 @@ class Decimal(YadsType):
             raise TypeDefinitionError(
                 f"Decimal 'precision' must be a positive integer, not {self.precision}."
             )
-        if self.scale is not None and (not isinstance(self.scale, int) or self.scale < 0):
+        if self.scale is not None and (not isinstance(self.scale, int)):
             raise TypeDefinitionError(
-                f"Decimal 'scale' must be a positive integer, not {self.scale}."
+                f"Decimal 'scale' must be an integer, not {self.scale}."
+            )
+        if self.bits is not None and self.bits not in {128, 256}:
+            raise TypeDefinitionError(
+                f"Decimal 'bits' must be one of 128 or 256, not {self.bits}."
             )
 
     def __str__(self) -> str:
         if self.precision is not None and self.scale is not None:
-            return f"decimal({self.precision}, {self.scale})"
+            inner = f"{self.precision}, {self.scale}"
+            if self.bits is not None:
+                inner += f", bits={self.bits}"
+            return f"decimal({inner})"
+        if self.bits is not None:
+            return f"decimal(bits={self.bits})"
         return "decimal"
 
 

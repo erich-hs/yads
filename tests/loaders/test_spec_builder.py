@@ -835,6 +835,16 @@ class TestTypeLoading:
                 Decimal(precision=10, scale=2),
                 "decimal(10, 2)",
             ),
+            (
+                {"type": "decimal", "params": {"precision": 12, "scale": -3}},
+                Decimal(precision=12, scale=-3),
+                "decimal(12, -3)",
+            ),
+            (
+                {"type": "decimal", "params": {"bits": 256}},
+                Decimal(bits=256),
+                "decimal(bits=256)",
+            ),
             # Boolean types
             ({"type": "boolean"}, Boolean(), "boolean"),
             # Binary types

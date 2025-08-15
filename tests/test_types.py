@@ -116,6 +116,7 @@ class TestDecimalType:
         t = Decimal()
         assert t.precision is None
         assert t.scale is None
+        assert t.bits is None
         assert str(t) == "decimal"
 
     def test_decimal_with_precision_and_scale(self):
@@ -137,6 +138,28 @@ class TestDecimalType:
             match="Decimal type requires both 'precision' and 'scale', or neither.",
         ):
             Decimal(scale=2)
+
+    def test_decimal_with_negative_scale(self):
+        t = Decimal(precision=10, scale=-2)
+        assert t.precision == 10
+        assert t.scale == -2
+        assert str(t) == "decimal(10, -2)"
+
+    def test_decimal_bits_parameter(self):
+        # Default bits omitted in str
+        assert str(Decimal()) == "decimal"
+        # Explicit bits in parameter-only form
+        assert str(Decimal(bits=256)) == "decimal(bits=256)"
+        # With precision/scale include bits when non-default
+        assert str(Decimal(precision=10, scale=2, bits=256)) == "decimal(10, 2, bits=256)"
+
+    @pytest.mark.parametrize("invalid_bits", [8, 16, 32, 64, 0, -1, 129])
+    def test_decimal_invalid_bits_raises_error(self, invalid_bits):
+        with pytest.raises(
+            TypeDefinitionError,
+            match=f"Decimal 'bits' must be one of 128 or 256, not {invalid_bits}.",
+        ):
+            Decimal(bits=invalid_bits)
 
 
 class TestIntervalType:
