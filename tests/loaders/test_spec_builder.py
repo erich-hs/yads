@@ -818,6 +818,12 @@ class TestTypeLoading:
             ({"type": "int16"}, Integer(bits=16), "integer(bits=16)"),
             ({"type": "int32"}, Integer(bits=32), "integer(bits=32)"),
             ({"type": "int64"}, Integer(bits=64), "integer(bits=64)"),
+            # Integer unsigned via params
+            (
+                {"type": "int32", "params": {"signed": False}},
+                Integer(bits=32, signed=False),
+                "integer(bits=32, signed=False)",
+            ),
             # Float types
             ({"type": "float32"}, Float(bits=32), "float(bits=32)"),
             ({"type": "float64"}, Float(bits=64), "float(bits=64)"),

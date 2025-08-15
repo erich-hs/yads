@@ -53,6 +53,7 @@ class TestIntegerType:
     def test_integer_default(self):
         t = Integer()
         assert t.bits is None
+        assert t.signed is True
         assert str(t) == "integer"
 
     @pytest.mark.parametrize("bits", [8, 16, 32, 64])
@@ -68,6 +69,25 @@ class TestIntegerType:
             match=f"Integer 'bits' must be one of 8, 16, 32, 64, not {invalid_bits}.",
         ):
             Integer(bits=invalid_bits)
+
+    def test_integer_unsigned_no_bits(self):
+        t = Integer(signed=False)
+        assert t.bits is None
+        assert t.signed is False
+        assert str(t) == "integer(signed=False)"
+
+    @pytest.mark.parametrize("bits", [8, 16, 32, 64])
+    def test_integer_unsigned_with_bits(self, bits):
+        t = Integer(bits=bits, signed=False)
+        assert t.bits == bits
+        assert t.signed is False
+        assert str(t) == f"integer(bits={bits}, signed=False)"
+
+    def test_integer_invalid_signed_type_raises_error(self):
+        with pytest.raises(
+            TypeDefinitionError, match="Integer 'signed' must be a boolean."
+        ):
+            Integer(bits=32, signed="no")  # type: ignore[arg-type]
 
 
 class TestFloatType:
@@ -379,15 +399,19 @@ class TestTypeAliases:
             ("char", String, {}),
             # Numeric Types
             ("int8", Integer, {"bits": 8}),
+            ("uint8", Integer, {"bits": 8, "signed": False}),
             ("tinyint", Integer, {"bits": 8}),
             ("byte", Integer, {"bits": 8}),
             ("int16", Integer, {"bits": 16}),
+            ("uint16", Integer, {"bits": 16, "signed": False}),
             ("smallint", Integer, {"bits": 16}),
             ("short", Integer, {"bits": 16}),
             ("int32", Integer, {"bits": 32}),
+            ("uint32", Integer, {"bits": 32, "signed": False}),
             ("int", Integer, {"bits": 32}),
             ("integer", Integer, {"bits": 32}),
             ("int64", Integer, {"bits": 64}),
+            ("uint64", Integer, {"bits": 64, "signed": False}),
             ("bigint", Integer, {"bits": 64}),
             ("long", Integer, {"bits": 64}),
             ("float", Float, {"bits": 32}),

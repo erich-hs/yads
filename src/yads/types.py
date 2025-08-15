@@ -122,21 +122,24 @@ class String(YadsType):
 
 @dataclass(frozen=True)
 class Integer(YadsType):
-    """Signed integer type with optional bit-width specification.
+    """Integer type with optional bit-width and signedness specification.
 
     Represents whole numbers that can be converted to various integer types
     in SQL dialects and data processing frameworks. The bit-width determines
-    the range of values that can be stored.
+    the range of values that can be stored. The ``signed`` flag controls
+    whether values are signed or unsigned.
 
     Args:
         bits: Number of bits for the integer. Must be 8, 16, 32, or 64.
-              If None, uses the default integer type for the target system.
+            If None, uses the default integer type for the target system.
+        signed: Whether the integer is signed. Defaults to True.
 
     Raises:
-        TypeDefinitionError: If bits is not one of the valid values.
+        TypeDefinitionError: If ``bits`` is not one of the valid values or
+            if ``signed`` is not a boolean.
 
     Example:
-        >>> # Default integer (typically 32-bit)
+        >>> # Default integer
         >>> Integer()
 
         >>> # Specific bit-width integers
@@ -144,19 +147,30 @@ class Integer(YadsType):
         >>> Integer(bits=16)  # SMALLINT
         >>> Integer(bits=32)  # INT
         >>> Integer(bits=64)  # BIGINT
+
+        >>> # Unsigned integer
+        >>> Integer(bits=32, signed=False)
     """
 
     bits: int | None = None
+    signed: bool = True
 
     def __post_init__(self):
         if self.bits is not None and self.bits not in {8, 16, 32, 64}:
             raise TypeDefinitionError(
                 f"Integer 'bits' must be one of 8, 16, 32, 64, not {self.bits}."
             )
+        if not isinstance(self.signed, bool):
+            raise TypeDefinitionError("Integer 'signed' must be a boolean.")
 
     def __str__(self) -> str:
+        # Only render 'signed' when it differs from the default (False)
+        if self.bits is not None and self.signed is False:
+            return f"integer(bits={self.bits}, signed=False)"
         if self.bits is not None:
             return f"integer(bits={self.bits})"
+        if self.signed is False:
+            return "integer(signed=False)"
         return "integer"
 
 
@@ -841,15 +855,19 @@ TYPE_ALIASES: dict[str, tuple[type[YadsType], dict[str, Any]]] = {
     "char": (String, {}),
     # Numeric Types
     "int8": (Integer, {"bits": 8}),
+    "uint8": (Integer, {"bits": 8, "signed": False}),
     "tinyint": (Integer, {"bits": 8}),
     "byte": (Integer, {"bits": 8}),
     "int16": (Integer, {"bits": 16}),
+    "uint16": (Integer, {"bits": 16, "signed": False}),
     "smallint": (Integer, {"bits": 16}),
     "short": (Integer, {"bits": 16}),
     "int32": (Integer, {"bits": 32}),
+    "uint32": (Integer, {"bits": 32, "signed": False}),
     "int": (Integer, {"bits": 32}),
     "integer": (Integer, {"bits": 32}),
     "int64": (Integer, {"bits": 64}),
+    "uint64": (Integer, {"bits": 64, "signed": False}),
     "bigint": (Integer, {"bits": 64}),
     "long": (Integer, {"bits": 64}),
     "float": (Float, {"bits": 32}),
