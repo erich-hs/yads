@@ -192,6 +192,11 @@
               "type": "integer",
               "description": "The length of a string column."
             },
+            "bits": {
+              "type": "integer",
+              "description": "Bit width for the type. One of 8, 16, 32, 64, 128, 256.",
+              "enum": [8, 16, 32, 64, 128, 256]
+            },
             "precision": {
               "type": "integer",
               "description": "The precision of a decimal column."
@@ -204,6 +209,10 @@
               "type": "string",
               "description": "Time precision unit. One of s, ms, us, ns.",
               "enum": ["s", "ms", "us", "ns"]
+            },
+            "tz": {
+              "type": "string",
+              "description": "IANA timezone string for local timestamp (timestampltz)."
             },
             "interval_start": {
               "type": "string",

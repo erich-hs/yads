@@ -211,7 +211,6 @@ class TestSimpleTypes:
         [
             (Boolean, "boolean"),
             (Binary, "binary"),
-            (Date, "date"),
             (JSON, "json"),
             (UUID, "uuid"),
             (Void, "void"),
@@ -224,50 +223,95 @@ class TestSimpleTypes:
         assert str(t) == expected_str
 
 
+class TestDateType:
+    def test_date_default_and_str(self):
+        d = Date()
+        assert d.bits is None
+        assert str(d) == "date"
+
+    @pytest.mark.parametrize("bits", [32, 64])
+    def test_date_bits_validation(self, bits):
+        d = Date(bits=bits)
+        assert d.bits == bits
+        assert str(d) == f"date(bits={bits})"
+
+    @pytest.mark.parametrize("bits", [8, 16, 24, 128, 256])
+    def test_date_invalid_bits_raise(self, bits):
+        with pytest.raises(TypeDefinitionError, match="Date 'bits' must be one of"):
+            Date(bits=bits)
+
+
+class TestTimeType:
+    def test_time_default_and_str(self):
+        t = Time()
+        assert t.unit == "ms"
+        assert t.bits is None
+        assert str(t) == "time(unit=ms)"
+
+    @pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
+    def test_time_valid_units(self, unit):
+        t = Time(unit=unit)
+        assert t.unit == unit
+        assert str(t) == f"time(unit={unit})"
+
+    def test_time_bits_validation(self):
+        assert Time(bits=32).bits == 32
+        assert Time(bits=64, unit="us").bits == 64
+        with pytest.raises(TypeDefinitionError, match="Time 'bits' must be one of"):
+            Time(bits=16)
+
+    @pytest.mark.parametrize("unit", ["m", "seconds", "NS", 1, None])
+    def test_time_invalid_units_raise(self, unit):
+        with pytest.raises(TypeDefinitionError, match="Time 'unit' must be one of"):
+            Time(unit=unit)
+
+
 class TestTimestampTypes:
     def test_timestamp_default_and_str(self):
         t = Timestamp()
         assert t.unit == "ns"
-        assert str(t) == "timestamp(ns)"
+        assert str(t) == "timestamp(unit=ns)"
 
     def test_timestamptz_default_and_str(self):
         t = TimestampTZ()
         assert t.unit == "ns"
-        assert str(t) == "timestamptz(ns)"
+        assert str(t) == "timestamptz(unit=ns)"
 
     def test_timestampltz_default_and_str(self):
         t = TimestampLTZ()
         assert t.unit == "ns"
-        assert str(t) == "timestampltz(ns)"
+        assert t.tz == "UTC"
+        assert str(t) == "timestampltz(unit=ns, tz=UTC)"
 
     def test_timestampntz_default_and_str(self):
         t = TimestampNTZ()
         assert t.unit == "ns"
-        assert str(t) == "timestampntz(ns)"
+        assert str(t) == "timestampntz(unit=ns)"
 
     @pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
     def test_timestamp_valid_units(self, unit):
         t = Timestamp(unit=unit)
         assert t.unit == unit
-        assert str(t) == f"timestamp({unit})"
+        assert str(t) == f"timestamp(unit={unit})"
 
     @pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
     def test_timestamptz_valid_units(self, unit):
         t = TimestampTZ(unit=unit)
         assert t.unit == unit
-        assert str(t) == f"timestamptz({unit})"
+        assert str(t) == f"timestamptz(unit={unit})"
 
     @pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
     def test_timestampltz_valid_units(self, unit):
         t = TimestampLTZ(unit=unit)
         assert t.unit == unit
-        assert str(t) == f"timestampltz({unit})"
+        assert t.tz == "UTC"
+        assert str(t) == f"timestampltz(unit={unit}, tz=UTC)"
 
     @pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
     def test_timestampntz_valid_units(self, unit):
         t = TimestampNTZ(unit=unit)
         assert t.unit == unit
-        assert str(t) == f"timestampntz({unit})"
+        assert str(t) == f"timestampntz(unit={unit})"
 
     @pytest.mark.parametrize("unit", ["m", "seconds", "NS", 1, None])
     def test_timestamp_invalid_units_raise(self, unit):
@@ -288,6 +332,16 @@ class TestTimestampTypes:
         ):
             TimestampLTZ(unit=unit)
 
+    def test_timestampltz_tz_validation(self):
+        with pytest.raises(TypeDefinitionError, match="non-empty string"):
+            TimestampLTZ(tz="")
+        with pytest.raises(TypeDefinitionError, match="must not be None"):
+            TimestampLTZ(tz=None)  # type: ignore[arg-type]
+
+    def test_timestampltz_custom_tz_and_str(self):
+        t = TimestampLTZ(unit="us", tz="America/New_York")
+        assert str(t) == "timestampltz(unit=us, tz=America/New_York)"
+
     @pytest.mark.parametrize("unit", ["m", "seconds", "NS", 1, None])
     def test_timestampntz_invalid_units_raise(self, unit):
         with pytest.raises(
@@ -296,33 +350,17 @@ class TestTimestampTypes:
             TimestampNTZ(unit=unit)
 
 
-class TestTimeAndDurationTypes:
-    def test_time_default_and_str(self):
-        t = Time()
-        assert t.unit == "ns"
-        assert str(t) == "time(ns)"
-
+class TestDurationType:
     def test_duration_default_and_str(self):
         d = Duration()
         assert d.unit == "ns"
-        assert str(d) == "duration(ns)"
-
-    @pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
-    def test_time_valid_units(self, unit):
-        t = Time(unit=unit)
-        assert t.unit == unit
-        assert str(t) == f"time({unit})"
+        assert str(d) == "duration(unit=ns)"
 
     @pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
     def test_duration_valid_units(self, unit):
         d = Duration(unit=unit)
         assert d.unit == unit
-        assert str(d) == f"duration({unit})"
-
-    @pytest.mark.parametrize("unit", ["m", "seconds", "NS", 1, None])
-    def test_time_invalid_units_raise(self, unit):
-        with pytest.raises(TypeDefinitionError, match="Time 'unit' must be one of"):
-            Time(unit=unit)
+        assert str(d) == f"duration(unit={unit})"
 
     @pytest.mark.parametrize("unit", ["m", "seconds", "NS", 1, None])
     def test_duration_invalid_units_raise(self, unit):
@@ -367,7 +405,11 @@ class TestTypeAliases:
             ("bytes", Binary, {}),
             # Temporal Types
             ("date", Date, {}),
+            ("date32", Date, {"bits": 32}),
+            ("date64", Date, {"bits": 64}),
             ("time", Time, {}),
+            ("time32", Time, {"bits": 32, "unit": "ms"}),
+            ("time64", Time, {"bits": 64, "unit": "ns"}),
             ("datetime", Timestamp, {}),
             ("timestamp", Timestamp, {}),
             ("timestamptz", TimestampTZ, {}),

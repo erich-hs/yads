@@ -285,12 +285,29 @@ class Date(YadsType):
     Maps to DATE-like types in SQL dialects or data-processing frameworks.
     Does not include time information.
 
+    Args:
+        bits: Storage width for logical date. One of `32` or `64`. Defaults
+            to `32`. This flag primarily affects non-SQL targets such as
+            PyArrow.
+
     Example:
         >>> Date()
+        >>> Date(bits=64)
         >>>
         >>> # Use in field definition
         >>> Field(name="birth_date", type=Date())
     """
+
+    bits: int | None = None
+
+    def __post_init__(self):
+        if self.bits is not None and self.bits not in {32, 64}:
+            raise TypeDefinitionError(
+                f"Date 'bits' must be one of 32 or 64, not {self.bits}."
+            )
+
+    def __str__(self) -> str:
+        return "date" if self.bits is None else f"date(bits={self.bits})"
 
 
 @dataclass(frozen=True)
@@ -302,27 +319,42 @@ class Time(YadsType):
 
     Args:
         unit: Smallest time unit for values. One of `"s"`, `"ms"`, `"us"`,
-            or `"ns"`. Defaults to `"ns"`.
+            or `"ns"`. Defaults to `"ms"`.
+        bits: Storage width for logical time. One of `32` or `64`.
+            Defaults to `None`.
 
     Raises:
         TypeDefinitionError: If `unit` is not one of the supported values.
 
     Example:
-        >>> Time()              # defaults to nanoseconds
-        >>> Time(unit="ms")
+        >>> Time()              # defaults to milliseconds
+        >>> Time(unit="s")
+        >>> Time(unit="ns", bits=64)
     """
 
-    unit: Literal["s", "ms", "us", "ns"] = "ns"
+    unit: Literal["s", "ms", "us", "ns"] = "ms"
+    bits: int | None = None
 
     def __post_init__(self):
         valid_units = {"s", "ms", "us", "ns"}
         if self.unit not in valid_units:
             raise TypeDefinitionError(
-                f"Time 'unit' must be one of {sorted(valid_units)}, not {self.unit}."
+                f"Time 'unit' must be one of {valid_units}, not {self.unit}."
             )
+        if self.bits is not None and self.bits not in {32, 64}:
+            raise TypeDefinitionError(
+                f"Time 'bits' must be one of 32 or 64, not {self.bits}."
+            )
+        # Enforce unit compatibility with bit width
+        # Unit-to-bits compatibility is enforced in specific converters where
+        # the target system imposes restrictions (e.g., PyArrow time32/time64).
 
     def __str__(self) -> str:
-        return f"time({self.unit})"
+        return (
+            f"time(unit={self.unit})"
+            if self.bits is None
+            else f"time(unit={self.unit}, bits={self.bits})"
+        )
 
 
 @dataclass(frozen=True)
@@ -355,7 +387,7 @@ class Timestamp(YadsType):
             )
 
     def __str__(self) -> str:
-        return f"timestamp({self.unit})"
+        return f"timestamp(unit={self.unit})"
 
 
 @dataclass(frozen=True)
@@ -387,7 +419,7 @@ class TimestampTZ(YadsType):
             )
 
     def __str__(self) -> str:
-        return f"timestamptz({self.unit})"
+        return f"timestamptz(unit={self.unit})"
 
 
 @dataclass(frozen=True)
@@ -400,16 +432,21 @@ class TimestampLTZ(YadsType):
     Args:
         unit: Smallest time unit for values. One of `"s"`, `"ms"`, `"us"`,
             or `"ns"`. Defaults to `"ns"`.
+        tz: IANA timezone name to interpret local-time values. Defaults to
+            `"UTC"`. Must not be None. If timezone handling is not desired,
+            use `Timestamp` or `TimestampNTZ` instead.
 
     Example:
         >>> TimestampLTZ()
         >>> TimestampLTZ(unit="s")
+        >>> TimestampLTZ(unit="ns", tz="America/New_York")
         >>>
         >>> # Use in field definition
         >>> Field(name="order_time", type=TimestampLTZ())
     """
 
     unit: Literal["s", "ms", "us", "ns"] = "ns"
+    tz: str = "UTC"
 
     def __post_init__(self):
         valid_units = {"s", "ms", "us", "ns"}
@@ -417,9 +454,15 @@ class TimestampLTZ(YadsType):
             raise TypeDefinitionError(
                 f"TimestampLTZ 'unit' must be one of {valid_units}, not {self.unit}."
             )
+        if self.tz is None:  # type: ignore[unreachable]
+            raise TypeDefinitionError(
+                "TimestampLTZ 'tz' must not be None. Use Timestamp or TimestampNTZ for no timezone."
+            )
+        if isinstance(self.tz, str) and not self.tz:
+            raise TypeDefinitionError("TimestampLTZ 'tz' must be a non-empty string.")
 
     def __str__(self) -> str:
-        return f"timestampltz({self.unit})"
+        return f"timestampltz(unit={self.unit}, tz={self.tz})"
 
 
 @dataclass(frozen=True)
@@ -451,7 +494,7 @@ class TimestampNTZ(YadsType):
             )
 
     def __str__(self) -> str:
-        return f"timestampntz({self.unit})"
+        return f"timestampntz(unit={self.unit})"
 
 
 @dataclass(frozen=True)
@@ -483,7 +526,7 @@ class Duration(YadsType):
             )
 
     def __str__(self) -> str:
-        return f"duration({self.unit})"
+        return f"duration(unit={self.unit})"
 
 
 class IntervalTimeUnit(str, Enum):
@@ -824,7 +867,11 @@ TYPE_ALIASES: dict[str, tuple[type[YadsType], dict[str, Any]]] = {
     "bytes": (Binary, {}),
     # Temporal Types
     "date": (Date, {}),
+    "date32": (Date, {"bits": 32}),
+    "date64": (Date, {"bits": 64}),
     "time": (Time, {}),
+    "time32": (Time, {"bits": 32, "unit": "ms"}),
+    "time64": (Time, {"bits": 64, "unit": "ns"}),
     "datetime": (Timestamp, {}),
     "timestamp": (Timestamp, {}),
     "timestamptz": (TimestampTZ, {}),
