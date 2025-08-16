@@ -370,13 +370,13 @@ class TestTimestampTypes:
     def test_timestamptz_default_and_str(self):
         t = TimestampTZ()
         assert t.unit == "ns"
-        assert str(t) == "timestamptz(unit=ns)"
+        assert t.tz == "UTC"
+        assert str(t) == "timestamptz(unit=ns, tz=UTC)"
 
     def test_timestampltz_default_and_str(self):
         t = TimestampLTZ()
         assert t.unit == "ns"
-        assert t.tz == "UTC"
-        assert str(t) == "timestampltz(unit=ns, tz=UTC)"
+        assert str(t) == "timestampltz(unit=ns)"
 
     def test_timestampntz_default_and_str(self):
         t = TimestampNTZ()
@@ -393,14 +393,13 @@ class TestTimestampTypes:
     def test_timestamptz_valid_units(self, unit):
         t = TimestampTZ(unit=unit)
         assert t.unit == unit
-        assert str(t) == f"timestamptz(unit={unit.value})"
+        assert str(t) == f"timestamptz(unit={unit.value}, tz=UTC)"
 
     @pytest.mark.parametrize("unit", [TimeUnit.S, TimeUnit.MS, TimeUnit.US, TimeUnit.NS])
     def test_timestampltz_valid_units(self, unit):
         t = TimestampLTZ(unit=unit)
         assert t.unit == unit
-        assert t.tz == "UTC"
-        assert str(t) == f"timestampltz(unit={unit.value}, tz=UTC)"
+        assert str(t) == f"timestampltz(unit={unit.value})"
 
     @pytest.mark.parametrize("unit", [TimeUnit.S, TimeUnit.MS, TimeUnit.US, TimeUnit.NS])
     def test_timestampntz_valid_units(self, unit):
@@ -427,15 +426,15 @@ class TestTimestampTypes:
         ):
             TimestampLTZ(unit=unit)
 
-    def test_timestampltz_tz_validation(self):
+    def test_timestamptz_tz_validation(self):
         with pytest.raises(TypeDefinitionError, match="non-empty string"):
-            TimestampLTZ(tz="")
+            TimestampTZ(tz="")
         with pytest.raises(TypeDefinitionError, match="must not be None"):
-            TimestampLTZ(tz=None)  # type: ignore[arg-type]
+            TimestampTZ(tz=None)
 
-    def test_timestampltz_custom_tz_and_str(self):
-        t = TimestampLTZ(unit=TimeUnit.US, tz="America/New_York")
-        assert str(t) == "timestampltz(unit=us, tz=America/New_York)"
+    def test_timestamptz_custom_tz_and_str(self):
+        t = TimestampTZ(unit=TimeUnit.US, tz="America/New_York")
+        assert str(t) == "timestamptz(unit=us, tz=America/New_York)"
 
     @pytest.mark.parametrize("unit", ["m", "seconds", "NS", 1, None])
     def test_timestampntz_invalid_units_raise(self, unit):

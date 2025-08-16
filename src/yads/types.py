@@ -404,7 +404,8 @@ class Time(YadsType):
         unit: Smallest time unit for values. One of `"s"`, `"ms"`, `"us"`,
             or `"ns"`. Defaults to `"ms"`.
         bits: Storage width for logical time. One of `32` or `64`.
-            Defaults to `None`.
+            Defaults to `None`. Compatibility between bit width and unit
+            is delegated to target converters.
 
     Raises:
         TypeDefinitionError: If `unit` is not one of the supported values.
@@ -428,9 +429,6 @@ class Time(YadsType):
             raise TypeDefinitionError(
                 f"Time 'bits' must be one of 32 or 64, not {self.bits}."
             )
-        # Enforce unit compatibility with bit width
-        # Unit-to-bits compatibility is enforced in specific converters where
-        # the target system imposes restrictions (e.g., PyArrow time32/time64).
 
     def __str__(self) -> str:
         return _format_type_str(
@@ -483,60 +481,25 @@ class Timestamp(YadsType):
 
 @dataclass(frozen=True)
 class TimestampTZ(YadsType):
-    """Date and time type with timezone information.
+    """Date and time type with explicit timezone information.
 
-    Similar to Timestamp but includes timezone awareness. Maps to
-    TIMESTAMP WITH TIME ZONE or equivalent types in SQL dialects.
+    Represents an absolute point in time with a defined timezone. Maps to
+    TIMESTAMP WITH TIME ZONE (or equivalent) in SQL dialects.
 
     Args:
         unit: Smallest time unit for values. One of `"s"`, `"ms"`, `"us"`,
             or `"ns"`. Defaults to `"ns"`.
+        tz: IANA timezone name to interpret values, for example `"UTC"` or
+            `"America/New_York"`. Must be a non-empty string. Defaults to
+            `"UTC"`.
 
     Example:
         >>> TimestampTZ()
         >>> TimestampTZ(unit="us")
+        >>> TimestampTZ(unit="ns", tz="America/New_York")
         >>>
         >>> # Use in field definition
         >>> Field(name="order_time", type=TimestampTZ())
-    """
-
-    unit: TimeUnit | None = TimeUnit.NS
-
-    def __post_init__(self):
-        if not isinstance(self.unit, TimeUnit):
-            allowed = {u.value for u in TimeUnit}
-            raise TypeDefinitionError(
-                f"TimestampTZ 'unit' must be one of {allowed}, not {self.unit}."
-            )
-
-    def __str__(self) -> str:
-        return _format_type_str(
-            "timestamptz",
-            [("unit", self.unit.value if isinstance(self.unit, TimeUnit) else self.unit)],
-        )
-
-
-@dataclass(frozen=True)
-class TimestampLTZ(YadsType):
-    """Date and time type with local timezone information.
-
-    Similar to Timestamp but includes local timezone awareness. Maps to
-    TIMESTAMP WITH TIME ZONE or equivalent types in SQL dialects.
-
-    Args:
-        unit: Smallest time unit for values. One of `"s"`, `"ms"`, `"us"`,
-            or `"ns"`. Defaults to `"ns"`.
-        tz: IANA timezone name to interpret local-time values. Defaults to
-            `"UTC"`. Must not be None. If timezone handling is not desired,
-            use `Timestamp` or `TimestampNTZ` instead.
-
-    Example:
-        >>> TimestampLTZ()
-        >>> TimestampLTZ(unit="s")
-        >>> TimestampLTZ(unit="ns", tz="America/New_York")
-        >>>
-        >>> # Use in field definition
-        >>> Field(name="order_time", type=TimestampLTZ())
     """
 
     unit: TimeUnit | None = TimeUnit.NS
@@ -546,18 +509,18 @@ class TimestampLTZ(YadsType):
         if not isinstance(self.unit, TimeUnit):
             allowed = {u.value for u in TimeUnit}
             raise TypeDefinitionError(
-                f"TimestampLTZ 'unit' must be one of {allowed}, not {self.unit}."
+                f"TimestampTZ 'unit' must be one of {allowed}, not {self.unit}."
             )
-        if self.tz is None:  # type: ignore[unreachable]
+        if self.tz is None:
             raise TypeDefinitionError(
-                "TimestampLTZ 'tz' must not be None. Use Timestamp or TimestampNTZ for no timezone."
+                "TimestampTZ 'tz' must not be None. Use Timestamp or TimestampNTZ for no timezone."
             )
         if isinstance(self.tz, str) and not self.tz:
-            raise TypeDefinitionError("TimestampLTZ 'tz' must be a non-empty string.")
+            raise TypeDefinitionError("TimestampTZ 'tz' must be a non-empty string.")
 
     def __str__(self) -> str:
         return _format_type_str(
-            "timestampltz",
+            "timestamptz",
             [
                 (
                     "unit",
@@ -565,6 +528,44 @@ class TimestampLTZ(YadsType):
                 ),
                 ("tz", self.tz),
             ],
+        )
+
+
+@dataclass(frozen=True)
+class TimestampLTZ(YadsType):
+    """Date and time type with session-local timezone semantics.
+
+    Represents a timestamp whose timezone interpretation is delegated to the
+    client or query engine session settings. The spec does not carry a
+    timezone identifier for this type.
+
+    Maps to TIMESTAMP WITH LOCAL TIME ZONE (or equivalent) where supported.
+
+    Args:
+        unit: Smallest time unit for values. One of `"s"`, `"ms"`, `"us"`,
+            or `"ns"`. Defaults to `"ns"`.
+
+    Example:
+        >>> TimestampLTZ()
+        >>> TimestampLTZ(unit="s")
+        >>>
+        >>> # Use in field definition
+        >>> Field(name="order_time", type=TimestampLTZ())
+    """
+
+    unit: TimeUnit | None = TimeUnit.NS
+
+    def __post_init__(self):
+        if not isinstance(self.unit, TimeUnit):
+            allowed = {u.value for u in TimeUnit}
+            raise TypeDefinitionError(
+                f"TimestampLTZ 'unit' must be one of {allowed}, not {self.unit}."
+            )
+
+    def __str__(self) -> str:
+        return _format_type_str(
+            "timestampltz",
+            [("unit", self.unit.value if isinstance(self.unit, TimeUnit) else self.unit)],
         )
 
 

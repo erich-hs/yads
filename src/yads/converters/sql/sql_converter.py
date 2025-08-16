@@ -15,9 +15,9 @@ from sqlglot.expressions import DataType
 
 from ...spec import YadsSpec
 from ..base import BaseConverter
-from .ast_converter import SQLGlotConverter  # type: ignore[reportMissingImports]
-from .validators.ast_validator import AstValidator  # type: ignore[reportMissingImports]
-from .validators.ast_validation_rules import (  # type: ignore[reportMissingImports]
+from .ast_converter import SQLGlotConverter
+from .validators.ast_validator import AstValidator
+from .validators.ast_validation_rules import (
     AstValidationRule,
     DisallowType,
     DisallowParameterizedGeometryType,

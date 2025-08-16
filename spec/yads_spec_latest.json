@@ -227,7 +227,7 @@
             },
             "tz": {
               "type": "string",
-              "description": "IANA timezone string for local timestamp (timestampltz)."
+              "description": "IANA timezone string for timestamp with timezone (timestamptz)."
             },
             "size": {
               "type": "integer",
