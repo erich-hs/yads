@@ -31,7 +31,7 @@ import textwrap
 from abc import ABC
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 
 from .exceptions import TypeDefinitionError
 
@@ -48,6 +48,7 @@ __all__ = [
     "Boolean",
     "Binary",
     "Date",
+    "TimeUnit",
     "Time",
     "Timestamp",
     "TimestampTZ",
@@ -66,6 +67,26 @@ __all__ = [
     "Void",
     "Variant",
 ]
+
+
+def _format_type_str(type_name: str, params: list[tuple[str, Any]]) -> str:
+    """Render a consistent named-parameter string for a type.
+
+    Only parameters with non-None values are emitted. Values are rendered
+    without quotes to match existing formatting expectations for identifiers
+    like units or timezones (e.g., unit=ns, tz=UTC).
+    """
+    filtered = [(k, v) for k, v in params if v is not None]
+    if not filtered:
+        return type_name
+
+    def _render_value(value: Any) -> Any:
+        if isinstance(value, Enum):
+            return value.value
+        return value
+
+    inner = ", ".join(f"{k}={_render_value(v)}" for k, v in filtered)
+    return f"{type_name}({inner})"
 
 
 class YadsType(ABC):
@@ -115,9 +136,7 @@ class String(YadsType):
             )
 
     def __str__(self) -> str:
-        if self.length is not None:
-            return f"string({self.length})"
-        return "string"
+        return _format_type_str("string", [("length", self.length)])
 
 
 @dataclass(frozen=True)
@@ -212,9 +231,7 @@ class Float(YadsType):
             )
 
     def __str__(self) -> str:
-        if self.bits is not None:
-            return f"float(bits={self.bits})"
-        return "float"
+        return _format_type_str("float", [("bits", self.bits)])
 
 
 @dataclass(frozen=True)
@@ -270,13 +287,15 @@ class Decimal(YadsType):
 
     def __str__(self) -> str:
         if self.precision is not None and self.scale is not None:
-            inner = f"{self.precision}, {self.scale}"
-            if self.bits is not None:
-                inner += f", bits={self.bits}"
-            return f"decimal({inner})"
-        if self.bits is not None:
-            return f"decimal(bits={self.bits})"
-        return "decimal"
+            return _format_type_str(
+                "decimal",
+                [
+                    ("precision", self.precision),
+                    ("scale", self.scale),
+                    ("bits", self.bits),
+                ],
+            )
+        return _format_type_str("decimal", [("bits", self.bits)])
 
 
 @dataclass(frozen=True)
@@ -327,9 +346,7 @@ class Binary(YadsType):
             )
 
     def __str__(self) -> str:
-        if self.length is not None:
-            return f"binary({self.length})"
-        return "binary"
+        return _format_type_str("binary", [("length", self.length)])
 
 
 @dataclass(frozen=True)
@@ -361,7 +378,19 @@ class Date(YadsType):
             )
 
     def __str__(self) -> str:
-        return "date" if self.bits is None else f"date(bits={self.bits})"
+        return _format_type_str("date", [("bits", self.bits)])
+
+
+class TimeUnit(str, Enum):
+    """Granularity for logical time and timestamps.
+
+    Order reflects increasing coarseness: ns < us < ms < s.
+    """
+
+    NS = "ns"
+    US = "us"
+    MS = "ms"
+    S = "s"
 
 
 @dataclass(frozen=True)
@@ -386,14 +415,14 @@ class Time(YadsType):
         >>> Time(unit="ns", bits=64)
     """
 
-    unit: Literal["s", "ms", "us", "ns"] = "ms"
+    unit: TimeUnit | None = TimeUnit.MS
     bits: int | None = None
 
     def __post_init__(self):
-        valid_units = {"s", "ms", "us", "ns"}
-        if self.unit not in valid_units:
+        if not isinstance(self.unit, TimeUnit):
+            allowed = {u.value for u in TimeUnit}
             raise TypeDefinitionError(
-                f"Time 'unit' must be one of {valid_units}, not {self.unit}."
+                f"Time 'unit' must be one of {allowed}, not {self.unit}."
             )
         if self.bits is not None and self.bits not in {32, 64}:
             raise TypeDefinitionError(
@@ -404,10 +433,15 @@ class Time(YadsType):
         # the target system imposes restrictions (e.g., PyArrow time32/time64).
 
     def __str__(self) -> str:
-        return (
-            f"time(unit={self.unit})"
-            if self.bits is None
-            else f"time(unit={self.unit}, bits={self.bits})"
+        return _format_type_str(
+            "time",
+            [
+                (
+                    "unit",
+                    self.unit.value if isinstance(self.unit, TimeUnit) else self.unit,
+                ),
+                ("bits", self.bits),
+            ],
         )
 
 
@@ -431,17 +465,20 @@ class Timestamp(YadsType):
         >>> Field(name="created_at", type=Timestamp())
     """
 
-    unit: Literal["s", "ms", "us", "ns"] = "ns"
+    unit: TimeUnit | None = TimeUnit.NS
 
     def __post_init__(self):
-        valid_units = {"s", "ms", "us", "ns"}
-        if self.unit not in valid_units:
+        if not isinstance(self.unit, TimeUnit):
+            allowed = {u.value for u in TimeUnit}
             raise TypeDefinitionError(
-                f"Timestamp 'unit' must be one of {valid_units}, not {self.unit}."
+                f"Timestamp 'unit' must be one of {allowed}, not {self.unit}."
             )
 
     def __str__(self) -> str:
-        return f"timestamp(unit={self.unit})"
+        return _format_type_str(
+            "timestamp",
+            [("unit", self.unit.value if isinstance(self.unit, TimeUnit) else self.unit)],
+        )
 
 
 @dataclass(frozen=True)
@@ -463,17 +500,20 @@ class TimestampTZ(YadsType):
         >>> Field(name="order_time", type=TimestampTZ())
     """
 
-    unit: Literal["s", "ms", "us", "ns"] = "ns"
+    unit: TimeUnit | None = TimeUnit.NS
 
     def __post_init__(self):
-        valid_units = {"s", "ms", "us", "ns"}
-        if self.unit not in valid_units:
+        if not isinstance(self.unit, TimeUnit):
+            allowed = {u.value for u in TimeUnit}
             raise TypeDefinitionError(
-                f"TimestampTZ 'unit' must be one of {valid_units}, not {self.unit}."
+                f"TimestampTZ 'unit' must be one of {allowed}, not {self.unit}."
             )
 
     def __str__(self) -> str:
-        return f"timestamptz(unit={self.unit})"
+        return _format_type_str(
+            "timestamptz",
+            [("unit", self.unit.value if isinstance(self.unit, TimeUnit) else self.unit)],
+        )
 
 
 @dataclass(frozen=True)
@@ -499,14 +539,14 @@ class TimestampLTZ(YadsType):
         >>> Field(name="order_time", type=TimestampLTZ())
     """
 
-    unit: Literal["s", "ms", "us", "ns"] = "ns"
+    unit: TimeUnit | None = TimeUnit.NS
     tz: str = "UTC"
 
     def __post_init__(self):
-        valid_units = {"s", "ms", "us", "ns"}
-        if self.unit not in valid_units:
+        if not isinstance(self.unit, TimeUnit):
+            allowed = {u.value for u in TimeUnit}
             raise TypeDefinitionError(
-                f"TimestampLTZ 'unit' must be one of {valid_units}, not {self.unit}."
+                f"TimestampLTZ 'unit' must be one of {allowed}, not {self.unit}."
             )
         if self.tz is None:  # type: ignore[unreachable]
             raise TypeDefinitionError(
@@ -516,7 +556,16 @@ class TimestampLTZ(YadsType):
             raise TypeDefinitionError("TimestampLTZ 'tz' must be a non-empty string.")
 
     def __str__(self) -> str:
-        return f"timestampltz(unit={self.unit}, tz={self.tz})"
+        return _format_type_str(
+            "timestampltz",
+            [
+                (
+                    "unit",
+                    self.unit.value if isinstance(self.unit, TimeUnit) else self.unit,
+                ),
+                ("tz", self.tz),
+            ],
+        )
 
 
 @dataclass(frozen=True)
@@ -538,17 +587,20 @@ class TimestampNTZ(YadsType):
         >>> Field(name="order_time", type=TimestampNTZ())
     """
 
-    unit: Literal["s", "ms", "us", "ns"] = "ns"
+    unit: TimeUnit | None = TimeUnit.NS
 
     def __post_init__(self):
-        valid_units = {"s", "ms", "us", "ns"}
-        if self.unit not in valid_units:
+        if not isinstance(self.unit, TimeUnit):
+            allowed = {u.value for u in TimeUnit}
             raise TypeDefinitionError(
-                f"TimestampNTZ 'unit' must be one of {valid_units}, not {self.unit}."
+                f"TimestampNTZ 'unit' must be one of {allowed}, not {self.unit}."
             )
 
     def __str__(self) -> str:
-        return f"timestampntz(unit={self.unit})"
+        return _format_type_str(
+            "timestampntz",
+            [("unit", self.unit.value if isinstance(self.unit, TimeUnit) else self.unit)],
+        )
 
 
 @dataclass(frozen=True)
@@ -570,17 +622,20 @@ class Duration(YadsType):
         >>> Duration(unit="ms")
     """
 
-    unit: Literal["s", "ms", "us", "ns"] = "ns"
+    unit: TimeUnit | None = TimeUnit.NS
 
     def __post_init__(self):
-        valid_units = {"s", "ms", "us", "ns"}
-        if self.unit not in valid_units:
+        if not isinstance(self.unit, TimeUnit):
+            allowed = {u.value for u in TimeUnit}
             raise TypeDefinitionError(
-                f"Duration 'unit' must be one of {valid_units}, not {self.unit}."
+                f"Duration 'unit' must be one of {allowed}, not {self.unit}."
             )
 
     def __str__(self) -> str:
-        return f"duration(unit={self.unit})"
+        return _format_type_str(
+            "duration",
+            [("unit", self.unit.value if isinstance(self.unit, TimeUnit) else self.unit)],
+        )
 
 
 class IntervalTimeUnit(str, Enum):
@@ -634,17 +689,19 @@ class Interval(YadsType):
     interval_end: IntervalTimeUnit | None = None
 
     def __post_init__(self):
-        _YEAR_MONTH_UNITS = {IntervalTimeUnit.YEAR, IntervalTimeUnit.MONTH}
-        _DAY_TIME_UNITS = {
-            IntervalTimeUnit.DAY,
-            IntervalTimeUnit.HOUR,
-            IntervalTimeUnit.MINUTE,
-            IntervalTimeUnit.SECOND,
+        _UNIT_ORDER_MAP = {
+            "Year-Month": [IntervalTimeUnit.YEAR, IntervalTimeUnit.MONTH],
+            "Day-Time": [
+                IntervalTimeUnit.DAY,
+                IntervalTimeUnit.HOUR,
+                IntervalTimeUnit.MINUTE,
+                IntervalTimeUnit.SECOND,
+            ],
         }
 
         if self.interval_end:
-            in_ym_start = self.interval_start in _YEAR_MONTH_UNITS
-            in_ym_end = self.interval_end in _YEAR_MONTH_UNITS
+            in_ym_start = self.interval_start in _UNIT_ORDER_MAP["Year-Month"]
+            in_ym_end = self.interval_end in _UNIT_ORDER_MAP["Year-Month"]
 
             if in_ym_start != in_ym_end:
                 category_start = "Year-Month" if in_ym_start else "Day-Time"
@@ -657,18 +714,10 @@ class Interval(YadsType):
                     f"(category: {category_end})."
                 )
 
-        _UNIT_ORDER_MAP = {
-            "Year-Month": [IntervalTimeUnit.YEAR, IntervalTimeUnit.MONTH],
-            "Day-Time": [
-                IntervalTimeUnit.DAY,
-                IntervalTimeUnit.HOUR,
-                IntervalTimeUnit.MINUTE,
-                IntervalTimeUnit.SECOND,
-            ],
-        }
-
         category = (
-            "Year-Month" if self.interval_start in _YEAR_MONTH_UNITS else "Day-Time"
+            "Year-Month"
+            if self.interval_start in _UNIT_ORDER_MAP["Year-Month"]
+            else "Day-Time"
         )
         order = _UNIT_ORDER_MAP[category]
 
@@ -685,8 +734,16 @@ class Interval(YadsType):
 
     def __str__(self) -> str:
         if self.interval_end and self.interval_start != self.interval_end:
-            return f"interval({self.interval_start.value} to {self.interval_end.value})"
-        return f"interval({self.interval_start.value})"
+            return _format_type_str(
+                "interval",
+                [
+                    ("interval_start", self.interval_start.value),
+                    ("interval_end", self.interval_end.value),
+                ],
+            )
+        return _format_type_str(
+            "interval", [("interval_start", self.interval_start.value)]
+        )
 
 
 @dataclass(frozen=True)
@@ -829,7 +886,7 @@ class Geometry(YadsType):
     def __str__(self) -> str:
         if self.srid is None:
             return "geometry"
-        return f"geometry({self.srid})"
+        return _format_type_str("geometry", [("srid", self.srid)])
 
 
 @dataclass(frozen=True)
@@ -854,7 +911,7 @@ class Geography(YadsType):
     def __str__(self) -> str:
         if self.srid is None:
             return "geography"
-        return f"geography({self.srid})"
+        return _format_type_str("geography", [("srid", self.srid)])
 
 
 @dataclass(frozen=True)
@@ -938,8 +995,8 @@ TYPE_ALIASES: dict[str, tuple[type[YadsType], dict[str, Any]]] = {
     "date32": (Date, {"bits": 32}),
     "date64": (Date, {"bits": 64}),
     "time": (Time, {}),
-    "time32": (Time, {"bits": 32, "unit": "ms"}),
-    "time64": (Time, {"bits": 64, "unit": "ns"}),
+    "time32": (Time, {"bits": 32, "unit": TimeUnit.MS}),
+    "time64": (Time, {"bits": 64, "unit": TimeUnit.NS}),
     "datetime": (Timestamp, {}),
     "timestamp": (Timestamp, {}),
     "timestamptz": (TimestampTZ, {}),

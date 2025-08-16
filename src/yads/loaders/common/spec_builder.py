@@ -42,6 +42,7 @@ from ...types import (
     Array,
     Interval,
     IntervalTimeUnit,
+    TimeUnit,
     Map,
     Struct,
     YadsType,
@@ -165,7 +166,12 @@ class SpecBuilder:
 
         # For simple types, get processed params and instantiate
         final_params = self._get_processed_type_params(type_name, type_def)
-        return base_type_class(**final_params)  # type: ignore[misc]
+
+        # Normalize temporal units to TimeUnit enum when present and applicable
+        if "unit" in final_params and isinstance(final_params["unit"], str):
+            final_params["unit"] = TimeUnit(final_params["unit"])
+
+        return base_type_class(**final_params)
 
     def _parse_interval_type(self, type_def: dict[str, Any]) -> Interval:
         type_name = type_def.get("type", "")

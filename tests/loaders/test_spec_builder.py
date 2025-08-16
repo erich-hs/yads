@@ -22,6 +22,7 @@ from yads.types import (
     Boolean,
     Binary,
     Date,
+    TimeUnit,
     Time,
     Timestamp,
     TimestampTZ,
@@ -811,7 +812,7 @@ class TestTypeLoading:
             (
                 {"type": "string", "params": {"length": 255}},
                 String(length=255),
-                "string(255)",
+                "string(length=255)",
             ),
             # Integer types
             ({"type": "int8"}, Integer(bits=8), "integer(bits=8)"),
@@ -833,12 +834,12 @@ class TestTypeLoading:
             (
                 {"type": "decimal", "params": {"precision": 10, "scale": 2}},
                 Decimal(precision=10, scale=2),
-                "decimal(10, 2)",
+                "decimal(precision=10, scale=2)",
             ),
             (
                 {"type": "decimal", "params": {"precision": 12, "scale": -3}},
                 Decimal(precision=12, scale=-3),
-                "decimal(12, -3)",
+                "decimal(precision=12, scale=-3)",
             ),
             (
                 {"type": "decimal", "params": {"bits": 256}},
@@ -857,71 +858,79 @@ class TestTypeLoading:
             ({"type": "date64"}, Date(bits=64), "date(bits=64)"),
             ({"type": "time"}, Time(), "time(unit=ms)"),
             ({"type": "time32"}, Time(bits=32), "time(unit=ms, bits=32)"),
-            ({"type": "time64"}, Time(bits=64, unit="ns"), "time(unit=ns, bits=64)"),
-            ({"type": "time", "params": {"unit": "s"}}, Time(unit="s"), "time(unit=s)"),
+            (
+                {"type": "time64"},
+                Time(bits=64, unit=TimeUnit.NS),
+                "time(unit=ns, bits=64)",
+            ),
+            (
+                {"type": "time", "params": {"unit": "s"}},
+                Time(unit=TimeUnit.S),
+                "time(unit=s)",
+            ),
             ({"type": "timestamp"}, Timestamp(), "timestamp(unit=ns)"),
             (
                 {"type": "timestamp", "params": {"unit": "s"}},
-                Timestamp(unit="s"),
+                Timestamp(unit=TimeUnit.S),
                 "timestamp(unit=s)",
             ),
             ({"type": "timestamptz"}, TimestampTZ(), "timestamptz(unit=ns)"),
             (
                 {"type": "timestamptz", "params": {"unit": "s"}},
-                TimestampTZ(unit="s"),
+                TimestampTZ(unit=TimeUnit.S),
                 "timestamptz(unit=s)",
             ),
             ({"type": "timestamp_tz"}, TimestampTZ(), "timestamptz(unit=ns)"),
             ({"type": "timestampltz"}, TimestampLTZ(), "timestampltz(unit=ns, tz=UTC)"),
             (
                 {"type": "timestampltz", "params": {"unit": "s"}},
-                TimestampLTZ(unit="s"),
+                TimestampLTZ(unit=TimeUnit.S),
                 "timestampltz(unit=s, tz=UTC)",
             ),
             ({"type": "timestamp_ltz"}, TimestampLTZ(), "timestampltz(unit=ns, tz=UTC)"),
             ({"type": "timestampntz"}, TimestampNTZ(), "timestampntz(unit=ns)"),
             (
                 {"type": "timestampntz", "params": {"unit": "s"}},
-                TimestampNTZ(unit="s"),
+                TimestampNTZ(unit=TimeUnit.S),
                 "timestampntz(unit=s)",
             ),
             ({"type": "timestamp_ntz"}, TimestampNTZ(), "timestampntz(unit=ns)"),
             ({"type": "duration"}, Duration(), "duration(unit=ns)"),
             (
                 {"type": "duration", "params": {"unit": "s"}},
-                Duration(unit="s"),
+                Duration(unit=TimeUnit.S),
                 "duration(unit=s)",
             ),
             # Interval types
             (
                 {"type": "interval", "params": {"interval_start": "YEAR"}},
                 Interval(interval_start=IntervalTimeUnit.YEAR),
-                "interval(YEAR)",
+                "interval(interval_start=YEAR)",
             ),
             (
                 {"type": "interval", "params": {"interval_start": "MONTH"}},
                 Interval(interval_start=IntervalTimeUnit.MONTH),
-                "interval(MONTH)",
+                "interval(interval_start=MONTH)",
             ),
             (
                 {"type": "interval", "params": {"interval_start": "DAY"}},
                 Interval(interval_start=IntervalTimeUnit.DAY),
-                "interval(DAY)",
+                "interval(interval_start=DAY)",
             ),
             (
                 {"type": "interval", "params": {"interval_start": "HOUR"}},
                 Interval(interval_start=IntervalTimeUnit.HOUR),
-                "interval(HOUR)",
+                "interval(interval_start=HOUR)",
             ),
             (
                 {"type": "interval", "params": {"interval_start": "MINUTE"}},
                 Interval(interval_start=IntervalTimeUnit.MINUTE),
-                "interval(MINUTE)",
+                "interval(interval_start=MINUTE)",
             ),
             (
                 {"type": "interval", "params": {"interval_start": "SECOND"}},
                 Interval(interval_start=IntervalTimeUnit.SECOND),
-                "interval(SECOND)",
+                "interval(interval_start=SECOND)",
             ),
             (
                 {
@@ -932,7 +941,7 @@ class TestTypeLoading:
                     interval_start=IntervalTimeUnit.YEAR,
                     interval_end=IntervalTimeUnit.MONTH,
                 ),
-                "interval(YEAR to MONTH)",
+                "interval(interval_start=YEAR, interval_end=MONTH)",
             ),
             (
                 {
@@ -943,7 +952,7 @@ class TestTypeLoading:
                     interval_start=IntervalTimeUnit.DAY,
                     interval_end=IntervalTimeUnit.SECOND,
                 ),
-                "interval(DAY to SECOND)",
+                "interval(interval_start=DAY, interval_end=SECOND)",
             ),
             # Complex types
             ({"type": "json"}, JSON(), "json"),
@@ -954,12 +963,12 @@ class TestTypeLoading:
             (
                 {"type": "geometry", "params": {"srid": 4326}},
                 Geometry(srid=4326),
-                "geometry(4326)",
+                "geometry(srid=4326)",
             ),
             (
                 {"type": "geography", "params": {"srid": 4326}},
                 Geography(srid=4326),
-                "geography(4326)",
+                "geography(srid=4326)",
             ),
             # Other types
             ({"type": "uuid"}, UUID(), "uuid"),

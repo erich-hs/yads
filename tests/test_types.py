@@ -10,6 +10,7 @@ from yads.types import (
     Boolean,
     Binary,
     Date,
+    TimeUnit,
     Time,
     Timestamp,
     TimestampTZ,
@@ -39,7 +40,7 @@ class TestStringType:
     def test_string_with_length(self):
         t = String(length=255)
         assert t.length == 255
-        assert str(t) == "string(255)"
+        assert str(t) == "string(length=255)"
 
     @pytest.mark.parametrize("invalid_length", [0, -1, -100])
     def test_string_invalid_length_raises_error(self, invalid_length):
@@ -123,7 +124,7 @@ class TestDecimalType:
         t = Decimal(precision=10, scale=2)
         assert t.precision == 10
         assert t.scale == 2
-        assert str(t) == "decimal(10, 2)"
+        assert str(t) == "decimal(precision=10, scale=2)"
 
     def test_decimal_with_only_precision_raises_error(self):
         with pytest.raises(
@@ -143,7 +144,7 @@ class TestDecimalType:
         t = Decimal(precision=10, scale=-2)
         assert t.precision == 10
         assert t.scale == -2
-        assert str(t) == "decimal(10, -2)"
+        assert str(t) == "decimal(precision=10, scale=-2)"
 
     def test_decimal_bits_parameter(self):
         # Default bits omitted in str
@@ -151,7 +152,10 @@ class TestDecimalType:
         # Explicit bits in parameter-only form
         assert str(Decimal(bits=256)) == "decimal(bits=256)"
         # With precision/scale include bits when non-default
-        assert str(Decimal(precision=10, scale=2, bits=256)) == "decimal(10, 2, bits=256)"
+        assert (
+            str(Decimal(precision=10, scale=2, bits=256))
+            == "decimal(precision=10, scale=2, bits=256)"
+        )
 
     @pytest.mark.parametrize("invalid_bits", [8, 16, 32, 64, 0, -1, 129])
     def test_decimal_invalid_bits_raises_error(self, invalid_bits):
@@ -167,10 +171,18 @@ class TestIntervalType:
     @pytest.mark.parametrize(
         "start, end, expected_str",
         [
-            (IntervalTimeUnit.YEAR, None, "interval(YEAR)"),
-            (IntervalTimeUnit.MONTH, None, "interval(MONTH)"),
-            (IntervalTimeUnit.YEAR, IntervalTimeUnit.MONTH, "interval(YEAR to MONTH)"),
-            (IntervalTimeUnit.YEAR, IntervalTimeUnit.YEAR, "interval(YEAR)"),
+            (IntervalTimeUnit.YEAR, None, "interval(interval_start=YEAR)"),
+            (IntervalTimeUnit.MONTH, None, "interval(interval_start=MONTH)"),
+            (
+                IntervalTimeUnit.YEAR,
+                IntervalTimeUnit.MONTH,
+                "interval(interval_start=YEAR, interval_end=MONTH)",
+            ),
+            (
+                IntervalTimeUnit.YEAR,
+                IntervalTimeUnit.YEAR,
+                "interval(interval_start=YEAR)",
+            ),
         ],
     )
     def test_valid_year_month_intervals(self, start, end, expected_str):
@@ -181,18 +193,30 @@ class TestIntervalType:
     @pytest.mark.parametrize(
         "start, end, expected_str",
         [
-            (IntervalTimeUnit.DAY, None, "interval(DAY)"),
-            (IntervalTimeUnit.HOUR, None, "interval(HOUR)"),
-            (IntervalTimeUnit.MINUTE, None, "interval(MINUTE)"),
-            (IntervalTimeUnit.SECOND, None, "interval(SECOND)"),
-            (IntervalTimeUnit.DAY, IntervalTimeUnit.HOUR, "interval(DAY to HOUR)"),
-            (IntervalTimeUnit.DAY, IntervalTimeUnit.SECOND, "interval(DAY to SECOND)"),
+            (IntervalTimeUnit.DAY, None, "interval(interval_start=DAY)"),
+            (IntervalTimeUnit.HOUR, None, "interval(interval_start=HOUR)"),
+            (IntervalTimeUnit.MINUTE, None, "interval(interval_start=MINUTE)"),
+            (IntervalTimeUnit.SECOND, None, "interval(interval_start=SECOND)"),
+            (
+                IntervalTimeUnit.DAY,
+                IntervalTimeUnit.HOUR,
+                "interval(interval_start=DAY, interval_end=HOUR)",
+            ),
+            (
+                IntervalTimeUnit.DAY,
+                IntervalTimeUnit.SECOND,
+                "interval(interval_start=DAY, interval_end=SECOND)",
+            ),
             (
                 IntervalTimeUnit.MINUTE,
                 IntervalTimeUnit.SECOND,
-                "interval(MINUTE to SECOND)",
+                "interval(interval_start=MINUTE, interval_end=SECOND)",
             ),
-            (IntervalTimeUnit.SECOND, IntervalTimeUnit.SECOND, "interval(SECOND)"),
+            (
+                IntervalTimeUnit.SECOND,
+                IntervalTimeUnit.SECOND,
+                "interval(interval_start=SECOND)",
+            ),
         ],
     )
     def test_valid_day_time_intervals(self, start, end, expected_str):
@@ -224,7 +248,7 @@ class TestComplexTypes:
         t = Array(element=String(length=50))
         assert isinstance(t.element, String)
         assert t.element.length == 50
-        assert str(t) == "array<string(50)>"
+        assert str(t) == "array<string(length=50)>"
 
     def test_nested_array_type(self):
         t = Array(element=Array(element=Integer(bits=32)))
@@ -284,7 +308,7 @@ class TestBinaryType:
     def test_binary_with_length(self):
         t = Binary(length=16)
         assert t.length == 16
-        assert str(t) == "binary(16)"
+        assert str(t) == "binary(length=16)"
 
     @pytest.mark.parametrize("invalid_length", [0, -1, -100])
     def test_binary_invalid_length_raises_error(self, invalid_length):
@@ -315,19 +339,19 @@ class TestDateType:
 class TestTimeType:
     def test_time_default_and_str(self):
         t = Time()
-        assert t.unit == "ms"
+        assert t.unit == TimeUnit.MS
         assert t.bits is None
         assert str(t) == "time(unit=ms)"
 
-    @pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
+    @pytest.mark.parametrize("unit", [TimeUnit.S, TimeUnit.MS, TimeUnit.US, TimeUnit.NS])
     def test_time_valid_units(self, unit):
         t = Time(unit=unit)
         assert t.unit == unit
-        assert str(t) == f"time(unit={unit})"
+        assert str(t) == f"time(unit={unit.value})"
 
     def test_time_bits_validation(self):
         assert Time(bits=32).bits == 32
-        assert Time(bits=64, unit="us").bits == 64
+        assert Time(bits=64, unit=TimeUnit.US).bits == 64
         with pytest.raises(TypeDefinitionError, match="Time 'bits' must be one of"):
             Time(bits=16)
 
@@ -359,30 +383,30 @@ class TestTimestampTypes:
         assert t.unit == "ns"
         assert str(t) == "timestampntz(unit=ns)"
 
-    @pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
+    @pytest.mark.parametrize("unit", [TimeUnit.S, TimeUnit.MS, TimeUnit.US, TimeUnit.NS])
     def test_timestamp_valid_units(self, unit):
         t = Timestamp(unit=unit)
         assert t.unit == unit
-        assert str(t) == f"timestamp(unit={unit})"
+        assert str(t) == f"timestamp(unit={unit.value})"
 
-    @pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
+    @pytest.mark.parametrize("unit", [TimeUnit.S, TimeUnit.MS, TimeUnit.US, TimeUnit.NS])
     def test_timestamptz_valid_units(self, unit):
         t = TimestampTZ(unit=unit)
         assert t.unit == unit
-        assert str(t) == f"timestamptz(unit={unit})"
+        assert str(t) == f"timestamptz(unit={unit.value})"
 
-    @pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
+    @pytest.mark.parametrize("unit", [TimeUnit.S, TimeUnit.MS, TimeUnit.US, TimeUnit.NS])
     def test_timestampltz_valid_units(self, unit):
         t = TimestampLTZ(unit=unit)
         assert t.unit == unit
         assert t.tz == "UTC"
-        assert str(t) == f"timestampltz(unit={unit}, tz=UTC)"
+        assert str(t) == f"timestampltz(unit={unit.value}, tz=UTC)"
 
-    @pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
+    @pytest.mark.parametrize("unit", [TimeUnit.S, TimeUnit.MS, TimeUnit.US, TimeUnit.NS])
     def test_timestampntz_valid_units(self, unit):
         t = TimestampNTZ(unit=unit)
         assert t.unit == unit
-        assert str(t) == f"timestampntz(unit={unit})"
+        assert str(t) == f"timestampntz(unit={unit.value})"
 
     @pytest.mark.parametrize("unit", ["m", "seconds", "NS", 1, None])
     def test_timestamp_invalid_units_raise(self, unit):
@@ -410,7 +434,7 @@ class TestTimestampTypes:
             TimestampLTZ(tz=None)  # type: ignore[arg-type]
 
     def test_timestampltz_custom_tz_and_str(self):
-        t = TimestampLTZ(unit="us", tz="America/New_York")
+        t = TimestampLTZ(unit=TimeUnit.US, tz="America/New_York")
         assert str(t) == "timestampltz(unit=us, tz=America/New_York)"
 
     @pytest.mark.parametrize("unit", ["m", "seconds", "NS", 1, None])
@@ -424,14 +448,14 @@ class TestTimestampTypes:
 class TestDurationType:
     def test_duration_default_and_str(self):
         d = Duration()
-        assert d.unit == "ns"
+        assert d.unit == TimeUnit.NS
         assert str(d) == "duration(unit=ns)"
 
-    @pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
+    @pytest.mark.parametrize("unit", [TimeUnit.S, TimeUnit.MS, TimeUnit.US, TimeUnit.NS])
     def test_duration_valid_units(self, unit):
         d = Duration(unit=unit)
         assert d.unit == unit
-        assert str(d) == f"duration(unit={unit})"
+        assert str(d) == f"duration(unit={unit.value})"
 
     @pytest.mark.parametrize("unit", ["m", "seconds", "NS", 1, None])
     def test_duration_invalid_units_raise(self, unit):

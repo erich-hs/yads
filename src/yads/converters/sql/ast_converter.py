@@ -30,6 +30,8 @@ from ...types import (
     Decimal,
     Float,
     Integer,
+    Geography,
+    Geometry,
     Timestamp,
     TimestampTZ,
     TimestampLTZ,
@@ -254,6 +256,24 @@ class SQLGlotConverter(BaseConverter):
             expressions=[key_type, value_type],
             nested=exp.DataType.Type.MAP in exp.DataType.NESTED_TYPES,
         )
+
+    @_convert_type.register(Geometry)
+    def _(self, yads_type: Geometry) -> exp.DataType:
+        expressions = (
+            [exp.DataTypeParam(this=convert(yads_type.srid))]
+            if yads_type.srid is not None
+            else None
+        )
+        return exp.DataType(this=exp.DataType.Type.GEOMETRY, expressions=expressions)
+
+    @_convert_type.register(Geography)
+    def _(self, yads_type: Geography) -> exp.DataType:
+        expressions = (
+            [exp.DataTypeParam(this=convert(yads_type.srid))]
+            if yads_type.srid is not None
+            else None
+        )
+        return exp.DataType(this=exp.DataType.Type.GEOGRAPHY, expressions=expressions)
 
     @singledispatchmethod
     def _convert_column_constraint(self, constraint: Any) -> exp.ColumnConstraint:
