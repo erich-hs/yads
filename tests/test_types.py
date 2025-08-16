@@ -268,10 +268,10 @@ class TestComplexTypes:
         assert isinstance(t.value, Integer)
         assert str(t) == "map<string, integer>"
 
-    def test_map_ordered_true(self):
-        t = Map(key=String(), value=Integer(), ordered=True)
-        assert t.ordered is True
-        assert str(t) == "map<string, integer, ordered=True>"
+    def test_map_keys_sorted_true(self):
+        t = Map(key=String(), value=Integer(), keys_sorted=True)
+        assert t.keys_sorted is True
+        assert str(t) == "map<string, integer, keys_sorted=True>"
 
     def test_struct_type_is_not_tested_here(self):
         """

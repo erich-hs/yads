@@ -233,9 +233,9 @@
               "type": "integer",
               "description": "The maximum number of elements in an array (fixed-size)."
             },
-            "ordered": {
+            "keys_sorted": {
               "type": "boolean",
-              "description": "Whether the map type has ordered keys.",
+              "description": "Whether the map type has sorted keys.",
               "default": false
             },
             "interval_start": {

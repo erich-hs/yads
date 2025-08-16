@@ -827,7 +827,7 @@ class Map(YadsType):
     Args:
         key: The type of all keys in the map.
         value: The type of all values in the map.
-        ordered: Whether the map has ordered keys. Defaults to False.
+        keys_sorted: Whether the map has sorted keys. Defaults to False.
 
     Example:
         >>> # String-to-string mapping
@@ -842,11 +842,11 @@ class Map(YadsType):
 
     key: YadsType
     value: YadsType
-    ordered: bool = False
+    keys_sorted: bool = False
 
     def __str__(self) -> str:
-        if self.ordered:
-            return f"map<{self.key}, {self.value}, ordered=True>"
+        if self.keys_sorted:
+            return f"map<{self.key}, {self.value}, keys_sorted=True>"
         return f"map<{self.key}, {self.value}>"
 
 
