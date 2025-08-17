@@ -68,8 +68,8 @@ class PyArrowConverter(BaseConverter):
     conversion:
 
     - `mode`: Controls validation/coercion behavior for incompatible
-      parameter combinations. One of `"strict"` (default), `"coerce"`,
-      or `"ignore"`. In `"strict"` mode, incompatible parameters raise
+      parameter combinations. One of `"raise"` (default), `"coerce"`,
+      or `"ignore"`. In `"raise"` mode, incompatible parameters raise
       `UnsupportedFeatureError`. In `"coerce"` mode, the converter attempts
       to coerce to a compatible target (e.g., promote decimal to 256-bit or
       time to 64-bit when units require it). In `"ignore"` mode, columns
@@ -97,9 +97,9 @@ class PyArrowConverter(BaseConverter):
         Args:
             spec: The yads spec as a `YadsSpec` object.
             **kwargs: Optional conversion modifiers:
-                mode: `"strict"`, `"coerce"`, or `"ignore"`. Controls how
+                mode: `"raise"`, `"coerce"`, or `"ignore"`. Controls how
                     incompatible type parameters are handled and whether
-                    unsupported columns are skipped. Defaults to `"strict"`.
+                    unsupported columns are skipped. Defaults to `"raise"`.
                 use_large_string: If `True`, maps `String` to
                     `pa.large_string()`. Defaults to `False`.
                 use_large_binary: If `True`, maps `Binary(length=None)` to
@@ -112,10 +112,10 @@ class PyArrowConverter(BaseConverter):
         Returns:
             A `pyarrow.Schema` with fields mapped from the spec columns.
         """
-        self._mode: str = kwargs.get("mode", "strict")
-        if self._mode not in {"strict", "coerce", "ignore"}:
+        self._mode: str = kwargs.get("mode", "raise")
+        if self._mode not in {"raise", "coerce", "ignore"}:
             raise UnsupportedFeatureError(
-                "mode must be one of 'strict', 'coerce', or 'ignore'."
+                "mode must be one of 'raise', 'coerce', or 'ignore'."
             )
         self._use_large_string: bool = bool(kwargs.get("use_large_string", False))
         self._use_large_binary: bool = bool(kwargs.get("use_large_binary", False))
