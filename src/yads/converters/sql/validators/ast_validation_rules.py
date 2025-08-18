@@ -90,66 +90,6 @@ class DisallowType(AstValidationRule):
         return f"The data type will be replaced with '{self.fallback_type.name}'."
 
 
-class DisallowFixedLengthString(AstValidationRule):
-    """Remove fixed-length parameters from string data types (e.g., VARCHAR(50))."""
-
-    def _is_fixed_length_string(self, node: exp.Expression) -> TypeGuard[exp.DataType]:
-        return (
-            isinstance(node, DataType)
-            and node.this in DataType.TEXT_TYPES
-            and bool(node.expressions)
-        )
-
-    def validate(self, node: exp.Expression) -> str | None:
-        if self._is_fixed_length_string(node):
-            column_name = _get_ancestor_column_name(node)
-            return f"Fixed-length strings are not supported for column '{column_name}'."
-        return None
-
-    def adjust(self, node: exp.Expression) -> exp.Expression:
-        if self._is_fixed_length_string(node):
-            node.set("expressions", None)
-        return node
-
-    @property
-    def adjustment_description(self) -> str:
-        return "The length parameter will be removed."
-
-
-class DisallowParameterizedGeometryType(AstValidationRule):
-    """Disallow parameterized GEOMETRY types such as GEOMETRY(4326).
-
-    Some dialects (e.g., DuckDB) do not accept SRID or any parameter bound to
-    the GEOMETRY type in column definitions. This rule flags any GEOMETRY type
-    carrying parameters and, when adjusting, removes those parameters while
-    keeping the GEOMETRY type.
-    """
-
-    def _is_parameterized_geometry(self, node: exp.Expression) -> TypeGuard[exp.DataType]:
-        return (
-            isinstance(node, DataType)
-            and node.this == DataType.Type.GEOMETRY
-            and bool(node.expressions)
-        )
-
-    def validate(self, node: exp.Expression) -> str | None:
-        if self._is_parameterized_geometry(node):
-            column_name = _get_ancestor_column_name(node)
-            return (
-                f"Parameterized 'GEOMETRY' is not supported for column '{column_name}'."
-            )
-        return None
-
-    def adjust(self, node: exp.Expression) -> exp.Expression:
-        if self._is_parameterized_geometry(node):
-            node.set("expressions", None)
-        return node
-
-    @property
-    def adjustment_description(self) -> str:
-        return "The parameters will be removed."
-
-
 class DisallowVoidType(AstValidationRule):
     """Disallow VOID type and replace it with TEXT.
 
@@ -177,6 +117,60 @@ class DisallowVoidType(AstValidationRule):
     @property
     def adjustment_description(self) -> str:
         return "The data type will be replaced with 'TEXT'."
+
+
+class DisallowFixedLengthString(AstValidationRule):
+    """Remove fixed-length STRING types such as VARCHAR(50)."""
+
+    def _is_fixed_length_string(self, node: exp.Expression) -> TypeGuard[exp.DataType]:
+        return (
+            isinstance(node, DataType)
+            and node.this in DataType.TEXT_TYPES
+            and bool(node.expressions)
+        )
+
+    def validate(self, node: exp.Expression) -> str | None:
+        if self._is_fixed_length_string(node):
+            column_name = _get_ancestor_column_name(node)
+            return f"Fixed-length strings are not supported for column '{column_name}'."
+        return None
+
+    def adjust(self, node: exp.Expression) -> exp.Expression:
+        if self._is_fixed_length_string(node):
+            node.set("expressions", None)
+        return node
+
+    @property
+    def adjustment_description(self) -> str:
+        return "The length parameter will be removed."
+
+
+class DisallowParameterizedGeometry(AstValidationRule):
+    """Disallow parameterized GEOMETRY types such as GEOMETRY(4326)."""
+
+    def _is_parameterized_geometry(self, node: exp.Expression) -> TypeGuard[exp.DataType]:
+        return (
+            isinstance(node, DataType)
+            and node.this == DataType.Type.GEOMETRY
+            and bool(node.expressions)
+        )
+
+    def validate(self, node: exp.Expression) -> str | None:
+        if self._is_parameterized_geometry(node):
+            column_name = _get_ancestor_column_name(node)
+            return (
+                f"Parameterized 'GEOMETRY' is not supported for column '{column_name}'."
+            )
+        return None
+
+    def adjust(self, node: exp.Expression) -> exp.Expression:
+        if self._is_parameterized_geometry(node):
+            node.set("expressions", None)
+        return node
+
+    @property
+    def adjustment_description(self) -> str:
+        return "The parameters will be removed."
 
 
 class DisallowColumnConstraintGeneratedIdentity(AstValidationRule):
@@ -227,12 +221,7 @@ class DisallowColumnConstraintGeneratedIdentity(AstValidationRule):
 
 
 class DisallowTableConstraintPrimaryKeyNullsFirst(AstValidationRule):
-    """Remove NULLS FIRST from table-level PRIMARY KEY constraints.
-
-    Some dialects, including DuckDB, do not take a NULLS ordering modifier in
-    PRIMARY KEY column lists. This rule detects NULLS FIRST markers on the
-    ordered PK columns and removes them.
-    """
+    """Remove NULLS FIRST from table-level PRIMARY KEY constraints."""
 
     def _has_nulls_first(self, node: PrimaryKey) -> bool:
         expressions = node.args.get("expressions") or []

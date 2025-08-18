@@ -7,7 +7,7 @@ from sqlglot.expressions import ColumnDef, DataType
 from yads.converters.sql.validators.ast_validation_rules import (
     DisallowFixedLengthString,
     DisallowType,
-    DisallowParameterizedGeometryType,
+    DisallowParameterizedGeometry,
     DisallowVoidType,
     DisallowColumnConstraintGeneratedIdentity,
     DisallowTableConstraintPrimaryKeyNullsFirst,
@@ -138,11 +138,11 @@ class TestDisallowFixedLengthString:
         assert rule.adjustment_description == "The length parameter will be removed."
 
 
-# %% DisallowParameterizedGeometryType
-class TestDisallowParameterizedGeometryType:
+# %% DisallowParameterizedGeometry
+class TestDisallowParameterizedGeometry:
     @pytest.fixture
-    def rule(self) -> DisallowParameterizedGeometryType:
-        return DisallowParameterizedGeometryType()
+    def rule(self) -> DisallowParameterizedGeometry:
+        return DisallowParameterizedGeometry()
 
     @pytest.mark.parametrize(
         "sql, expected",
@@ -156,7 +156,7 @@ class TestDisallowParameterizedGeometryType:
         ],
     )
     def test_validate_parameterized_geometry(
-        self, rule: DisallowParameterizedGeometryType, sql: str, expected: str | None
+        self, rule: DisallowParameterizedGeometry, sql: str, expected: str | None
     ):
         ast = parse_one(f"CREATE TABLE t (col {sql})")
         assert ast
@@ -168,7 +168,7 @@ class TestDisallowParameterizedGeometryType:
         assert rule.validate(data_type) == expected
 
     def test_adjust_removes_geometry_parameters(
-        self, rule: DisallowParameterizedGeometryType
+        self, rule: DisallowParameterizedGeometry
     ):
         ast = parse_one("CREATE TABLE t (col GEOMETRY(4326))")
         assert ast
@@ -181,7 +181,7 @@ class TestDisallowParameterizedGeometryType:
         assert adjusted.this == DataType.Type.GEOMETRY
         assert not adjusted.expressions
 
-    def test_adjustment_description(self, rule: DisallowParameterizedGeometryType):
+    def test_adjustment_description(self, rule: DisallowParameterizedGeometry):
         assert rule.adjustment_description == "The parameters will be removed."
 
 

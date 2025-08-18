@@ -20,7 +20,7 @@ from .validators.ast_validator import AstValidator
 from .validators.ast_validation_rules import (
     AstValidationRule,
     DisallowType,
-    DisallowParameterizedGeometryType,
+    DisallowParameterizedGeometry,
     DisallowVoidType,
     DisallowColumnConstraintGeneratedIdentity,
     DisallowTableConstraintPrimaryKeyNullsFirst,
@@ -176,7 +176,7 @@ class DuckdbSQLConverter(SQLConverter):
             ),
             DisallowVoidType(),
             DisallowType(disallow_type=DataType.Type.GEOGRAPHY),
-            DisallowParameterizedGeometryType(),
+            DisallowParameterizedGeometry(),
             DisallowType(disallow_type=DataType.Type.VARIANT),
             DisallowColumnConstraintGeneratedIdentity(),
             DisallowTableConstraintPrimaryKeyNullsFirst(),
