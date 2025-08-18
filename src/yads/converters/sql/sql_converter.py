@@ -71,7 +71,7 @@ class SQLConverter:
         or_replace: bool = False,
         ignore_catalog: bool = False,
         ignore_database: bool = False,
-        mode: Literal["raise", "warn", "ignore"] = "warn",
+        mode: Literal["raise", "coerce"] = "coerce",
         **kwargs: Any,
     ) -> str:
         """Convert a yads `YadsSpec` into a SQL DDL string.
@@ -87,11 +87,8 @@ class SQLConverter:
             ignore_catalog: If True, omits the catalog from the table name.
             ignore_database: If True, omits the database from the table name.
             mode: Validation mode when an ast_validator is configured:
-                - "raise": Raise ValidationRuleError for any unsupported features.
-                - "warn": Log warnings and automatically adjust AST for compatibility.
-                - "ignore": Silently ignore unsupported features without warnings.
-                            The generated SQL DDL might still contain modifications
-                            done by the AST converter.
+                - "raise": Raise on any unsupported features.
+                - "coerce": Apply adjustments to produce a valid AST and emit warnings.
             **kwargs: Additional options for SQL DDL string serialization, overriding
                       defaults. For a `SQLGlotConverter`, see sqlglot's documentation
                       for supported options:
@@ -126,10 +123,8 @@ class SQLConverter:
             match mode:
                 case "raise":
                     self._convert_options["unsupported_level"] = ErrorLevel.RAISE
-                case "warn":
+                case "coerce":
                     self._convert_options["unsupported_level"] = ErrorLevel.WARN
-                case "ignore":
-                    self._convert_options["unsupported_level"] = ErrorLevel.IGNORE
 
         options = {**self._convert_options, **kwargs}
         return ast.sql(dialect=self._dialect, **options)
@@ -175,7 +170,6 @@ class DuckdbSQLConverter(SQLConverter):
 
     def __init__(self, **convert_options: Any):
         rules: list[AstValidationRule] = [
-            # TIMESTAMPLTZ is not supported in DuckDB; map to TIMESTAMPTZ
             DisallowType(
                 disallow_type=DataType.Type.TIMESTAMPLTZ,
                 fallback_type=DataType.Type.TIMESTAMPTZ,

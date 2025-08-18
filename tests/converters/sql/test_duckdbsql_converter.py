@@ -67,7 +67,7 @@ class TestDuckdbSQLConverterValidation:
             ("variant", "VARIANT", "TEXT"),
         ],
     )
-    def test_warn_mode_replaces_to_duckdb_supported_and_warns(
+    def test_coerce_mode_replaces_to_duckdb_supported_and_warns(
         self, yads_type: str, original_type_sql: str, expected_sql: str
     ):
         yaml_string = f"""
@@ -84,14 +84,14 @@ class TestDuckdbSQLConverterValidation:
             UserWarning,
             match=f"Data type '{original_type_sql}' is not supported for column 'col1'.",
         ):
-            ddl = converter.convert(spec, mode="warn")
+            ddl = converter.convert(spec, mode="coerce")
 
         expected_ddl = f"""CREATE TABLE my_db.my_table (
   col1 {expected_sql}
 )"""
         assert ddl.strip() == expected_ddl
 
-    def test_warn_mode_removes_geometry_parameters(self):
+    def test_coerce_mode_removes_geometry_parameters_and_warns(self):
         yaml_string = """
         name: my_db.my_table
         version: 1
@@ -108,58 +108,10 @@ class TestDuckdbSQLConverterValidation:
             UserWarning,
             match="Parameterized 'GEOMETRY' is not supported for column 'col1'.",
         ):
-            ddl = converter.convert(spec, mode="warn")
+            ddl = converter.convert(spec, mode="coerce")
 
         expected_ddl = """CREATE TABLE my_db.my_table (
   col1 GEOMETRY
-)"""
-        assert ddl.strip() == expected_ddl
-
-    @pytest.mark.parametrize(
-        "yads_type, original_type_sql",
-        [
-            ("void", "VOID"),
-            ("geography", "GEOGRAPHY"),
-            ("variant", "VARIANT"),
-        ],
-    )
-    def test_ignore_mode_keeps_original_type(
-        self, yads_type: str, original_type_sql: str
-    ):
-        yaml_string = f"""
-        name: my_db.my_table
-        version: 1
-        columns:
-          - name: col1
-            type: {yads_type}
-        """
-        spec = from_yaml_string(yaml_string)
-
-        converter = DuckdbSQLConverter(pretty=True)
-        ddl = converter.convert(spec, mode="ignore")
-
-        expected_ddl = f"""CREATE TABLE my_db.my_table (
-  col1 {original_type_sql}
-)"""
-        assert ddl.strip() == expected_ddl
-
-    def test_ignore_mode_keeps_parameterized_geometry(self):
-        yaml_string = """
-        name: my_db.my_table
-        version: 1
-        columns:
-          - name: col1
-            type: geometry
-            params:
-              srid: 4326
-        """
-        spec = from_yaml_string(yaml_string)
-
-        converter = DuckdbSQLConverter(pretty=True)
-        ddl = converter.convert(spec, mode="ignore")
-
-        expected_ddl = """CREATE TABLE my_db.my_table (
-  col1 GEOMETRY(4326)
 )"""
         assert ddl.strip() == expected_ddl
 

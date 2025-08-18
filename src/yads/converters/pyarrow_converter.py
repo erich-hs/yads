@@ -68,12 +68,12 @@ class PyArrowConverter(BaseConverter):
     conversion:
 
     - `mode`: Controls validation/coercion behavior for incompatible
-      parameter combinations. One of `"raise"` (default), `"coerce"`,
-      or `"ignore"`. In `"raise"` mode, incompatible parameters raise
+      parameter combinations. One of `"raise"` or `"coerce"` (default).
+      In `"raise"` mode, incompatible parameters raise
       `UnsupportedFeatureError`. In `"coerce"` mode, the converter attempts
       to coerce to a compatible target (e.g., promote decimal to 256-bit or
-      time to 64-bit when units require it). In `"ignore"` mode, columns
-      whose type is unsupported for conversion are skipped.
+      time to 64-bit when units require it). If a logical type is unsupported
+      by PyArrow, it is mapped to a canonical placeholder `pa.binary()`.
     - `use_large_string`: If `True`, use `pa.large_string()` for
       `String`. Default `False`.
     - `use_large_binary`: If `True`, use `pa.large_binary()` for
@@ -112,11 +112,9 @@ class PyArrowConverter(BaseConverter):
         Returns:
             A `pyarrow.Schema` with fields mapped from the spec columns.
         """
-        self._mode: str = kwargs.get("mode", "raise")
-        if self._mode not in {"raise", "coerce", "ignore"}:
-            raise UnsupportedFeatureError(
-                "mode must be one of 'raise', 'coerce', or 'ignore'."
-            )
+        self._mode: str = kwargs.get("mode", "coerce")
+        if self._mode not in {"raise", "coerce"}:
+            raise UnsupportedFeatureError("mode must be one of 'raise' or 'coerce'.")
         self._use_large_string: bool = bool(kwargs.get("use_large_string", False))
         self._use_large_binary: bool = bool(kwargs.get("use_large_binary", False))
         self._use_large_list: bool = bool(kwargs.get("use_large_list", False))
@@ -126,7 +124,12 @@ class PyArrowConverter(BaseConverter):
             try:
                 fields.append(self._convert_field(col))
             except UnsupportedFeatureError:
-                if self._mode == "ignore":
+                if self._mode == "coerce":
+                    # Map unsupported logical types to a placeholder type
+                    placeholder = pa.field(
+                        col.name, pa.binary(), nullable=col.is_nullable
+                    )
+                    fields.append(placeholder)
                     continue
                 raise
         # Attach schema-level metadata if present, coercing values to strings
@@ -136,10 +139,7 @@ class PyArrowConverter(BaseConverter):
     # Type conversion
     @singledispatchmethod
     def _convert_type(self, yads_type: YadsType) -> pa.DataType:
-        # Currently unsupported:
-        # - Geometry
-        # - Geography
-        # - Variant
+        # Unsupported logical types will be handled by the caller depending on mode.
         raise UnsupportedFeatureError(
             f"PyArrowConverter does not support type: {type(yads_type).__name__}."
         )

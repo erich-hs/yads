@@ -52,7 +52,7 @@ class TestSparkSQLConverterValidation:
             ("geography", "GEOGRAPHY"),
         ],
     )
-    def test_warn_mode_replaces_to_string_and_warns(
+    def test_coerce_mode_replaces_to_string_and_warns(
         self, yads_type: str, original_type_sql: str
     ):
         yaml_string = f"""
@@ -69,38 +69,10 @@ class TestSparkSQLConverterValidation:
             UserWarning,
             match=f"Data type '{original_type_sql}' is not supported for column 'col1'.",
         ):
-            ddl = converter.convert(spec, mode="warn")
+            ddl = converter.convert(spec, mode="coerce")
 
         expected_ddl = """CREATE TABLE my_db.my_table (
   col1 STRING
-)"""
-        assert ddl.strip() == expected_ddl
-
-    @pytest.mark.parametrize(
-        "yads_type, original_type_sql",
-        [
-            ("json", "JSON"),
-            ("geometry", "GEOMETRY"),
-            ("geography", "GEOGRAPHY"),
-        ],
-    )
-    def test_ignore_mode_keeps_original_type(
-        self, yads_type: str, original_type_sql: str
-    ):
-        yaml_string = f"""
-        name: my_db.my_table
-        version: 1
-        columns:
-          - name: col1
-            type: {yads_type}
-        """
-        spec = from_yaml_string(yaml_string)
-
-        converter = SparkSQLConverter(pretty=True)
-        ddl = converter.convert(spec, mode="ignore")
-
-        expected_ddl = f"""CREATE TABLE my_db.my_table (
-  col1 {original_type_sql}
 )"""
         assert ddl.strip() == expected_ddl
 
