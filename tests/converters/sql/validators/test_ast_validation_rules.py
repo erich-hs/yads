@@ -7,8 +7,8 @@ from sqlglot.expressions import ColumnDef, DataType
 from yads.converters.sql.validators.ast_validation_rules import (
     DisallowFixedLengthString,
     DisallowType,
+    DisallowUserDefinedType,
     DisallowParameterizedGeometry,
-    DisallowVoidType,
     DisallowColumnConstraintGeneratedIdentity,
     DisallowTableConstraintPrimaryKeyNullsFirst,
 )
@@ -185,21 +185,23 @@ class TestDisallowParameterizedGeometry:
         assert rule.adjustment_description == "The parameters will be removed."
 
 
-# %% DisallowVoidType
-class TestDisallowVoidType:
-    @pytest.fixture
-    def rule(self) -> DisallowVoidType:
-        return DisallowVoidType()
-
+# %% DisallowUserDefinedType
+class TestDisallowUserDefinedType:
     @pytest.mark.parametrize(
-        "sql, expected",
+        "rule, sql, expected",
         [
-            ("VOID", "Data type 'VOID' is not supported for column 'col'."),
-            ("GEOMETRY", None),
-            ("TEXT", None),
+            (
+                DisallowUserDefinedType(disallow_type="VOID"),
+                "VOID",
+                "Data type 'VOID' is not supported for column 'col'.",
+            ),
+            (DisallowUserDefinedType(disallow_type="VOID"), "GEOMETRY", None),
+            (DisallowUserDefinedType(disallow_type="VOID"), "TEXT", None),
         ],
     )
-    def test_validate_void(self, rule: DisallowVoidType, sql: str, expected: str | None):
+    def test_validate_user_defined_type(
+        self, rule: DisallowUserDefinedType, sql: str, expected: str | None
+    ):
         ast = parse_one(f"CREATE TABLE t (col {sql})")
         assert ast
         column_def = ast.find(ColumnDef)
@@ -209,7 +211,10 @@ class TestDisallowVoidType:
 
         assert rule.validate(data_type) == expected
 
-    def test_adjust_replaces_void_with_text(self, rule: DisallowVoidType):
+    def test_adjust_replaces_user_defined_type_with_fallback(self):
+        rule = DisallowUserDefinedType(
+            disallow_type="VOID", fallback_type=DataType.Type.TEXT
+        )
         ast = parse_one("CREATE TABLE t (col VOID)")
         assert ast
         data_type = ast.find(DataType)
@@ -221,7 +226,10 @@ class TestDisallowVoidType:
         assert adjusted.this == DataType.Type.TEXT
         assert not adjusted.expressions
 
-    def test_adjustment_description(self, rule: DisallowVoidType):
+    def test_adjustment_description(self):
+        rule = DisallowUserDefinedType(
+            disallow_type="VOID", fallback_type=DataType.Type.TEXT
+        )
         assert (
             rule.adjustment_description == "The data type will be replaced with 'TEXT'."
         )

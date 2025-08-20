@@ -90,33 +90,52 @@ class DisallowType(AstValidationRule):
         return f"The data type will be replaced with '{self.fallback_type.name}'."
 
 
-class DisallowVoidType(AstValidationRule):
-    """Disallow VOID type and replace it with TEXT.
+class DisallowUserDefinedType(AstValidationRule):
+    """Disallow USERDEFINED types and replace them with a fallback type.
 
-    The converter represents VOID as a USERDEFINED data type with
-    kind='VOID'. This rule matches that representation to provide a clear
-    validation message and replacement behavior.
+    This rule flags any occurrence of a `sqlglot.expressions.DataType` with
+    `this=DataType.Type.USERDEFINED`. When adjustment is requested, the
+    offending type is replaced by the provided fallback type (defaults to
+    `TEXT`).
+
+    Args:
+        disallow_type: The `sqlglot.expressions.DataType` `kind` that identifies
+            the user-defined type to be disallowed.
+        fallback_type: The `sqlglot.expressions.DataType.Type` enum member to
+            use when replacing the disallowed type during adjustment. Defaults
+            to `DataType.Type.TEXT`.
     """
 
+    def __init__(
+        self, disallow_type: str, fallback_type: DataType.Type = DataType.Type.TEXT
+    ):
+        self.disallow_type: str = disallow_type
+        self.fallback_type: DataType.Type = fallback_type
+
+    def _is_disallowed_type(self, node: exp.Expression) -> TypeGuard[exp.DataType]:
+        return (
+            isinstance(node, DataType)
+            and node.this == DataType.Type.USERDEFINED
+            and node.args.get("kind") == self.disallow_type
+        )
+
     def validate(self, node: exp.Expression) -> str | None:
-        if isinstance(node, DataType) and node.this == DataType.Type.USERDEFINED:
-            # "kind" holds the textual type name when USERDEFINED is used
-            kind = (node.args.get("kind") or "").upper()
-            if kind == "VOID":
-                column_name = _get_ancestor_column_name(node)
-                return f"Data type 'VOID' is not supported for column '{column_name}'."
+        if self._is_disallowed_type(node):
+            column_name = _get_ancestor_column_name(node)
+            return (
+                f"Data type '{node.args.get('kind')}' is not supported for column "
+                f"'{column_name}'."
+            )
         return None
 
     def adjust(self, node: exp.Expression) -> exp.Expression:
-        if isinstance(node, DataType) and node.this == DataType.Type.USERDEFINED:
-            kind = (node.args.get("kind") or "").upper()
-            if kind == "VOID":
-                return DataType(this=DataType.Type.TEXT)
+        if self._is_disallowed_type(node):
+            return DataType(this=self.fallback_type)
         return node
 
     @property
     def adjustment_description(self) -> str:
-        return "The data type will be replaced with 'TEXT'."
+        return f"The data type will be replaced with '{self.fallback_type.name}'."
 
 
 class DisallowFixedLengthString(AstValidationRule):

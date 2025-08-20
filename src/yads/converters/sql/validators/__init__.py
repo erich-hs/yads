@@ -2,9 +2,9 @@ from .ast_validator import AstValidator, ValidationWarning
 from .ast_validation_rules import (
     AstValidationRule,
     DisallowType,
+    DisallowUserDefinedType,
     DisallowFixedLengthString,
     DisallowParameterizedGeometry,
-    DisallowVoidType,
     DisallowColumnConstraintGeneratedIdentity,
     DisallowTableConstraintPrimaryKeyNullsFirst,
 )
@@ -14,9 +14,9 @@ __all__ = [
     "ValidationWarning",
     "AstValidationRule",
     "DisallowType",
+    "DisallowUserDefinedType",
     "DisallowFixedLengthString",
     "DisallowParameterizedGeometry",
-    "DisallowVoidType",
     "DisallowColumnConstraintGeneratedIdentity",
     "DisallowTableConstraintPrimaryKeyNullsFirst",
 ]

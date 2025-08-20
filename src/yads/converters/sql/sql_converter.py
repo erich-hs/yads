@@ -21,7 +21,7 @@ from .validators.ast_validation_rules import (
     AstValidationRule,
     DisallowType,
     DisallowParameterizedGeometry,
-    DisallowVoidType,
+    DisallowUserDefinedType,
     DisallowColumnConstraintGeneratedIdentity,
     DisallowTableConstraintPrimaryKeyNullsFirst,
 )
@@ -174,7 +174,7 @@ class DuckdbSQLConverter(SQLConverter):
                 disallow_type=DataType.Type.TIMESTAMPLTZ,
                 fallback_type=DataType.Type.TIMESTAMPTZ,
             ),
-            DisallowVoidType(),
+            DisallowUserDefinedType(disallow_type="VOID"),
             DisallowType(disallow_type=DataType.Type.GEOGRAPHY),
             DisallowParameterizedGeometry(),
             DisallowType(disallow_type=DataType.Type.VARIANT),
