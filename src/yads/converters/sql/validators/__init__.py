@@ -7,6 +7,7 @@ from .ast_validation_rules import (
     DisallowParameterizedGeometry,
     DisallowColumnConstraintGeneratedIdentity,
     DisallowTableConstraintPrimaryKeyNullsFirst,
+    DisallowNegativeScaleDecimal,
 )
 
 __all__ = [
@@ -17,6 +18,7 @@ __all__ = [
     "DisallowUserDefinedType",
     "DisallowFixedLengthString",
     "DisallowParameterizedGeometry",
+    "DisallowNegativeScaleDecimal",
     "DisallowColumnConstraintGeneratedIdentity",
     "DisallowTableConstraintPrimaryKeyNullsFirst",
 ]
