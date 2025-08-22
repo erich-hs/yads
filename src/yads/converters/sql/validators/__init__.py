@@ -4,10 +4,11 @@ from .ast_validation_rules import (
     DisallowType,
     DisallowUserDefinedType,
     DisallowFixedLengthString,
+    DisallowFixedLengthBinary,
+    DisallowNegativeScaleDecimal,
     DisallowParameterizedGeometry,
     DisallowColumnConstraintGeneratedIdentity,
     DisallowTableConstraintPrimaryKeyNullsFirst,
-    DisallowNegativeScaleDecimal,
 )
 
 __all__ = [
@@ -17,8 +18,9 @@ __all__ = [
     "DisallowType",
     "DisallowUserDefinedType",
     "DisallowFixedLengthString",
-    "DisallowParameterizedGeometry",
+    "DisallowFixedLengthBinary",
     "DisallowNegativeScaleDecimal",
+    "DisallowParameterizedGeometry",
     "DisallowColumnConstraintGeneratedIdentity",
     "DisallowTableConstraintPrimaryKeyNullsFirst",
 ]

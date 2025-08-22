@@ -167,6 +167,32 @@ class DisallowFixedLengthString(AstValidationRule):
         return "The length parameter will be removed."
 
 
+class DisallowFixedLengthBinary(AstValidationRule):
+    """Remove fixed-length BINARY types such as BINARY(50)."""
+
+    def _is_fixed_length_binary(self, node: exp.Expression) -> TypeGuard[exp.DataType]:
+        return (
+            isinstance(node, DataType)
+            and node.this == DataType.Type.BINARY
+            and bool(node.expressions)
+        )
+
+    def validate(self, node: exp.Expression) -> str | None:
+        if self._is_fixed_length_binary(node):
+            column_name = _get_ancestor_column_name(node)
+            return f"Fixed-length binary is not supported for column '{column_name}'."
+        return None
+
+    def adjust(self, node: exp.Expression) -> exp.Expression:
+        if self._is_fixed_length_binary(node):
+            node.set("expressions", None)
+        return node
+
+    @property
+    def adjustment_description(self) -> str:
+        return "The length parameter will be removed."
+
+
 class DisallowNegativeScaleDecimal(AstValidationRule):
     """Disallow negative scale decimals and coerce them to positive scale.
 

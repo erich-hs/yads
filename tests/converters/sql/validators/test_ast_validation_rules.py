@@ -5,13 +5,14 @@ from sqlglot import parse_one
 from sqlglot.expressions import ColumnDef, DataType
 
 from yads.converters.sql.validators.ast_validation_rules import (
-    DisallowFixedLengthString,
     DisallowType,
     DisallowUserDefinedType,
+    DisallowFixedLengthString,
+    DisallowFixedLengthBinary,
+    DisallowNegativeScaleDecimal,
     DisallowParameterizedGeometry,
     DisallowColumnConstraintGeneratedIdentity,
     DisallowTableConstraintPrimaryKeyNullsFirst,
-    DisallowNegativeScaleDecimal,
 )
 
 
@@ -186,6 +187,54 @@ class TestDisallowFixedLengthString:
         assert not adjusted_node.expressions
 
     def test_adjustment_description(self, rule: DisallowFixedLengthString):
+        assert rule.adjustment_description == "The length parameter will be removed."
+
+
+# %% DisallowFixedLengthBinary
+class TestDisallowFixedLengthBinary:
+    @pytest.fixture
+    def rule(self) -> DisallowFixedLengthBinary:
+        return DisallowFixedLengthBinary()
+
+    @pytest.mark.parametrize(
+        "sql, expected",
+        [
+            ("BINARY(50)", "Fixed-length binary is not supported for column 'col'."),
+            (
+                "BINARY",
+                None,
+            ),
+            ("INT", None),
+        ],
+    )
+    def test_validate_fixed_length_binary(
+        self, rule: DisallowFixedLengthBinary, sql: str, expected: str | None
+    ):
+        ast = parse_one(f"CREATE TABLE t (col {sql})")
+        assert ast
+        column_def = ast.find(ColumnDef)
+        assert column_def
+        data_type = column_def.find(DataType)
+        assert data_type
+
+        assert rule.validate(data_type) == expected
+
+    def test_adjust_removes_length_and_normalizes_type(
+        self, rule: DisallowFixedLengthBinary
+    ):
+        sql = "CREATE TABLE t (col BINARY(50))"
+        ast = parse_one(sql)
+        assert ast
+        data_type = ast.find(DataType)
+        assert data_type
+
+        adjusted_node = rule.adjust(data_type)
+
+        assert isinstance(adjusted_node, DataType)
+        assert adjusted_node.this == DataType.Type.BINARY
+        assert not adjusted_node.expressions
+
+    def test_adjustment_description(self, rule: DisallowFixedLengthBinary):
         assert rule.adjustment_description == "The length parameter will be removed."
 
 
