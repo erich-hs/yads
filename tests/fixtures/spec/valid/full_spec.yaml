@@ -33,12 +33,6 @@ table_constraints:
       columns: ["id"]
 
 columns:
-  - name: "c_uuid"
-    type: "uuid"
-    description: "Primary key part 1"
-    constraints:
-      not_null: true
-
   - name: "c_string"
     type: "string"
     description: "A string column with a default value."
@@ -87,10 +81,6 @@ columns:
     type: "double"
     description: "A 64-bit float."
 
-  - name: "c_boolean"
-    type: "boolean"
-    description: "A boolean value."
-
   - name: "c_decimal"
     type: "decimal"
     description: "A decimal with default precision/scale."
@@ -101,6 +91,20 @@ columns:
       precision: 10
       scale: 2
     description: "A decimal with specified precision/scale."
+
+  - name: "c_boolean"
+    type: "boolean"
+    description: "A boolean value."
+
+  - name: "c_binary"
+    type: "binary"
+    description: "A binary data column."
+
+  - name: "c_binary_len"
+    type: "binary"
+    params:
+      length: 8
+    description: "A fixed-length binary column."
 
   - name: "c_date"
     type: "date"
@@ -114,6 +118,10 @@ columns:
     generated_as:
       column: "c_date"
       transform: "month"
+
+  - name: "c_time"
+    type: "time"
+    description: "A time value."
 
   - name: "c_timestamp"
     type: "timestamp"
@@ -139,10 +147,6 @@ columns:
     type: "timestampntz"
     description: "A timestamp without timezone."
 
-  - name: "c_binary"
-    type: "binary"
-    description: "A binary data column."
-
   - name: "c_interval_ym"
     type: "interval"
     params:
@@ -162,13 +166,13 @@ columns:
       type: "int"
     description: "An array of integers."
 
-  - name: "c_map"
-    type: "map"
-    key:
+  - name: "c_array_sized"
+    type: "array"
+    element:
       type: "string"
-    value:
-      type: "double"
-    description: "A map from string to double."
+    params:
+      size: 2
+    description: "A fixed-size array of strings."
 
   - name: "c_struct"
     type: "struct"
@@ -180,6 +184,14 @@ columns:
         type: "string"
         description: "A nested string."
     description: "A struct column."
+
+  - name: "c_map"
+    type: "map"
+    key:
+      type: "string"
+    value:
+      type: "double"
+    description: "A map from string to double."
   
   - name: "c_json"
     type: "json"
@@ -196,7 +208,13 @@ columns:
     params:
       srid: 4326
     description: "A geography column."
-  
+
+  - name: "c_uuid"
+    type: "uuid"
+    description: "Primary key part 1"
+    constraints:
+      not_null: true
+
   - name: "c_void"
     type: "void"
     description: "A void column."

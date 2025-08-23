@@ -23,8 +23,7 @@ class TestDuckdbSQLConverterDialect:
             warnings.simplefilter("always")
             ddl = converter.convert(spec)
 
-        # Expect 7 warnings (TIMESTAMPLTZ, VOID, GEOGRAPHY, GEOMETRY params, VARIANT, GENERATED IDENTITY, PK NULLS FIRST)
-        assert len(w) == 7
+        assert len(w) == 8
         assert all(issubclass(wi.category, ValidationWarning) for wi in w)
         messages = "\n".join(str(wi.message) for wi in w)
         assert (

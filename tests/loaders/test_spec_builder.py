@@ -622,7 +622,7 @@ class TestFullSpecBuilding:
         assert spec.partitioned_by[2].transform == "month"
 
     def test_columns(self, spec: YadsSpec):
-        assert len(spec.columns) == 31
+        assert len(spec.columns) == 34
 
     def test_column_constraints(self, spec: YadsSpec):
         # Test not_null constraint
