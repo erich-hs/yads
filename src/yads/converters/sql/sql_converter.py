@@ -20,12 +20,12 @@ from .validators.ast_validator import AstValidator
 from .validators.ast_validation_rules import (
     AstValidationRule,
     DisallowType,
-    DisallowParameterizedGeometry,
     DisallowUserDefinedType,
+    DisallowFixedLengthBinary,
     DisallowNegativeScaleDecimal,
+    DisallowParameterizedGeometry,
     DisallowColumnConstraintGeneratedIdentity,
     DisallowTableConstraintPrimaryKeyNullsFirst,
-    DisallowFixedLengthBinary,
 )
 
 
@@ -206,6 +206,7 @@ class DuckdbSQLConverter(SQLConverter):
             DisallowType(disallow_type=DataType.Type.VARIANT),
             DisallowColumnConstraintGeneratedIdentity(),
             DisallowTableConstraintPrimaryKeyNullsFirst(),
+            DisallowNegativeScaleDecimal(),
             DisallowFixedLengthBinary(),
         ]
         validator = AstValidator(rules=rules)
