@@ -164,9 +164,11 @@ class SQLGlotConverter(BaseConverter):
                 return exp.DataType(this=exp.DataType.Type.TINYINT)
             if yads_type.bits == 16:
                 return exp.DataType(this=exp.DataType.Type.SMALLINT)
+            if yads_type.bits == 32:
+                return exp.DataType(this=exp.DataType.Type.INT)
             if yads_type.bits == 64:
                 return exp.DataType(this=exp.DataType.Type.BIGINT)
-            # Default to INT for 32-bit or unspecified
+            # Default to INT for unspecified bits
             return exp.DataType(this=exp.DataType.Type.INT)
         # Unsigned integers
         if yads_type.bits == 8:
@@ -177,15 +179,19 @@ class SQLGlotConverter(BaseConverter):
             return exp.DataType(this=exp.DataType.Type.UINT)
         if yads_type.bits == 64:
             return exp.DataType(this=exp.DataType.Type.UBIGINT)
-        # Default to UINT for 32-bit or unspecified
+        # Default to UINT for unspecified bits
         return exp.DataType(this=exp.DataType.Type.UINT)
 
     @_convert_type.register(Float)
     def _(self, yads_type: Float) -> exp.DataType:
+        if yads_type.bits == 16:
+            # sqlglot doesn't support HALF precision
+            return exp.DataType(this=exp.DataType.Type.FLOAT)
+        if yads_type.bits == 32:
+            return exp.DataType(this=exp.DataType.Type.FLOAT)
         if yads_type.bits == 64:
             return exp.DataType(this=exp.DataType.Type.DOUBLE)
-        # sqlglot has FLOAT but not a distinct HALF type in most dialects; map 16/32 to FLOAT
-        # Float(bits=16) -> FLOAT should be a coerce
+        # Default to FLOAT for unspecified bits
         return exp.DataType(this=exp.DataType.Type.FLOAT)
 
     @_convert_type.register(Decimal)
