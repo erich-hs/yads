@@ -1,16 +1,243 @@
 import pytest
 import warnings
 
+from yads.spec import YadsSpec, Column, Field
 from yads.converters.sql import DuckdbSQLConverter
 from yads.exceptions import AstValidationError
 from yads.loaders import from_yaml_string, from_yaml_path
 from yads.converters.sql.validators.ast_validator import ValidationWarning
-
+from yads.types import (
+    YadsType,
+    String,
+    Integer,
+    Float,
+    Decimal,
+    Boolean,
+    Binary,
+    Date,
+    TimeUnit,
+    Time,
+    Timestamp,
+    TimestampTZ,
+    TimestampLTZ,
+    TimestampNTZ,
+    # Duration,
+    IntervalTimeUnit,
+    Interval,
+    Array,
+    Struct,
+    Map,
+    JSON,
+    Geometry,
+    Geography,
+    UUID,
+    Void,
+    Variant,
+)
 
 # ==========================================================
 # DuckdbSQLConverter tests
 # Scope: verifies DuckDB dialect and built-in validation rules
 # ==========================================================
+
+
+# %% Types
+class TestDuckdbSQLConverterTypes:
+    @pytest.mark.parametrize(
+        "yads_type, expected_sql, expected_warning",
+        [
+            (String(), "TEXT", None),
+            (String(length=255), "TEXT(255)", None),
+            (Integer(bits=8), "TINYINT", None),
+            (Integer(bits=16), "SMALLINT", None),
+            (Integer(bits=32), "INT", None),
+            (Integer(bits=64), "BIGINT", None),
+            (Integer(bits=8, signed=False), "UTINYINT", None),
+            (
+                Integer(bits=16, signed=False),
+                "USMALLINT",
+                None,
+            ),
+            (Integer(bits=32, signed=False), "UINTEGER", None),
+            (
+                Integer(bits=64, signed=False),
+                "UBIGINT",
+                None,
+            ),
+            (Float(bits=16), "REAL", None),  # This should have a warning
+            (Float(bits=32), "REAL", None),
+            (Float(bits=64), "DOUBLE", None),
+            (Decimal(), "DECIMAL", None),
+            (Decimal(precision=10, scale=2), "DECIMAL(10, 2)", None),
+            (
+                Decimal(precision=10, scale=-2),
+                "DECIMAL(12)",
+                "The precision will be increased by the absolute value of the negative scale, and the scale will be set to 0.",
+            ),
+            (Decimal(precision=10, scale=2, bits=128), "DECIMAL(10, 2)", None),
+            (Boolean(), "BOOLEAN", None),
+            (Binary(), "BLOB", None),
+            (Binary(length=8), "BLOB", "The length parameter will be removed."),
+            (Date(), "DATE", None),
+            (Date(bits=32), "DATE", None),
+            (Date(bits=64), "DATE", None),
+            (Time(), "TIME", None),
+            (Time(unit=TimeUnit.S), "TIME", None),
+            (Time(unit=TimeUnit.MS), "TIME", None),
+            (Time(unit=TimeUnit.US), "TIME", None),
+            (Time(unit=TimeUnit.NS), "TIME", None),
+            (Time(bits=32), "TIME", None),
+            (Time(bits=64), "TIME", None),
+            (Timestamp(), "TIMESTAMP", None),
+            (Timestamp(unit=TimeUnit.S), "TIMESTAMP", None),
+            (Timestamp(unit=TimeUnit.MS), "TIMESTAMP", None),
+            (Timestamp(unit=TimeUnit.US), "TIMESTAMP", None),
+            (Timestamp(unit=TimeUnit.NS), "TIMESTAMP", None),
+            (TimestampTZ(), "TIMESTAMPTZ", None),
+            (TimestampTZ(unit=TimeUnit.S), "TIMESTAMPTZ", None),
+            (TimestampTZ(unit=TimeUnit.MS), "TIMESTAMPTZ", None),
+            (TimestampTZ(unit=TimeUnit.US), "TIMESTAMPTZ", None),
+            (TimestampTZ(unit=TimeUnit.NS), "TIMESTAMPTZ", None),
+            (TimestampTZ(tz="UTC"), "TIMESTAMPTZ", None),
+            (
+                TimestampLTZ(),
+                "TIMESTAMPTZ",
+                "Data type 'TIMESTAMPLTZ' is not supported for column 'col1'.",
+            ),
+            (
+                TimestampLTZ(unit=TimeUnit.S),
+                "TIMESTAMPTZ",
+                "Data type 'TIMESTAMPLTZ' is not supported for column 'col1'.",
+            ),
+            (
+                TimestampLTZ(unit=TimeUnit.MS),
+                "TIMESTAMPTZ",
+                "Data type 'TIMESTAMPLTZ' is not supported for column 'col1'.",
+            ),
+            (
+                TimestampLTZ(unit=TimeUnit.US),
+                "TIMESTAMPTZ",
+                "Data type 'TIMESTAMPLTZ' is not supported for column 'col1'.",
+            ),
+            (
+                TimestampLTZ(unit=TimeUnit.NS),
+                "TIMESTAMPTZ",
+                "Data type 'TIMESTAMPLTZ' is not supported for column 'col1'.",
+            ),
+            (
+                TimestampNTZ(),
+                "TIMESTAMP",
+                None,
+            ),  # Default TIMESTAMP in Duckdb is timezone unaware
+            (TimestampNTZ(unit=TimeUnit.S), "TIMESTAMP", None),
+            (TimestampNTZ(unit=TimeUnit.MS), "TIMESTAMP", None),
+            (TimestampNTZ(unit=TimeUnit.US), "TIMESTAMP", None),
+            (TimestampNTZ(unit=TimeUnit.NS), "TIMESTAMP", None),
+            # (Duration(), "", "SQLGlotConverter does not support type: Duration."), # Should warn and coerce to string
+            (Interval(interval_start=IntervalTimeUnit.DAY), "INTERVAL DAY", None),
+            (
+                Interval(
+                    interval_start=IntervalTimeUnit.DAY, interval_end=IntervalTimeUnit.DAY
+                ),
+                "INTERVAL DAY",
+                None,
+            ),
+            (
+                Interval(
+                    interval_start=IntervalTimeUnit.YEAR,
+                    interval_end=IntervalTimeUnit.MONTH,
+                ),
+                "INTERVAL YEAR TO MONTH",
+                None,
+            ),
+            (Array(element=Integer()), "INT[]", None),
+            (Array(element=String(), size=2), "TEXT[]", None),
+            (
+                Struct(
+                    fields=[
+                        Field(name="nested_int", type=Integer()),
+                        Field(name="nested_string", type=String()),
+                    ]
+                ),
+                "STRUCT(nested_int INT, nested_string TEXT)",
+                None,
+            ),
+            (
+                Struct(
+                    fields=[
+                        Field(name="nested_int", type=Integer()),
+                        Field(
+                            name="nested_struct",
+                            type=Struct(
+                                fields=[Field(name="nested_string", type=String())]
+                            ),
+                        ),
+                    ]
+                ),
+                "STRUCT(nested_int INT, nested_struct STRUCT(nested_string TEXT))",
+                None,
+            ),
+            (Map(key=String(), value=Integer()), "MAP(TEXT, INT)", None),
+            (
+                Map(key=String(), value=Array(element=String())),
+                "MAP(TEXT, TEXT[])",
+                None,
+            ),
+            (
+                Map(key=String(), value=Integer(), keys_sorted=True),
+                "MAP(TEXT, INT)",
+                None,
+            ),
+            (JSON(), "JSON", None),
+            (Geometry(), "GEOMETRY", None),
+            (
+                Geometry(srid=4326),
+                "GEOMETRY",
+                "Parameterized 'GEOMETRY' is not supported for column 'col1'.",
+            ),
+            (
+                Geography(),
+                "TEXT",
+                "Data type 'GEOGRAPHY' is not supported for column 'col1'.",
+            ),
+            (
+                Geography(srid=4326),
+                "TEXT",
+                "Data type 'GEOGRAPHY' is not supported for column 'col1'.",
+            ),
+            (UUID(), "UUID", None),
+            (Void(), "TEXT", "Data type 'VOID' is not supported for column 'col1'."),
+            (
+                Variant(),
+                "TEXT",
+                "Data type 'VARIANT' is not supported for column 'col1'.",
+            ),
+        ],
+    )
+    def test_convert_type(
+        self, yads_type: YadsType, expected_sql: str, expected_warning: str | None
+    ):
+        spec = YadsSpec(
+            name="test_spec",
+            version="1.0.0",
+            columns=[Column(name="col1", type=yads_type)],
+        )
+        converter = DuckdbSQLConverter()
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            ddl = converter.convert(spec, mode="coerce")
+
+        # Assert warnings for unsupported types
+        if expected_warning is not None:
+            assert len(w) == 1
+            assert issubclass(w[0].category, ValidationWarning)
+            assert expected_warning in str(w[0].message)
+        else:
+            assert len(w) == 0
+
+        # Assert converted SQL
+        assert ddl.strip() == f"CREATE TABLE test_spec (col1 {expected_sql})"
 
 
 # %% Dialect behavior

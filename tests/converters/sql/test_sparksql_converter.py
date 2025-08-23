@@ -179,7 +179,17 @@ class TestSparkSQLConverterTypes:
                 "Data type 'GEOMETRY' is not supported for column 'col1'.",
             ),
             (
+                Geometry(srid=4326),
+                "STRING",
+                "Data type 'GEOMETRY' is not supported for column 'col1'.",
+            ),
+            (
                 Geography(),
+                "STRING",
+                "Data type 'GEOGRAPHY' is not supported for column 'col1'.",
+            ),
+            (
+                Geography(srid=4326),
                 "STRING",
                 "Data type 'GEOGRAPHY' is not supported for column 'col1'.",
             ),
