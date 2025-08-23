@@ -164,8 +164,6 @@ class AstValidationError(YadsValidationError):
 class ValidationWarning(UserWarning):
     """Warning emitted when validation rules fail in converters or validators."""
 
-    pass
-
 
 def validation_warning(message: str, *, filename: str, module: str | None = None) -> None:
     """Emit a categorized validation warning with a concise origin.
