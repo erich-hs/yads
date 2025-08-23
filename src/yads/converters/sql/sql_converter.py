@@ -22,8 +22,10 @@ from .validators.ast_validation_rules import (
     DisallowType,
     DisallowParameterizedGeometry,
     DisallowUserDefinedType,
+    DisallowNegativeScaleDecimal,
     DisallowColumnConstraintGeneratedIdentity,
     DisallowTableConstraintPrimaryKeyNullsFirst,
+    DisallowFixedLengthBinary,
 )
 
 
@@ -136,18 +138,41 @@ class SparkSQLConverter(SQLConverter):
     Configured with:
     - dialect="spark"
     - Rules:
+      - Disallow unsigned integers → replace with signed integers
       - Disallow JSON → replace with STRING
       - Disallow GEOMETRY → replace with STRING
       - Disallow GEOGRAPHY → replace with STRING
+      - Disallow UUID → replace with STRING
+      - Disallow negative scale decimal → replace with a sum of the absolute value of the scale and the precision, with a scale of 0
+      - Disallow fixed length binary → replace with BINARY
     """
 
     def __init__(self, **convert_options: Any):
         rules: list[AstValidationRule] = [
             DisallowType(
+                disallow_type=DataType.Type.UTINYINT,
+                fallback_type=DataType.Type.TINYINT,
+            ),
+            DisallowType(
+                disallow_type=DataType.Type.USMALLINT,
+                fallback_type=DataType.Type.SMALLINT,
+            ),
+            DisallowType(
+                disallow_type=DataType.Type.UINT,
+                fallback_type=DataType.Type.INT,
+            ),
+            DisallowType(
+                disallow_type=DataType.Type.UBIGINT,
+                fallback_type=DataType.Type.BIGINT,
+            ),
+            DisallowType(
                 disallow_type=DataType.Type.JSON,
             ),
             DisallowType(disallow_type=DataType.Type.GEOMETRY),
             DisallowType(disallow_type=DataType.Type.GEOGRAPHY),
+            DisallowType(disallow_type=DataType.Type.UUID),
+            DisallowNegativeScaleDecimal(),
+            DisallowFixedLengthBinary(),
         ]
         validator = AstValidator(rules=rules)
         super().__init__(dialect="spark", ast_validator=validator, **convert_options)
@@ -166,6 +191,7 @@ class DuckdbSQLConverter(SQLConverter):
       - Disallow VARIANT → replace with STRING
       - Disallow column-level IDENTITY → remove constraint
       - Disallow NULLS FIRST in table-level PRIMARY KEY constraints → remove NULLS FIRST
+      - Disallow fixed length binary → replace with BLOB
     """
 
     def __init__(self, **convert_options: Any):
@@ -180,6 +206,7 @@ class DuckdbSQLConverter(SQLConverter):
             DisallowType(disallow_type=DataType.Type.VARIANT),
             DisallowColumnConstraintGeneratedIdentity(),
             DisallowTableConstraintPrimaryKeyNullsFirst(),
+            DisallowFixedLengthBinary(),
         ]
         validator = AstValidator(rules=rules)
         super().__init__(dialect="duckdb", ast_validator=validator, **convert_options)

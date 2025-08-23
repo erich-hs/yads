@@ -26,22 +26,24 @@ from ...constraints import (
 from ...exceptions import ConversionError, UnsupportedFeatureError
 from ...spec import Column, Field, YadsSpec, Storage, TransformedColumnReference
 from ...types import (
-    Array,
-    Decimal,
-    Float,
+    YadsType,
+    String,
     Integer,
-    Geography,
-    Geometry,
+    Float,
+    Decimal,
+    Binary,
+    Date,
+    Time,
     Timestamp,
     TimestampTZ,
     TimestampLTZ,
     TimestampNTZ,
-    Time,
     Interval,
-    Map,
-    String,
+    Array,
     Struct,
-    YadsType,
+    Map,
+    Geometry,
+    Geography,
     Void,
 )
 from ..base import BaseConverter
@@ -132,10 +134,9 @@ class SQLGlotConverter(BaseConverter):
         # Fallback to default sqlglot DataType.build method.
         # The following non-parametrized yads types are handled via the fallback:
         # - Boolean
-        # - Date
-        # - Binary
         # - JSON
         # - UUID
+        # - Variant
         # https://sqlglot.com/sqlglot/expressions.html#DataType.build
         try:
             return exp.DataType.build(str(yads_type))
@@ -158,20 +159,33 @@ class SQLGlotConverter(BaseConverter):
 
     @_convert_type.register(Integer)
     def _(self, yads_type: Integer) -> exp.DataType:
+        if yads_type.signed:
+            if yads_type.bits == 8:
+                return exp.DataType(this=exp.DataType.Type.TINYINT)
+            if yads_type.bits == 16:
+                return exp.DataType(this=exp.DataType.Type.SMALLINT)
+            if yads_type.bits == 64:
+                return exp.DataType(this=exp.DataType.Type.BIGINT)
+            # Default to INT for 32-bit or unspecified
+            return exp.DataType(this=exp.DataType.Type.INT)
+        # Unsigned integers
         if yads_type.bits == 8:
-            return exp.DataType(this=exp.DataType.Type.TINYINT)
+            return exp.DataType(this=exp.DataType.Type.UTINYINT)
         if yads_type.bits == 16:
-            return exp.DataType(this=exp.DataType.Type.SMALLINT)
+            return exp.DataType(this=exp.DataType.Type.USMALLINT)
+        if yads_type.bits == 32:
+            return exp.DataType(this=exp.DataType.Type.UINT)
         if yads_type.bits == 64:
-            return exp.DataType(this=exp.DataType.Type.BIGINT)
-        # Default to INT for 32-bit or unspecified
-        return exp.DataType(this=exp.DataType.Type.INT)
+            return exp.DataType(this=exp.DataType.Type.UBIGINT)
+        # Default to UINT for 32-bit or unspecified
+        return exp.DataType(this=exp.DataType.Type.UINT)
 
     @_convert_type.register(Float)
     def _(self, yads_type: Float) -> exp.DataType:
         if yads_type.bits == 64:
             return exp.DataType(this=exp.DataType.Type.DOUBLE)
         # sqlglot has FLOAT but not a distinct HALF type in most dialects; map 16/32 to FLOAT
+        # Float(bits=16) -> FLOAT should be a coerce
         return exp.DataType(this=exp.DataType.Type.FLOAT)
 
     @_convert_type.register(Decimal)
@@ -180,31 +194,53 @@ class SQLGlotConverter(BaseConverter):
         if yads_type.precision is not None:
             expressions.append(exp.DataTypeParam(this=convert(yads_type.precision)))
             expressions.append(exp.DataTypeParam(this=convert(yads_type.scale)))
+        # Ignore bit-width parameter
         return exp.DataType(
             this=exp.DataType.Type.DECIMAL,
             expressions=expressions if expressions else None,
         )
 
-    # Explicit mappings for parametrized temporal types to keep AST stable regardless of unit
+    # Explicit mappings for parametrized temporal types
     @_convert_type.register(Timestamp)
     def _(self, yads_type: Timestamp) -> exp.DataType:
+        # Ignore unit parameter
         return exp.DataType(this=exp.DataType.Type.TIMESTAMP)
 
     @_convert_type.register(TimestampTZ)
     def _(self, yads_type: TimestampTZ) -> exp.DataType:
+        # Ignore unit parameter
+        # Ignore tz parameter
         return exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ)
 
     @_convert_type.register(TimestampLTZ)
     def _(self, yads_type: TimestampLTZ) -> exp.DataType:
+        # Ignore unit parameter
         return exp.DataType(this=exp.DataType.Type.TIMESTAMPLTZ)
 
     @_convert_type.register(TimestampNTZ)
     def _(self, yads_type: TimestampNTZ) -> exp.DataType:
+        # Ignore unit parameter
         return exp.DataType(this=exp.DataType.Type.TIMESTAMPNTZ)
 
     @_convert_type.register(Time)
     def _(self, yads_type: Time) -> exp.DataType:
+        # Ignore bit-width parameter
+        # Ignore unit parameter
         return exp.DataType(this=exp.DataType.Type.TIME)
+
+    @_convert_type.register(Date)
+    def _(self, yads_type: Date) -> exp.DataType:
+        # Ignore bit-width parameter
+        return exp.DataType(this=exp.DataType.Type.DATE)
+
+    @_convert_type.register(Binary)
+    def _(self, yads_type: Binary) -> exp.DataType:
+        expressions = []
+        if yads_type.length is not None:
+            expressions.append(exp.DataTypeParam(this=convert(yads_type.length)))
+        return exp.DataType(
+            this=exp.DataType.Type.BINARY, expressions=expressions or None
+        )
 
     @_convert_type.register(Void)
     def _(self, yads_type: Void) -> exp.DataType:
@@ -233,6 +269,7 @@ class SQLGlotConverter(BaseConverter):
     @_convert_type.register(Array)
     def _(self, yads_type: Array) -> exp.DataType:
         element_type = self._convert_type(yads_type.element)
+        # Ignore size parameter
         return exp.DataType(
             this=exp.DataType.Type.ARRAY,
             expressions=[element_type],
@@ -251,6 +288,7 @@ class SQLGlotConverter(BaseConverter):
     def _(self, yads_type: Map) -> exp.DataType:
         key_type = self._convert_type(yads_type.key)
         value_type = self._convert_type(yads_type.value)
+        # Ignore keys_sorted parameter
         return exp.DataType(
             this=exp.DataType.Type.MAP,
             expressions=[key_type, value_type],
