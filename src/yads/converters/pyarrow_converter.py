@@ -27,6 +27,7 @@ import json
 from typing import Any
 
 import pyarrow as pa  # type: ignore[import-untyped]
+from ..exceptions import validation_warning
 
 from ..exceptions import UnsupportedFeatureError
 from ..spec import Field, YadsSpec
@@ -119,19 +120,31 @@ class PyArrowConverter(BaseConverter):
         self._use_large_binary: bool = bool(kwargs.get("use_large_binary", False))
         self._use_large_list: bool = bool(kwargs.get("use_large_list", False))
 
+        # Track current field name for contextual warnings during type coercions.
+        self._current_field_name: str | None = None
+
         fields: list[pa.Field] = []
         for col in spec.columns:
             try:
+                self._current_field_name = col.name
                 fields.append(self._convert_field(col))
             except UnsupportedFeatureError:
                 if self._mode == "coerce":
-                    # Map unsupported logical types to a placeholder type
-                    placeholder = pa.field(
-                        col.name, pa.binary(), nullable=col.is_nullable
+                    # Map unsupported logical types to a fallback type
+                    validation_warning(
+                        message=(
+                            f"Data type '{type(col.type).__name__.upper()}' is not supported"
+                            f" for column '{col.name}'. The data type will be replaced with pyarrow.binary()."
+                        ),
+                        filename="yads.converters.pyarrow",
+                        module=__name__,
                     )
-                    fields.append(placeholder)
+                    fallback = pa.field(col.name, pa.binary(), nullable=col.is_nullable)
+                    fields.append(fallback)
                     continue
                 raise
+            finally:
+                self._current_field_name = None
         # Attach schema-level metadata if present, coercing values to strings
         schema_metadata = self._coerce_metadata(spec.metadata) if spec.metadata else None
         return pa.schema(fields, metadata=schema_metadata)
@@ -211,6 +224,15 @@ class PyArrowConverter(BaseConverter):
 
         if bits == 128 and precision > 38:
             if self._mode == "coerce":
+                validation_warning(
+                    message=(
+                        "Precision greater than 38 is incompatible with Decimal(bits=128)"
+                        f" for column '{self._current_field_name or '<unknown>'}'."
+                        f" The data type will be replaced with pyarrow.decimal256({precision=}, {scale=})."
+                    ),
+                    filename="yads.converters.pyarrow",
+                    module=__name__,
+                )
                 return build_decimal(256)
             raise UnsupportedFeatureError(
                 "precision > 38 is incompatible with Decimal(bits=128)."
@@ -250,6 +272,15 @@ class PyArrowConverter(BaseConverter):
         if bits == 32:
             if unit not in {"s", "ms"}:
                 if self._mode == "coerce":
+                    validation_warning(
+                        message=(
+                            "time32 supports only 's' or 'ms' units"
+                            f" (got '{unit}') for column '{self._current_field_name or '<unknown>'}'."
+                            f" The data type will be replaced with pyarrow.time64({unit=})."
+                        ),
+                        filename="yads.converters.pyarrow",
+                        module=__name__,
+                    )
                     return pa.time64(unit)
                 raise UnsupportedFeatureError(
                     "time32 supports only 's' or 'ms' units (got '" + unit + "')."
@@ -259,6 +290,15 @@ class PyArrowConverter(BaseConverter):
             if unit not in {"us", "ns"}:
                 if self._mode == "coerce":
                     # Promote coarse units to 32 if asked for 64 but unit is s/ms
+                    validation_warning(
+                        message=(
+                            "time64 supports only 'us' or 'ns' units"
+                            f" (got '{unit}') for column '{self._current_field_name or '<unknown>'}'."
+                            f" The data type will be replaced with pyarrow.time32({unit=})."
+                        ),
+                        filename="yads.converters.pyarrow",
+                        module=__name__,
+                    )
                     return pa.time32(unit)
                 raise UnsupportedFeatureError(
                     "time64 supports only 'us' or 'ns' units (got '" + unit + "')."
