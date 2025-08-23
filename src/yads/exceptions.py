@@ -1,6 +1,8 @@
-"""Custom yads exceptions."""
+"""Custom yads exceptions and shared warning utilities."""
 
 from __future__ import annotations
+
+import warnings
 
 
 class YadsError(Exception):
@@ -156,3 +158,27 @@ class AstValidationError(YadsValidationError):
     Raised when there are issues with validation rule definition, execution,
     or processing.
     """
+
+
+# Shared warnings
+class ValidationWarning(UserWarning):
+    """Warning emitted when validation rules fail in converters or validators."""
+
+    pass
+
+
+def validation_warning(message: str, *, filename: str, module: str | None = None) -> None:
+    """Emit a categorized validation warning with a concise origin.
+
+    Args:
+        message: Human-readable warning message.
+        filename: Logical filename/module label to display as the source.
+        module: Module name override. Defaults to the caller's module if not provided.
+    """
+    warnings.warn_explicit(
+        message=message,
+        category=ValidationWarning,
+        filename=filename,
+        lineno=1,
+        module=module or __name__,
+    )

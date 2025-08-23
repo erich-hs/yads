@@ -5,7 +5,7 @@ from yads.spec import YadsSpec, Column, Field
 from yads.converters.sql import SparkSQLConverter
 from yads.exceptions import AstValidationError
 from yads.loaders import from_yaml_string, from_yaml_path
-from yads.converters.sql.validators.ast_validator import ValidationWarning
+from yads.exceptions import ValidationWarning
 from yads.types import (
     YadsType,
     String,

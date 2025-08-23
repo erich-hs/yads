@@ -1,4 +1,4 @@
-from .ast_validator import AstValidator, ValidationWarning
+from .ast_validator import AstValidator
 from .ast_validation_rules import (
     AstValidationRule,
     DisallowType,
@@ -13,7 +13,6 @@ from .ast_validation_rules import (
 
 __all__ = [
     "AstValidator",
-    "ValidationWarning",
     "AstValidationRule",
     "DisallowType",
     "DisallowUserDefinedType",

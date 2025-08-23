@@ -7,22 +7,15 @@ Applies a set of validation/adjustment rules to a sqlglot AST in two modes:
 
 from __future__ import annotations
 
-import warnings
 from typing import TYPE_CHECKING, Literal, cast
 
 from sqlglot.expressions import Create
 
-from ....exceptions import AstValidationError
+from ....exceptions import AstValidationError, validation_warning
 from .ast_validation_rules import AstValidationRule
 
 if TYPE_CHECKING:
     from sqlglot import exp
-
-
-class ValidationWarning(UserWarning):
-    """Warning category emitted when adjustments are applied in coerce mode."""
-
-    pass
 
 
 class AstValidator:
@@ -71,13 +64,9 @@ class AstValidator:
                     case "raise":
                         errors.append(f"{error}")
                     case "coerce":
-                        # Emit a concise warning without verbose absolute file paths.
-                        # Use warn_explicit to control the displayed filename/module.
-                        warnings.warn_explicit(
+                        validation_warning(
                             message=f"{error} {rule.adjustment_description}",
-                            category=ValidationWarning,
                             filename="yads.converters.sql.validators",
-                            lineno=1,
                             module=__name__,
                         )
                         node = rule.adjust(node)
