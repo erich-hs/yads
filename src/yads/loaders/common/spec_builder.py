@@ -481,7 +481,7 @@ class SpecBuilder:
             table_constrained_cols = set()
             for const in spec.table_constraints:
                 if isinstance(const, tbl_const_type):
-                    table_constrained_cols.update(const.get_constrained_columns())
+                    table_constrained_cols.update(const.constrained_columns)
             if duplicates := constrained_cols.intersection(table_constrained_cols):
                 warnings.warn(
                     f"Columns {sorted(list(duplicates))} have a "
@@ -493,7 +493,7 @@ class SpecBuilder:
 
     def _check_for_undefined_columns_in_table_constraints(self, spec: YadsSpec) -> None:
         for constraint in spec.table_constraints:
-            constrained_columns = set(constraint.get_constrained_columns())
+            constrained_columns = set(constraint.constrained_columns)
             if not_defined := constrained_columns - spec.column_names:
                 constraint_name = (
                     getattr(constraint, "name", None)

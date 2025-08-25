@@ -88,7 +88,7 @@ class TestTableConstraints:
         constraint = PrimaryKeyTableConstraint(columns=["id1", "id2"], name="pk_name")
         assert constraint.columns == ["id1", "id2"]
         assert constraint.name == "pk_name"
-        assert constraint.get_constrained_columns() == ["id1", "id2"]
+        assert constraint.constrained_columns == ["id1", "id2"]
         expected_str = (
             "PrimaryKeyTableConstraint(\n"
             "  name='pk_name',\n"
@@ -103,7 +103,7 @@ class TestTableConstraints:
     def test_primary_key_table_constraint_without_name(self):
         constraint = PrimaryKeyTableConstraint(columns=["id"])
         assert constraint.name is None
-        assert constraint.get_constrained_columns() == ["id"]
+        assert constraint.constrained_columns == ["id"]
         expected_str = "PrimaryKeyTableConstraint(\n  columns=[\n    'id'\n  ]\n)"
         assert str(constraint) == expected_str
 
@@ -122,7 +122,7 @@ class TestTableConstraints:
         assert constraint.columns == ["id1", "id2"]
         assert constraint.references == ref
         assert constraint.name == "fk_name"
-        assert constraint.get_constrained_columns() == ["id1", "id2"]
+        assert constraint.constrained_columns == ["id1", "id2"]
         expected_str = (
             "ForeignKeyTableConstraint(\n"
             "  name='fk_name',\n"
@@ -139,7 +139,7 @@ class TestTableConstraints:
         ref = ForeignKeyReference(table="other_table", columns=["ref_id"])
         constraint = ForeignKeyTableConstraint(columns=["id"], references=ref)
         assert constraint.name is None
-        assert constraint.get_constrained_columns() == ["id"]
+        assert constraint.constrained_columns == ["id"]
         expected_str = (
             "ForeignKeyTableConstraint(\n"
             "  columns=[\n"

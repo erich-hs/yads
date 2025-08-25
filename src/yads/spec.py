@@ -385,7 +385,7 @@ class YadsSpec:
 
     def _validate_table_constraints(self):
         for constraint in self.table_constraints:
-            for col in constraint.get_constrained_columns():
+            for col in constraint.constrained_columns:
                 if col not in self.column_names:
                     raise SpecValidationError(
                         f"Column {col!r} in constraint {constraint} not found in schema."

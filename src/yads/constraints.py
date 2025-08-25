@@ -249,8 +249,9 @@ class TableConstraint(ABC):
     at the table level rather than on individual columns.
     """
 
+    @property
     @abstractmethod
-    def get_constrained_columns(self) -> list[str]:
+    def constrained_columns(self) -> list[str]:
         """Return the list of column names involved in this constraint."""
 
 
@@ -285,7 +286,8 @@ class PrimaryKeyTableConstraint(TableConstraint):
                 "PrimaryKeyTableConstraint 'columns' cannot be empty."
             )
 
-    def get_constrained_columns(self) -> list[str]:
+    @property
+    def constrained_columns(self) -> list[str]:
         return self.columns
 
     def __str__(self) -> str:
@@ -346,7 +348,8 @@ class ForeignKeyTableConstraint(TableConstraint):
                 f"referenced columns ({len(self.references.columns)})."
             )
 
-    def get_constrained_columns(self) -> list[str]:
+    @property
+    def constrained_columns(self) -> list[str]:
         return self.columns
 
     def __str__(self) -> str:
