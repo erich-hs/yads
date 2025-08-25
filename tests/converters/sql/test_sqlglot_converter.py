@@ -554,6 +554,7 @@ class TestSQLGlotConverterModeHierarchy:
 
 
 # %% Type conversion
+# fmt: off
 class TestTypeConversion:
     @pytest.mark.parametrize(
         "yads_type, expected_datatype",
@@ -666,6 +667,7 @@ class TestTypeConversion:
             (Variant(), exp.DataType(this=exp.DataType.Type.VARIANT)),
         ],
     )
+    # fmt: on
     def test_simple_type_conversion(self, yads_type, expected_datatype):
         converter = SQLGlotConverter()
         result = converter._convert_type(yads_type)
@@ -676,8 +678,7 @@ class TestTypeConversion:
         [
             # Interval types - handled by type handler
             (
-                Interval(interval_start=IntervalTimeUnit.YEAR),
-                exp.DataType(this=exp.Interval(unit=exp.Var(this="YEAR"))),
+                Interval(interval_start=IntervalTimeUnit.YEAR), exp.DataType(this=exp.Interval(unit=exp.Var(this="YEAR"))),
             ),
             (
                 Interval(interval_start=IntervalTimeUnit.MONTH),
