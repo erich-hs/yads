@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from functools import singledispatchmethod
 import json
-from typing import Any
+from typing import Any, Literal
 
 import pyarrow as pa  # type: ignore[import-untyped]
 from ..exceptions import validation_warning
@@ -68,22 +68,22 @@ class PyArrowConverter(BaseConverter):
     The following options are supported via `**kwargs` to customize
     conversion:
 
-    - `mode`: Controls validation/coercion behavior for incompatible
-      parameter combinations. One of `"raise"` or `"coerce"` (default).
-      In `"raise"` mode, incompatible parameters raise
-      `UnsupportedFeatureError`. In `"coerce"` mode, the converter attempts
+    - use_large_string: If True, use `pa.large_string()` for
+      `String`. Default False.
+    - use_large_binary: If True, use `pa.large_binary()` for
+      `Binary(length=None)`. When a fixed `length` is provided, a fixed-size
+      `pa.binary(length)` is always used. Default False.
+    - use_large_list: If True, use `pa.large_list(element)` for
+      variable-length `Array` (i.e., `size is None`). For fixed-size arrays
+      (`size` set), `pa.list_(element, list_size=size)` is used. Default
+      False.
+    - mode: Controls validation/coercion behavior for incompatible
+      parameter combinations. One of "raise" or "coerce" (default).
+      In "raise" mode, incompatible parameters raise
+      `UnsupportedFeatureError`. In "coerce" mode, the converter attempts
       to coerce to a compatible target (e.g., promote decimal to 256-bit or
       time to 64-bit when units require it). If a logical type is unsupported
       by PyArrow, it is mapped to a canonical placeholder `pa.binary()`.
-    - `use_large_string`: If `True`, use `pa.large_string()` for
-      `String`. Default `False`.
-    - `use_large_binary`: If `True`, use `pa.large_binary()` for
-      `Binary(length=None)`. When a fixed `length` is provided, a fixed-size
-      `pa.binary(length)` is always used. Default `False`.
-    - `use_large_list`: If `True`, use `pa.large_list(element)` for
-      variable-length `Array` (i.e., `size is None`). For fixed-size arrays
-      (`size` set), `pa.list_(element, list_size=size)` is used. Default
-      `False`.
 
     Notes:
         - Arrow strings are variable-length; any `String.length` hint is
@@ -92,59 +92,66 @@ class PyArrowConverter(BaseConverter):
           `UnsupportedFeatureError`.
     """
 
+    def __init__(self, mode: Literal["raise", "coerce"] = "coerce") -> None:
+        """Initialize the PyArrowConverter.
+
+        Args:
+            mode: "raise" or "coerce". When "coerce", unsupported or
+                incompatible constructs are coerced to a valid pyarrow
+                type with a warning. Defaults to "coerce".
+        """
+        super().__init__(mode=mode)
+
     def convert(self, spec: YadsSpec, **kwargs: Any) -> pa.Schema:
         """Convert a yads `YadsSpec` into a `pyarrow.Schema`.
 
         Args:
             spec: The yads spec as a `YadsSpec` object.
             **kwargs: Optional conversion modifiers:
-                mode: `"raise"`, `"coerce"`, or `"ignore"`. Controls how
-                    incompatible type parameters are handled and whether
-                    unsupported columns are skipped. Defaults to `"raise"`.
-                use_large_string: If `True`, maps `String` to
-                    `pa.large_string()`. Defaults to `False`.
-                use_large_binary: If `True`, maps `Binary(length=None)` to
+                use_large_string: If True, maps `String` to
+                    `pa.large_string()`. Defaults to False.
+                use_large_binary: If True, maps `Binary(length=None)` to
                     `pa.large_binary()`. Fixed-size binaries always use
-                    `pa.binary(length)`. Defaults to `False`.
-                use_large_list: If `True`, maps variable-length `Array` to
+                    `pa.binary(length)`. Defaults to False.
+                use_large_list: If True, maps variable-length `Array` to
                     `pa.large_list(element)`. Fixed-size arrays always use
-                    `pa.list_(element, list_size)`. Defaults to `False`.
+                    `pa.list_(element, list_size)`. Defaults to False.
+                mode: "raise" or "coerce". When "coerce", unsupported or
+                    incompatible constructs are coerced to a valid pyarrow
+                    type with a warning. Defaults to "coerce".
 
         Returns:
             A `pyarrow.Schema` with fields mapped from the spec columns.
         """
-        self._mode: str = kwargs.get("mode", "coerce")
-        if self._mode not in {"raise", "coerce"}:
-            raise UnsupportedFeatureError("mode must be one of 'raise' or 'coerce'.")
+        mode_override = kwargs.get("mode", None)
         self._use_large_string: bool = bool(kwargs.get("use_large_string", False))
         self._use_large_binary: bool = bool(kwargs.get("use_large_binary", False))
         self._use_large_list: bool = bool(kwargs.get("use_large_list", False))
 
-        # Track current field name for contextual warnings during type coercions.
-        self._current_field_name: str | None = None
-
         fields: list[pa.Field] = []
-        for col in spec.columns:
-            try:
-                self._current_field_name = col.name
-                fields.append(self._convert_field(col))
-            except UnsupportedFeatureError:
-                if self._mode == "coerce":
-                    # Map unsupported logical types to a fallback type
-                    validation_warning(
-                        message=(
-                            f"Data type '{type(col.type).__name__.upper()}' is not supported"
-                            f" for column '{col.name}'. The data type will be replaced with pyarrow.binary()."
-                        ),
-                        filename="yads.converters.pyarrow",
-                        module=__name__,
-                    )
-                    fallback = pa.field(col.name, pa.binary(), nullable=col.is_nullable)
-                    fields.append(fallback)
-                    continue
-                raise
-            finally:
-                self._current_field_name = None
+        # Set mode for this conversion call
+        with self.conversion_context(mode=mode_override):
+            for col in spec.columns:
+                try:
+                    # Set field context during conversion
+                    with self.conversion_context(field=col.name):
+                        fields.append(self._convert_field(col))
+                except UnsupportedFeatureError:
+                    if self._mode == "coerce":
+                        validation_warning(
+                            message=(
+                                f"Data type '{type(col.type).__name__.upper()}' is not supported"
+                                f" for column '{col.name}'. The data type will be replaced with pyarrow.binary()."
+                            ),
+                            filename="yads.converters.pyarrow",
+                            module=__name__,
+                        )
+                        fallback = pa.field(
+                            col.name, pa.binary(), nullable=col.is_nullable
+                        )
+                        fields.append(fallback)
+                        continue
+                    raise
         # Attach schema-level metadata if present, coercing values to strings
         schema_metadata = self._coerce_metadata(spec.metadata) if spec.metadata else None
         return pa.schema(fields, metadata=schema_metadata)
@@ -191,7 +198,7 @@ class PyArrowConverter(BaseConverter):
 
     @_convert_type.register(Float)
     def _(self, yads_type: Float) -> pa.DataType:
-        bits = yads_type.bits or 64
+        bits = yads_type.bits or 32
         if bits == 16:
             return pa.float16()
         if bits == 32:
