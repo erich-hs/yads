@@ -11,6 +11,7 @@ from yads.types import (
     Binary,
     Date,
     Time,
+    TimeUnit,
     Timestamp,
     TimestampTZ,
     TimestampLTZ,
@@ -572,6 +573,11 @@ class TestTypeConversion:
             (Integer(bits=16), exp.DataType(this=exp.DataType.Type.SMALLINT)),
             (Integer(bits=32), exp.DataType(this=exp.DataType.Type.INT)),
             (Integer(bits=64), exp.DataType(this=exp.DataType.Type.BIGINT)),
+            (Integer(signed=False), exp.DataType(this=exp.DataType.Type.UINT)),
+            (Integer(bits=8, signed=False), exp.DataType(this=exp.DataType.Type.UTINYINT)),
+            (Integer(bits=16, signed=False), exp.DataType(this=exp.DataType.Type.USMALLINT)),
+            (Integer(bits=32, signed=False), exp.DataType(this=exp.DataType.Type.UINT)),
+            (Integer(bits=64, signed=False), exp.DataType(this=exp.DataType.Type.UBIGINT)),
             # Float types - handled by type handler
             (Float(), exp.DataType(this=exp.DataType.Type.FLOAT)),
             (Float(bits=16), exp.DataType(this=exp.DataType.Type.FLOAT)),
@@ -589,22 +595,70 @@ class TestTypeConversion:
                     ],
                 ),
             ),
+            (
+                Decimal(precision=10, scale=2, bits=128),
+                exp.DataType(
+                    this=exp.DataType.Type.DECIMAL,
+                    expressions=[
+                        # Bits are currently ignored
+                        exp.DataTypeParam(this=exp.Literal.number("10")),
+                        exp.DataTypeParam(this=exp.Literal.number("2")),
+                    ],
+                ),
+            ),
             # Boolean type - fallback to build
             (Boolean(), exp.DataType(this=exp.DataType.Type.BOOLEAN)),
             # Binary types - fallback to build
             (Binary(), exp.DataType(this=exp.DataType.Type.BINARY)),
+            (
+                Binary(length=8),
+                exp.DataType(
+                    this=exp.DataType.Type.BINARY,
+                    expressions=[exp.DataTypeParam(this=exp.Literal.number("8"))],
+                ),
+            ),
             # Temporal types
             (Date(), exp.DataType(this=exp.DataType.Type.DATE)),
+            # Date bits are currently ignored
+            (Date(bits=32), exp.DataType(this=exp.DataType.Type.DATE)),
+            (Date(bits=64), exp.DataType(this=exp.DataType.Type.DATE)),
             (Time(), exp.DataType(this=exp.DataType.Type.TIME)),
+            (Time(unit=TimeUnit.S), exp.DataType(this=exp.DataType.Type.TIME)),
+            (Time(unit=TimeUnit.MS), exp.DataType(this=exp.DataType.Type.TIME)),
+            (Time(unit=TimeUnit.US), exp.DataType(this=exp.DataType.Type.TIME)),
+            (Time(unit=TimeUnit.NS), exp.DataType(this=exp.DataType.Type.TIME)),
+            # Time bits are currently ignored
+            (Time(bits=32), exp.DataType(this=exp.DataType.Type.TIME)),
+            (Time(bits=64), exp.DataType(this=exp.DataType.Type.TIME)),
             (Timestamp(), exp.DataType(this=exp.DataType.Type.TIMESTAMP)),
+            # Timestamp unit and tz are currently ignored
+            (Timestamp(unit=TimeUnit.S), exp.DataType(this=exp.DataType.Type.TIMESTAMP)),
+            (Timestamp(unit=TimeUnit.MS), exp.DataType(this=exp.DataType.Type.TIMESTAMP)),
+            (Timestamp(unit=TimeUnit.US), exp.DataType(this=exp.DataType.Type.TIMESTAMP)),
+            (Timestamp(unit=TimeUnit.NS), exp.DataType(this=exp.DataType.Type.TIMESTAMP)),
             (TimestampTZ(), exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ)),
+            (TimestampTZ(unit=TimeUnit.S), exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ)),
+            (TimestampTZ(unit=TimeUnit.MS), exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ)),
+            (TimestampTZ(unit=TimeUnit.US), exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ)),
+            (TimestampTZ(unit=TimeUnit.NS), exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ)),
+            (TimestampTZ(tz="UTC"), exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ)),
             (TimestampLTZ(), exp.DataType(this=exp.DataType.Type.TIMESTAMPLTZ)),
+            (TimestampLTZ(unit=TimeUnit.S), exp.DataType(this=exp.DataType.Type.TIMESTAMPLTZ)),
+            (TimestampLTZ(unit=TimeUnit.MS), exp.DataType(this=exp.DataType.Type.TIMESTAMPLTZ)),
+            (TimestampLTZ(unit=TimeUnit.US), exp.DataType(this=exp.DataType.Type.TIMESTAMPLTZ)),
+            (TimestampLTZ(unit=TimeUnit.NS), exp.DataType(this=exp.DataType.Type.TIMESTAMPLTZ)),
             (TimestampNTZ(), exp.DataType(this=exp.DataType.Type.TIMESTAMPNTZ)),
+            (TimestampNTZ(unit=TimeUnit.S), exp.DataType(this=exp.DataType.Type.TIMESTAMPNTZ)),
+            (TimestampNTZ(unit=TimeUnit.MS), exp.DataType(this=exp.DataType.Type.TIMESTAMPNTZ)),
+            (TimestampNTZ(unit=TimeUnit.US), exp.DataType(this=exp.DataType.Type.TIMESTAMPNTZ)),
+            (TimestampNTZ(unit=TimeUnit.NS), exp.DataType(this=exp.DataType.Type.TIMESTAMPNTZ)),
             # JSON type - fallback to build
             (JSON(), exp.DataType(this=exp.DataType.Type.JSON)),
             # Spatial types - fallback to build
             (Geometry(), exp.DataType(this=exp.DataType.Type.GEOMETRY)),
+            (Geometry(srid=4326), exp.DataType(this=exp.DataType.Type.GEOMETRY, expressions=[exp.DataTypeParam(this=exp.Literal.number("4326"))])),
             (Geography(), exp.DataType(this=exp.DataType.Type.GEOGRAPHY)),
+            (Geography(srid=4326), exp.DataType(this=exp.DataType.Type.GEOGRAPHY, expressions=[exp.DataTypeParam(this=exp.Literal.number("4326"))])),
             # Void type - handled by type handler
             (Void(), exp.DataType(this=exp.DataType.Type.USERDEFINED, kind="VOID")),
             # Other types - fallback to build
@@ -687,6 +741,7 @@ class TestTypeConversion:
             Array(element=Integer(bits=32)),
             Array(element=Boolean()),
             Array(element=Decimal(precision=10, scale=2)),
+            Array(element=String(), size=2),
             # Nested arrays
             Array(element=Array(element=String())),
         ],
@@ -703,6 +758,10 @@ class TestTypeConversion:
         element_datatype = result.expressions[0]
         expected_element = converter._convert_type(yads_type.element)
         assert element_datatype == expected_element
+        
+        # Array size is currently ignored
+        if hasattr(yads_type, 'size') and yads_type.size is not None:
+            assert len(result.expressions) == 1
 
     @pytest.mark.parametrize(
         "yads_type",
@@ -711,6 +770,7 @@ class TestTypeConversion:
             Map(key=String(), value=Integer(bits=32)),
             Map(key=UUID(), value=Float(bits=64)),
             Map(key=Integer(bits=32), value=Array(element=String())),
+            Map(key=String(), value=Integer(), keys_sorted=True),
         ],
     )
     def test_map_type_conversion(self, yads_type):
@@ -727,6 +787,10 @@ class TestTypeConversion:
         expected_value = converter._convert_type(yads_type.value)
         assert key_datatype == expected_key
         assert value_datatype == expected_value
+        
+        # Map keys_sorted is currently ignored
+        if hasattr(yads_type, 'keys_sorted') and yads_type.keys_sorted is not None:
+            assert len(result.expressions) == 2
 
     def test_struct_type_conversion(self):
         struct_fields = [
