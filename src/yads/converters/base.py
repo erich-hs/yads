@@ -54,11 +54,7 @@ class BaseConverter(ABC):
 
         try:
             if mode is not None:
-                if mode not in ("raise", "coerce"):
-                    from ..exceptions import (
-                        UnsupportedFeatureError,
-                    )  # local to avoid cycles
-
+                if mode not in ("raise", "coerce"):  # pragma: no cover
                     raise UnsupportedFeatureError(
                         "mode must be one of 'raise' or 'coerce'."
                     )
