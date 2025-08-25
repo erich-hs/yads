@@ -29,7 +29,7 @@ from .validators.ast_validation_rules import (
 )
 
 
-class SQLConverter:
+class SQLConverter(BaseConverter):
     """Base class for SQL DDL generation.
 
     The converter composes:
@@ -59,9 +59,11 @@ class SQLConverter:
         dialect: str,
         ast_converter: BaseConverter | None = None,
         ast_validator: AstValidator | None = None,
+        mode: Literal["raise", "coerce"] = "coerce",
         **convert_options: Any,
     ):
-        self._ast_converter = ast_converter or SQLGlotConverter()
+        super().__init__(mode=mode)
+        self._ast_converter = ast_converter or SQLGlotConverter(mode=mode)
         self._dialect = dialect
         self._ast_validator = ast_validator
         self._convert_options = convert_options
@@ -73,7 +75,7 @@ class SQLConverter:
         or_replace: bool = False,
         ignore_catalog: bool = False,
         ignore_database: bool = False,
-        mode: Literal["raise", "coerce"] = "coerce",
+        mode: Literal["raise", "coerce"] | None = None,
         **kwargs: Any,
     ) -> str:
         """Convert a yads `YadsSpec` into a SQL DDL string.
@@ -88,7 +90,8 @@ class SQLConverter:
             or_replace: If True, add `OR REPLACE` clause to the DDL statement.
             ignore_catalog: If True, omits the catalog from the table name.
             ignore_database: If True, omits the database from the table name.
-            mode: Validation mode when an ast_validator is configured:
+            mode: Optional validation mode override for this call. When not
+                provided, the converter's instance mode is used. If provided:
                 - "raise": Raise on any unsupported features.
                 - "coerce": Apply adjustments to produce a valid AST and emit warnings.
             **kwargs: Additional options for SQL DDL string serialization, overriding
@@ -110,19 +113,26 @@ class SQLConverter:
             ...     pretty=True
             ... )
         """
-        ast = self._ast_converter.convert(
-            spec,
-            if_not_exists=if_not_exists,
-            or_replace=or_replace,
-            ignore_catalog=ignore_catalog,
-            ignore_database=ignore_database,
+        # Determine effective mode for this conversion call
+        effective_mode: Literal["raise", "coerce"] = (
+            mode if mode is not None else self._mode
         )
 
+        # Set mode for this conversion call on the underlying AST converter
+        with self._ast_converter.conversion_context(mode=effective_mode):
+            ast = self._ast_converter.convert(
+                spec,
+                if_not_exists=if_not_exists,
+                or_replace=or_replace,
+                ignore_catalog=ignore_catalog,
+                ignore_database=ignore_database,
+            )
+
         if self._ast_validator:
-            ast = self._ast_validator.validate(ast, mode=mode)
+            ast = self._ast_validator.validate(ast, mode=effective_mode)
 
         if isinstance(self._ast_converter, SQLGlotConverter):
-            match mode:
+            match effective_mode:
                 case "raise":
                     self._convert_options["unsupported_level"] = ErrorLevel.RAISE
                 case "coerce":
