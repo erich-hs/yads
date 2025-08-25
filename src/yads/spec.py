@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import textwrap
 from dataclasses import dataclass, field
+from functools import cached_property
 from typing import Any, Type
 
 from .constraints import ColumnConstraint, NotNullConstraint, TableConstraint
@@ -141,22 +142,22 @@ class Field:
     metadata: dict[str, Any] = field(default_factory=dict)
     constraints: list[ColumnConstraint] = field(default_factory=list)
 
-    @property
+    @cached_property
     def has_metadata(self) -> bool:
         """True if the field has any metadata defined."""
         return bool(self.metadata)
 
-    @property
+    @cached_property
     def is_nullable(self) -> bool:
         """True if this field allows NULL values (no NOT NULL constraint)."""
         return not any(isinstance(c, NotNullConstraint) for c in self.constraints)
 
-    @property
+    @cached_property
     def has_constraints(self) -> bool:
         """True if this field has any constraints defined."""
         return bool(self.constraints)
 
-    @property
+    @cached_property
     def constraint_types(self) -> set[Type[ColumnConstraint]]:
         """Set of constraint types applied to this field."""
         return {type(constraint) for constraint in self.constraints}
@@ -216,7 +217,7 @@ class Column(Field):
 
     generated_as: TransformedColumnReference | None = None
 
-    @property
+    @cached_property
     def is_generated(self) -> bool:
         """True if this column is a generated/computed column."""
         return self.generated_as is not None
@@ -391,17 +392,17 @@ class YadsSpec:
                         f"Column {col!r} in constraint {constraint} not found in schema."
                     )
 
-    @property
+    @cached_property
     def column_names(self) -> set[str]:
         """Set of all column names defined in the spec."""
         return {c.name for c in self.columns}
 
-    @property
+    @cached_property
     def partition_column_names(self) -> set[str]:
         """Set of column names referenced as partition columns."""
         return {p.column for p in self.partitioned_by}
 
-    @property
+    @cached_property
     def generated_columns(self) -> dict[str, str]:
         """Mapping of generated column names to their source columns with format:
         `{generated_column_name: source_column_name}`.
@@ -412,12 +413,12 @@ class YadsSpec:
             if c.generated_as is not None
         }
 
-    @property
+    @cached_property
     def nullable_columns(self) -> set[str]:
         """Set of column names that allow NULL values."""
         return {c.name for c in self.columns if c.is_nullable}
 
-    @property
+    @cached_property
     def constrained_columns(self) -> set[str]:
         """Set of column names that have any constraints defined."""
         return {c.name for c in self.columns if c.has_constraints}

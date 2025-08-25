@@ -44,6 +44,7 @@ from __future__ import annotations
 import textwrap
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from functools import cached_property
 from typing import Any
 
 from .exceptions import InvalidConstraintError
@@ -286,7 +287,7 @@ class PrimaryKeyTableConstraint(TableConstraint):
                 "PrimaryKeyTableConstraint 'columns' cannot be empty."
             )
 
-    @property
+    @cached_property
     def constrained_columns(self) -> list[str]:
         return self.columns
 
@@ -348,7 +349,7 @@ class ForeignKeyTableConstraint(TableConstraint):
                 f"referenced columns ({len(self.references.columns)})."
             )
 
-    @property
+    @cached_property
     def constrained_columns(self) -> list[str]:
         return self.columns
 
