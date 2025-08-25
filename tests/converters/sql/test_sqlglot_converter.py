@@ -537,8 +537,12 @@ class TestSQLGlotConverterModeHierarchy:
         spec = from_yaml_string(yaml_string)
 
         converter = SQLGlotConverter(mode="raise")
+        with pytest.warns(
+            UserWarning,
+            match="SQLGlotConverter does not support type: duration",
+        ):
+            ast = converter.convert(spec, mode="coerce")
         # Coerce should succeed and produce an AST
-        ast = converter.convert(spec, mode="coerce")
         assert ast is not None
 
         # Instance remains raise
