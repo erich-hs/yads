@@ -667,7 +667,7 @@ class TestTypeConversion:
             (Variant(), exp.DataType(this=exp.DataType.Type.VARIANT)),
         ],
     )
-    # fmt: on
+# fmt: on
     def test_simple_type_conversion(self, yads_type, expected_datatype):
         converter = SQLGlotConverter()
         result = converter._convert_type(yads_type)
