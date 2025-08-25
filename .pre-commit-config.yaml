@@ -5,7 +5,12 @@ repos:
     -   id: ruff
         args:
           - --fix
+          - --config
+          - pyproject.toml
     -   id: ruff-format
+        args:
+          - --config
+          - pyproject.toml
 
 -   repo: https://github.com/astral-sh/uv-pre-commit
     rev: 0.7.9
