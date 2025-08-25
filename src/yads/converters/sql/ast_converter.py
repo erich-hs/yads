@@ -8,7 +8,7 @@ from the canonical `YadsSpec` format.
 from __future__ import annotations
 
 from functools import singledispatchmethod
-from typing import Any
+from typing import Any, Literal
 
 from sqlglot import exp
 from sqlglot.expressions import convert
@@ -23,7 +23,11 @@ from ...constraints import (
     PrimaryKeyConstraint,
     PrimaryKeyTableConstraint,
 )
-from ...exceptions import ConversionError, UnsupportedFeatureError
+from ...exceptions import (
+    ConversionError,
+    UnsupportedFeatureError,
+    validation_warning,
+)
 from ...spec import Column, Field, YadsSpec, Storage, TransformedColumnReference
 from ...types import (
     YadsType,
@@ -75,6 +79,16 @@ class SQLGlotConverter(BaseConverter):
         >>> sql = ast.sql(dialect="spark")
     """
 
+    def __init__(self, mode: Literal["raise", "coerce"] = "coerce") -> None:
+        """Initialize the SQLGlotConverter.
+
+        Args:
+            mode: "raise" or "coerce". When "coerce", unsupported or
+                incompatible constructs are coerced to a valid AST with a
+                warning. Defaults to "coerce".
+        """
+        super().__init__(mode=mode)
+
     _TRANSFORM_HANDLERS: dict[str, str] = {
         "bucket": "_handle_bucket_transform",
         "truncate": "_handle_truncate_transform",
@@ -99,6 +113,9 @@ class SQLGlotConverter(BaseConverter):
                             node to `True`.
                 ignore_catalog: If True, omits the catalog from the table name.
                 ignore_database: If True, omits the database from the table name.
+                mode: "raise" or "coerce". When "coerce", unsupported or
+                    incompatible constructs are coerced to a valid AST with a
+                    warning. Defaults to "coerce".
 
         Returns:
             sqlglot `exp.Create` expression representing a CREATE TABLE statement.
@@ -113,13 +130,16 @@ class SQLGlotConverter(BaseConverter):
             >>> print(ast.sql(dialect="spark"))
             CREATE TABLE IF NOT EXISTS ...
         """
-        table = self._parse_full_table_name(
-            spec.name,
-            ignore_catalog=kwargs.get("ignore_catalog", False),
-            ignore_database=kwargs.get("ignore_database", False),
-        )
-        properties = self._collect_properties(spec)
-        expressions = self._collect_expressions(spec)
+        # Set mode for this conversion call
+        mode_override = kwargs.get("mode", None)
+        with self.conversion_context(mode=mode_override):
+            table = self._parse_full_table_name(
+                spec.name,
+                ignore_catalog=kwargs.get("ignore_catalog", False),
+                ignore_database=kwargs.get("ignore_database", False),
+            )
+            properties = self._collect_properties(spec)
+            expressions = self._collect_expressions(spec)
 
         return exp.Create(
             this=exp.Schema(this=table, expressions=expressions),
@@ -141,10 +161,22 @@ class SQLGlotConverter(BaseConverter):
         try:
             return exp.DataType.build(str(yads_type))
         except ParseError:
-            # Currently unsupported:
+            # Currently unsupported in sqlglot:
             # - Duration
+            if self._mode == "coerce":
+                validation_warning(
+                    message=(
+                        f"SQLGlotConverter does not support type: {yads_type}"
+                        f" for column '{self._current_field_name or '<unknown>'}'."
+                        f" The data type will be replaced with TEXT."
+                    ),
+                    filename="yads.converters.sql.ast_converter",
+                    module=__name__,
+                )
+                return exp.DataType(this=exp.DataType.Type.TEXT)
             raise UnsupportedFeatureError(
-                f"SQLGlotConverter does not support type: {yads_type}."
+                f"SQLGlotConverter does not support type: {yads_type}"
+                f" for column '{self._current_field_name or '<unknown>'}'."
             )
 
     @_convert_type.register(String)
@@ -159,40 +191,46 @@ class SQLGlotConverter(BaseConverter):
 
     @_convert_type.register(Integer)
     def _(self, yads_type: Integer) -> exp.DataType:
+        bits = yads_type.bits or 32
         if yads_type.signed:
-            if yads_type.bits == 8:
+            if bits == 8:
                 return exp.DataType(this=exp.DataType.Type.TINYINT)
-            if yads_type.bits == 16:
+            if bits == 16:
                 return exp.DataType(this=exp.DataType.Type.SMALLINT)
-            if yads_type.bits == 32:
+            if bits == 32:
                 return exp.DataType(this=exp.DataType.Type.INT)
-            if yads_type.bits == 64:
+            if bits == 64:
                 return exp.DataType(this=exp.DataType.Type.BIGINT)
-            # Default to INT for unspecified bits
-            return exp.DataType(this=exp.DataType.Type.INT)
+            raise UnsupportedFeatureError(
+                f"Unsupported Integer bits: {bits}. Expected 8/16/32/64."
+            )
         # Unsigned integers
-        if yads_type.bits == 8:
+        if bits == 8:
             return exp.DataType(this=exp.DataType.Type.UTINYINT)
-        if yads_type.bits == 16:
+        if bits == 16:
             return exp.DataType(this=exp.DataType.Type.USMALLINT)
-        if yads_type.bits == 32:
+        if bits == 32:
             return exp.DataType(this=exp.DataType.Type.UINT)
-        if yads_type.bits == 64:
+        if bits == 64:
             return exp.DataType(this=exp.DataType.Type.UBIGINT)
-        # Default to UINT for unspecified bits
-        return exp.DataType(this=exp.DataType.Type.UINT)
+        raise UnsupportedFeatureError(
+            f"Unsupported Integer bits: {bits}. Expected 8/16/32/64."
+        )
 
     @_convert_type.register(Float)
     def _(self, yads_type: Float) -> exp.DataType:
-        if yads_type.bits == 16:
-            # sqlglot doesn't support HALF precision
+        bits = yads_type.bits or 32
+        if bits == 16:
+            # sqlglot doesn't support HALF precision float
+            # TODO: raise or coerce with a warning
             return exp.DataType(this=exp.DataType.Type.FLOAT)
-        if yads_type.bits == 32:
+        if bits == 32:
             return exp.DataType(this=exp.DataType.Type.FLOAT)
-        if yads_type.bits == 64:
+        if bits == 64:
             return exp.DataType(this=exp.DataType.Type.DOUBLE)
-        # Default to FLOAT for unspecified bits
-        return exp.DataType(this=exp.DataType.Type.FLOAT)
+        raise UnsupportedFeatureError(
+            f"Unsupported Float bits: {bits}. Expected 16/32/64."
+        )
 
     @_convert_type.register(Decimal)
     def _(self, yads_type: Decimal) -> exp.DataType:
@@ -320,12 +358,21 @@ class SQLGlotConverter(BaseConverter):
         return exp.DataType(this=exp.DataType.Type.GEOGRAPHY, expressions=expressions)
 
     @singledispatchmethod
-    def _convert_column_constraint(self, constraint: Any) -> exp.ColumnConstraint:
-        # TODO: Revisit this after implementing a global setting to either
-        # raise or warn when the spec is more expressive than the handlers
-        # available in the converter.
+    def _convert_column_constraint(self, constraint: Any) -> exp.ColumnConstraint | None:
+        if self._mode == "coerce":
+            validation_warning(
+                message=(
+                    f"SQLGlotConverter does not support constraint: {type(constraint)}"
+                    f" for column '{self._current_field_name or '<unknown>'}'."
+                    f" The constraint will be omitted."
+                ),
+                filename="yads.converters.sql.ast_converter",
+                module=__name__,
+            )
+            return None
         raise UnsupportedFeatureError(
-            f"SQLGlotConverter does not support constraint: {type(constraint)}."
+            f"SQLGlotConverter does not support constraint: {type(constraint)}"
+            f" for column '{self._current_field_name or '<unknown>'}'."
         )
 
     @_convert_column_constraint.register(NotNullConstraint)
@@ -382,10 +429,17 @@ class SQLGlotConverter(BaseConverter):
         return exp.ColumnConstraint(kind=reference_expression)
 
     @singledispatchmethod
-    def _convert_table_constraint(self, constraint: Any) -> exp.Expression:
-        # TODO: Revisit this after implementing a global setting to either
-        # raise or warn when the spec is more expressive than the handlers
-        # available in the converter.
+    def _convert_table_constraint(self, constraint: Any) -> exp.Expression | None:
+        if self._mode == "coerce":
+            validation_warning(
+                message=(
+                    f"SQLGlotConverter does not support table constraint: {type(constraint)}"
+                    f" The constraint will be omitted."
+                ),
+                filename="yads.converters.sqlglot",
+                module=__name__,
+            )
+            return None
         raise UnsupportedFeatureError(
             f"SQLGlotConverter does not support table constraint: {type(constraint)}."
         )
@@ -442,13 +496,14 @@ class SQLGlotConverter(BaseConverter):
     ) -> exp.PartitionedByProperty:
         schema_expressions = []
         for col in value:
-            if col.transform:
-                expression = self._handle_transformation(
-                    col.column, col.transform, col.transform_args
-                )
-            else:
-                expression = exp.Identifier(this=col.column)
-            schema_expressions.append(expression)
+            with self.conversion_context(field=col.column):
+                if col.transform:
+                    expression = self._handle_transformation(
+                        col.column, col.transform, col.transform_args
+                    )
+                else:
+                    expression = exp.Identifier(this=col.column)
+                schema_expressions.append(expression)
         return exp.PartitionedByProperty(this=exp.Schema(expressions=schema_expressions))
 
     def _handle_location_property(self, value: str) -> exp.LocationProperty:
@@ -496,8 +551,23 @@ class SQLGlotConverter(BaseConverter):
         self._validate_transform_args("cast", len(transform_args), 1)
         cast_to_type = transform_args[0].upper()
         if cast_to_type not in exp.DataType.Type:
+            if self._mode == "coerce":
+                validation_warning(
+                    message=(
+                        f"Transform type '{cast_to_type}' is not a valid sqlglot Type"
+                        f" for column '{self._current_field_name or '<unknown>'}'."
+                        f" The expression will be coerced to CAST(... AS TEXT)."
+                    ),
+                    filename="yads.converters.sqlglot",
+                    module=__name__,
+                )
+                return exp.Cast(
+                    this=exp.column(column),
+                    to=exp.DataType(this=exp.DataType.Type.TEXT),
+                )
             raise UnsupportedFeatureError(
                 f"Transform type '{cast_to_type}' is not a valid sqlglot Type"
+                f" for column '{self._current_field_name or '<unknown>'}'."
             )
         return exp.Cast(
             this=exp.column(column),
@@ -545,33 +615,38 @@ class SQLGlotConverter(BaseConverter):
 
     def _convert_column(self, column: Column) -> exp.ColumnDef:
         constraints = []
-        if column.generated_as and column.generated_as.transform:
-            expression = self._handle_transformation(
-                column.generated_as.column,
-                column.generated_as.transform,
-                column.generated_as.transform_args,
-            )
-            constraints.append(
-                exp.ColumnConstraint(
-                    kind=exp.GeneratedAsIdentityColumnConstraint(
-                        this=True, expression=expression
+        with self.conversion_context(field=column.name):
+            if column.generated_as and column.generated_as.transform:
+                expression = self._handle_transformation(
+                    column.generated_as.column,
+                    column.generated_as.transform,
+                    column.generated_as.transform_args,
+                )
+                constraints.append(
+                    exp.ColumnConstraint(
+                        kind=exp.GeneratedAsIdentityColumnConstraint(
+                            this=True, expression=expression
+                        )
                     )
                 )
+            for constraint in column.constraints:
+                converted = self._convert_column_constraint(constraint)
+                if converted is not None:
+                    constraints.append(converted)
+            return exp.ColumnDef(
+                this=exp.Identifier(this=column.name),
+                kind=self._convert_type(column.type),
+                constraints=constraints if constraints else None,
             )
-        for constraint in column.constraints:
-            constraints.append(self._convert_column_constraint(constraint))
-        return exp.ColumnDef(
-            this=exp.Identifier(this=column.name),
-            kind=self._convert_type(column.type),
-            constraints=constraints if constraints else None,
-        )
 
     def _collect_expressions(self, spec: YadsSpec) -> list[exp.Expression]:
-        expressions: list[exp.Expression] = [
-            self._convert_column(col) for col in spec.columns
-        ]
+        expressions: list[exp.Expression] = []
+        for col in spec.columns:
+            expressions.append(self._convert_column(col))
         for constraint in spec.table_constraints:
-            expressions.append(self._convert_table_constraint(constraint))
+            converted = self._convert_table_constraint(constraint)
+            if converted is not None:
+                expressions.append(converted)
         return expressions
 
     def _parse_full_table_name(

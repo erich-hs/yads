@@ -40,6 +40,7 @@ from yads.constraints import (
     IdentityConstraint,
 )
 from yads.exceptions import ConversionError, UnsupportedFeatureError
+from yads.loaders import from_yaml_string
 
 
 # ======================================================================
@@ -283,7 +284,7 @@ class TestConstraintConversion:
             converter._convert_table_constraint(constraint)
 
     def test_unsupported_column_constraint_raises_error(self):
-        converter = SQLGlotConverter()
+        converter = SQLGlotConverter(mode="raise")
 
         class UnsupportedConstraint:
             pass
@@ -297,7 +298,7 @@ class TestConstraintConversion:
             converter._convert_column_constraint(constraint)
 
     def test_unsupported_table_constraint_raises_error(self):
-        converter = SQLGlotConverter()
+        converter = SQLGlotConverter(mode="raise")
 
         class UnsupportedTableConstraint:
             pass
@@ -332,7 +333,7 @@ class TestTransformConversion:
             converter._handle_cast_transform("col1", ["TEXT", "INT"])
 
     def test_cast_transform_unknown_type_raises_error(self):
-        converter = SQLGlotConverter()
+        converter = SQLGlotConverter(mode="raise")
         with pytest.raises(
             UnsupportedFeatureError,
             match="Transform type 'NOT_A_TYPE' is not a valid sqlglot Type",
@@ -505,6 +506,46 @@ class TestGeneratedColumnConversion:
         constraint_types = [type(c.kind) for c in result.constraints]
         assert exp.GeneratedAsIdentityColumnConstraint in constraint_types
         assert exp.NotNullColumnConstraint in constraint_types
+
+
+# %% Mode hierarchy for SQLGlotConverter
+class TestSQLGlotConverterModeHierarchy:
+    def test_instance_mode_raise_used_by_default(self):
+        yaml_string = """
+        name: t
+        version: 1
+        columns:
+          - name: c
+            type: duration
+        """
+        spec = from_yaml_string(yaml_string)
+
+        converter = SQLGlotConverter(mode="raise")
+        with pytest.raises(
+            UnsupportedFeatureError, match="does not support type: duration"
+        ):
+            converter.convert(spec)
+
+    def test_call_override_to_coerce_does_not_persist(self):
+        yaml_string = """
+        name: t
+        version: 1
+        columns:
+          - name: c
+            type: duration
+        """
+        spec = from_yaml_string(yaml_string)
+
+        converter = SQLGlotConverter(mode="raise")
+        # Coerce should succeed and produce an AST
+        ast = converter.convert(spec, mode="coerce")
+        assert ast is not None
+
+        # Instance remains raise
+        with pytest.raises(
+            UnsupportedFeatureError, match="does not support type: duration"
+        ):
+            converter.convert(spec)
 
 
 # %% Type conversion
@@ -736,7 +777,7 @@ class TestTypeConversion:
 
     @pytest.mark.parametrize("yads_type", [Duration()])
     def test_unsupported_types(self, yads_type):
-        converter = SQLGlotConverter()
+        converter = SQLGlotConverter(mode="raise")
         with pytest.raises(
             UnsupportedFeatureError, match="SQLGlotConverter does not support type:"
         ):
