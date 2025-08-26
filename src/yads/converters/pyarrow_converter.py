@@ -137,6 +137,10 @@ class PyArrowConverter(BaseConverter):
                     with self.conversion_context(field=col.name):
                         fields.append(self._convert_field(col))
                 except UnsupportedFeatureError:
+                    # Currently unsupported in PyArrow:
+                    # - Geometry
+                    # - Geography
+                    # - Variant
                     if self._mode == "coerce":
                         validation_warning(
                             message=(
