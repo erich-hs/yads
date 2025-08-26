@@ -193,7 +193,7 @@ class TestSQLGlotConverterTypes:
             (Variant(), exp.DataType(this=exp.DataType.Type.VARIANT), None),
         ],
     )
-    def test_simple_type_conversion(self, yads_type, expected_datatype, expected_warning):
+    def test_convert_type(self, yads_type, expected_datatype, expected_warning):
         converter = SQLGlotConverter()
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -265,7 +265,7 @@ class TestSQLGlotConverterTypes:
             ),
         ],
     )
-    def test_interval_type_conversion(self, yads_type, expected_datatype):
+    def test_convert_interval_type(self, yads_type, expected_datatype):
         converter = SQLGlotConverter()
         result = converter._convert_type(yads_type)
         assert result == expected_datatype
@@ -283,7 +283,7 @@ class TestSQLGlotConverterTypes:
             Array(element=Array(element=String())),
         ],
     )
-    def test_array_type_conversion(self, yads_type):
+    def test_convert_array_type(self, yads_type):
         converter = SQLGlotConverter()
         result = converter._convert_type(yads_type)
 
@@ -310,7 +310,7 @@ class TestSQLGlotConverterTypes:
             Map(key=String(), value=Integer(), keys_sorted=True),
         ],
     )
-    def test_map_type_conversion(self, yads_type):
+    def test_convert_map_type(self, yads_type):
         converter = SQLGlotConverter()
         result = converter._convert_type(yads_type)
 
@@ -329,7 +329,7 @@ class TestSQLGlotConverterTypes:
         if hasattr(yads_type, 'keys_sorted') and yads_type.keys_sorted is not None:
             assert len(result.expressions) == 2
 
-    def test_struct_type_conversion(self):
+    def test_convert_struct_type(self):
         struct_fields = [
             Field(name="field1", type=String()),
             Field(name="field2", type=Integer(bits=32)),
@@ -352,7 +352,7 @@ class TestSQLGlotConverterTypes:
             expected_field_type = converter._convert_type(struct_fields[i].type)
             assert field_def.kind == expected_field_type
 
-    def test_nested_struct_type_conversion(self):
+    def test_convert_nested_struct_type(self):
         inner_fields = [Field(name="inner_field", type=Integer(bits=32))]
         inner_struct = Struct(fields=inner_fields)
 
@@ -442,7 +442,7 @@ def test_convert_matches_expected_ast_from_fixtures(spec_path, expected_sql_path
 
 # %% Constraint conversion
 class TestConstraintConversion:
-    def test_not_null_constraint_conversion(self):
+    def test_convert_not_null_constraint(self):
         converter = SQLGlotConverter()
         constraint = NotNullConstraint()
         result = converter._convert_column_constraint(constraint)
@@ -450,7 +450,7 @@ class TestConstraintConversion:
         expected = exp.ColumnConstraint(kind=exp.NotNullColumnConstraint())
         assert result == expected
 
-    def test_primary_key_constraint_conversion(self):
+    def test_convert_primary_key_constraint(self):
         converter = SQLGlotConverter()
         constraint = PrimaryKeyConstraint()
         result = converter._convert_column_constraint(constraint)
@@ -458,7 +458,7 @@ class TestConstraintConversion:
         expected = exp.ColumnConstraint(kind=exp.PrimaryKeyColumnConstraint())
         assert result == expected
 
-    def test_default_constraint_conversion(self):
+    def test_convert_default_constraint(self):
         converter = SQLGlotConverter()
         constraint = DefaultConstraint(value="test_value")
         result = converter._convert_column_constraint(constraint)
@@ -468,7 +468,7 @@ class TestConstraintConversion:
         )
         assert result == expected
 
-    def test_identity_constraint_positive_values_conversion(self):
+    def test_convert_identity_constraint_positive_values(self):
         converter = SQLGlotConverter()
         constraint = IdentityConstraint(always=True, start=1, increment=1)
         result = converter._convert_column_constraint(constraint)
@@ -482,7 +482,7 @@ class TestConstraintConversion:
         )
         assert result == expected
 
-    def test_identity_constraint_negative_increment_conversion(self):
+    def test_convert_identity_constraint_negative_increment(self):
         converter = SQLGlotConverter()
         constraint = IdentityConstraint(always=False, start=10, increment=-1)
         result = converter._convert_column_constraint(constraint)
@@ -496,7 +496,7 @@ class TestConstraintConversion:
         )
         assert result == expected
 
-    def test_identity_constraint_negative_start_conversion(self):
+    def test_convert_identity_constraint_negative_start(self):
         converter = SQLGlotConverter()
         constraint = IdentityConstraint(always=True, start=-5, increment=2)
         result = converter._convert_column_constraint(constraint)
@@ -510,7 +510,7 @@ class TestConstraintConversion:
         )
         assert result == expected
 
-    def test_foreign_key_constraint_with_name_conversion(self):
+    def test_convert_foreign_key_constraint_with_name(self):
         converter = SQLGlotConverter()
         constraint = ForeignKeyConstraint(
             name="fk_test",
@@ -531,7 +531,7 @@ class TestConstraintConversion:
         )
         assert result == expected
 
-    def test_foreign_key_constraint_no_name_conversion(self):
+    def test_convert_foreign_key_constraint_no_name(self):
         converter = SQLGlotConverter()
         constraint = ForeignKeyConstraint(
             references=ForeignKeyReference(table="other_table", columns=["id"])
@@ -550,7 +550,7 @@ class TestConstraintConversion:
         )
         assert result == expected
 
-    def test_primary_key_table_constraint_with_name_conversion(self):
+    def test_convert_primary_key_table_constraint_with_name(self):
         converter = SQLGlotConverter()
         constraint = PrimaryKeyTableConstraint(name="pk_test", columns=["col1", "col2"])
         result = converter._convert_table_constraint(constraint)
@@ -574,7 +574,7 @@ class TestConstraintConversion:
         )
         assert result == expected
 
-    def test_primary_key_table_constraint_no_name_raises_error(self):
+    def test_convert_primary_key_table_constraint_no_name_raises_error(self):
         converter = SQLGlotConverter()
         constraint = PrimaryKeyTableConstraint(columns=["col1"])
 
@@ -583,7 +583,7 @@ class TestConstraintConversion:
         ):
             converter._convert_table_constraint(constraint)
 
-    def test_foreign_key_table_constraint_with_name_conversion(self):
+    def test_convert_foreign_key_table_constraint_with_name(self):
         converter = SQLGlotConverter()
         constraint = ForeignKeyTableConstraint(
             name="fk_test",
@@ -612,7 +612,7 @@ class TestConstraintConversion:
         )
         assert result == expected
 
-    def test_foreign_key_table_constraint_no_name_raises_error(self):
+    def test_convert_foreign_key_table_constraint_no_name_raises_error(self):
         converter = SQLGlotConverter()
         constraint = ForeignKeyTableConstraint(
             columns=["col1"],
@@ -624,7 +624,7 @@ class TestConstraintConversion:
         ):
             converter._convert_table_constraint(constraint)
 
-    def test_unsupported_column_constraint_raises_error(self):
+    def test_convert_unsupported_column_constraint_raises_error(self):
         converter = SQLGlotConverter(mode="raise")
 
         class UnsupportedConstraint:
@@ -638,7 +638,7 @@ class TestConstraintConversion:
         ):
             converter._convert_column_constraint(constraint)
 
-    def test_unsupported_column_constraint_coerce_omits_and_warns(self):
+    def test_convert_unsupported_column_constraint_coerce_omits_and_warns(self):
         converter = SQLGlotConverter(mode="coerce")
 
         class UnsupportedConstraint:
@@ -655,7 +655,7 @@ class TestConstraintConversion:
         assert issubclass(w[0].category, ValidationWarning)
         assert "does not support constraint" in str(w[0].message)
 
-    def test_unsupported_table_constraint_raises_error(self):
+    def test_convert_unsupported_table_constraint_raises_error(self):
         converter = SQLGlotConverter(mode="raise")
 
         class UnsupportedTableConstraint:
@@ -669,7 +669,7 @@ class TestConstraintConversion:
         ):
             converter._convert_table_constraint(constraint)
 
-    def test_unsupported_table_constraint_coerce_omits_and_warns(self):
+    def test_convert_unsupported_table_constraint_coerce_omits_and_warns(self):
         converter = SQLGlotConverter(mode="coerce")
 
         class UnsupportedTableConstraint:
@@ -689,7 +689,7 @@ class TestConstraintConversion:
 
 # %% Transform handling
 class TestTransformConversion:
-    def test_cast_transform_conversion(self):
+    def test_convert_cast_transform(self):
         converter = SQLGlotConverter()
         result = converter._handle_cast_transform("col1", ["TEXT"])
 
@@ -699,7 +699,7 @@ class TestTransformConversion:
         )
         assert result == expected
 
-    def test_cast_transform_wrong_args_raises_error(self):
+    def test_convert_cast_transform_wrong_args_raises_error(self):
         converter = SQLGlotConverter()
 
         with pytest.raises(
@@ -707,7 +707,7 @@ class TestTransformConversion:
         ):
             converter._handle_cast_transform("col1", ["TEXT", "INT"])
 
-    def test_cast_transform_unknown_type_raises_error(self):
+    def test_convert_cast_transform_unknown_type_raises_error(self):
         converter = SQLGlotConverter(mode="raise")
         with pytest.raises(
             UnsupportedFeatureError,
@@ -715,7 +715,7 @@ class TestTransformConversion:
         ):
             converter._handle_cast_transform("col1", ["not_a_type"])
 
-    def test_cast_transform_unknown_type_coerce_warns_and_coerces_to_text(self):
+    def test_convert_cast_transform_unknown_type_coerce_warns_and_coerces_to_text(self):
         converter = SQLGlotConverter(mode="coerce")
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -730,7 +730,7 @@ class TestTransformConversion:
         assert issubclass(w[0].category, ValidationWarning)
         assert "is not a valid sqlglot Type" in str(w[0].message)
 
-    def test_bucket_transform_conversion(self):
+    def test_convert_bucket_transform(self):
         converter = SQLGlotConverter()
         result = converter._handle_bucket_transform("col1", [10])
 
@@ -812,7 +812,7 @@ class TestTransformConversion:
 
 # %% Generated column conversion
 class TestGeneratedColumnConversion:
-    def test_generated_column_conversion(self):
+    def test_convert_generated_column(self):
         converter = SQLGlotConverter()
         from yads.spec import TransformedColumnReference
 
@@ -834,7 +834,7 @@ class TestGeneratedColumnConversion:
         assert isinstance(constraint.kind, exp.GeneratedAsIdentityColumnConstraint)
         assert constraint.kind.this is True
 
-    def test_generated_column_with_transform_args(self):
+    def test_convert_generated_column_with_transform_args(self):
         converter = SQLGlotConverter()
         from yads.spec import TransformedColumnReference
 
@@ -857,7 +857,7 @@ class TestGeneratedColumnConversion:
         # The expression should be a function call with the arguments
         assert constraint.kind.expression is not None
 
-    def test_column_without_generated_clause(self):
+    def test_convert_column_without_generated_clause(self):
         converter = SQLGlotConverter()
 
         column = Column(
@@ -873,7 +873,7 @@ class TestGeneratedColumnConversion:
         constraint = result.constraints[0]
         assert isinstance(constraint.kind, exp.NotNullColumnConstraint)
 
-    def test_column_with_both_constraints_and_generated(self):
+    def test_convert_column_with_both_constraints_and_generated(self):
         converter = SQLGlotConverter()
         from yads.spec import TransformedColumnReference
 
