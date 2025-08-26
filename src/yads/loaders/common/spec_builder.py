@@ -42,6 +42,7 @@ from ...types import (
     Array,
     Interval,
     IntervalTimeUnit,
+    TimeUnit,
     Map,
     Struct,
     YadsType,
@@ -165,7 +166,12 @@ class SpecBuilder:
 
         # For simple types, get processed params and instantiate
         final_params = self._get_processed_type_params(type_name, type_def)
-        return base_type_class(**final_params)  # type: ignore[misc]
+
+        # Normalize temporal units to TimeUnit enum when present and applicable
+        if "unit" in final_params and isinstance(final_params["unit"], str):
+            final_params["unit"] = TimeUnit(final_params["unit"])
+
+        return base_type_class(**final_params)
 
     def _parse_interval_type(self, type_def: dict[str, Any]) -> Interval:
         type_name = type_def.get("type", "")
@@ -224,6 +230,7 @@ class SpecBuilder:
             type=self._parse_type(field_def["type"], field_def),
             description=field_def.get("description"),
             metadata=field_def.get("metadata", {}),
+            constraints=self._parse_column_constraints(field_def.get("constraints")),
         )
 
     def _parse_column(self, col_def: dict[str, Any]) -> Column:
@@ -259,9 +266,9 @@ class SpecBuilder:
 
         # Validate allowed keys based on context
         type_spec_keys = {"type", "params", "element", "fields", "key", "value"}
-        common_field_keys = {"name", "description", "metadata"}
+        common_field_keys = {"name", "description", "metadata", "constraints"}
         if context == "column":
-            allowed = common_field_keys | type_spec_keys | {"constraints", "generated_as"}
+            allowed = common_field_keys | type_spec_keys | {"generated_as"}
         else:  # context == "field"
             allowed = common_field_keys | type_spec_keys
 
@@ -474,7 +481,7 @@ class SpecBuilder:
             table_constrained_cols = set()
             for const in spec.table_constraints:
                 if isinstance(const, tbl_const_type):
-                    table_constrained_cols.update(const.get_constrained_columns())
+                    table_constrained_cols.update(const.constrained_columns)
             if duplicates := constrained_cols.intersection(table_constrained_cols):
                 warnings.warn(
                     f"Columns {sorted(list(duplicates))} have a "
@@ -486,7 +493,7 @@ class SpecBuilder:
 
     def _check_for_undefined_columns_in_table_constraints(self, spec: YadsSpec) -> None:
         for constraint in spec.table_constraints:
-            constrained_columns = set(constraint.get_constrained_columns())
+            constrained_columns = set(constraint.constrained_columns)
             if not_defined := constrained_columns - spec.column_names:
                 constraint_name = (
                     getattr(constraint, "name", None)

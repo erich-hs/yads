@@ -6,8 +6,8 @@ formats:
 - `from_yaml_string`: Load from YAML content provided as a string.
 - `from_yaml_path`: Load from a filesystem path to a YAML file.
 - `from_yaml_stream`: Load from a file-like stream (text or binary).
-- `from_yaml`: Convenience loader that accepts a path (``str`` or
-  ``pathlib.Path``) or a file-like stream. It does not accept arbitrary
+- `from_yaml`: Convenience loader that accepts a path (`str` or
+  `pathlib.Path`) or a file-like stream. It does not accept arbitrary
   content strings.
 
 All functions return a validated immutable `YadsSpec` instance.
@@ -142,7 +142,7 @@ def from_yaml(
     strings. Pass content strings to `from_yaml_string` instead.
 
     Args:
-        source: A filesystem path (``str`` or ``pathlib.Path``) or a file-like
+        source: A filesystem path (`str` or `pathlib.Path`) or a file-like
             object opened in text or binary mode.
         encoding: Text encoding used when reading files or decoding binary
             streams.

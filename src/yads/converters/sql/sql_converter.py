@@ -15,19 +15,21 @@ from sqlglot.expressions import DataType
 
 from ...spec import YadsSpec
 from ..base import BaseConverter
-from .ast_converter import SQLGlotConverter  # type: ignore[reportMissingImports]
-from .validators.ast_validator import AstValidator  # type: ignore[reportMissingImports]
-from .validators.ast_validation_rules import (  # type: ignore[reportMissingImports]
+from .ast_converter import SQLGlotConverter
+from .validators.ast_validator import AstValidator
+from .validators.ast_validation_rules import (
     AstValidationRule,
     DisallowType,
-    DisallowParameterizedGeometryType,
-    DisallowVoidType,
-    DisallowGeneratedIdentity,
+    DisallowUserDefinedType,
+    DisallowFixedLengthBinary,
+    DisallowNegativeScaleDecimal,
+    DisallowParameterizedGeometry,
+    DisallowColumnConstraintGeneratedIdentity,
     DisallowTableConstraintPrimaryKeyNullsFirst,
 )
 
 
-class SQLConverter:
+class SQLConverter(BaseConverter):
     """Base class for SQL DDL generation.
 
     The converter composes:
@@ -57,9 +59,11 @@ class SQLConverter:
         dialect: str,
         ast_converter: BaseConverter | None = None,
         ast_validator: AstValidator | None = None,
+        mode: Literal["raise", "coerce"] = "coerce",
         **convert_options: Any,
     ):
-        self._ast_converter = ast_converter or SQLGlotConverter()
+        super().__init__(mode=mode)
+        self._ast_converter = ast_converter or SQLGlotConverter(mode=mode)
         self._dialect = dialect
         self._ast_validator = ast_validator
         self._convert_options = convert_options
@@ -71,7 +75,7 @@ class SQLConverter:
         or_replace: bool = False,
         ignore_catalog: bool = False,
         ignore_database: bool = False,
-        mode: Literal["raise", "warn", "ignore"] = "warn",
+        mode: Literal["raise", "coerce"] | None = None,
         **kwargs: Any,
     ) -> str:
         """Convert a yads `YadsSpec` into a SQL DDL string.
@@ -86,12 +90,10 @@ class SQLConverter:
             or_replace: If True, add `OR REPLACE` clause to the DDL statement.
             ignore_catalog: If True, omits the catalog from the table name.
             ignore_database: If True, omits the database from the table name.
-            mode: Validation mode when an ast_validator is configured:
-                - "raise": Raise ValidationRuleError for any unsupported features.
-                - "warn": Log warnings and automatically adjust AST for compatibility.
-                - "ignore": Silently ignore unsupported features without warnings.
-                            The generated SQL DDL might still contain modifications
-                            done by the AST converter.
+            mode: Optional validation mode override for this call. When not
+                provided, the converter's instance mode is used. If provided:
+                - "raise": Raise on any unsupported features.
+                - "coerce": Apply adjustments to produce a valid AST and emit warnings.
             **kwargs: Additional options for SQL DDL string serialization, overriding
                       defaults. For a `SQLGlotConverter`, see sqlglot's documentation
                       for supported options:
@@ -111,25 +113,30 @@ class SQLConverter:
             ...     pretty=True
             ... )
         """
-        ast = self._ast_converter.convert(
-            spec,
-            if_not_exists=if_not_exists,
-            or_replace=or_replace,
-            ignore_catalog=ignore_catalog,
-            ignore_database=ignore_database,
+        # Determine effective mode for this conversion call
+        effective_mode: Literal["raise", "coerce"] = (
+            mode if mode is not None else self._mode
         )
 
+        # Set mode for this conversion call on the underlying AST converter
+        with self._ast_converter.conversion_context(mode=effective_mode):
+            ast = self._ast_converter.convert(
+                spec,
+                if_not_exists=if_not_exists,
+                or_replace=or_replace,
+                ignore_catalog=ignore_catalog,
+                ignore_database=ignore_database,
+            )
+
         if self._ast_validator:
-            ast = self._ast_validator.validate(ast, mode=mode)
+            ast = self._ast_validator.validate(ast, mode=effective_mode)
 
         if isinstance(self._ast_converter, SQLGlotConverter):
-            match mode:
+            match effective_mode:
                 case "raise":
                     self._convert_options["unsupported_level"] = ErrorLevel.RAISE
-                case "warn":
+                case "coerce":
                     self._convert_options["unsupported_level"] = ErrorLevel.WARN
-                case "ignore":
-                    self._convert_options["unsupported_level"] = ErrorLevel.IGNORE
 
         options = {**self._convert_options, **kwargs}
         return ast.sql(dialect=self._dialect, **options)
@@ -141,18 +148,41 @@ class SparkSQLConverter(SQLConverter):
     Configured with:
     - dialect="spark"
     - Rules:
+      - Disallow unsigned integers → replace with signed integers
       - Disallow JSON → replace with STRING
       - Disallow GEOMETRY → replace with STRING
       - Disallow GEOGRAPHY → replace with STRING
+      - Disallow UUID → replace with STRING
+      - Disallow negative scale decimal → replace with a sum of the absolute value of the scale and the precision, with a scale of 0
+      - Disallow fixed length binary → replace with BINARY
     """
 
     def __init__(self, **convert_options: Any):
         rules: list[AstValidationRule] = [
             DisallowType(
+                disallow_type=DataType.Type.UTINYINT,
+                fallback_type=DataType.Type.TINYINT,
+            ),
+            DisallowType(
+                disallow_type=DataType.Type.USMALLINT,
+                fallback_type=DataType.Type.SMALLINT,
+            ),
+            DisallowType(
+                disallow_type=DataType.Type.UINT,
+                fallback_type=DataType.Type.INT,
+            ),
+            DisallowType(
+                disallow_type=DataType.Type.UBIGINT,
+                fallback_type=DataType.Type.BIGINT,
+            ),
+            DisallowType(
                 disallow_type=DataType.Type.JSON,
             ),
             DisallowType(disallow_type=DataType.Type.GEOMETRY),
             DisallowType(disallow_type=DataType.Type.GEOGRAPHY),
+            DisallowType(disallow_type=DataType.Type.UUID),
+            DisallowNegativeScaleDecimal(),
+            DisallowFixedLengthBinary(),
         ]
         validator = AstValidator(rules=rules)
         super().__init__(dialect="spark", ast_validator=validator, **convert_options)
@@ -168,21 +198,26 @@ class DuckdbSQLConverter(SQLConverter):
       - Disallow VOID → replace with STRING
       - Disallow GEOGRAPHY → replace with STRING
       - Disallow parametrized GEOMETRY → strip parameters
+      - Disallow VARIANT → replace with STRING
+      - Disallow column-level IDENTITY → remove constraint
+      - Disallow NULLS FIRST in table-level PRIMARY KEY constraints → remove NULLS FIRST
+      - Disallow fixed length binary → replace with BLOB
     """
 
     def __init__(self, **convert_options: Any):
         rules: list[AstValidationRule] = [
-            # TIMESTAMPLTZ is not supported in DuckDB; map to TIMESTAMPTZ
             DisallowType(
                 disallow_type=DataType.Type.TIMESTAMPLTZ,
                 fallback_type=DataType.Type.TIMESTAMPTZ,
             ),
-            DisallowVoidType(),
+            DisallowUserDefinedType(disallow_type="VOID"),
             DisallowType(disallow_type=DataType.Type.GEOGRAPHY),
-            DisallowParameterizedGeometryType(),
+            DisallowParameterizedGeometry(),
             DisallowType(disallow_type=DataType.Type.VARIANT),
-            DisallowGeneratedIdentity(),
+            DisallowColumnConstraintGeneratedIdentity(),
             DisallowTableConstraintPrimaryKeyNullsFirst(),
+            DisallowNegativeScaleDecimal(),
+            DisallowFixedLengthBinary(),
         ]
         validator = AstValidator(rules=rules)
         super().__init__(dialect="duckdb", ast_validator=validator, **convert_options)

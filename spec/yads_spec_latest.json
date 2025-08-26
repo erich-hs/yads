@@ -81,30 +81,40 @@
         "CHAR",
         "int8",
         "INT8",
+        "uint8",
+        "UINT8",
         "tinyint",
         "TINYINT",
         "byte",
         "BYTE",
         "int16",
         "INT16",
+        "uint16",
+        "UINT16",
         "smallint",
         "SMALLINT",
         "short",
         "SHORT",
         "int32",
         "INT32",
+        "uint32",
+        "UINT32",
         "int",
         "INT",
         "integer",
         "INTEGER",
         "int64",
         "INT64",
+        "uint64",
+        "UINT64",
         "bigint",
         "BIGINT",
         "long",
         "LONG",
         "float",
         "FLOAT",
+        "float16",
+        "FLOAT16",
         "float32",
         "FLOAT32",
         "float64",
@@ -127,6 +137,8 @@
         "BYTES",
         "date",
         "DATE",
+        "time",
+        "TIME",
         "datetime",
         "DATETIME",
         "timestamp",
@@ -143,6 +155,8 @@
         "TIMESTAMPNTZ",
         "timestamp_ntz",
         "TIMESTAMP_NTZ",
+        "duration",
+        "DURATION",
         "interval",
         "INTERVAL",
         "array",
@@ -186,7 +200,17 @@
           "properties": {
             "length": {
               "type": "integer",
-              "description": "The length of a string column."
+              "description": "The length of a string or binary column."
+            },
+            "bits": {
+              "type": "integer",
+              "description": "Bit width for the type. One of 8, 16, 32, 64, 128, 256.",
+              "enum": [8, 16, 32, 64, 128, 256]
+            },
+            "signed": {
+              "type": "boolean",
+              "description": "Signedness for integer types. True for signed, False for unsigned. Defaults to True.",
+              "default": true
             },
             "precision": {
               "type": "integer",
@@ -194,7 +218,25 @@
             },
             "scale": {
               "type": "integer",
-              "description": "The scale of a decimal column."
+              "description": "The scale of a decimal column. May be negative to indicate rounding to the left of the decimal point."
+            },
+            "unit": {
+              "type": "string",
+              "description": "Time precision unit. One of s, ms, us, ns.",
+              "enum": ["s", "ms", "us", "ns"]
+            },
+            "tz": {
+              "type": "string",
+              "description": "IANA timezone string for timestamp with timezone (timestamptz)."
+            },
+            "size": {
+              "type": "integer",
+              "description": "The maximum number of elements in an array (fixed-size)."
+            },
+            "keys_sorted": {
+              "type": "boolean",
+              "description": "Whether the map type has sorted keys.",
+              "default": false
             },
             "interval_start": {
               "type": "string",

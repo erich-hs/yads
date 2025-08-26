@@ -1,39 +1,30 @@
 """AST validation engine for dialect compatibility.
 
-Applies a set of validation/adjustment rules to a sqlglot AST in three modes:
+Applies a set of validation/adjustment rules to a sqlglot AST in two modes:
 - "raise": collect all errors and raise
-- "warn": apply adjustments and emit warnings
-- "ignore": do nothing
+- "coerce": apply adjustments and emit warnings
 """
 
 from __future__ import annotations
 
-import warnings
 from typing import TYPE_CHECKING, Literal, cast
 
 from sqlglot.expressions import Create
 
-from ....exceptions import AstValidationError
+from ....exceptions import AstValidationError, validation_warning
 from .ast_validation_rules import AstValidationRule
 
 if TYPE_CHECKING:
     from sqlglot import exp
 
 
-class ValidationWarning(UserWarning):
-    """Warning category emitted when adjustments are applied in warn mode."""
-
-    pass
-
-
 class AstValidator:
     """Apply a list of `AstValidationRule` instances to a sqlglot AST.
 
     AstValidator applies a set of validation/adjustment rules to a sqlglot
-    AST in three modes:
+    AST in two modes:
     - "raise": collect all errors and raise
-    - "warn": apply adjustments and emit warnings
-    - "ignore": do nothing
+    - "coerce": apply adjustments and emit warnings
 
     The validator traverses the AST recursively, applying each rule to every
     node.
@@ -55,18 +46,13 @@ class AstValidator:
         ...     print(f"Validation failed: {e}")
         >>>
         >>> # Auto-fix with warnings
-        >>> ast = validator.validate(ast, mode="warn")
-        >>>
-        >>> # Silently ignore incompatible features
-        >>> ast = validator.validate(ast, mode="ignore")
+        >>> ast = validator.validate(ast, mode="coerce")
     """
 
     def __init__(self, rules: list[AstValidationRule]):
         self.rules = rules
 
-    def validate(
-        self, ast: exp.Create, mode: Literal["raise", "warn", "ignore"]
-    ) -> exp.Create:
+    def validate(self, ast: exp.Create, mode: Literal["raise", "coerce"]) -> exp.Create:
         errors: list[str] = []
 
         def transformer(node: exp.Expression) -> exp.Expression:
@@ -77,19 +63,13 @@ class AstValidator:
                 match mode:
                     case "raise":
                         errors.append(f"{error}")
-                    case "warn":
-                        # Emit a concise warning without verbose absolute file paths.
-                        # Use warn_explicit to control the displayed filename/module.
-                        warnings.warn_explicit(
+                    case "coerce":
+                        validation_warning(
                             message=f"{error} {rule.adjustment_description}",
-                            category=ValidationWarning,
                             filename="yads.converters.sql.validators",
-                            lineno=1,
                             module=__name__,
                         )
                         node = rule.adjust(node)
-                    case "ignore":
-                        pass
                     case _:
                         raise AstValidationError(f"Invalid mode: {mode}.")
             return node

@@ -44,6 +44,7 @@ from __future__ import annotations
 import textwrap
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from functools import cached_property
 from typing import Any
 
 from .exceptions import InvalidConstraintError
@@ -249,8 +250,9 @@ class TableConstraint(ABC):
     at the table level rather than on individual columns.
     """
 
+    @property
     @abstractmethod
-    def get_constrained_columns(self) -> list[str]:
+    def constrained_columns(self) -> list[str]:
         """Return the list of column names involved in this constraint."""
 
 
@@ -285,7 +287,8 @@ class PrimaryKeyTableConstraint(TableConstraint):
                 "PrimaryKeyTableConstraint 'columns' cannot be empty."
             )
 
-    def get_constrained_columns(self) -> list[str]:
+    @cached_property
+    def constrained_columns(self) -> list[str]:
         return self.columns
 
     def __str__(self) -> str:
@@ -346,7 +349,8 @@ class ForeignKeyTableConstraint(TableConstraint):
                 f"referenced columns ({len(self.references.columns)})."
             )
 
-    def get_constrained_columns(self) -> list[str]:
+    @cached_property
+    def constrained_columns(self) -> list[str]:
         return self.columns
 
     def __str__(self) -> str:

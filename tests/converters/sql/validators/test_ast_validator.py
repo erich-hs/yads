@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 # ==========================================================
 # AstValidator tests
-# Scope: rule application across modes: raise, warn, ignore
+# Scope: rule application across modes: raise, coerce
 # ==========================================================
 
 
@@ -105,13 +105,13 @@ class TestAstValidator:
             ast_validator.validate(create_table_ast, mode="raise")
         assert "TEXT type is not allowed." in str(excinfo.value)
 
-    def test_validate_warn_mode_adjusts_ast_and_warns(
+    def test_validate_coerce_mode_adjusts_ast_and_warns(
         self, ast_validator: AstValidator, parse_sql, sql_one_text_violation: str
     ):
         create_table_ast = parse_sql(sql_one_text_violation)
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            processed_ast = ast_validator.validate(create_table_ast, mode="warn")
+            processed_ast = ast_validator.validate(create_table_ast, mode="coerce")
 
             assert len(w) == 1
             assert issubclass(w[-1].category, UserWarning)
@@ -124,18 +124,6 @@ class TestAstValidator:
             if node.this == DataType.Type.TEXT
         ]
         assert not text_nodes
-
-    def test_validate_ignore_mode_does_nothing(
-        self, ast_validator: AstValidator, parse_sql, sql_one_text_violation: str
-    ):
-        create_table_ast = parse_sql(sql_one_text_violation)
-        processed_ast = ast_validator.validate(create_table_ast, mode="ignore")
-        text_nodes = [
-            node
-            for node in processed_ast.find_all(DataType)
-            if node.this == DataType.Type.TEXT
-        ]
-        assert text_nodes
 
     def test_validate_invalid_mode_raises_error(
         self, ast_validator: AstValidator, parse_sql, sql_one_text_violation: str
@@ -152,14 +140,14 @@ class TestAstValidator:
         processed_ast = ast_validator.validate(ast, mode="raise")
         assert processed_ast.sql() == ast.sql()
 
-    def test_warn_mode_multiple_same_rule_occurrences(
+    def test_coerce_mode_multiple_same_rule_occurrences(
         self, ast_validator: AstValidator, parse_sql, sql_two_text_violations: str
     ):
         ast = parse_sql(sql_two_text_violations)
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            processed_ast = ast_validator.validate(ast, mode="warn")
+            processed_ast = ast_validator.validate(ast, mode="coerce")
 
             assert len(w) == 2
             for warn in w:
@@ -174,7 +162,7 @@ class TestAstValidator:
         ]
         assert not text_nodes
 
-    def test_warn_mode_multiple_distinct_rules(
+    def test_coerce_mode_multiple_distinct_rules(
         self,
         ast_validator_two_rules: AstValidator,
         parse_sql,
@@ -185,7 +173,7 @@ class TestAstValidator:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            processed_ast = validator.validate(ast, mode="warn")
+            processed_ast = validator.validate(ast, mode="coerce")
 
             assert len(w) == 2
             messages = [str(warn.message) for warn in w]
@@ -216,10 +204,10 @@ class TestAstValidator:
         processed_raise = ast_validator.validate(ast1, mode="raise")
         assert processed_raise.sql() == ast1.sql()
 
-        # warn mode: no warnings and unchanged AST
+        # coerce mode: no warnings and unchanged AST
         ast2 = parse_sql(sql_no_violations)
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            processed_warn = ast_validator.validate(ast2, mode="warn")
+            processed_warn = ast_validator.validate(ast2, mode="coerce")
             assert len(w) == 0
         assert processed_warn.sql() == ast2.sql()

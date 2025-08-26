@@ -62,7 +62,7 @@ class TestField:
         assert field.metadata == {"source": "ldap"}
         assert field.has_metadata
         expected_str = (
-            "username: string(50)(\n"
+            "username: string(length=50)(\n"
             '  description="User\'s login name",\n'
             "  metadata={source='ldap'}\n"
             ")"
@@ -111,7 +111,7 @@ class TestColumn:
         assert column.constraint_types == {NotNullConstraint}
 
         expected_str = (
-            "username: string(50)(\n"
+            "username: string(length=50)(\n"
             '  description="User\'s login name",\n'
             "  constraints=[NotNullConstraint()],\n"
             "  metadata={source='ldap'},\n"

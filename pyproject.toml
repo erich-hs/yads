@@ -29,6 +29,9 @@ dev = [
 duckdb = [
     "duckdb>=1.0.0",
 ]
+pyarrow = [
+    "pyarrow>=21.0.0,<22.0.0",
+]
 pyspark = [
     "pyspark>=3.1.1,<4.0.0",
 ]

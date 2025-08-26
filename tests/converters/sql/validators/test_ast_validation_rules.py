@@ -5,11 +5,13 @@ from sqlglot import parse_one
 from sqlglot.expressions import ColumnDef, DataType
 
 from yads.converters.sql.validators.ast_validation_rules import (
-    DisallowFixedLengthString,
     DisallowType,
-    DisallowParameterizedGeometryType,
-    DisallowVoidType,
-    DisallowGeneratedIdentity,
+    DisallowUserDefinedType,
+    DisallowFixedLengthString,
+    DisallowFixedLengthBinary,
+    DisallowNegativeScaleDecimal,
+    DisallowParameterizedGeometry,
+    DisallowColumnConstraintGeneratedIdentity,
     DisallowTableConstraintPrimaryKeyNullsFirst,
 )
 
@@ -86,6 +88,56 @@ class TestDisallowType:
         )
 
 
+# %% DisallowUserDefinedType
+class TestDisallowUserDefinedType:
+    @pytest.mark.parametrize(
+        "rule, sql, expected",
+        [
+            (
+                DisallowUserDefinedType(disallow_type="VOID"),
+                "VOID",
+                "Data type 'VOID' is not supported for column 'col'.",
+            ),
+            (DisallowUserDefinedType(disallow_type="VOID"), "GEOMETRY", None),
+            (DisallowUserDefinedType(disallow_type="VOID"), "TEXT", None),
+        ],
+    )
+    def test_validate_user_defined_type(
+        self, rule: DisallowUserDefinedType, sql: str, expected: str | None
+    ):
+        ast = parse_one(f"CREATE TABLE t (col {sql})")
+        assert ast
+        column_def = ast.find(ColumnDef)
+        assert column_def
+        data_type = column_def.find(DataType)
+        assert data_type
+
+        assert rule.validate(data_type) == expected
+
+    def test_adjust_replaces_user_defined_type_with_fallback(self):
+        rule = DisallowUserDefinedType(
+            disallow_type="VOID", fallback_type=DataType.Type.TEXT
+        )
+        ast = parse_one("CREATE TABLE t (col VOID)")
+        assert ast
+        data_type = ast.find(DataType)
+        assert data_type
+
+        adjusted = rule.adjust(data_type)
+
+        assert isinstance(adjusted, DataType)
+        assert adjusted.this == DataType.Type.TEXT
+        assert not adjusted.expressions
+
+    def test_adjustment_description(self):
+        rule = DisallowUserDefinedType(
+            disallow_type="VOID", fallback_type=DataType.Type.TEXT
+        )
+        assert (
+            rule.adjustment_description == "The data type will be replaced with 'TEXT'."
+        )
+
+
 # %% DisallowFixedLengthString
 class TestDisallowFixedLengthString:
     @pytest.fixture
@@ -138,11 +190,59 @@ class TestDisallowFixedLengthString:
         assert rule.adjustment_description == "The length parameter will be removed."
 
 
-# %% DisallowParameterizedGeometryType
-class TestDisallowParameterizedGeometryType:
+# %% DisallowFixedLengthBinary
+class TestDisallowFixedLengthBinary:
     @pytest.fixture
-    def rule(self) -> DisallowParameterizedGeometryType:
-        return DisallowParameterizedGeometryType()
+    def rule(self) -> DisallowFixedLengthBinary:
+        return DisallowFixedLengthBinary()
+
+    @pytest.mark.parametrize(
+        "sql, expected",
+        [
+            ("BINARY(50)", "Fixed-length binary is not supported for column 'col'."),
+            (
+                "BINARY",
+                None,
+            ),
+            ("INT", None),
+        ],
+    )
+    def test_validate_fixed_length_binary(
+        self, rule: DisallowFixedLengthBinary, sql: str, expected: str | None
+    ):
+        ast = parse_one(f"CREATE TABLE t (col {sql})")
+        assert ast
+        column_def = ast.find(ColumnDef)
+        assert column_def
+        data_type = column_def.find(DataType)
+        assert data_type
+
+        assert rule.validate(data_type) == expected
+
+    def test_adjust_removes_length_and_normalizes_type(
+        self, rule: DisallowFixedLengthBinary
+    ):
+        sql = "CREATE TABLE t (col BINARY(50))"
+        ast = parse_one(sql)
+        assert ast
+        data_type = ast.find(DataType)
+        assert data_type
+
+        adjusted_node = rule.adjust(data_type)
+
+        assert isinstance(adjusted_node, DataType)
+        assert adjusted_node.this == DataType.Type.BINARY
+        assert not adjusted_node.expressions
+
+    def test_adjustment_description(self, rule: DisallowFixedLengthBinary):
+        assert rule.adjustment_description == "The length parameter will be removed."
+
+
+# %% DisallowParameterizedGeometry
+class TestDisallowParameterizedGeometry:
+    @pytest.fixture
+    def rule(self) -> DisallowParameterizedGeometry:
+        return DisallowParameterizedGeometry()
 
     @pytest.mark.parametrize(
         "sql, expected",
@@ -156,7 +256,7 @@ class TestDisallowParameterizedGeometryType:
         ],
     )
     def test_validate_parameterized_geometry(
-        self, rule: DisallowParameterizedGeometryType, sql: str, expected: str | None
+        self, rule: DisallowParameterizedGeometry, sql: str, expected: str | None
     ):
         ast = parse_one(f"CREATE TABLE t (col {sql})")
         assert ast
@@ -168,7 +268,7 @@ class TestDisallowParameterizedGeometryType:
         assert rule.validate(data_type) == expected
 
     def test_adjust_removes_geometry_parameters(
-        self, rule: DisallowParameterizedGeometryType
+        self, rule: DisallowParameterizedGeometry
     ):
         ast = parse_one("CREATE TABLE t (col GEOMETRY(4326))")
         assert ast
@@ -181,59 +281,134 @@ class TestDisallowParameterizedGeometryType:
         assert adjusted.this == DataType.Type.GEOMETRY
         assert not adjusted.expressions
 
-    def test_adjustment_description(self, rule: DisallowParameterizedGeometryType):
+    def test_adjustment_description(self, rule: DisallowParameterizedGeometry):
         assert rule.adjustment_description == "The parameters will be removed."
 
 
-# %% DisallowVoidType
-class TestDisallowVoidType:
+# %% DisallowNegativeScaleDecimal
+class TestDisallowNegativeScaleDecimal:
     @pytest.fixture
-    def rule(self) -> DisallowVoidType:
-        return DisallowVoidType()
+    def rule(self) -> DisallowNegativeScaleDecimal:
+        return DisallowNegativeScaleDecimal()
 
-    @pytest.mark.parametrize(
-        "sql, expected",
-        [
-            ("VOID", "Data type 'VOID' is not supported for column 'col'."),
-            ("GEOMETRY", None),
-            ("TEXT", None),
-        ],
-    )
-    def test_validate_void(self, rule: DisallowVoidType, sql: str, expected: str | None):
-        ast = parse_one(f"CREATE TABLE t (col {sql})")
-        assert ast
-        column_def = ast.find(ColumnDef)
-        assert column_def
-        data_type = column_def.find(DataType)
-        assert data_type
+    @pytest.fixture
+    def decimal_datatype_in_create(self):
+        # Build a full CREATE TABLE AST and return the nested DECIMAL DataType node
+        # to ensure ancestor context (column name) is available during validation.
+        from sqlglot.expressions import (
+            Create,
+            Schema,
+            Table,
+            Identifier,
+            ColumnDef,
+            DataType,
+            DataTypeParam,
+            Literal,
+        )
 
-        assert rule.validate(data_type) == expected
+        def _build(precision: int, scale: int) -> DataType:
+            dtype = DataType(
+                this=DataType.Type.DECIMAL,
+                expressions=[
+                    DataTypeParam(this=Literal(this=precision)),
+                    DataTypeParam(this=Literal(this=scale)),
+                ],
+            )
+            coldef = ColumnDef(this=Identifier(this="col"), kind=dtype)
+            _ = Create(
+                this=Schema(this=Table(this=Identifier(this="t")), expressions=[coldef]),
+                kind="TABLE",
+            )
+            # Returning dtype keeps it attached in the AST so ancestors are discoverable
+            return dtype
 
-    def test_adjust_replaces_void_with_text(self, rule: DisallowVoidType):
-        ast = parse_one("CREATE TABLE t (col VOID)")
-        assert ast
-        data_type = ast.find(DataType)
-        assert data_type
+        return _build
 
-        adjusted = rule.adjust(data_type)
-
-        assert isinstance(adjusted, DataType)
-        assert adjusted.this == DataType.Type.TEXT
-        assert not adjusted.expressions
-
-    def test_adjustment_description(self, rule: DisallowVoidType):
+    def test_validate_detects_negative_scale_decimal(
+        self, rule: DisallowNegativeScaleDecimal, decimal_datatype_in_create
+    ):
+        data_type = decimal_datatype_in_create(10, -2)
+        result = rule.validate(data_type)
         assert (
-            rule.adjustment_description == "The data type will be replaced with 'TEXT'."
+            result
+            == "Negative scale decimals are not supported for column 'col'. Found DECIMAL(10, -2)."
+        )
+
+    def test_validate_ignores_positive_scale_decimal(
+        self, rule: DisallowNegativeScaleDecimal, decimal_datatype_in_create
+    ):
+        data_type = decimal_datatype_in_create(10, 2)
+        result = rule.validate(data_type)
+        assert result is None
+
+    def test_validate_ignores_zero_scale_decimal(
+        self, rule: DisallowNegativeScaleDecimal, decimal_datatype_in_create
+    ):
+        data_type = decimal_datatype_in_create(10, 0)
+        result = rule.validate(data_type)
+        assert result is None
+
+    def test_validate_ignores_non_decimal_types(self, rule: DisallowNegativeScaleDecimal):
+        from sqlglot.expressions import DataType
+
+        # Test INT - should not trigger validation
+        data_type = DataType(this=DataType.Type.INT, expressions=[])
+
+        result = rule.validate(data_type)
+        assert result is None
+
+    def test_adjust_coerces_negative_scale_to_positive_scale(
+        self, rule: DisallowNegativeScaleDecimal, decimal_datatype_in_create
+    ):
+        # Test DECIMAL(10, -2) -> DECIMAL(12, 0)
+        data_type = decimal_datatype_in_create(10, -2)
+        adjusted_node = rule.adjust(data_type)
+
+        assert isinstance(adjusted_node, DataType)
+        assert adjusted_node.this == DataType.Type.DECIMAL
+        assert len(adjusted_node.expressions) == 2
+        assert adjusted_node.expressions[0].this.this == 12  # 10 + abs(-2)
+        assert adjusted_node.expressions[1].this.this == 0  # scale set to 0
+
+    def test_adjust_coerces_large_negative_scale(
+        self, rule: DisallowNegativeScaleDecimal, decimal_datatype_in_create
+    ):
+        # Test DECIMAL(10, -6) -> DECIMAL(16, 0)
+        data_type = decimal_datatype_in_create(10, -6)
+        adjusted_node = rule.adjust(data_type)
+
+        assert isinstance(adjusted_node, DataType)
+        assert adjusted_node.this == DataType.Type.DECIMAL
+        assert len(adjusted_node.expressions) == 2
+        assert adjusted_node.expressions[0].this.this == 16  # 10 + abs(-6)
+        assert adjusted_node.expressions[1].this.this == 0  # scale set to 0
+
+    def test_adjust_does_not_modify_valid_decimal(
+        self, rule: DisallowNegativeScaleDecimal, decimal_datatype_in_create
+    ):
+        # Test that valid decimals are not modified
+        data_type = decimal_datatype_in_create(10, 2)
+        adjusted_node = rule.adjust(data_type)
+
+        # Should return the same node unchanged
+        assert adjusted_node is data_type
+
+    def test_adjustment_description(self, rule: DisallowNegativeScaleDecimal):
+        assert (
+            rule.adjustment_description
+            == "The precision will be increased by the absolute value of the negative scale, and the scale will be set to 0."
         )
 
 
-# %% DisallowGeneratedIdentity
-class TestDisallowGeneratedIdentity:
+# %% DisallowColumnConstraintGeneratedIdentity
+class TestDisallowColumnConstraintGeneratedIdentity:
     @pytest.fixture
-    def rule(self) -> DisallowGeneratedIdentity:
-        return DisallowGeneratedIdentity()
+    def rule(self) -> DisallowColumnConstraintGeneratedIdentity:
+        return DisallowColumnConstraintGeneratedIdentity()
 
-    def test_validate_detects_identity_constraint(self, rule: DisallowGeneratedIdentity):
+    def test_validate_detects_identity_constraint(
+        self, rule: DisallowColumnConstraintGeneratedIdentity
+    ):
         sql = """
         CREATE TABLE t (
           c1 INT GENERATED ALWAYS AS IDENTITY(1, 1),
@@ -248,7 +423,9 @@ class TestDisallowGeneratedIdentity:
             == "GENERATED ALWAYS AS IDENTITY is not supported for column 'c1'."
         )
 
-    def test_adjust_removes_identity_constraint(self, rule: DisallowGeneratedIdentity):
+    def test_adjust_removes_identity_constraint(
+        self, rule: DisallowColumnConstraintGeneratedIdentity
+    ):
         sql = "CREATE TABLE t (c1 INT GENERATED ALWAYS AS IDENTITY(1, 1))"
         ast = parse_one(sql)
         coldef = ast.find(ColumnDef)
