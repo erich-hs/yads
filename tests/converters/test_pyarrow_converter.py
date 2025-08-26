@@ -47,50 +47,50 @@ from yads.exceptions import UnsupportedFeatureError, ValidationWarning
 # %% Types
 class TestPyArrowConverterTypes:
     @pytest.mark.parametrize(
-        "yads_type, expected_pa_type",
+        "yads_type, expected_pa_type, expected_warning",
         [
-            (String(), pa.string()),
-            (String(length=255), pa.string()),  # length hint ignored
-            (Integer(bits=8), pa.int8()),
-            (Integer(bits=16), pa.int16()),
-            (Integer(bits=32), pa.int32()),
-            (Integer(bits=64), pa.int64()),
-            (Integer(bits=8, signed=False), pa.uint8()),
-            (Integer(bits=16, signed=False), pa.uint16()),
-            (Integer(bits=32, signed=False), pa.uint32()),
-            (Integer(bits=64, signed=False), pa.uint64()),
-            (Float(bits=16), pa.float16()),
-            (Float(bits=32), pa.float32()),
-            (Float(bits=64), pa.float64()),
-            (Decimal(), pa.decimal128(38, 0)),
-            (Decimal(precision=10, scale=2), pa.decimal128(10, 2)),
-            (Decimal(precision=10, scale=2, bits=128), pa.decimal128(10, 2)),
-            (Boolean(), pa.bool_()),
-            (Binary(), pa.binary()),
-            (Binary(length=8), pa.binary(8)),
-            (Date(), pa.date32()),
-            (Date(bits=32), pa.date32()),
-            (Date(bits=64), pa.date64()),
-            (Time(), pa.time32("ms")),  # default unit ms -> time32
-            (Time(unit=TimeUnit.S), pa.time32("s")),
-            (Time(unit=TimeUnit.MS), pa.time32("ms")),
-            (Time(unit=TimeUnit.US), pa.time64("us")),
-            (Time(unit=TimeUnit.NS), pa.time64("ns")),
-            (Time(bits=32, unit=TimeUnit.S), pa.time32("s")),
-            (Time(bits=64, unit=TimeUnit.US), pa.time64("us")),
-            (Timestamp(), pa.timestamp("ns")),
-            (Timestamp(unit=TimeUnit.S), pa.timestamp("s")),
-            (Timestamp(unit=TimeUnit.MS), pa.timestamp("ms")),
-            (Timestamp(unit=TimeUnit.US), pa.timestamp("us")),
-            (Timestamp(unit=TimeUnit.NS), pa.timestamp("ns")),
-            (TimestampTZ(), pa.timestamp("ns", tz="UTC")),
-            (TimestampTZ(unit=TimeUnit.S), pa.timestamp("s", tz="UTC")),
-            (TimestampLTZ(), pa.timestamp("ns", tz=None)),
-            (TimestampNTZ(), pa.timestamp("ns", tz=None)),
-            (Duration(), pa.duration("ns")),
-            (Interval(interval_start=IntervalTimeUnit.DAY), pa.month_day_nano_interval()),
-            (Array(element=Integer()), pa.list_(pa.int32())),
-            (Array(element=String(), size=2), pa.list_(pa.string(), list_size=2)),
+            (String(), pa.string(), None),
+            (String(length=255), pa.string(), None),  # length hint ignored
+            (Integer(bits=8), pa.int8(), None),
+            (Integer(bits=16), pa.int16(), None),
+            (Integer(bits=32), pa.int32(), None),
+            (Integer(bits=64), pa.int64(), None),
+            (Integer(bits=8, signed=False), pa.uint8(), None),
+            (Integer(bits=16, signed=False), pa.uint16(), None),
+            (Integer(bits=32, signed=False), pa.uint32(), None),
+            (Integer(bits=64, signed=False), pa.uint64(), None),
+            (Float(bits=16), pa.float16(), None),
+            (Float(bits=32), pa.float32(), None),
+            (Float(bits=64), pa.float64(), None),
+            (Decimal(), pa.decimal128(38, 0), None),
+            (Decimal(precision=10, scale=2), pa.decimal128(10, 2), None),
+            (Decimal(precision=10, scale=2, bits=128), pa.decimal128(10, 2), None),
+            (Boolean(), pa.bool_(), None),
+            (Binary(), pa.binary(), None),
+            (Binary(length=8), pa.binary(8), None),
+            (Date(), pa.date32(), None),
+            (Date(bits=32), pa.date32(), None),
+            (Date(bits=64), pa.date64(), None),
+            (Time(), pa.time32("ms"), None),  # default unit ms -> time32
+            (Time(unit=TimeUnit.S), pa.time32("s"), None),
+            (Time(unit=TimeUnit.MS), pa.time32("ms"), None),
+            (Time(unit=TimeUnit.US), pa.time64("us"), None),
+            (Time(unit=TimeUnit.NS), pa.time64("ns"), None),
+            (Time(bits=32, unit=TimeUnit.S), pa.time32("s"), None),
+            (Time(bits=64, unit=TimeUnit.US), pa.time64("us"), None),
+            (Timestamp(), pa.timestamp("ns"), None),
+            (Timestamp(unit=TimeUnit.S), pa.timestamp("s"), None),
+            (Timestamp(unit=TimeUnit.MS), pa.timestamp("ms"), None),
+            (Timestamp(unit=TimeUnit.US), pa.timestamp("us"), None),
+            (Timestamp(unit=TimeUnit.NS), pa.timestamp("ns"), None),
+            (TimestampTZ(), pa.timestamp("ns", tz="UTC"), None),
+            (TimestampTZ(unit=TimeUnit.S), pa.timestamp("s", tz="UTC"), None),
+            (TimestampLTZ(), pa.timestamp("ns", tz=None), None),
+            (TimestampNTZ(), pa.timestamp("ns", tz=None), None),
+            (Duration(), pa.duration("ns"), None),
+            (Interval(interval_start=IntervalTimeUnit.DAY), pa.month_day_nano_interval(), None),
+            (Array(element=Integer()), pa.list_(pa.int32()), None),
+            (Array(element=String(), size=2), pa.list_(pa.string(), list_size=2), None),
             (
                 Struct(
                     fields=[
@@ -102,25 +102,48 @@ class TestPyArrowConverterTypes:
                     pa.field("a", pa.int32()),
                     pa.field("b", pa.string()),
                 ]),
+                None,
             ),
-            (Map(key=String(), value=Integer()), pa.map_(pa.string(), pa.int32())),
-            (JSON(), pa.json_(storage_type=pa.utf8())),
-            (UUID(), pa.uuid()),
-            (Void(), pa.null()),
+            (Map(key=String(), value=Integer()), pa.map_(pa.string(), pa.int32()), None),
+            (JSON(), pa.json_(storage_type=pa.utf8()), None),
+            (Geometry(), pa.binary(), "Data type 'GEOMETRY' is not supported for column 'col1'."),
+            (Geometry(srid=4326), pa.binary(), "Data type 'GEOMETRY' is not supported for column 'col1'."),
+            (Geography(), pa.binary(), "Data type 'GEOGRAPHY' is not supported for column 'col1'."),
+            (Geography(srid=4326), pa.binary(), "Data type 'GEOGRAPHY' is not supported for column 'col1'."),
+            (UUID(), pa.uuid(), None),
+            (Void(), pa.null(), None),
+            (Variant(), pa.binary(), "Data type 'VARIANT' is not supported for column 'col1'."),
         ],
     )
-    def test_convert_type(self, yads_type: YadsType, expected_pa_type: pa.DataType):
+    def test_convert_type(
+        self,
+        yads_type: YadsType,
+        expected_pa_type: pa.DataType,
+        expected_warning: str | None,
+    ):
         spec = YadsSpec(
             name="test_spec",
             version="1.0.0",
             columns=[Column(name="col1", type=yads_type)],
         )
         converter = PyArrowConverter()
-        schema = converter.convert(spec)
 
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            schema = converter.convert(spec, mode="coerce")
+
+        # Assert converted schema
         assert schema.names == ["col1"]
         assert schema.field("col1").type == expected_pa_type
         assert schema.field("col1").nullable is True
+
+        # Assert warnings for unsupported types
+        if expected_warning is not None:
+            assert len(w) == 1
+            assert issubclass(w[0].category, ValidationWarning)
+            assert expected_warning in str(w[0].message)
+        else:
+            assert len(w) == 0
 
     def test_non_nullable_columns_and_nested_fields(self):
         nested = Struct(
@@ -136,7 +159,7 @@ class TestPyArrowConverterTypes:
                 Column(
                     name="id", type=Integer(), constraints=[NotNullConstraint()]
                 ),
-                Column(name="payload", type=nested),
+                Column(name="struct", type=nested),
                 Column(
                     name="arr",
                     type=Array(element=Struct(fields=[Field("z", Integer())])),
@@ -150,17 +173,17 @@ class TestPyArrowConverterTypes:
         assert id_field.nullable is False
         assert id_field.type == pa.int32()
 
-        payload_field = schema.field("payload")
-        assert payload_field.nullable is True
-        assert pa.types.is_struct(payload_field.type)
+        struct_field = schema.field("struct")
+        assert struct_field.nullable is True
+        assert pa.types.is_struct(struct_field.type)
 
         # Check nested struct fields' nullability
-        payload_struct = payload_field.type
-        assert payload_struct.num_fields == 2
-        assert payload_struct.field("x").nullable is False
-        assert payload_struct.field("x").type == pa.int32()
-        assert payload_struct.field("y").nullable is True
-        assert payload_struct.field("y").type == pa.string()
+        struct_struct = struct_field.type
+        assert struct_struct.num_fields == 2
+        assert struct_struct.field("x").nullable is False
+        assert struct_struct.field("x").type == pa.int32()
+        assert struct_struct.field("y").nullable is True
+        assert struct_struct.field("y").type == pa.string()
 
         # Array of struct with nested field
         arr_field = schema.field("arr")
@@ -262,33 +285,6 @@ class TestPyArrowConverterTypes:
         decoded_field_meta = {k.decode(): v.decode() for k, v in raw_field_meta.items()}
         assert decoded_field_meta.get("a") == "1"
         assert decoded_field_meta.get("b") == "{\"x\":true}"
-
-    @pytest.mark.parametrize(
-        "yads_type, type_name",
-        [
-            (Geometry(), "GEOMETRY"),
-            (Geometry(srid=4326), "GEOMETRY"),
-            (Geography(), "GEOGRAPHY"),
-            (Geography(srid=4326), "GEOGRAPHY"),
-            (Variant(), "VARIANT"),
-        ],
-    )
-    def test_coerce_mode_fallback_for_unsupported_types(self, yads_type: YadsType, type_name: str):
-        # Test unsupported types in coerce mode
-        spec = YadsSpec(
-            name="t",
-            version="1.0.0",
-            columns=[Column(name="col1", type=yads_type)],
-        )
-
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            schema = PyArrowConverter().convert(spec, mode="coerce")
-
-        assert schema.field("col1").type == pa.binary()
-        assert len(w) == 1
-        assert issubclass(w[0].category, ValidationWarning)
-        assert f"Data type '{type_name}' is not supported" in str(w[0].message)
 
     @pytest.mark.parametrize(
         "yads_type, type_name",
