@@ -21,7 +21,7 @@ from yads.types import (
     TimestampTZ,
     TimestampLTZ,
     TimestampNTZ,
-    # Duration,
+    Duration,
     IntervalTimeUnit,
     Interval,
     Array,
@@ -68,7 +68,11 @@ class TestSparkSQLConverterTypes:
                 "BIGINT",
                 "Data type 'UBIGINT' is not supported",
             ),
-            (Float(bits=16), "FLOAT", None),  # This should have a warning
+            (
+                Float(bits=16),
+                "FLOAT",
+                "SQLGlotConverter does not support half-precision Float (bits=16).",
+            ),
             (Float(bits=32), "FLOAT", None),
             (Float(bits=64), "DOUBLE", None),
             (Decimal(), "DECIMAL", None),
@@ -117,7 +121,11 @@ class TestSparkSQLConverterTypes:
             (TimestampNTZ(unit=TimeUnit.MS), "TIMESTAMP_NTZ", None),
             (TimestampNTZ(unit=TimeUnit.US), "TIMESTAMP_NTZ", None),
             (TimestampNTZ(unit=TimeUnit.NS), "TIMESTAMP_NTZ", None),
-            # (Duration(), "", "SQLGlotConverter does not support type: Duration."), # Should warn and coerce to string
+            (
+                Duration(),
+                "STRING",
+                "SQLGlotConverter does not support type: duration(unit=ns)",
+            ),
             (Interval(interval_start=IntervalTimeUnit.DAY), "INTERVAL DAY", None),
             (
                 Interval(

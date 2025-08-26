@@ -1,4 +1,5 @@
 import pytest
+import warnings
 from sqlglot import parse_one, exp
 from yads.converters.sql import SQLGlotConverter
 from yads.loaders import from_yaml_path
@@ -40,7 +41,7 @@ from yads.constraints import (
     DefaultConstraint,
     IdentityConstraint,
 )
-from yads.exceptions import ConversionError, UnsupportedFeatureError
+from yads.exceptions import ConversionError, UnsupportedFeatureError, ValidationWarning
 from yads.loaders import from_yaml_string
 
 
@@ -48,6 +49,345 @@ from yads.loaders import from_yaml_string
 # SQLGlotConverter tests
 # Scope: conversion to sqlglot AST, types, constraints, transforms, names
 # ======================================================================
+
+
+# fmt: off
+# %% Types
+class TestSQLGlotConverterTypes:
+    @pytest.mark.parametrize(
+        "yads_type, expected_datatype, expected_warning",
+        [
+            # String types
+            (String(), exp.DataType(this=exp.DataType.Type.TEXT), None),
+            (
+                String(length=255),
+                exp.DataType(
+                    this=exp.DataType.Type.TEXT,
+                    expressions=[exp.DataTypeParam(this=exp.Literal.number("255"))],
+                ),
+                None,
+            ),
+            # Integer types - handled by type handler
+            (Integer(), exp.DataType(this=exp.DataType.Type.INT), None),
+            (Integer(bits=8), exp.DataType(this=exp.DataType.Type.TINYINT), None),
+            (Integer(bits=16), exp.DataType(this=exp.DataType.Type.SMALLINT), None),
+            (Integer(bits=32), exp.DataType(this=exp.DataType.Type.INT), None),
+            (Integer(bits=64), exp.DataType(this=exp.DataType.Type.BIGINT), None),
+            (Integer(signed=False), exp.DataType(this=exp.DataType.Type.UINT), None),
+            (Integer(bits=8, signed=False), exp.DataType(this=exp.DataType.Type.UTINYINT), None),
+            (Integer(bits=16, signed=False), exp.DataType(this=exp.DataType.Type.USMALLINT), None),
+            (Integer(bits=32, signed=False), exp.DataType(this=exp.DataType.Type.UINT), None),
+            (Integer(bits=64, signed=False), exp.DataType(this=exp.DataType.Type.UBIGINT), None),
+            # Float types - handled by type handler
+            (Float(), exp.DataType(this=exp.DataType.Type.FLOAT), None),
+            (
+                Float(bits=16),
+                exp.DataType(this=exp.DataType.Type.FLOAT),
+                "SQLGlotConverter does not support half-precision Float (bits=16).",
+            ),
+            (Float(bits=32), exp.DataType(this=exp.DataType.Type.FLOAT), None),
+            (Float(bits=64), exp.DataType(this=exp.DataType.Type.DOUBLE), None),
+            # Decimal types - handled by type handler
+            (Decimal(), exp.DataType(this=exp.DataType.Type.DECIMAL), None),
+            (
+                Decimal(precision=10, scale=2),
+                exp.DataType(
+                    this=exp.DataType.Type.DECIMAL,
+                    expressions=[
+                        exp.DataTypeParam(this=exp.Literal.number("10")),
+                        exp.DataTypeParam(this=exp.Literal.number("2")),
+                    ],
+                ),
+                None,
+            ),
+            (
+                Decimal(precision=10, scale=2, bits=128),
+                exp.DataType(
+                    this=exp.DataType.Type.DECIMAL,
+                    expressions=[
+                        # Bits are currently ignored
+                        exp.DataTypeParam(this=exp.Literal.number("10")),
+                        exp.DataTypeParam(this=exp.Literal.number("2")),
+                    ],
+                ),
+                None,
+            ),
+            # Boolean type - fallback to build
+            (Boolean(), exp.DataType(this=exp.DataType.Type.BOOLEAN), None),
+            # Binary types - fallback to build
+            (Binary(), exp.DataType(this=exp.DataType.Type.BINARY), None),
+            (
+                Binary(length=8),
+                exp.DataType(
+                    this=exp.DataType.Type.BINARY,
+                    expressions=[exp.DataTypeParam(this=exp.Literal.number("8"))],
+                ),
+                None,
+            ),
+            # Temporal types
+            (Date(), exp.DataType(this=exp.DataType.Type.DATE), None),
+            # Date bits are currently ignored
+            (Date(bits=32), exp.DataType(this=exp.DataType.Type.DATE), None),
+            (Date(bits=64), exp.DataType(this=exp.DataType.Type.DATE), None),
+            (Time(), exp.DataType(this=exp.DataType.Type.TIME), None),
+            (Time(unit=TimeUnit.S), exp.DataType(this=exp.DataType.Type.TIME), None),
+            (Time(unit=TimeUnit.MS), exp.DataType(this=exp.DataType.Type.TIME), None),
+            (Time(unit=TimeUnit.US), exp.DataType(this=exp.DataType.Type.TIME), None),
+            (Time(unit=TimeUnit.NS), exp.DataType(this=exp.DataType.Type.TIME), None),
+            # Time bits are currently ignored
+            (Time(bits=32), exp.DataType(this=exp.DataType.Type.TIME), None),
+            (Time(bits=64), exp.DataType(this=exp.DataType.Type.TIME), None),
+            (Timestamp(), exp.DataType(this=exp.DataType.Type.TIMESTAMP), None),
+            # Timestamp unit and tz are currently ignored
+            (Timestamp(unit=TimeUnit.S), exp.DataType(this=exp.DataType.Type.TIMESTAMP), None),
+            (Timestamp(unit=TimeUnit.MS), exp.DataType(this=exp.DataType.Type.TIMESTAMP), None),
+            (Timestamp(unit=TimeUnit.US), exp.DataType(this=exp.DataType.Type.TIMESTAMP), None),
+            (Timestamp(unit=TimeUnit.NS), exp.DataType(this=exp.DataType.Type.TIMESTAMP), None),
+            (TimestampTZ(), exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ), None),
+            (TimestampTZ(unit=TimeUnit.S), exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ), None),
+            (TimestampTZ(unit=TimeUnit.MS), exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ), None),
+            (TimestampTZ(unit=TimeUnit.US), exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ), None),
+            (TimestampTZ(unit=TimeUnit.NS), exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ), None),
+            (TimestampTZ(tz="UTC"), exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ), None),
+            (TimestampLTZ(), exp.DataType(this=exp.DataType.Type.TIMESTAMPLTZ), None),
+            (TimestampLTZ(unit=TimeUnit.S), exp.DataType(this=exp.DataType.Type.TIMESTAMPLTZ), None),
+            (TimestampLTZ(unit=TimeUnit.MS), exp.DataType(this=exp.DataType.Type.TIMESTAMPLTZ), None),
+            (TimestampLTZ(unit=TimeUnit.US), exp.DataType(this=exp.DataType.Type.TIMESTAMPLTZ), None),
+            (TimestampLTZ(unit=TimeUnit.NS), exp.DataType(this=exp.DataType.Type.TIMESTAMPLTZ), None),
+            (TimestampNTZ(), exp.DataType(this=exp.DataType.Type.TIMESTAMPNTZ), None),
+            (TimestampNTZ(unit=TimeUnit.S), exp.DataType(this=exp.DataType.Type.TIMESTAMPNTZ), None),
+            (TimestampNTZ(unit=TimeUnit.MS), exp.DataType(this=exp.DataType.Type.TIMESTAMPNTZ), None),
+            (TimestampNTZ(unit=TimeUnit.US), exp.DataType(this=exp.DataType.Type.TIMESTAMPNTZ), None),
+            (TimestampNTZ(unit=TimeUnit.NS), exp.DataType(this=exp.DataType.Type.TIMESTAMPNTZ), None),
+            # Duration - warning and coerced to TEXT
+            (
+                Duration(),
+                exp.DataType(this=exp.DataType.Type.TEXT),
+                "SQLGlotConverter does not support type: duration",
+            ),
+            # JSON type - fallback to build
+            (JSON(), exp.DataType(this=exp.DataType.Type.JSON), None),
+            # Spatial types - fallback to build
+            (Geometry(), exp.DataType(this=exp.DataType.Type.GEOMETRY), None),
+            (
+                Geometry(srid=4326),
+                exp.DataType(
+                    this=exp.DataType.Type.GEOMETRY,
+                    expressions=[exp.DataTypeParam(this=exp.Literal.number("4326"))]
+                ),
+                None,
+            ),
+            (Geography(), exp.DataType(this=exp.DataType.Type.GEOGRAPHY), None),
+            (
+                Geography(srid=4326),
+                exp.DataType(
+                    this=exp.DataType.Type.GEOGRAPHY,
+                    expressions=[exp.DataTypeParam(this=exp.Literal.number("4326"))],
+                ),
+                None,
+            ),
+            # Void type - handled by type handler
+            (Void(), exp.DataType(this=exp.DataType.Type.USERDEFINED, kind="VOID"), None),
+            # Other types - fallback to build
+            (UUID(), exp.DataType(this=exp.DataType.Type.UUID), None),
+            (Variant(), exp.DataType(this=exp.DataType.Type.VARIANT), None),
+        ],
+    )
+    def test_simple_type_conversion(self, yads_type, expected_datatype, expected_warning):
+        converter = SQLGlotConverter()
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = converter._convert_type(yads_type)
+
+        assert result == expected_datatype
+
+        if expected_warning is not None:
+            assert len(w) == 1
+            assert issubclass(w[0].category, ValidationWarning)
+            assert expected_warning in str(w[0].message)
+        else:
+            assert len(w) == 0
+
+    @pytest.mark.parametrize(
+        "yads_type, expected_datatype",
+        [
+            # Interval types - handled by type handler
+            (
+                Interval(interval_start=IntervalTimeUnit.YEAR),
+                exp.DataType(this=exp.Interval(unit=exp.Var(this="YEAR"))),
+            ),
+            (
+                Interval(interval_start=IntervalTimeUnit.MONTH),
+                exp.DataType(this=exp.Interval(unit=exp.Var(this="MONTH"))),
+            ),
+            (
+                Interval(interval_start=IntervalTimeUnit.DAY),
+                exp.DataType(this=exp.Interval(unit=exp.Var(this="DAY"))),
+            ),
+            (
+                Interval(interval_start=IntervalTimeUnit.HOUR),
+                exp.DataType(this=exp.Interval(unit=exp.Var(this="HOUR"))),
+            ),
+            (
+                Interval(interval_start=IntervalTimeUnit.MINUTE),
+                exp.DataType(this=exp.Interval(unit=exp.Var(this="MINUTE"))),
+            ),
+            (
+                Interval(interval_start=IntervalTimeUnit.SECOND),
+                exp.DataType(this=exp.Interval(unit=exp.Var(this="SECOND"))),
+            ),
+            # Interval ranges
+            (
+                Interval(
+                    interval_start=IntervalTimeUnit.YEAR,
+                    interval_end=IntervalTimeUnit.MONTH,
+                ),
+                exp.DataType(
+                    this=exp.Interval(
+                        unit=exp.IntervalSpan(
+                            this=exp.Var(this="YEAR"), expression=exp.Var(this="MONTH")
+                        )
+                    )
+                ),
+            ),
+            (
+                Interval(
+                    interval_start=IntervalTimeUnit.DAY,
+                    interval_end=IntervalTimeUnit.SECOND,
+                ),
+                exp.DataType(
+                    this=exp.Interval(
+                        unit=exp.IntervalSpan(
+                            this=exp.Var(this="DAY"), expression=exp.Var(this="SECOND")
+                        )
+                    )
+                ),
+            ),
+        ],
+    )
+    def test_interval_type_conversion(self, yads_type, expected_datatype):
+        converter = SQLGlotConverter()
+        result = converter._convert_type(yads_type)
+        assert result == expected_datatype
+
+    @pytest.mark.parametrize(
+        "yads_type",
+        [
+            # Array types
+            Array(element=String()),
+            Array(element=Integer(bits=32)),
+            Array(element=Boolean()),
+            Array(element=Decimal(precision=10, scale=2)),
+            Array(element=String(), size=2),
+            # Nested arrays
+            Array(element=Array(element=String())),
+        ],
+    )
+    def test_array_type_conversion(self, yads_type):
+        converter = SQLGlotConverter()
+        result = converter._convert_type(yads_type)
+
+        assert isinstance(result, exp.DataType)
+        assert result.this == exp.DataType.Type.ARRAY
+        assert len(result.expressions) == 1
+
+        # Verify the element type is correctly converted
+        element_datatype = result.expressions[0]
+        expected_element = converter._convert_type(yads_type.element)
+        assert element_datatype == expected_element
+        
+        # Array size is currently ignored
+        if hasattr(yads_type, 'size') and yads_type.size is not None:
+            assert len(result.expressions) == 1
+
+    @pytest.mark.parametrize(
+        "yads_type",
+        [
+            # Map types
+            Map(key=String(), value=Integer(bits=32)),
+            Map(key=UUID(), value=Float(bits=64)),
+            Map(key=Integer(bits=32), value=Array(element=String())),
+            Map(key=String(), value=Integer(), keys_sorted=True),
+        ],
+    )
+    def test_map_type_conversion(self, yads_type):
+        converter = SQLGlotConverter()
+        result = converter._convert_type(yads_type)
+
+        assert isinstance(result, exp.DataType)
+        assert result.this == exp.DataType.Type.MAP
+        assert len(result.expressions) == 2
+
+        # Verify key and value types are correctly converted
+        key_datatype, value_datatype = result.expressions
+        expected_key = converter._convert_type(yads_type.key)
+        expected_value = converter._convert_type(yads_type.value)
+        assert key_datatype == expected_key
+        assert value_datatype == expected_value
+        
+        # Map keys_sorted is currently ignored
+        if hasattr(yads_type, 'keys_sorted') and yads_type.keys_sorted is not None:
+            assert len(result.expressions) == 2
+
+    def test_struct_type_conversion(self):
+        struct_fields = [
+            Field(name="field1", type=String()),
+            Field(name="field2", type=Integer(bits=32)),
+            Field(name="field3", type=Boolean()),
+        ]
+        yads_type = Struct(fields=struct_fields)
+
+        converter = SQLGlotConverter()
+        result = converter._convert_type(yads_type)
+
+        assert isinstance(result, exp.DataType)
+        assert result.this == exp.DataType.Type.STRUCT
+        assert len(result.expressions) == 3
+
+        # Verify each field is correctly converted
+        for i, field_def in enumerate(result.expressions):
+            assert isinstance(field_def, exp.ColumnDef)
+            assert field_def.this.this == struct_fields[i].name
+
+            expected_field_type = converter._convert_type(struct_fields[i].type)
+            assert field_def.kind == expected_field_type
+
+    def test_nested_struct_type_conversion(self):
+        inner_fields = [Field(name="inner_field", type=Integer(bits=32))]
+        inner_struct = Struct(fields=inner_fields)
+
+        outer_fields = [
+            Field(name="simple_field", type=String()),
+            Field(name="nested_struct", type=inner_struct),
+        ]
+        yads_type = Struct(fields=outer_fields)
+
+        converter = SQLGlotConverter()
+        result = converter._convert_type(yads_type)
+
+        assert isinstance(result, exp.DataType)
+        assert result.this == exp.DataType.Type.STRUCT
+        assert len(result.expressions) == 2
+
+        # Check simple field
+        simple_field_def = result.expressions[0]
+        assert simple_field_def.this.this == "simple_field"
+        assert simple_field_def.kind == converter._convert_type(String())
+
+        # Check nested struct field
+        nested_field_def = result.expressions[1]
+        assert nested_field_def.this.this == "nested_struct"
+        assert isinstance(nested_field_def.kind, exp.DataType)
+        assert nested_field_def.kind.this == exp.DataType.Type.STRUCT
+
+    @pytest.mark.parametrize("yads_type", [Duration()])
+    def test_unsupported_types(self, yads_type):
+        converter = SQLGlotConverter(mode="raise")
+        with pytest.raises(
+            UnsupportedFeatureError, match="SQLGlotConverter does not support type:"
+        ):
+            converter._convert_type(yads_type)
+# fmt: on
 
 
 # %% Integration tests
@@ -298,6 +638,23 @@ class TestConstraintConversion:
         ):
             converter._convert_column_constraint(constraint)
 
+    def test_unsupported_column_constraint_coerce_omits_and_warns(self):
+        converter = SQLGlotConverter(mode="coerce")
+
+        class UnsupportedConstraint:
+            pass
+
+        constraint = UnsupportedConstraint()
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = converter._convert_column_constraint(constraint)
+
+        assert result is None
+        assert len(w) == 1
+        assert issubclass(w[0].category, ValidationWarning)
+        assert "does not support constraint" in str(w[0].message)
+
     def test_unsupported_table_constraint_raises_error(self):
         converter = SQLGlotConverter(mode="raise")
 
@@ -311,6 +668,23 @@ class TestConstraintConversion:
             match="SQLGlotConverter does not support table constraint",
         ):
             converter._convert_table_constraint(constraint)
+
+    def test_unsupported_table_constraint_coerce_omits_and_warns(self):
+        converter = SQLGlotConverter(mode="coerce")
+
+        class UnsupportedTableConstraint:
+            pass
+
+        constraint = UnsupportedTableConstraint()
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = converter._convert_table_constraint(constraint)
+
+        assert result is None
+        assert len(w) == 1
+        assert issubclass(w[0].category, ValidationWarning)
+        assert "does not support table constraint" in str(w[0].message)
 
 
 # %% Transform handling
@@ -340,6 +714,21 @@ class TestTransformConversion:
             match="Transform type 'NOT_A_TYPE' is not a valid sqlglot Type",
         ):
             converter._handle_cast_transform("col1", ["not_a_type"])
+
+    def test_cast_transform_unknown_type_coerce_warns_and_coerces_to_text(self):
+        converter = SQLGlotConverter(mode="coerce")
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = converter._handle_cast_transform("col1", ["not_a_type"])
+
+        expected = exp.Cast(
+            this=exp.column("col1"),
+            to=exp.DataType(this=exp.DataType.Type.TEXT),
+        )
+        assert result == expected
+        assert len(w) == 1
+        assert issubclass(w[0].category, ValidationWarning)
+        assert "is not a valid sqlglot Type" in str(w[0].message)
 
     def test_bucket_transform_conversion(self):
         converter = SQLGlotConverter()
@@ -551,307 +940,6 @@ class TestSQLGlotConverterModeHierarchy:
             UnsupportedFeatureError, match="does not support type: duration"
         ):
             converter.convert(spec)
-
-
-# fmt: off
-# %% Type conversion
-class TestTypeConversion:
-    @pytest.mark.parametrize(
-        "yads_type, expected_datatype",
-        [
-            # String types
-            (String(), exp.DataType(this=exp.DataType.Type.TEXT)),
-            (
-                String(length=255),
-                exp.DataType(
-                    this=exp.DataType.Type.TEXT,
-                    expressions=[exp.DataTypeParam(this=exp.Literal.number("255"))],
-                ),
-            ),
-            # Integer types - handled by type handler
-            (Integer(), exp.DataType(this=exp.DataType.Type.INT)),
-            (Integer(bits=8), exp.DataType(this=exp.DataType.Type.TINYINT)),
-            (Integer(bits=16), exp.DataType(this=exp.DataType.Type.SMALLINT)),
-            (Integer(bits=32), exp.DataType(this=exp.DataType.Type.INT)),
-            (Integer(bits=64), exp.DataType(this=exp.DataType.Type.BIGINT)),
-            (Integer(signed=False), exp.DataType(this=exp.DataType.Type.UINT)),
-            (Integer(bits=8, signed=False), exp.DataType(this=exp.DataType.Type.UTINYINT)),
-            (Integer(bits=16, signed=False), exp.DataType(this=exp.DataType.Type.USMALLINT)),
-            (Integer(bits=32, signed=False), exp.DataType(this=exp.DataType.Type.UINT)),
-            (Integer(bits=64, signed=False), exp.DataType(this=exp.DataType.Type.UBIGINT)),
-            # Float types - handled by type handler
-            (Float(), exp.DataType(this=exp.DataType.Type.FLOAT)),
-            (Float(bits=16), exp.DataType(this=exp.DataType.Type.FLOAT)),
-            (Float(bits=32), exp.DataType(this=exp.DataType.Type.FLOAT)),
-            (Float(bits=64), exp.DataType(this=exp.DataType.Type.DOUBLE)),
-            # Decimal types - handled by type handler
-            (Decimal(), exp.DataType(this=exp.DataType.Type.DECIMAL)),
-            (
-                Decimal(precision=10, scale=2),
-                exp.DataType(
-                    this=exp.DataType.Type.DECIMAL,
-                    expressions=[
-                        exp.DataTypeParam(this=exp.Literal.number("10")),
-                        exp.DataTypeParam(this=exp.Literal.number("2")),
-                    ],
-                ),
-            ),
-            (
-                Decimal(precision=10, scale=2, bits=128),
-                exp.DataType(
-                    this=exp.DataType.Type.DECIMAL,
-                    expressions=[
-                        # Bits are currently ignored
-                        exp.DataTypeParam(this=exp.Literal.number("10")),
-                        exp.DataTypeParam(this=exp.Literal.number("2")),
-                    ],
-                ),
-            ),
-            # Boolean type - fallback to build
-            (Boolean(), exp.DataType(this=exp.DataType.Type.BOOLEAN)),
-            # Binary types - fallback to build
-            (Binary(), exp.DataType(this=exp.DataType.Type.BINARY)),
-            (
-                Binary(length=8),
-                exp.DataType(
-                    this=exp.DataType.Type.BINARY,
-                    expressions=[exp.DataTypeParam(this=exp.Literal.number("8"))],
-                ),
-            ),
-            # Temporal types
-            (Date(), exp.DataType(this=exp.DataType.Type.DATE)),
-            # Date bits are currently ignored
-            (Date(bits=32), exp.DataType(this=exp.DataType.Type.DATE)),
-            (Date(bits=64), exp.DataType(this=exp.DataType.Type.DATE)),
-            (Time(), exp.DataType(this=exp.DataType.Type.TIME)),
-            (Time(unit=TimeUnit.S), exp.DataType(this=exp.DataType.Type.TIME)),
-            (Time(unit=TimeUnit.MS), exp.DataType(this=exp.DataType.Type.TIME)),
-            (Time(unit=TimeUnit.US), exp.DataType(this=exp.DataType.Type.TIME)),
-            (Time(unit=TimeUnit.NS), exp.DataType(this=exp.DataType.Type.TIME)),
-            # Time bits are currently ignored
-            (Time(bits=32), exp.DataType(this=exp.DataType.Type.TIME)),
-            (Time(bits=64), exp.DataType(this=exp.DataType.Type.TIME)),
-            (Timestamp(), exp.DataType(this=exp.DataType.Type.TIMESTAMP)),
-            # Timestamp unit and tz are currently ignored
-            (Timestamp(unit=TimeUnit.S), exp.DataType(this=exp.DataType.Type.TIMESTAMP)),
-            (Timestamp(unit=TimeUnit.MS), exp.DataType(this=exp.DataType.Type.TIMESTAMP)),
-            (Timestamp(unit=TimeUnit.US), exp.DataType(this=exp.DataType.Type.TIMESTAMP)),
-            (Timestamp(unit=TimeUnit.NS), exp.DataType(this=exp.DataType.Type.TIMESTAMP)),
-            (TimestampTZ(), exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ)),
-            (TimestampTZ(unit=TimeUnit.S), exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ)),
-            (TimestampTZ(unit=TimeUnit.MS), exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ)),
-            (TimestampTZ(unit=TimeUnit.US), exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ)),
-            (TimestampTZ(unit=TimeUnit.NS), exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ)),
-            (TimestampTZ(tz="UTC"), exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ)),
-            (TimestampLTZ(), exp.DataType(this=exp.DataType.Type.TIMESTAMPLTZ)),
-            (TimestampLTZ(unit=TimeUnit.S), exp.DataType(this=exp.DataType.Type.TIMESTAMPLTZ)),
-            (TimestampLTZ(unit=TimeUnit.MS), exp.DataType(this=exp.DataType.Type.TIMESTAMPLTZ)),
-            (TimestampLTZ(unit=TimeUnit.US), exp.DataType(this=exp.DataType.Type.TIMESTAMPLTZ)),
-            (TimestampLTZ(unit=TimeUnit.NS), exp.DataType(this=exp.DataType.Type.TIMESTAMPLTZ)),
-            (TimestampNTZ(), exp.DataType(this=exp.DataType.Type.TIMESTAMPNTZ)),
-            (TimestampNTZ(unit=TimeUnit.S), exp.DataType(this=exp.DataType.Type.TIMESTAMPNTZ)),
-            (TimestampNTZ(unit=TimeUnit.MS), exp.DataType(this=exp.DataType.Type.TIMESTAMPNTZ)),
-            (TimestampNTZ(unit=TimeUnit.US), exp.DataType(this=exp.DataType.Type.TIMESTAMPNTZ)),
-            (TimestampNTZ(unit=TimeUnit.NS), exp.DataType(this=exp.DataType.Type.TIMESTAMPNTZ)),
-            # JSON type - fallback to build
-            (JSON(), exp.DataType(this=exp.DataType.Type.JSON)),
-            # Spatial types - fallback to build
-            (Geometry(), exp.DataType(this=exp.DataType.Type.GEOMETRY)),
-            (Geometry(srid=4326), exp.DataType(this=exp.DataType.Type.GEOMETRY, expressions=[exp.DataTypeParam(this=exp.Literal.number("4326"))])),
-            (Geography(), exp.DataType(this=exp.DataType.Type.GEOGRAPHY)),
-            (Geography(srid=4326), exp.DataType(this=exp.DataType.Type.GEOGRAPHY, expressions=[exp.DataTypeParam(this=exp.Literal.number("4326"))])),
-            # Void type - handled by type handler
-            (Void(), exp.DataType(this=exp.DataType.Type.USERDEFINED, kind="VOID")),
-            # Other types - fallback to build
-            (UUID(), exp.DataType(this=exp.DataType.Type.UUID)),
-            (Variant(), exp.DataType(this=exp.DataType.Type.VARIANT)),
-        ],
-    )
-    def test_simple_type_conversion(self, yads_type, expected_datatype):
-        converter = SQLGlotConverter()
-        result = converter._convert_type(yads_type)
-        assert result == expected_datatype
-
-    @pytest.mark.parametrize(
-        "yads_type, expected_datatype",
-        [
-            # Interval types - handled by type handler
-            (
-                Interval(interval_start=IntervalTimeUnit.YEAR),
-                exp.DataType(this=exp.Interval(unit=exp.Var(this="YEAR"))),
-            ),
-            (
-                Interval(interval_start=IntervalTimeUnit.MONTH),
-                exp.DataType(this=exp.Interval(unit=exp.Var(this="MONTH"))),
-            ),
-            (
-                Interval(interval_start=IntervalTimeUnit.DAY),
-                exp.DataType(this=exp.Interval(unit=exp.Var(this="DAY"))),
-            ),
-            (
-                Interval(interval_start=IntervalTimeUnit.HOUR),
-                exp.DataType(this=exp.Interval(unit=exp.Var(this="HOUR"))),
-            ),
-            (
-                Interval(interval_start=IntervalTimeUnit.MINUTE),
-                exp.DataType(this=exp.Interval(unit=exp.Var(this="MINUTE"))),
-            ),
-            (
-                Interval(interval_start=IntervalTimeUnit.SECOND),
-                exp.DataType(this=exp.Interval(unit=exp.Var(this="SECOND"))),
-            ),
-            # Interval ranges
-            (
-                Interval(
-                    interval_start=IntervalTimeUnit.YEAR,
-                    interval_end=IntervalTimeUnit.MONTH,
-                ),
-                exp.DataType(
-                    this=exp.Interval(
-                        unit=exp.IntervalSpan(
-                            this=exp.Var(this="YEAR"), expression=exp.Var(this="MONTH")
-                        )
-                    )
-                ),
-            ),
-            (
-                Interval(
-                    interval_start=IntervalTimeUnit.DAY,
-                    interval_end=IntervalTimeUnit.SECOND,
-                ),
-                exp.DataType(
-                    this=exp.Interval(
-                        unit=exp.IntervalSpan(
-                            this=exp.Var(this="DAY"), expression=exp.Var(this="SECOND")
-                        )
-                    )
-                ),
-            ),
-        ],
-    )
-    def test_interval_type_conversion(self, yads_type, expected_datatype):
-        converter = SQLGlotConverter()
-        result = converter._convert_type(yads_type)
-        assert result == expected_datatype
-
-    @pytest.mark.parametrize(
-        "yads_type",
-        [
-            # Array types
-            Array(element=String()),
-            Array(element=Integer(bits=32)),
-            Array(element=Boolean()),
-            Array(element=Decimal(precision=10, scale=2)),
-            Array(element=String(), size=2),
-            # Nested arrays
-            Array(element=Array(element=String())),
-        ],
-    )
-    def test_array_type_conversion(self, yads_type):
-        converter = SQLGlotConverter()
-        result = converter._convert_type(yads_type)
-
-        assert isinstance(result, exp.DataType)
-        assert result.this == exp.DataType.Type.ARRAY
-        assert len(result.expressions) == 1
-
-        # Verify the element type is correctly converted
-        element_datatype = result.expressions[0]
-        expected_element = converter._convert_type(yads_type.element)
-        assert element_datatype == expected_element
-        
-        # Array size is currently ignored
-        if hasattr(yads_type, 'size') and yads_type.size is not None:
-            assert len(result.expressions) == 1
-
-    @pytest.mark.parametrize(
-        "yads_type",
-        [
-            # Map types
-            Map(key=String(), value=Integer(bits=32)),
-            Map(key=UUID(), value=Float(bits=64)),
-            Map(key=Integer(bits=32), value=Array(element=String())),
-            Map(key=String(), value=Integer(), keys_sorted=True),
-        ],
-    )
-    def test_map_type_conversion(self, yads_type):
-        converter = SQLGlotConverter()
-        result = converter._convert_type(yads_type)
-
-        assert isinstance(result, exp.DataType)
-        assert result.this == exp.DataType.Type.MAP
-        assert len(result.expressions) == 2
-
-        # Verify key and value types are correctly converted
-        key_datatype, value_datatype = result.expressions
-        expected_key = converter._convert_type(yads_type.key)
-        expected_value = converter._convert_type(yads_type.value)
-        assert key_datatype == expected_key
-        assert value_datatype == expected_value
-        
-        # Map keys_sorted is currently ignored
-        if hasattr(yads_type, 'keys_sorted') and yads_type.keys_sorted is not None:
-            assert len(result.expressions) == 2
-
-    def test_struct_type_conversion(self):
-        struct_fields = [
-            Field(name="field1", type=String()),
-            Field(name="field2", type=Integer(bits=32)),
-            Field(name="field3", type=Boolean()),
-        ]
-        yads_type = Struct(fields=struct_fields)
-
-        converter = SQLGlotConverter()
-        result = converter._convert_type(yads_type)
-
-        assert isinstance(result, exp.DataType)
-        assert result.this == exp.DataType.Type.STRUCT
-        assert len(result.expressions) == 3
-
-        # Verify each field is correctly converted
-        for i, field_def in enumerate(result.expressions):
-            assert isinstance(field_def, exp.ColumnDef)
-            assert field_def.this.this == struct_fields[i].name
-
-            expected_field_type = converter._convert_type(struct_fields[i].type)
-            assert field_def.kind == expected_field_type
-
-    def test_nested_struct_type_conversion(self):
-        inner_fields = [Field(name="inner_field", type=Integer(bits=32))]
-        inner_struct = Struct(fields=inner_fields)
-
-        outer_fields = [
-            Field(name="simple_field", type=String()),
-            Field(name="nested_struct", type=inner_struct),
-        ]
-        yads_type = Struct(fields=outer_fields)
-
-        converter = SQLGlotConverter()
-        result = converter._convert_type(yads_type)
-
-        assert isinstance(result, exp.DataType)
-        assert result.this == exp.DataType.Type.STRUCT
-        assert len(result.expressions) == 2
-
-        # Check simple field
-        simple_field_def = result.expressions[0]
-        assert simple_field_def.this.this == "simple_field"
-        assert simple_field_def.kind == converter._convert_type(String())
-
-        # Check nested struct field
-        nested_field_def = result.expressions[1]
-        assert nested_field_def.this.this == "nested_struct"
-        assert isinstance(nested_field_def.kind, exp.DataType)
-        assert nested_field_def.kind.this == exp.DataType.Type.STRUCT
-
-    @pytest.mark.parametrize("yads_type", [Duration()])
-    def test_unsupported_types(self, yads_type):
-        converter = SQLGlotConverter(mode="raise")
-        with pytest.raises(
-            UnsupportedFeatureError, match="SQLGlotConverter does not support type:"
-        ):
-            converter._convert_type(yads_type)
-# fmt: on
 
 
 # %% Table name parsing

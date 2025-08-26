@@ -21,7 +21,7 @@ from yads.types import (
     TimestampTZ,
     TimestampLTZ,
     TimestampNTZ,
-    # Duration,
+    Duration,
     IntervalTimeUnit,
     Interval,
     Array,
@@ -64,7 +64,11 @@ class TestDuckdbSQLConverterTypes:
                 "UBIGINT",
                 None,
             ),
-            (Float(bits=16), "REAL", None),  # This should have a warning
+            (
+                Float(bits=16),
+                "REAL",
+                "SQLGlotConverter does not support half-precision Float (bits=16).",
+            ),
             (Float(bits=32), "REAL", None),
             (Float(bits=64), "DOUBLE", None),
             (Decimal(), "DECIMAL", None),
@@ -133,7 +137,11 @@ class TestDuckdbSQLConverterTypes:
             (TimestampNTZ(unit=TimeUnit.MS), "TIMESTAMP", None),
             (TimestampNTZ(unit=TimeUnit.US), "TIMESTAMP", None),
             (TimestampNTZ(unit=TimeUnit.NS), "TIMESTAMP", None),
-            # (Duration(), "", "SQLGlotConverter does not support type: Duration."), # Should warn and coerce to string
+            (
+                Duration(),
+                "TEXT",
+                "SQLGlotConverter does not support type: duration(unit=ns)",
+            ),
             (Interval(interval_start=IntervalTimeUnit.DAY), "INTERVAL DAY", None),
             (
                 Interval(

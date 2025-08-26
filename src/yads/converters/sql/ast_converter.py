@@ -221,9 +221,19 @@ class SQLGlotConverter(BaseConverter):
     def _(self, yads_type: Float) -> exp.DataType:
         bits = yads_type.bits or 32
         if bits == 16:
-            # sqlglot doesn't support HALF precision float
-            # TODO: raise or coerce with a warning
-            return exp.DataType(this=exp.DataType.Type.FLOAT)
+            if self._mode == "coerce":
+                validation_warning(
+                    message=(
+                        f"SQLGlotConverter does not support half-precision Float (bits={bits})."
+                        f" The data type will be replaced with Float (bits=32)."
+                    ),
+                    filename="yads.converters.sql.ast_converter",
+                    module=__name__,
+                )
+                return exp.DataType(this=exp.DataType.Type.FLOAT)
+            raise UnsupportedFeatureError(
+                f"SQLGlotConverter does not support half-precision Float (bits={bits})."
+            )
         if bits == 32:
             return exp.DataType(this=exp.DataType.Type.FLOAT)
         if bits == 64:
