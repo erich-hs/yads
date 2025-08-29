@@ -179,23 +179,21 @@ class PyArrowConverter(BaseConverter):
         if yads_type.signed:
             if bits == 8:
                 return pa.int8()
-            if bits == 16:
+            elif bits == 16:
                 return pa.int16()
-            if bits == 32:
+            elif bits == 32:
                 return pa.int32()
-            if bits == 64:
+            elif bits == 64:
                 return pa.int64()
-            raise UnsupportedFeatureError(
-                f"Unsupported Integer bits: {bits}. Expected 8/16/32/64."
-            )
-        if bits == 8:
-            return pa.uint8()
-        if bits == 16:
-            return pa.uint16()
-        if bits == 32:
-            return pa.uint32()
-        if bits == 64:
-            return pa.uint64()
+        else:
+            if bits == 8:
+                return pa.uint8()
+            elif bits == 16:
+                return pa.uint16()
+            elif bits == 32:
+                return pa.uint32()
+            elif bits == 64:
+                return pa.uint64()
         raise UnsupportedFeatureError(
             f"Unsupported Integer bits: {bits}. Expected 8/16/32/64."
         )
@@ -205,9 +203,9 @@ class PyArrowConverter(BaseConverter):
         bits = yads_type.bits or 32
         if bits == 16:
             return pa.float16()
-        if bits == 32:
+        elif bits == 32:
             return pa.float32()
-        if bits == 64:
+        elif bits == 64:
             return pa.float64()
         raise UnsupportedFeatureError(
             f"Unsupported Float bits: {bits}. Expected 16/32/64."
@@ -265,7 +263,7 @@ class PyArrowConverter(BaseConverter):
         bits = yads_type.bits or 32
         if bits == 32:
             return pa.date32()
-        if bits == 64:
+        elif bits == 64:
             return pa.date64()
         raise UnsupportedFeatureError(f"Unsupported Date bits: {bits}. Expected 32/64.")
 
@@ -297,7 +295,7 @@ class PyArrowConverter(BaseConverter):
                     "time32 supports only 's' or 'ms' units (got '" + unit + "')."
                 )
             return pa.time32(unit)
-        if bits == 64:
+        elif bits == 64:
             if unit not in {"us", "ns"}:
                 if self._mode == "coerce":
                     # Promote coarse units to 32 if asked for 64 but unit is s/ms

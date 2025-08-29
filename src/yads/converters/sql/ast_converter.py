@@ -195,24 +195,21 @@ class SQLGlotConverter(BaseConverter):
         if yads_type.signed:
             if bits == 8:
                 return exp.DataType(this=exp.DataType.Type.TINYINT)
-            if bits == 16:
+            elif bits == 16:
                 return exp.DataType(this=exp.DataType.Type.SMALLINT)
-            if bits == 32:
+            elif bits == 32:
                 return exp.DataType(this=exp.DataType.Type.INT)
-            if bits == 64:
+            elif bits == 64:
                 return exp.DataType(this=exp.DataType.Type.BIGINT)
-            raise UnsupportedFeatureError(
-                f"Unsupported Integer bits: {bits}. Expected 8/16/32/64."
-            )
-        # Unsigned integers
-        if bits == 8:
-            return exp.DataType(this=exp.DataType.Type.UTINYINT)
-        if bits == 16:
-            return exp.DataType(this=exp.DataType.Type.USMALLINT)
-        if bits == 32:
-            return exp.DataType(this=exp.DataType.Type.UINT)
-        if bits == 64:
-            return exp.DataType(this=exp.DataType.Type.UBIGINT)
+        else:
+            if bits == 8:
+                return exp.DataType(this=exp.DataType.Type.UTINYINT)
+            elif bits == 16:
+                return exp.DataType(this=exp.DataType.Type.USMALLINT)
+            elif bits == 32:
+                return exp.DataType(this=exp.DataType.Type.UINT)
+            elif bits == 64:
+                return exp.DataType(this=exp.DataType.Type.UBIGINT)
         raise UnsupportedFeatureError(
             f"Unsupported Integer bits: {bits}. Expected 8/16/32/64."
         )
@@ -234,9 +231,9 @@ class SQLGlotConverter(BaseConverter):
             raise UnsupportedFeatureError(
                 f"SQLGlotConverter does not support half-precision Float (bits={bits})."
             )
-        if bits == 32:
+        elif bits == 32:
             return exp.DataType(this=exp.DataType.Type.FLOAT)
-        if bits == 64:
+        elif bits == 64:
             return exp.DataType(this=exp.DataType.Type.DOUBLE)
         raise UnsupportedFeatureError(
             f"Unsupported Float bits: {bits}. Expected 16/32/64."
