@@ -147,7 +147,7 @@ class PyArrowConverter(BaseConverter):
                                 f"Data type '{type(col.type).__name__.upper()}' is not supported"
                                 f" for column '{col.name}'. The data type will be replaced with pyarrow.binary()."
                             ),
-                            filename="yads.converters.pyarrow",
+                            filename="yads.converters.pyarrow_converter",
                             module=__name__,
                         )
                         fallback = pa.field(
@@ -239,7 +239,7 @@ class PyArrowConverter(BaseConverter):
                         f" for column '{self._current_field_name or '<unknown>'}'."
                         f" The data type will be replaced with pyarrow.decimal256({precision=}, {scale=})."
                     ),
-                    filename="yads.converters.pyarrow",
+                    filename="yads.converters.pyarrow_converter",
                     module=__name__,
                 )
                 return build_decimal(256)
@@ -287,7 +287,7 @@ class PyArrowConverter(BaseConverter):
                             f" (got '{unit}') for column '{self._current_field_name or '<unknown>'}'."
                             f" The data type will be replaced with pyarrow.time64({unit=})."
                         ),
-                        filename="yads.converters.pyarrow",
+                        filename="yads.converters.pyarrow_converter",
                         module=__name__,
                     )
                     return pa.time64(unit)
@@ -305,7 +305,7 @@ class PyArrowConverter(BaseConverter):
                             f" (got '{unit}') for column '{self._current_field_name or '<unknown>'}'."
                             f" The data type will be replaced with pyarrow.time32({unit=})."
                         ),
-                        filename="yads.converters.pyarrow",
+                        filename="yads.converters.pyarrow_converter",
                         module=__name__,
                     )
                     return pa.time32(unit)
