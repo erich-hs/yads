@@ -355,22 +355,6 @@ class PydanticConverter(BaseConverter):
         field_info = Field(default=...)
         return dict, field_info
 
-    @_convert_type.register(ytypes.UUID)
-    def _(self, yads_type: ytypes.UUID) -> tuple[Any, FieldInfo]:
-        field_info = Field(default=...)
-        return PythonUUID, field_info
-
-    @_convert_type.register(ytypes.Void)
-    def _(self, yads_type: ytypes.Void) -> tuple[Any, FieldInfo]:
-        # Represent a NULL/VOID value
-        field_info = cast(FieldInfo, Field(default=None))
-        return type(None), field_info
-
-    @_convert_type.register(ytypes.Variant)
-    def _(self, yads_type: ytypes.Variant) -> tuple[Any, FieldInfo]:
-        field_info = Field(default=...)
-        return Any, field_info
-
     @_convert_type.register(ytypes.Geometry)
     def _(self, yads_type: ytypes.Geometry) -> tuple[Any, FieldInfo]:
         if self._mode == "coerce":
@@ -406,6 +390,22 @@ class PydanticConverter(BaseConverter):
         raise UnsupportedFeatureError(
             f"PydanticConverter does not support type: {type(yads_type).__name__}."
         )
+
+    @_convert_type.register(ytypes.UUID)
+    def _(self, yads_type: ytypes.UUID) -> tuple[Any, FieldInfo]:
+        field_info = Field(default=...)
+        return PythonUUID, field_info
+
+    @_convert_type.register(ytypes.Void)
+    def _(self, yads_type: ytypes.Void) -> tuple[Any, FieldInfo]:
+        # Represent a NULL/VOID value
+        field_info = cast(FieldInfo, Field(default=None))
+        return type(None), field_info
+
+    @_convert_type.register(ytypes.Variant)
+    def _(self, yads_type: ytypes.Variant) -> tuple[Any, FieldInfo]:
+        field_info = Field(default=...)
+        return Any, field_info
 
     # Helpers
     def _convert_field(self, field: spec.Field) -> tuple[Any, FieldInfo]:
