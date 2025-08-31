@@ -1,7 +1,7 @@
 import pytest
 import warnings
 from sqlglot import parse_one, exp
-from yads.converters.sql import SQLGlotConverter
+from yads.converters.sql import SQLGlotConverter, SQLGlotConverterConfig
 from yads.loaders import from_yaml_path
 from yads.types import (
     String,
@@ -382,7 +382,7 @@ class TestSQLGlotConverterTypes:
 
     @pytest.mark.parametrize("yads_type", [Duration()])
     def test_unsupported_types(self, yads_type):
-        converter = SQLGlotConverter(mode="raise")
+        converter = SQLGlotConverter(SQLGlotConverterConfig(mode="raise"))
         with pytest.raises(
             UnsupportedFeatureError, match="SQLGlotConverter does not support type:"
         ):
@@ -625,7 +625,7 @@ class TestConstraintConversion:
             converter._convert_table_constraint(constraint)
 
     def test_convert_unsupported_column_constraint_raises_error(self):
-        converter = SQLGlotConverter(mode="raise")
+        converter = SQLGlotConverter(SQLGlotConverterConfig(mode="raise"))
 
         class UnsupportedConstraint:
             pass
@@ -639,7 +639,7 @@ class TestConstraintConversion:
             converter._convert_column_constraint(constraint)
 
     def test_convert_unsupported_column_constraint_coerce_omits_and_warns(self):
-        converter = SQLGlotConverter(mode="coerce")
+        converter = SQLGlotConverter(SQLGlotConverterConfig(mode="coerce"))
 
         class UnsupportedConstraint:
             pass
@@ -656,7 +656,7 @@ class TestConstraintConversion:
         assert "does not support constraint" in str(w[0].message)
 
     def test_convert_unsupported_table_constraint_raises_error(self):
-        converter = SQLGlotConverter(mode="raise")
+        converter = SQLGlotConverter(SQLGlotConverterConfig(mode="raise"))
 
         class UnsupportedTableConstraint:
             pass
@@ -670,7 +670,7 @@ class TestConstraintConversion:
             converter._convert_table_constraint(constraint)
 
     def test_convert_unsupported_table_constraint_coerce_omits_and_warns(self):
-        converter = SQLGlotConverter(mode="coerce")
+        converter = SQLGlotConverter(SQLGlotConverterConfig(mode="coerce"))
 
         class UnsupportedTableConstraint:
             pass
@@ -708,7 +708,7 @@ class TestTransformConversion:
             converter._handle_cast_transform("col1", ["TEXT", "INT"])
 
     def test_convert_cast_transform_unknown_type_raises_error(self):
-        converter = SQLGlotConverter(mode="raise")
+        converter = SQLGlotConverter(SQLGlotConverterConfig(mode="raise"))
         with pytest.raises(
             UnsupportedFeatureError,
             match="Transform type 'NOT_A_TYPE' is not a valid sqlglot Type",
@@ -716,7 +716,7 @@ class TestTransformConversion:
             converter._handle_cast_transform("col1", ["not_a_type"])
 
     def test_convert_cast_transform_unknown_type_coerce_warns_and_coerces_to_text(self):
-        converter = SQLGlotConverter(mode="coerce")
+        converter = SQLGlotConverter(SQLGlotConverterConfig(mode="coerce"))
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             result = converter._handle_cast_transform("col1", ["not_a_type"])
@@ -910,7 +910,7 @@ class TestSQLGlotConverterModeHierarchy:
         """
         spec = from_yaml_string(yaml_string)
 
-        converter = SQLGlotConverter(mode="raise")
+        converter = SQLGlotConverter(SQLGlotConverterConfig(mode="raise"))
         with pytest.raises(
             UnsupportedFeatureError, match="does not support type: duration"
         ):
@@ -926,7 +926,7 @@ class TestSQLGlotConverterModeHierarchy:
         """
         spec = from_yaml_string(yaml_string)
 
-        converter = SQLGlotConverter(mode="raise")
+        converter = SQLGlotConverter(SQLGlotConverterConfig(mode="raise"))
         with pytest.warns(
             UserWarning,
             match="SQLGlotConverter does not support type: duration",
@@ -1114,8 +1114,9 @@ class TestConvertWithIgnoreArguments:
         from yads.loaders import from_yaml_path
 
         spec = from_yaml_path("tests/fixtures/spec/valid/basic_spec.yaml")
-        converter = SQLGlotConverter()
-        result = converter.convert(spec, ignore_catalog=True)
+        config = SQLGlotConverterConfig(ignore_catalog=True)
+        converter = SQLGlotConverter(config)
+        result = converter.convert(spec)
 
         table_expression = result.this.this
         assert table_expression.this.this == "test_spec"
@@ -1126,8 +1127,9 @@ class TestConvertWithIgnoreArguments:
         from yads.loaders import from_yaml_path
 
         spec = from_yaml_path("tests/fixtures/spec/valid/basic_spec.yaml")
-        converter = SQLGlotConverter()
-        result = converter.convert(spec, ignore_database=True)
+        config = SQLGlotConverterConfig(ignore_database=True)
+        converter = SQLGlotConverter(config)
+        result = converter.convert(spec)
 
         table_expression = result.this.this
         assert table_expression.this.this == "test_spec"
@@ -1138,8 +1140,9 @@ class TestConvertWithIgnoreArguments:
         from yads.loaders import from_yaml_path
 
         spec = from_yaml_path("tests/fixtures/spec/valid/basic_spec.yaml")
-        converter = SQLGlotConverter()
-        result = converter.convert(spec, ignore_catalog=True, ignore_database=True)
+        config = SQLGlotConverterConfig(ignore_catalog=True, ignore_database=True)
+        converter = SQLGlotConverter(config)
+        result = converter.convert(spec)
 
         table_expression = result.this.this
         assert table_expression.this.this == "test_spec"
@@ -1150,10 +1153,11 @@ class TestConvertWithIgnoreArguments:
         from yads.loaders import from_yaml_path
 
         spec = from_yaml_path("tests/fixtures/spec/valid/basic_spec.yaml")
-        converter = SQLGlotConverter()
-        result = converter.convert(
-            spec, ignore_catalog=True, ignore_database=True, if_not_exists=True
+        config = SQLGlotConverterConfig(
+            ignore_catalog=True, ignore_database=True, if_not_exists=True
         )
+        converter = SQLGlotConverter(config)
+        result = converter.convert(spec)
 
         table_expression = result.this.this
         assert table_expression.this.this == "test_spec"
@@ -1172,8 +1176,9 @@ class TestConvertWithIgnoreArguments:
             columns=[Column(name="id", type=String())],
         )
 
-        converter = SQLGlotConverter()
-        result = converter.convert(spec, ignore_catalog=True)
+        config = SQLGlotConverterConfig(ignore_catalog=True)
+        converter = SQLGlotConverter(config)
+        result = converter.convert(spec)
 
         table_expression = result.this.this
         assert table_expression.this.this == "orders"
@@ -1190,8 +1195,9 @@ class TestConvertWithIgnoreArguments:
             columns=[Column(name="id", type=String())],
         )
 
-        converter = SQLGlotConverter()
-        result = converter.convert(spec, ignore_database=True)
+        config = SQLGlotConverterConfig(ignore_database=True)
+        converter = SQLGlotConverter(config)
+        result = converter.convert(spec)
 
         table_expression = result.this.this
         assert table_expression.this.this == "orders"

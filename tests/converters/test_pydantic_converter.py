@@ -7,7 +7,7 @@ from uuid import UUID as PyUUID
 import pytest
 from pydantic import BaseModel
 
-from yads.converters import PydanticConverter
+from yads.converters import PydanticConverter, PydanticConverterConfig
 from yads.constraints import (
     DefaultConstraint,
     ForeignKeyConstraint,
@@ -366,7 +366,7 @@ class TestPydanticConverterTypes:
         assert isinstance(ann, type) and issubclass(ann, float)
 
         with pytest.raises(UnsupportedFeatureError):
-            PydanticConverter(mode="raise").convert(spec)
+            PydanticConverter(PydanticConverterConfig(mode="raise")).convert(spec)
 
     def test_geometry_geography_coerce_and_raise(self):
         spec = YadsSpec(
@@ -387,7 +387,7 @@ class TestPydanticConverterTypes:
         assert isinstance(ann_g2, type) and issubclass(ann_g2, dict)
 
         with pytest.raises(UnsupportedFeatureError):
-            PydanticConverter(mode="raise").convert(spec)    
+            PydanticConverter(PydanticConverterConfig(mode="raise")).convert(spec)    
 
     def test_field_description(self):
         spec = YadsSpec(
@@ -507,12 +507,14 @@ class TestPydanticConverterModelOptions:
             version="1.0.0",
             columns=[Column(name="c", type=String())],
         )
-        converter = PydanticConverter()
-        model = converter.convert(
-            spec,
+        from yads.converters import PydanticConverterConfig
+
+        config = PydanticConverterConfig(
             model_name="CustomModel",
             model_config={"frozen": True, "title": "X"},
         )
+        converter = PydanticConverter(config)
+        model = converter.convert(spec)
         assert model.__name__ == "CustomModel"
         assert getattr(model, "model_config")["frozen"] is True
         assert getattr(model, "model_config")["title"] == "X"
@@ -535,7 +537,7 @@ class TestPydanticConverterModeHierarchy:
             version="1.0.0",
             columns=[Column(name="c", type=Geometry())],
         )
-        converter = PydanticConverter(mode="raise")
+        converter = PydanticConverter(PydanticConverterConfig(mode="raise"))
         with pytest.raises(UnsupportedFeatureError):
             converter.convert(yaml_like_spec)
 
@@ -545,7 +547,7 @@ class TestPydanticConverterModeHierarchy:
             version="1.0.0",
             columns=[Column(name="c", type=Geometry())],
         )
-        converter = PydanticConverter(mode="raise")
+        converter = PydanticConverter(PydanticConverterConfig(mode="raise"))
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             model = converter.convert(spec, mode="coerce")

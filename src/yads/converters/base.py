@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Generator, Literal
 
 from ..exceptions import UnsupportedFeatureError
@@ -17,18 +18,37 @@ if TYPE_CHECKING:
     from ..spec import YadsSpec
 
 
+@dataclass(frozen=True)
+class BaseConverterConfig:
+    """Base configuration for all yads converters.
+
+    Args:
+        mode: Conversion mode. "raise" will raise exceptions on unsupported features,
+            "coerce" will attempt to coerce unsupported features to supported ones
+            with warnings. Defaults to "coerce".
+    """
+
+    mode: Literal["raise", "coerce"] = "coerce"
+
+    def __post_init__(self) -> None:
+        if self.mode not in {"raise", "coerce"}:
+            raise UnsupportedFeatureError("mode must be one of 'raise' or 'coerce'.")
+
+
 class BaseConverter(ABC):
     """Abstract base class for spec converters."""
 
-    def __init__(self, mode: Literal["raise", "coerce"] = "coerce") -> None:
-        # Default conversion context shared by all concrete converters.
-        if mode not in {"raise", "coerce"}:
-            raise UnsupportedFeatureError("mode must be one of 'raise' or 'coerce'.")
-        self._mode: Literal["raise", "coerce"] = mode
+    def __init__(self, config: BaseConverterConfig | None = None) -> None:
+        """Initialize the BaseConverter.
+
+        Args:
+            config: Configuration object. If None, uses default BaseConverterConfig.
+        """
+        self.config = config or BaseConverterConfig()
         self._current_field_name: str | None = None
 
     @abstractmethod
-    def convert(self, spec: YadsSpec, **kwargs: Any) -> Any:
+    def convert(self, spec: YadsSpec) -> Any:
         """Convert a YadsSpec to the target format."""
         ...
 
@@ -49,8 +69,8 @@ class BaseConverter(ABC):
             field: Optional field name for contextual warnings.
         """
         # Snapshot current state
-        previous_mode: Literal["raise", "coerce"] = getattr(self, "_mode", "coerce")
-        previous_field = getattr(self, "_current_field_name", None)
+        previous_config = self.config
+        previous_field = self._current_field_name
 
         try:
             if mode is not None:
@@ -58,11 +78,11 @@ class BaseConverter(ABC):
                     raise UnsupportedFeatureError(
                         "mode must be one of 'raise' or 'coerce'."
                     )
-                self._mode = mode
+                self.config = replace(self.config, mode=mode)
             if field is not None:
                 self._current_field_name = field
             yield
         finally:
             # Restore prior state
-            self._mode = previous_mode
+            self.config = previous_config
             self._current_field_name = previous_field

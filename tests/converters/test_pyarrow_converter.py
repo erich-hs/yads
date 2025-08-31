@@ -3,7 +3,7 @@ import warnings
 import pyarrow as pa  # type: ignore[import-untyped]
 import pytest
 
-from yads.converters import PyArrowConverter
+from yads.converters import PyArrowConverter, PyArrowConverterConfig
 from yads.constraints import NotNullConstraint
 from yads.spec import YadsSpec, Column, Field
 from yads.types import (
@@ -202,12 +202,12 @@ class TestPyArrowConverterTypes:
                 Column(name="l", type=Array(element=String())),
             ],
         )
-        schema = PyArrowConverter().convert(
-            spec,
+        config = PyArrowConverterConfig(
             use_large_string=True,
             use_large_binary=True,
             use_large_list=True,
         )
+        schema = PyArrowConverter(config).convert(spec)
 
         assert schema.field("s").type == pa.large_string()
         assert schema.field("b").type == pa.large_binary()
@@ -230,7 +230,7 @@ class TestPyArrowConverterTypes:
         assert "Precision greater than 38 is incompatible" in str(w[0].message)
 
         with pytest.raises(UnsupportedFeatureError):
-            PyArrowConverter(mode="raise").convert(spec)
+            PyArrowConverter(PyArrowConverterConfig(mode="raise")).convert(spec)
 
     def test_time_bits_unit_mismatch_coercion(self):
         # time32 with us -> coerced to time64
@@ -305,7 +305,7 @@ class TestPyArrowConverterTypes:
         )
 
         with pytest.raises(UnsupportedFeatureError, match=f"PyArrowConverter does not support type: {type_name}"):
-            PyArrowConverter(mode="raise").convert(spec)
+            PyArrowConverter(PyArrowConverterConfig(mode="raise")).convert(spec)
 
     def test_raise_mode_for_incompatible_decimal_precision(self):
         spec = YadsSpec(
@@ -315,7 +315,7 @@ class TestPyArrowConverterTypes:
         )
 
         with pytest.raises(UnsupportedFeatureError, match="precision > 38 is incompatible with Decimal\\(bits=128\\)"):
-            PyArrowConverter(mode="raise").convert(spec)
+            PyArrowConverter(PyArrowConverterConfig(mode="raise")).convert(spec)
 
     def test_raise_mode_for_incompatible_time_bits_unit(self):
         # time32 with us -> should raise in raise mode
@@ -325,7 +325,7 @@ class TestPyArrowConverterTypes:
             columns=[Column(name="t", type=Time(bits=32, unit=TimeUnit.US))],
         )
         with pytest.raises(UnsupportedFeatureError, match="time32 supports only 's' or 'ms' units"):
-            PyArrowConverter(mode="raise").convert(spec1)
+            PyArrowConverter(PyArrowConverterConfig(mode="raise")).convert(spec1)
 
         # time64 with ms -> should raise in raise mode
         spec2 = YadsSpec(
@@ -334,5 +334,5 @@ class TestPyArrowConverterTypes:
             columns=[Column(name="t", type=Time(bits=64, unit=TimeUnit.MS))],
         )
         with pytest.raises(UnsupportedFeatureError, match="time64 supports only 'us' or 'ns' units"):
-            PyArrowConverter(mode="raise").convert(spec2)
+            PyArrowConverter(PyArrowConverterConfig(mode="raise")).convert(spec2)
 # fmt: on

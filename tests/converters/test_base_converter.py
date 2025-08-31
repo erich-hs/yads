@@ -1,4 +1,4 @@
-from yads.converters.base import BaseConverter
+from yads.converters.base import BaseConverter, BaseConverterConfig
 
 
 # %% BaseConverter context manager
@@ -8,14 +8,15 @@ class TestBaseConverterContextManager:
             def convert(self, spec, **kwargs):
                 return None
 
-        c = DummyConverter(mode="raise")
+        config = BaseConverterConfig(mode="raise")
+        c = DummyConverter(config)
         # initial mode is raise
-        assert getattr(c, "_mode") == "raise"
+        assert c.config.mode == "raise"
         with c.conversion_context(mode="coerce"):
             # temporary coerce
-            assert getattr(c, "_mode") == "coerce"
+            assert c.config.mode == "coerce"
         # restored to raise
-        assert getattr(c, "_mode") == "raise"
+        assert c.config.mode == "raise"
 
     def test_field_context_override_and_restore(self):
         class DummyConverter(BaseConverter):

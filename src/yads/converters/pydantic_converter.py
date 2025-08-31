@@ -29,6 +29,7 @@ from datetime import date, datetime, time, timedelta
 from decimal import Decimal as PythonDecimal
 from typing import Any, Literal, Optional, Type, cast
 from uuid import UUID as PythonUUID
+from dataclasses import dataclass
 
 from pydantic import BaseModel, Field, create_model, ConfigDict  # type: ignore[import-untyped]
 from pydantic.fields import FieldInfo  # type: ignore[import-untyped]
@@ -42,10 +43,25 @@ from ..constraints import (
     PrimaryKeyConstraint,
 )
 from ..exceptions import UnsupportedFeatureError, validation_warning
-from .base import BaseConverter
+from .base import BaseConverter, BaseConverterConfig
 
 from .. import spec
 from .. import types as ytypes
+
+
+@dataclass(frozen=True)
+class PydanticConverterConfig(BaseConverterConfig):
+    """Configuration for PydanticConverter.
+
+    Args:
+        model_name: Custom name for the generated model class. If None, uses
+            the spec name. Defaults to None.
+        model_config: Dictionary of Pydantic model configuration options.
+            Defaults to empty dict.
+    """
+
+    model_name: str | None = None
+    model_config: dict[str, Any] | None = None
 
 
 class PydanticConverter(BaseConverter):
@@ -55,14 +71,6 @@ class PydanticConverter(BaseConverter):
     `BaseModel` class. Complex types such as arrays, structs, and maps are
     recursively converted to their Pydantic equivalents.
 
-    The following options are supported via `**kwargs` to customize
-    conversion:
-
-    - model_name: Custom name for the generated model class. If None, uses
-      the spec name. Default None.
-    - model_config: Dictionary of Pydantic model configuration options.
-      Default empty dict.
-
     Notes:
         - Complex types (Array, Struct, Map) are converted to their Pydantic
           equivalents using nested models and typing constructs.
@@ -70,40 +78,39 @@ class PydanticConverter(BaseConverter):
           `UnsupportedFeatureError` unless in coerce mode.
     """
 
-    def __init__(self, mode: Literal["raise", "coerce"] = "coerce") -> None:
+    def __init__(self, config: PydanticConverterConfig | None = None) -> None:
         """Initialize the PydanticConverter.
 
         Args:
-            mode: "raise" or "coerce". When "coerce", unsupported or
-                incompatible constructs are coerced to a valid Pydantic
-                type with a warning. Defaults to "coerce".
+            config: Configuration object. If None, uses default PydanticConverterConfig.
         """
-        super().__init__(mode=mode)
+        self.config: PydanticConverterConfig = config or PydanticConverterConfig()
+        super().__init__(self.config)
 
-    def convert(self, spec: spec.YadsSpec, **kwargs: Any) -> Type[BaseModel]:
+    def convert(
+        self,
+        spec: spec.YadsSpec,
+        *,
+        mode: Literal["raise", "coerce"] | None = None,
+    ) -> Type[BaseModel]:
         """Convert a yads `YadsSpec` into a Pydantic `BaseModel` class.
 
         Args:
             spec: The yads spec as a `YadsSpec` object.
-            **kwargs: Optional conversion modifiers:
-                model_name: Custom name for the generated model class.
-                    If None, uses the spec name. Defaults to None.
-                model_config: Dictionary of Pydantic model configuration
-                    options. Defaults to empty dict.
-                mode: "raise" or "coerce". When "coerce", unsupported or
-                    incompatible constructs are coerced to a valid Pydantic
-                    type with a warning. Defaults to "coerce".
+            mode: Optional conversion mode override for this call. When not
+                provided, the converter's configured mode is used. If provided:
+                - "raise": Raise on any unsupported features.
+                - "coerce": Apply adjustments to produce a valid model and emit warnings.
 
         Returns:
             A Pydantic `BaseModel` class with fields mapped from the spec columns.
         """
-        mode_override = kwargs.get("mode", None)
-        self._model_name: str = kwargs.get("model_name") or spec.name.replace(".", "_")
-        self._model_config: dict[str, Any] = kwargs.get("model_config", {})
+        model_name: str = self.config.model_name or spec.name.replace(".", "_")
+        model_config: dict[str, Any] = self.config.model_config or {}
 
         fields: dict[str, Any] = {}
         # Set mode for this conversion call
-        with self.conversion_context(mode=mode_override):
+        with self.conversion_context(mode=mode):
             for col in spec.columns:
                 try:
                     # Set field context during conversion
@@ -112,7 +119,7 @@ class PydanticConverter(BaseConverter):
                         # Pydantic expects (annotation, FieldInfo) for dynamic models
                         fields[col.name] = (field_type, field_info)
                 except UnsupportedFeatureError:
-                    if self._mode == "coerce":
+                    if self.config.mode == "coerce":
                         validation_warning(
                             message=(
                                 f"Data type '{type(col.type).__name__.upper()}' is not supported"
@@ -130,14 +137,14 @@ class PydanticConverter(BaseConverter):
                     raise
 
         model = create_model(
-            self._model_name,
+            model_name,
             **fields,
         )
 
-        if self._model_config:
+        if model_config:
             # In Pydantic v2, set BaseModel.model_config (ConfigDict) for dynamic models.
             # We cast here to avoid over-constraining keys at type-check time.
-            setattr(model, "model_config", cast(ConfigDict, self._model_config))
+            setattr(model, "model_config", cast(ConfigDict, model_config))
 
         return model
 
@@ -194,7 +201,7 @@ class PydanticConverter(BaseConverter):
         # Python's float is typically 64-bit; emit warning when a narrower
         # bit-width is requested, since precision cannot be enforced.
         if yads_type.bits is not None and yads_type.bits != 64:
-            if self._mode == "coerce":
+            if self.config.mode == "coerce":
                 validation_warning(
                     message=(
                         f"Float(bits={yads_type.bits}) cannot be represented exactly"
@@ -289,7 +296,7 @@ class PydanticConverter(BaseConverter):
     def _(self, yads_type: ytypes.Interval) -> tuple[Any, FieldInfo]:
         # Represent as a structured Month-Day-Nano interval, matching PyArrow's
         # month_day_nano_interval layout: (months, days, nanoseconds)
-        interval_model_name = f"{self._model_name}_MonthDayNanoInterval"
+        interval_model_name = f"{self.config.model_name or 'Model'}_MonthDayNanoInterval"
         months_field = (int, Field(default=...))
         days_field = (int, Field(default=...))
         nanos_field = (int, Field(default=...))
@@ -328,7 +335,9 @@ class PydanticConverter(BaseConverter):
                 nested_fields[field.name] = (field_type, field_info)
 
         # Create nested model class
-        struct_model_name = f"{self._model_name}_{yads_type.__class__.__name__}"
+        struct_model_name = (
+            f"{self.config.model_name or 'Model'}_{yads_type.__class__.__name__}"
+        )
         # Preserve FieldInfo for nested fields
         nested_kwargs: dict[str, Any] = {
             name: (ftype, finfo) for name, (ftype, finfo) in nested_fields.items()
@@ -357,7 +366,7 @@ class PydanticConverter(BaseConverter):
 
     @_convert_type.register(ytypes.Geometry)
     def _(self, yads_type: ytypes.Geometry) -> tuple[Any, FieldInfo]:
-        if self._mode == "coerce":
+        if self.config.mode == "coerce":
             validation_warning(
                 message=(
                     f"PydanticConverter does not support type: {type(yads_type).__name__}"
@@ -375,7 +384,7 @@ class PydanticConverter(BaseConverter):
 
     @_convert_type.register(ytypes.Geography)
     def _(self, yads_type: ytypes.Geography) -> tuple[Any, FieldInfo]:
-        if self._mode == "coerce":
+        if self.config.mode == "coerce":
             validation_warning(
                 message=(
                     f"PydanticConverter does not support type: {type(yads_type).__name__}"
