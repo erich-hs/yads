@@ -152,7 +152,7 @@ class PydanticConverter(BaseConverter):
                         )
                         fields[col.name] = (
                             self.config.fallback_type,
-                            Field(default=...),
+                            self._create_fallback_field_info(col),
                         )
                         continue
                     raise
@@ -414,6 +414,11 @@ class PydanticConverter(BaseConverter):
         if field.description:
             field_info.description = field.description
 
+        if field.metadata:
+            field_info = self._merge_schema_extra(
+                field_info, {"metadata": field.metadata}
+            )
+
         for constraint in field.constraints:
             field_info = self._apply_constraint(constraint, field_info)
 
@@ -483,6 +488,16 @@ class PydanticConverter(BaseConverter):
     @staticmethod
     def required(**kwargs: Any) -> FieldInfo:
         return Field(default=..., **kwargs)
+
+    def _create_fallback_field_info(self, field: spec.Field) -> FieldInfo:
+        field_info = Field(default=...)
+        if field.description:
+            field_info.description = field.description
+        if field.metadata:
+            field_info = self._merge_schema_extra(
+                field_info, {"metadata": field.metadata}
+            )
+        return field_info
 
     def _nested_model_name(self, suffix: str) -> str:
         base = self.config.model_name or "Model"

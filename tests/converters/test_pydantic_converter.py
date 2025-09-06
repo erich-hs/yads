@@ -850,38 +850,6 @@ class TestPydanticConverterCustomization:
         assert len(w) == 1
         assert "fallback_geom" in str(w[0].message)
 
-    # def test_field_metadata_preservation_with_fallback(self):
-    #     """Test that field metadata and description are preserved when fallback is applied."""
-    #     spec = YadsSpec(
-    #         name="test",
-    #         version="1.0.0",
-    #         columns=[
-    #             Column(
-    #                 name="geom",
-    #                 type=Geometry(),
-    #                 description="Geometry column with metadata",
-    #                 metadata={"spatial_ref": "EPSG:4326", "precision": "high"}
-    #             ),
-    #         ],
-    #     )
-    #     config = PydanticConverterConfig(fallback_type=str)
-    #     converter = PydanticConverter(config)
-
-    #     with warnings.catch_warnings(record=True):
-    #         warnings.simplefilter("always")
-    #         model = converter.convert(spec, mode="coerce")
-
-    #     geom_field = model.model_fields["geom"]
-
-    #     # Check that fallback type was applied
-    #     assert unwrap_optional(geom_field.annotation) == str
-
-    #     # Note: Currently, the fallback implementation does not preserve field description
-    #     # This is a limitation that could be addressed in future versions
-    #     # The original field metadata would be available through the converter
-    #     # if needed for custom processing through column overrides
-    #     assert geom_field.description is None  # Current behavior
-
     def test_unknown_column_in_filters_raises_error(self):
         """Test that unknown columns in filters raise validation errors."""
         spec = YadsSpec(
@@ -917,3 +885,133 @@ class TestPydanticConverterCustomization:
             PydanticConverterConfig(
                 ignore_columns={"col1", "col2"}, include_columns={"col1", "col3"}
             )
+
+    def test_field_metadata_preservation_with_fallback(self):
+        """Test that field metadata is preserved when fallback is applied."""
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[
+                Column(
+                    name="geom",
+                    type=Geometry(),
+                    metadata={"spatial_ref": "EPSG:4326", "precision": "high"},
+                ),
+            ],
+        )
+        config = PydanticConverterConfig(fallback_type=str)
+        converter = PydanticConverter(config)
+
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            model = converter.convert(spec, mode="coerce")
+
+        geom_field = model.model_fields["geom"]
+
+        # Check that fallback type was applied
+        geom_field_annotation = unwrap_optional(geom_field.annotation)
+        assert isinstance(geom_field_annotation, type) and issubclass(
+            geom_field_annotation, str
+        )
+
+        # Check that field metadata was preserved during fallback
+        assert geom_field.json_schema_extra is not None
+        yads_metadata = geom_field.json_schema_extra.get("yads", {})
+        assert yads_metadata.get("metadata") == {
+            "spatial_ref": "EPSG:4326",
+            "precision": "high",
+        }
+
+    def test_field_description_preservation_with_fallback(self):
+        """Test that field description is preserved when fallback is applied."""
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[
+                Column(
+                    name="geom",
+                    type=Geometry(),
+                    description="A geometry field for spatial data",
+                    metadata={"spatial_ref": "EPSG:4326"},
+                ),
+            ],
+        )
+        config = PydanticConverterConfig(fallback_type=str)
+        converter = PydanticConverter(config)
+
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            model = converter.convert(spec, mode="coerce")
+
+        geom_field = model.model_fields["geom"]
+
+        # Check that fallback type was applied
+        geom_field_annotation = unwrap_optional(geom_field.annotation)
+        assert isinstance(geom_field_annotation, type) and issubclass(
+            geom_field_annotation, str
+        )
+
+        # Check that both description and metadata were preserved during fallback
+        assert geom_field.description == "A geometry field for spatial data"
+        assert geom_field.json_schema_extra is not None
+        yads_metadata = geom_field.json_schema_extra.get("yads", {})
+        assert yads_metadata.get("metadata") == {"spatial_ref": "EPSG:4326"}
+
+    def test_field_description_and_metadata_in_schema_extra(self):
+        """Test that field descriptions and metadata are included in Pydantic field json_schema_extra."""
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer(), description="Primary key identifier"),
+                Column(
+                    name="name",
+                    type=String(),
+                    description="User's full name",
+                    metadata={"max_length": "255", "encoding": "utf-8"},
+                ),
+                Column(
+                    name="age",
+                    type=Integer(),
+                    # No description or metadata
+                ),
+                Column(
+                    name="tags",
+                    type=String(),
+                    metadata={"category": "user_input", "validation": "strict"},
+                    # No description
+                ),
+            ],
+        )
+        converter = PydanticConverter()
+        model = converter.convert(spec)
+
+        # Test field with description only
+        id_field = model.model_fields["id"]
+        assert id_field.description == "Primary key identifier"
+        # No metadata should mean no json_schema_extra or empty yads section
+        if id_field.json_schema_extra:
+            assert id_field.json_schema_extra.get("yads", {}).get("metadata") is None
+
+        # Test field with both description and custom metadata
+        name_field = model.model_fields["name"]
+        assert name_field.description == "User's full name"
+        assert name_field.json_schema_extra is not None
+        yads_metadata = name_field.json_schema_extra.get("yads", {})
+        assert yads_metadata.get("metadata") == {"max_length": "255", "encoding": "utf-8"}
+
+        # Test field with no description or metadata
+        age_field = model.model_fields["age"]
+        assert age_field.description is None
+        if age_field.json_schema_extra:
+            assert age_field.json_schema_extra.get("yads", {}).get("metadata") is None
+
+        # Test field with metadata but no description
+        tags_field = model.model_fields["tags"]
+        assert tags_field.description is None
+        assert tags_field.json_schema_extra is not None
+        yads_metadata = tags_field.json_schema_extra.get("yads", {})
+        assert yads_metadata.get("metadata") == {
+            "category": "user_input",
+            "validation": "strict",
+        }
