@@ -104,13 +104,13 @@ class TestPyArrowConverterTypes:
             ),
             (Map(key=String(), value=Integer()), pa.map_(pa.string(), pa.int32()), None),
             (JSON(), pa.json_(storage_type=pa.utf8()), None),
-            (Geometry(), pa.binary(), "Data type 'GEOMETRY' is not supported for column 'col1'."),
-            (Geometry(srid=4326), pa.binary(), "Data type 'GEOMETRY' is not supported for column 'col1'."),
-            (Geography(), pa.binary(), "Data type 'GEOGRAPHY' is not supported for column 'col1'."),
-            (Geography(srid=4326), pa.binary(), "Data type 'GEOGRAPHY' is not supported for column 'col1'."),
+            (Geometry(), pa.string(), "Data type 'GEOMETRY' is not supported for column 'col1'."),
+            (Geometry(srid=4326), pa.string(), "Data type 'GEOMETRY' is not supported for column 'col1'."),
+            (Geography(), pa.string(), "Data type 'GEOGRAPHY' is not supported for column 'col1'."),
+            (Geography(srid=4326), pa.string(), "Data type 'GEOGRAPHY' is not supported for column 'col1'."),
             (UUID(), pa.uuid(), None),
             (Void(), pa.null(), None),
-            (Variant(), pa.binary(), "Data type 'VARIANT' is not supported for column 'col1'."),
+            (Variant(), pa.string(), "Data type 'VARIANT' is not supported for column 'col1'."),
         ],
     )
     def test_convert_type(

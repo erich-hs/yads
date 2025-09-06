@@ -196,9 +196,9 @@ class TestPydanticConverterTypes:
             # JSON
             (JSON(), dict, None, lambda f: None),
 
-            # Spatial types -> coerce to object (dict) with warning
-            (Geometry(), dict, "Data type 'GEOMETRY' is not supported", lambda f: None),
-            (Geography(), dict, "Data type 'GEOGRAPHY' is not supported", lambda f: None),
+            # Spatial types -> coerce to str with warning
+            (Geometry(), str, "Data type 'GEOMETRY' is not supported", lambda f: None),
+            (Geography(), str, "Data type 'GEOGRAPHY' is not supported", lambda f: None),
 
             # Other
             (UUID(), PyUUID, None, lambda f: None),
@@ -382,8 +382,8 @@ class TestPydanticConverterTypes:
         assert "GEOMETRY" in msgs and "GEOGRAPHY" in msgs
         ann_g1 = unwrap_optional(model.model_fields["g1"].annotation)
         ann_g2 = unwrap_optional(model.model_fields["g2"].annotation)
-        assert isinstance(ann_g1, type) and issubclass(ann_g1, dict)
-        assert isinstance(ann_g2, type) and issubclass(ann_g2, dict)
+        assert isinstance(ann_g1, type) and issubclass(ann_g1, str)
+        assert isinstance(ann_g2, type) and issubclass(ann_g2, str)
 
         with pytest.raises(UnsupportedFeatureError):
             PydanticConverter(PydanticConverterConfig(mode="raise")).convert(spec)    
@@ -822,7 +822,7 @@ class TestPydanticConverterCustomization:
             ],
         )
         config = PydanticConverterConfig(
-            fallback_type=bytes,
+            fallback_type=dict,
             column_overrides={"override_geom": custom_geometry_override},
         )
         converter = PydanticConverter(config)
@@ -835,7 +835,7 @@ class TestPydanticConverterCustomization:
         fallback_field = model.model_fields["fallback_geom"]
         fallback_field_annotation = unwrap_optional(fallback_field.annotation)
         assert isinstance(fallback_field_annotation, type) and issubclass(
-            fallback_field_annotation, bytes
+            fallback_field_annotation, dict
         )
 
         # Override applied to override_geom

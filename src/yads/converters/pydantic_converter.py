@@ -59,12 +59,12 @@ class PydanticConverterConfig(BaseConverterConfig[tuple[Any, FieldInfo]]):
         model_config: Dictionary of Pydantic model configuration options.
             Defaults to empty dict.
         fallback_type: Python type to use for unsupported types in coerce mode.
-            Must be one of: str, dict, bytes. Defaults to dict.
+            Must be one of: str, dict, bytes. Defaults to str.
     """
 
     model_name: str | None = None
     model_config: dict[str, Any] | None = None
-    fallback_type: type = dict
+    fallback_type: type = str
     column_overrides: dict[
         str, Callable[[spec.Field, PydanticConverter], tuple[Any, FieldInfo]]
     ] = field(default_factory=dict)  # type: ignore[assignment]

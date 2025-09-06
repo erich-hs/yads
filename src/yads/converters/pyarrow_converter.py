@@ -77,13 +77,13 @@ class PyArrowConverterConfig(BaseConverterConfig[pa.Field]):
             (`size` set), `pa.list_(element, list_size=size)` is used. Defaults to False.
         fallback_type: PyArrow data type to use for unsupported types in coerce mode.
             Must be one of: pa.binary(), pa.large_binary(), pa.string(), pa.large_string().
-            Defaults to pa.binary().
+            Defaults to pa.string().
     """
 
     use_large_string: bool = False
     use_large_binary: bool = False
     use_large_list: bool = False
-    fallback_type: pa.DataType = pa.binary()
+    fallback_type: pa.DataType = pa.string()
     column_overrides: dict[str, Callable[[Field, PyArrowConverter], pa.Field]] = field(
         default_factory=dict
     )  # type: ignore[assignment]
