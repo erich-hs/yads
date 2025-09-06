@@ -597,36 +597,111 @@ class TestPyArrowConverterCustomization:
         assert len(w) == 1
         assert "fallback_geom" in str(w[0].message)
 
-    # def test_field_metadata_preservation_with_fallback(self):
-    #     """Test that field metadata is preserved when fallback is applied."""
-    #     spec = YadsSpec(
-    #         name="test",
-    #         version="1.0.0",
-    #         columns=[
-    #             Column(
-    #                 name="geom",
-    #                 type=Geometry(),
-    #                 metadata={"spatial_ref": "EPSG:4326", "precision": "high"}
-    #             ),
-    #         ],
-    #     )
-    #     config = PyArrowConverterConfig(fallback_type=pa.string())
-    #     converter = PyArrowConverter(config)
+    def test_field_metadata_preservation_with_fallback(self):
+        """Test that field metadata is preserved when fallback is applied."""
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[
+                Column(
+                    name="geom",
+                    type=Geometry(),
+                    metadata={"spatial_ref": "EPSG:4326", "precision": "high"},
+                ),
+            ],
+        )
+        config = PyArrowConverterConfig(fallback_type=pa.string())
+        converter = PyArrowConverter(config)
 
-    #     with warnings.catch_warnings(record=True):
-    #         warnings.simplefilter("always")
-    #         schema = converter.convert(spec, mode="coerce")
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            schema = converter.convert(spec, mode="coerce")
 
-    #     geom_field = schema.field("geom")
+        geom_field = schema.field("geom")
 
-    #     # Check that fallback type was applied
-    #     assert geom_field.type == pa.string()
+        # Check that fallback type was applied
+        assert geom_field.type == pa.string()
 
-    #     # Note: Currently, the fallback implementation does not preserve field metadata
-    #     # This is a limitation that could be addressed in future versions
-    #     # The original field metadata would be available through the converter
-    #     # if needed for custom processing through column overrides
-    #     assert geom_field.metadata is None  # Current behavior
+        # Check that field metadata was preserved during fallback
+        assert geom_field.metadata is not None
+        metadata = {k.decode(): v.decode() for k, v in geom_field.metadata.items()}
+        assert metadata["spatial_ref"] == "EPSG:4326"
+        assert metadata["precision"] == "high"
+
+    def test_field_description_preservation_with_fallback(self):
+        """Test that field description is preserved when fallback is applied."""
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[
+                Column(
+                    name="geom",
+                    type=Geometry(),
+                    description="A geometry field for spatial data",
+                    metadata={"spatial_ref": "EPSG:4326"},
+                ),
+            ],
+        )
+        config = PyArrowConverterConfig(fallback_type=pa.string())
+        converter = PyArrowConverter(config)
+
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            schema = converter.convert(spec, mode="coerce")
+
+        geom_field = schema.field("geom")
+
+        # Check that fallback type was applied
+        assert geom_field.type == pa.string()
+
+        # Check that both description and metadata were preserved during fallback
+        assert geom_field.metadata is not None
+        metadata = {k.decode(): v.decode() for k, v in geom_field.metadata.items()}
+        assert metadata["description"] == "A geometry field for spatial data"
+        assert metadata["spatial_ref"] == "EPSG:4326"
+
+    def test_field_description_in_metadata(self):
+        """Test that field descriptions are included in PyArrow field metadata."""
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer(), description="Primary key identifier"),
+                Column(
+                    name="name",
+                    type=String(),
+                    description="User's full name",
+                    metadata={"max_length": "255", "encoding": "utf-8"},
+                ),
+                Column(
+                    name="age",
+                    type=Integer(),
+                    # No description
+                ),
+            ],
+        )
+        converter = PyArrowConverter()
+        schema = converter.convert(spec)
+
+        # Test field with description only
+        id_field = schema.field("id")
+        assert id_field.metadata is not None
+        id_metadata = {k.decode(): v.decode() for k, v in id_field.metadata.items()}
+        assert id_metadata["description"] == "Primary key identifier"
+        assert len(id_metadata) == 1
+
+        # Test field with both description and custom metadata
+        name_field = schema.field("name")
+        assert name_field.metadata is not None
+        name_metadata = {k.decode(): v.decode() for k, v in name_field.metadata.items()}
+        assert name_metadata["description"] == "User's full name"
+        assert name_metadata["max_length"] == "255"
+        assert name_metadata["encoding"] == "utf-8"
+        assert len(name_metadata) == 3
+
+        # Test field with no description or metadata
+        age_field = schema.field("age")
+        assert age_field.metadata is None
 
     def test_unknown_column_in_filters_raises_error(self):
         """Test that unknown columns in filters raise validation errors."""

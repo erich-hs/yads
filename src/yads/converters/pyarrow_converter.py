@@ -177,7 +177,10 @@ class PyArrowConverter(BaseConverter):
                             module=__name__,
                         )
                         fallback = pa.field(
-                            col.name, self.config.fallback_type, nullable=col.is_nullable
+                            col.name,
+                            self.config.fallback_type,
+                            nullable=col.is_nullable,
+                            metadata=self._build_field_metadata(col),
                         )
                         fields.append(fallback)
                         continue
@@ -435,7 +438,7 @@ class PyArrowConverter(BaseConverter):
             A `pyarrow.Field` with mapped type, nullability and metadata.
         """
         pa_type = self._convert_type(field.type)
-        metadata = self._coerce_metadata(field.metadata) if field.metadata else None
+        metadata = self._build_field_metadata(field)
         return pa.field(
             field.name,
             pa_type,
@@ -464,6 +467,14 @@ class PyArrowConverter(BaseConverter):
         return unit.value
 
     # Metadata helpers
+    def _build_field_metadata(self, field: Field) -> dict[str, str] | None:
+        metadata: dict[str, Any] = {}
+        if field.description is not None:
+            metadata["description"] = field.description
+        if field.metadata is not None:
+            metadata.update(field.metadata)
+        return self._coerce_metadata(metadata) if metadata else None
+
     @staticmethod
     def _coerce_metadata(metadata: dict[str, Any]) -> dict[str, str]:
         """Coerce arbitrary metadata values to strings for PyArrow.
