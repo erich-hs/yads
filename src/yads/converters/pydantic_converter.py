@@ -27,9 +27,9 @@ from __future__ import annotations
 from functools import singledispatchmethod
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal as PythonDecimal
-from typing import Any, Literal, Optional, Type, cast
+from typing import Any, Callable, Literal, Optional, Type, cast
 from uuid import UUID as PythonUUID
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from pydantic import BaseModel, Field, create_model, ConfigDict  # type: ignore[import-untyped]
 from pydantic.fields import FieldInfo  # type: ignore[import-untyped]
@@ -50,7 +50,7 @@ from .. import types as ytypes
 
 
 @dataclass(frozen=True)
-class PydanticConverterConfig(BaseConverterConfig):
+class PydanticConverterConfig(BaseConverterConfig[tuple[Any, FieldInfo]]):
     """Configuration for PydanticConverter.
 
     Args:
@@ -58,10 +58,27 @@ class PydanticConverterConfig(BaseConverterConfig):
             the spec name. Defaults to None.
         model_config: Dictionary of Pydantic model configuration options.
             Defaults to empty dict.
+        fallback_type: Python type to use for unsupported types in coerce mode.
+            Must be one of: str, dict, bytes. Defaults to dict.
     """
 
     model_name: str | None = None
     model_config: dict[str, Any] | None = None
+    fallback_type: type = dict
+    column_overrides: dict[
+        str, Callable[[spec.Field, PydanticConverter], tuple[Any, FieldInfo]]
+    ] = field(default_factory=dict)  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        """Validate configuration parameters."""
+        super().__post_init__()
+
+        # Validate fallback_type
+        valid_fallback_types = {str, dict, bytes}
+        if self.fallback_type not in valid_fallback_types:
+            raise UnsupportedFeatureError(
+                f"fallback_type must be one of: str, dict, bytes. Got: {self.fallback_type}"
+            )
 
 
 class PydanticConverter(BaseConverter):
@@ -74,7 +91,7 @@ class PydanticConverter(BaseConverter):
     Notes:
         - Complex types (Array, Struct, Map) are converted to their Pydantic
           equivalents using nested models and typing constructs.
-        - Geometry, Geography, and Variant types are not supported and raise
+        - Geometry and Geography types are not supported and raise
           `UnsupportedFeatureError` unless in coerce mode.
     """
 
@@ -111,28 +128,32 @@ class PydanticConverter(BaseConverter):
         fields: dict[str, Any] = {}
         # Set mode for this conversion call
         with self.conversion_context(mode=mode):
-            for col in spec.columns:
+            self._validate_column_filters(spec)
+            for col in self._filter_columns(spec):
                 try:
                     # Set field context during conversion
                     with self.conversion_context(field=col.name):
-                        field_type, field_info = self._convert_field(col)
+                        # Use centralized override resolution
+                        field_type, field_info = self._convert_field_with_overrides(col)
+
                         # Pydantic expects (annotation, FieldInfo) for dynamic models
                         fields[col.name] = (field_type, field_info)
                 except UnsupportedFeatureError:
                     if self.config.mode == "coerce":
+                        fallback_name = self.config.fallback_type.__name__.upper()
                         validation_warning(
                             message=(
                                 f"Data type '{type(col.type).__name__.upper()}' is not supported"
-                                f" for column '{col.name}'. The field will be represented as an"
-                                f" object in the model."
+                                f" for column '{col.name}'. The field will be represented as"
+                                f" {fallback_name} in the model."
                             ),
                             filename="yads.converters.pydantic_converter",
                             module=__name__,
                         )
                         fields[col.name] = (
-                            dict,
+                            self.config.fallback_type,
                             Field(default=...),
-                        )  # coerce to object (dict)
+                        )
                         continue
                     raise
 
@@ -159,12 +180,9 @@ class PydanticConverter(BaseConverter):
     @_convert_type.register(ytypes.String)
     def _(self, yads_type: ytypes.String) -> tuple[Any, FieldInfo]:
         if yads_type.length:
-            field_info = Field(
-                default=...,
-                max_length=yads_type.length,
-            )
+            field_info = self.required(max_length=yads_type.length)
         else:
-            field_info = Field(default=...)
+            field_info = self.required()
         return str, field_info
 
     @_convert_type.register(ytypes.Integer)
@@ -172,28 +190,28 @@ class PydanticConverter(BaseConverter):
         if yads_type.bits:
             if yads_type.signed:
                 if yads_type.bits == 8:
-                    field_info = Field(default=..., ge=-(2**7), le=2**7 - 1)
+                    field_info = self.required(ge=-(2 ** (8 - 1)), le=2 ** (8 - 1) - 1)
                 elif yads_type.bits == 16:
-                    field_info = Field(default=..., ge=-(2**15), le=2**15 - 1)
+                    field_info = self.required(ge=-(2 ** (16 - 1)), le=2 ** (16 - 1) - 1)
                 elif yads_type.bits == 32:
-                    field_info = Field(default=..., ge=-(2**31), le=2**31 - 1)
+                    field_info = self.required(ge=-(2 ** (32 - 1)), le=2 ** (32 - 1) - 1)
                 elif yads_type.bits == 64:
-                    field_info = Field(default=..., ge=-(2**63), le=2**63 - 1)
+                    field_info = self.required(ge=-(2 ** (64 - 1)), le=2 ** (64 - 1) - 1)
             else:  # unsigned
                 if yads_type.bits == 8:
-                    field_info = Field(default=..., ge=0, le=2**8 - 1)
+                    field_info = self.required(ge=0, le=2**8 - 1)
                 elif yads_type.bits == 16:
-                    field_info = Field(default=..., ge=0, le=2**16 - 1)
+                    field_info = self.required(ge=0, le=2**16 - 1)
                 elif yads_type.bits == 32:
-                    field_info = Field(default=..., ge=0, le=2**32 - 1)
+                    field_info = self.required(ge=0, le=2**32 - 1)
                 elif yads_type.bits == 64:
-                    field_info = Field(default=..., ge=0, le=2**64 - 1)
+                    field_info = self.required(ge=0, le=2**64 - 1)
         else:
             # Unsigned without bit width: enforce non-negative only.
             if not yads_type.signed:
-                field_info = Field(default=..., ge=0)
+                field_info = self.required(ge=0)
             else:
-                field_info = Field(default=...)
+                field_info = self.required()
         return int, field_info
 
     @_convert_type.register(ytypes.Float)
@@ -216,87 +234,85 @@ class PydanticConverter(BaseConverter):
                     f"Float(bits={yads_type.bits}) cannot be represented exactly"
                     f" in Pydantic; Python float is 64-bit."
                 )
-        field_info = Field(default=...)
+        field_info = self.required()
         return float, field_info
 
     @_convert_type.register(ytypes.Decimal)
     def _(self, yads_type: ytypes.Decimal) -> tuple[Any, FieldInfo]:
         if yads_type.precision is not None:
-            field_info = Field(
-                default=...,
+            field_info = self.required(
                 max_digits=yads_type.precision,
                 decimal_places=yads_type.scale,
             )
         else:
-            field_info = Field(default=...)
+            field_info = self.required()
         return PythonDecimal, field_info
 
     @_convert_type.register(ytypes.Boolean)
     def _(self, yads_type: ytypes.Boolean) -> tuple[Any, FieldInfo]:
-        field_info = Field(default=...)
+        field_info = self.required()
         return bool, field_info
 
     @_convert_type.register(ytypes.Binary)
     def _(self, yads_type: ytypes.Binary) -> tuple[Any, FieldInfo]:
         if yads_type.length:
-            field_info = Field(
-                default=...,
+            field_info = self.required(
                 min_length=yads_type.length,
                 max_length=yads_type.length,
             )
         else:
-            field_info = Field(default=...)
+            field_info = self.required()
         return bytes, field_info
 
     @_convert_type.register(ytypes.Date)
     def _(self, yads_type: ytypes.Date) -> tuple[Any, FieldInfo]:
         # Ignore bit-width parameter
-        field_info = Field(default=...)
+        field_info = self.required()
         return date, field_info
 
     @_convert_type.register(ytypes.Time)
     def _(self, yads_type: ytypes.Time) -> tuple[Any, FieldInfo]:
         # Ignore bit-width parameter
         # Ignore unit parameter
-        field_info = Field(default=...)
+        field_info = self.required()
         return time, field_info
 
     @_convert_type.register(ytypes.Timestamp)
     def _(self, yads_type: ytypes.Timestamp) -> tuple[Any, FieldInfo]:
         # Ignore unit parameter
-        field_info = Field(default=...)
+        field_info = self.required()
         return datetime, field_info
 
     @_convert_type.register(ytypes.TimestampTZ)
     def _(self, yads_type: ytypes.TimestampTZ) -> tuple[Any, FieldInfo]:
         # Ignore unit parameter
         # Ignore tz parameter
-        field_info = Field(default=...)
+        field_info = self.required()
         return datetime, field_info
 
     @_convert_type.register(ytypes.TimestampLTZ)
     def _(self, yads_type: ytypes.TimestampLTZ) -> tuple[Any, FieldInfo]:
         # Ignore unit parameter
-        field_info = Field(default=...)
+        field_info = self.required()
         return datetime, field_info
 
     @_convert_type.register(ytypes.TimestampNTZ)
     def _(self, yads_type: ytypes.TimestampNTZ) -> tuple[Any, FieldInfo]:
         # Ignore unit parameter
-        field_info = Field(default=...)
+        field_info = self.required()
         return datetime, field_info
 
     @_convert_type.register(ytypes.Duration)
     def _(self, yads_type: ytypes.Duration) -> tuple[Any, FieldInfo]:
         # Ignore unit parameter
-        field_info = Field(default=...)
+        field_info = self.required()
         return timedelta, field_info
 
     @_convert_type.register(ytypes.Interval)
     def _(self, yads_type: ytypes.Interval) -> tuple[Any, FieldInfo]:
         # Represent as a structured Month-Day-Nano interval, matching PyArrow's
         # month_day_nano_interval layout: (months, days, nanoseconds)
-        interval_model_name = f"{self.config.model_name or 'Model'}_MonthDayNanoInterval"
+        interval_model_name = self._nested_model_name("MonthDayNanoInterval")
         months_field = (int, Field(default=...))
         days_field = (int, Field(default=...))
         nanos_field = (int, Field(default=...))
@@ -306,7 +322,7 @@ class PydanticConverter(BaseConverter):
             days=days_field,
             nanoseconds=nanos_field,
         )
-        field_info = Field(default=...)
+        field_info = self.required()
         return interval_model, field_info
 
     @_convert_type.register(ytypes.Array)
@@ -315,13 +331,12 @@ class PydanticConverter(BaseConverter):
         list_type = list[element_type]  # type: ignore[valid-type]
 
         if yads_type.size:
-            field_info = Field(
-                default=...,
+            field_info = self.required(
                 min_length=yads_type.size,
                 max_length=yads_type.size,
             )
         else:
-            field_info = Field(default=...)
+            field_info = self.required()
 
         return list_type, field_info
 
@@ -329,22 +344,20 @@ class PydanticConverter(BaseConverter):
     def _(self, yads_type: ytypes.Struct) -> tuple[Any, FieldInfo]:
         # Create nested model for struct
         nested_fields = {}
-        for field in yads_type.fields:
-            with self.conversion_context(field=field.name):
-                field_type, field_info = self._convert_field(field)
-                nested_fields[field.name] = (field_type, field_info)
+        for yads_field in yads_type.fields:
+            with self.conversion_context(field=yads_field.name):
+                field_type, field_info = self._convert_field(yads_field)
+                nested_fields[yads_field.name] = (field_type, field_info)
 
         # Create nested model class
-        struct_model_name = (
-            f"{self.config.model_name or 'Model'}_{yads_type.__class__.__name__}"
-        )
+        struct_model_name = self._nested_model_name(yads_type.__class__.__name__)
         # Preserve FieldInfo for nested fields
         nested_kwargs: dict[str, Any] = {
             name: (ftype, finfo) for name, (ftype, finfo) in nested_fields.items()
         }
         nested_model = create_model(struct_model_name, **nested_kwargs)
 
-        field_info = Field(default=...)
+        field_info = self.required()
         return nested_model, field_info
 
     @_convert_type.register(ytypes.Map)
@@ -355,54 +368,30 @@ class PydanticConverter(BaseConverter):
         dict_type = dict[key_type, value_type]  # type: ignore[valid-type]
 
         # Ignore keys_sorted parameter
-        field_info = Field(default=...)
+        field_info = self.required()
         return dict_type, field_info
 
     @_convert_type.register(ytypes.JSON)
     def _(self, yads_type: ytypes.JSON) -> tuple[Any, FieldInfo]:
         # Map to dict for JSON data
-        field_info = Field(default=...)
+        field_info = self.required()
         return dict, field_info
 
     @_convert_type.register(ytypes.Geometry)
     def _(self, yads_type: ytypes.Geometry) -> tuple[Any, FieldInfo]:
-        if self.config.mode == "coerce":
-            validation_warning(
-                message=(
-                    f"PydanticConverter does not support type: {type(yads_type).__name__}"
-                    f" for column '{self._current_field_name or '<unknown>'}'. The data type"
-                    f" will be represented as OBJECT."
-                ),
-                filename="yads.converters.pydantic_converter",
-                module=__name__,
-            )
-            field_info = Field(default=...)
-            return dict, field_info
         raise UnsupportedFeatureError(
             f"PydanticConverter does not support type: {type(yads_type).__name__}."
         )
 
     @_convert_type.register(ytypes.Geography)
     def _(self, yads_type: ytypes.Geography) -> tuple[Any, FieldInfo]:
-        if self.config.mode == "coerce":
-            validation_warning(
-                message=(
-                    f"PydanticConverter does not support type: {type(yads_type).__name__}"
-                    f" for column '{self._current_field_name or '<unknown>'}'. The data type"
-                    f" will be represented as OBJECT."
-                ),
-                filename="yads.converters.pydantic_converter",
-                module=__name__,
-            )
-            field_info = Field(default=...)
-            return dict, field_info
         raise UnsupportedFeatureError(
             f"PydanticConverter does not support type: {type(yads_type).__name__}."
         )
 
     @_convert_type.register(ytypes.UUID)
     def _(self, yads_type: ytypes.UUID) -> tuple[Any, FieldInfo]:
-        field_info = Field(default=...)
+        field_info = self.required()
         return PythonUUID, field_info
 
     @_convert_type.register(ytypes.Void)
@@ -413,17 +402,14 @@ class PydanticConverter(BaseConverter):
 
     @_convert_type.register(ytypes.Variant)
     def _(self, yads_type: ytypes.Variant) -> tuple[Any, FieldInfo]:
-        field_info = Field(default=...)
+        field_info = self.required()
         return Any, field_info
 
-    # Helpers
     def _convert_field(self, field: spec.Field) -> tuple[Any, FieldInfo]:
         field_type, field_info = self._convert_type(field.type)
 
-        if not field.is_nullable:
-            pass  # Not null handled by default=...
-        else:
-            field_type = Optional[field_type]  # type: ignore[assignment]
+        if field.is_nullable:
+            field_type = Optional[field_type]
 
         if field.description:
             field_info.description = field.description
@@ -432,6 +418,22 @@ class PydanticConverter(BaseConverter):
             field_info = self._apply_constraint(constraint, field_info)
 
         return field_type, field_info
+
+    def _convert_field_default(self, field: spec.Field) -> tuple[Any, FieldInfo]:
+        return self._convert_field(field)
+
+    def _apply_column_override(self, field: spec.Field) -> tuple[Any, FieldInfo]:
+        result = self.config.column_overrides[field.name](field, self)
+        if not (isinstance(result, tuple) and len(result) == 2):
+            raise UnsupportedFeatureError(
+                "Pydantic column override must return (annotation, FieldInfo)."
+            )
+        annotation, field_info = result
+        if not isinstance(field_info, FieldInfo):
+            raise UnsupportedFeatureError(
+                "Pydantic column override second element must be a FieldInfo."
+            )
+        return annotation, field_info
 
     @singledispatchmethod
     def _apply_constraint(
@@ -476,6 +478,15 @@ class PydanticConverter(BaseConverter):
         if constraint.increment is not None:
             identity_metadata["increment"] = constraint.increment
         return self._merge_schema_extra(field_info, {"identity": identity_metadata})
+
+    # Helpers
+    @staticmethod
+    def required(**kwargs: Any) -> FieldInfo:
+        return Field(default=..., **kwargs)
+
+    def _nested_model_name(self, suffix: str) -> str:
+        base = self.config.model_name or "Model"
+        return f"{base}_{suffix}"
 
     def _merge_schema_extra(
         self, field_info: FieldInfo, updates: dict[str, Any]

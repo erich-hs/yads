@@ -10,8 +10,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from functools import singledispatchmethod
-from typing import Any, Literal, Generator
-from dataclasses import dataclass
+from typing import Any, Literal, Generator, Callable
+from dataclasses import dataclass, field
 
 from sqlglot import exp
 from sqlglot.expressions import convert
@@ -77,7 +77,7 @@ class AstConverter(ABC):
 
 
 @dataclass(frozen=True)
-class SQLGlotConverterConfig(BaseConverterConfig):
+class SQLGlotConverterConfig(BaseConverterConfig[exp.ColumnDef]):
     """Configuration for SQLGlotConverter.
 
     Args:
@@ -87,12 +87,35 @@ class SQLGlotConverterConfig(BaseConverterConfig):
             node to `True`. Defaults to False.
         ignore_catalog: If True, omits the catalog from the table name. Defaults to False.
         ignore_database: If True, omits the database from the table name. Defaults to False.
+        fallback_type: SQL data type to use for unsupported types in coerce mode.
+            Must be one of: exp.DataType.Type.TEXT, exp.DataType.Type.BINARY, exp.DataType.Type.BLOB.
+            Defaults to exp.DataType.Type.TEXT.
     """
 
     if_not_exists: bool = False
     or_replace: bool = False
     ignore_catalog: bool = False
     ignore_database: bool = False
+    fallback_type: exp.DataType.Type = exp.DataType.Type.TEXT
+    column_overrides: dict[str, Callable[[Field, SQLGlotConverter], exp.ColumnDef]] = (
+        field(default_factory=dict)
+    )  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        """Validate configuration parameters."""
+        super().__post_init__()
+
+        # Validate fallback_type
+        valid_fallback_types = {
+            exp.DataType.Type.TEXT,
+            exp.DataType.Type.BINARY,
+            exp.DataType.Type.BLOB,
+        }
+        if self.fallback_type not in valid_fallback_types:
+            raise UnsupportedFeatureError(
+                f"fallback_type must be one of: exp.DataType.Type.TEXT, "
+                f"exp.DataType.Type.BINARY, exp.DataType.Type.BLOB. Got: {self.fallback_type}"
+            )
 
 
 class SQLGlotConverter(BaseConverter, AstConverter):
@@ -173,6 +196,7 @@ class SQLGlotConverter(BaseConverter, AstConverter):
         """
         # Set mode for this conversion call
         with self.conversion_context(mode=mode):
+            self._validate_column_filters(spec)
             table = self._parse_full_table_name(
                 spec.name,
                 ignore_catalog=self.config.ignore_catalog,
@@ -208,12 +232,12 @@ class SQLGlotConverter(BaseConverter, AstConverter):
                     message=(
                         f"SQLGlotConverter does not support type: {yads_type}"
                         f" for column '{self._current_field_name or '<unknown>'}'."
-                        f" The data type will be replaced with TEXT."
+                        f" The data type will be replaced with {self.config.fallback_type.name}."
                     ),
                     filename="yads.converters.sql.ast_converter",
                     module=__name__,
                 )
-                return exp.DataType(this=exp.DataType.Type.TEXT)
+                return exp.DataType(this=self.config.fallback_type)
             raise UnsupportedFeatureError(
                 f"SQLGlotConverter does not support type: {yads_type}"
                 f" for column '{self._current_field_name or '<unknown>'}'."
@@ -603,14 +627,14 @@ class SQLGlotConverter(BaseConverter, AstConverter):
                     message=(
                         f"Transform type '{cast_to_type}' is not a valid sqlglot Type"
                         f" for column '{self._current_field_name or '<unknown>'}'."
-                        f" The expression will be coerced to CAST(... AS TEXT)."
+                        f" The expression will be coerced to CAST(... AS {self.config.fallback_type.name})."
                     ),
                     filename="yads.converters.sqlglot",
                     module=__name__,
                 )
                 return exp.Cast(
                     this=exp.column(column),
-                    to=exp.DataType(this=exp.DataType.Type.TEXT),
+                    to=exp.DataType(this=self.config.fallback_type),
                 )
             raise UnsupportedFeatureError(
                 f"Transform type '{cast_to_type}' is not a valid sqlglot Type"
@@ -686,14 +710,24 @@ class SQLGlotConverter(BaseConverter, AstConverter):
                 constraints=constraints if constraints else None,
             )
 
+    def _convert_field_default(self, field: Field) -> exp.ColumnDef:
+        if not isinstance(field, Column):  # Overrides happen on column level
+            raise TypeError(f"Expected Column, got {type(field)}")
+        return self._convert_column(field)
+
     def _collect_expressions(self, spec: YadsSpec) -> list[exp.Expression]:
         expressions: list[exp.Expression] = []
-        for col in spec.columns:
-            expressions.append(self._convert_column(col))
-        for constraint in spec.table_constraints:
-            converted = self._convert_table_constraint(constraint)
-            if converted is not None:
-                expressions.append(converted)
+        for col in self._filter_columns(spec):
+            # Set field context during conversion
+            with self.conversion_context(field=col.name):
+                # Use centralized override resolution
+                column_expr = self._convert_field_with_overrides(col)
+                expressions.append(column_expr)
+
+        for tbl_constraint in spec.table_constraints:
+            converted_constraint = self._convert_table_constraint(tbl_constraint)
+            if converted_constraint is not None:
+                expressions.append(converted_constraint)
         return expressions
 
     def _parse_full_table_name(

@@ -5,7 +5,8 @@ from typing import Any, get_args, get_origin
 from uuid import UUID as PyUUID
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, create_model
+from pydantic import Field as PydanticField
 
 from yads.converters import PydanticConverter, PydanticConverterConfig
 from yads.constraints import (
@@ -16,7 +17,11 @@ from yads.constraints import (
     NotNullConstraint,
     PrimaryKeyConstraint,
 )
-from yads.exceptions import UnsupportedFeatureError, ValidationWarning
+from yads.exceptions import (
+    UnsupportedFeatureError,
+    ValidationWarning,
+    ConverterConfigError,
+)
 from yads.spec import Column, Field, YadsSpec
 from yads.types import (
     YadsType,
@@ -46,12 +51,6 @@ from yads.types import (
     Void,
     Variant,
 )
-
-
-# ======================================================================
-# PydanticConverter tests
-# Scope: conversion to Pydantic model class, types, constraints, metadata
-# ======================================================================
 
 
 # Helpers
@@ -380,7 +379,7 @@ class TestPydanticConverterTypes:
             model = PydanticConverter().convert(spec, mode="coerce")
         assert len(w) == 2
         msgs = "\n".join(str(x.message) for x in w)
-        assert "Geometry" in msgs and "Geography" in msgs
+        assert "GEOMETRY" in msgs and "GEOGRAPHY" in msgs
         ann_g1 = unwrap_optional(model.model_fields["g1"].annotation)
         ann_g2 = unwrap_optional(model.model_fields["g2"].annotation)
         assert isinstance(ann_g1, type) and issubclass(ann_g1, dict)
@@ -556,3 +555,365 @@ class TestPydanticConverterModeHierarchy:
 
         with pytest.raises(UnsupportedFeatureError):
             converter.convert(spec)
+
+
+# %% PydanticConverter column filtering and customization
+class TestPydanticConverterCustomization:
+    def test_ignore_columns(self):
+        """Test that ignore_columns excludes specified columns from the model."""
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer()),
+                Column(name="name", type=String()),
+                Column(name="secret", type=String()),
+            ],
+        )
+        config = PydanticConverterConfig(ignore_columns={"secret"})
+        converter = PydanticConverter(config)
+        model = converter.convert(spec)
+
+        assert "id" in model.model_fields
+        assert "name" in model.model_fields
+        assert "secret" not in model.model_fields
+
+    def test_include_columns(self):
+        """Test that include_columns only includes specified columns in the model."""
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer()),
+                Column(name="name", type=String()),
+                Column(name="internal", type=String()),
+            ],
+        )
+        config = PydanticConverterConfig(include_columns={"id", "name"})
+        converter = PydanticConverter(config)
+        model = converter.convert(spec)
+
+        assert "id" in model.model_fields
+        assert "name" in model.model_fields
+        assert "internal" not in model.model_fields
+
+    def test_column_override_basic(self):
+        """Test basic column override functionality."""
+
+        def custom_name_override(field, converter):
+            # Override name field to be uppercase with custom validation
+            return str, PydanticField(
+                default=..., min_length=1, description="Custom name field"
+            )
+
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer()),
+                Column(name="name", type=String()),
+            ],
+        )
+        config = PydanticConverterConfig(column_overrides={"name": custom_name_override})
+        converter = PydanticConverter(config)
+        model = converter.convert(spec)
+
+        # Check that override was applied
+        name_field = model.model_fields["name"]
+        name_field_annotation = unwrap_optional(name_field.annotation)
+        assert isinstance(name_field_annotation, type) and issubclass(
+            name_field_annotation, str
+        )
+        assert name_field.description == "Custom name field"
+        constraints = extract_constraints(name_field)
+        assert constraints.get("min_length") == 1
+
+        # Check that other fields use default conversion
+        id_field = model.model_fields["id"]
+        id_field_annotation = unwrap_optional(id_field.annotation)
+        assert isinstance(id_field_annotation, type) and issubclass(
+            id_field_annotation, int
+        )
+
+    def test_column_override_with_complex_type(self):
+        """Test column override with complex custom type."""
+
+        def custom_metadata_override(field, converter):
+            # Create a custom nested model for metadata
+            metadata_model = create_model(
+                "CustomMetadata",
+                version=(str, PydanticField(default=...)),
+                tags=(list[str], PydanticField(default_factory=list)),
+            )
+            return metadata_model, PydanticField(default=...)
+
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer()),
+                Column(name="metadata", type=JSON()),
+            ],
+        )
+        config = PydanticConverterConfig(
+            column_overrides={"metadata": custom_metadata_override}
+        )
+        converter = PydanticConverter(config)
+        model = converter.convert(spec)
+
+        # Check that override was applied
+        metadata_field = model.model_fields["metadata"]
+        metadata_type = unwrap_optional(metadata_field.annotation)
+        assert isinstance(metadata_type, type) and issubclass(metadata_type, BaseModel)
+        assert set(metadata_type.model_fields.keys()) == {"version", "tags"}
+
+        metadata_field_version = metadata_type.model_fields["version"]
+        assert isinstance(metadata_field_version.annotation, type) and issubclass(
+            metadata_field_version.annotation, str
+        )
+        metadata_field_tags = metadata_type.model_fields["tags"]
+        assert get_origin(metadata_field_tags.annotation) is list
+        assert isinstance(
+            get_args(metadata_field_tags.annotation)[0], type
+        ) and issubclass(get_args(metadata_field_tags.annotation)[0], str)
+
+    @pytest.mark.parametrize("fallback_type", [str, dict, bytes])
+    def test_fallback_valid_types(self, fallback_type: type):
+        """Test fallback_type=str for unsupported types."""
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer()),
+                Column(name="geom", type=Geometry()),
+            ],
+        )
+        config = PydanticConverterConfig(fallback_type=fallback_type)
+        converter = PydanticConverter(config)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            model = converter.convert(spec, mode="coerce")
+
+        # Check fallback was applied
+        geom_field = model.model_fields["geom"]
+        assert unwrap_optional(geom_field.annotation) == fallback_type
+
+        # Check warning was emitted
+        assert len(w) == 1
+        assert "GEOMETRY" in str(w[0].message)
+        assert fallback_type.__name__.upper() in str(w[0].message)
+
+    def test_invalid_fallback_type_raises_error(self):
+        """Test that invalid fallback_type raises UnsupportedFeatureError."""
+        with pytest.raises(
+            UnsupportedFeatureError,
+            match="fallback_type must be one of: str, dict, bytes",
+        ):
+            PydanticConverterConfig(fallback_type=int)
+
+    def test_column_override_invalid_return_type_raises_error(self):
+        """Test that column override returning invalid type raises error."""
+
+        def bad_override(field, converter):
+            return "not_a_tuple"  # Should return (annotation, FieldInfo)
+
+        config = PydanticConverterConfig(column_overrides={"col": bad_override})
+        converter = PydanticConverter(config)
+
+        # Test the override method directly to avoid exception handling in convert()
+        field = Field(name="col", type=String())
+        with pytest.raises(
+            UnsupportedFeatureError,
+            match="Pydantic column override must return \\(annotation, FieldInfo\\)",
+        ):
+            converter._apply_column_override(field)
+
+    def test_column_override_invalid_field_info_raises_error(self):
+        """Test that column override returning non-FieldInfo raises error."""
+
+        def bad_override(field, converter):
+            return str, "not_field_info"  # Second element must be FieldInfo
+
+        config = PydanticConverterConfig(column_overrides={"col": bad_override})
+        converter = PydanticConverter(config)
+
+        # Test the override method directly to avoid exception handling in convert()
+        field = Field(name="col", type=String())
+        with pytest.raises(
+            UnsupportedFeatureError,
+            match="Pydantic column override second element must be a FieldInfo",
+        ):
+            converter._apply_column_override(field)
+
+    def test_precedence_ignore_over_override(self):
+        """Test that ignore_columns takes precedence over column_overrides."""
+
+        def should_not_be_called(field, converter):
+            pytest.fail("Override should not be called for ignored column")
+
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer()),
+                Column(name="ignored_col", type=String()),
+            ],
+        )
+        config = PydanticConverterConfig(
+            ignore_columns={"ignored_col"},
+            column_overrides={"ignored_col": should_not_be_called},
+        )
+        converter = PydanticConverter(config)
+        model = converter.convert(spec)
+
+        assert "id" in model.model_fields
+        assert "ignored_col" not in model.model_fields
+
+    def test_precedence_override_over_default_conversion(self):
+        """Test that column_overrides takes precedence over default conversion."""
+
+        def integer_as_string_override(field, converter):
+            return str, PydanticField(
+                default=..., description="Integer converted to string"
+            )
+
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[
+                Column(name="normal_int", type=Integer()),
+                Column(name="string_int", type=Integer()),
+            ],
+        )
+        config = PydanticConverterConfig(
+            column_overrides={"string_int": integer_as_string_override}
+        )
+        converter = PydanticConverter(config)
+        model = converter.convert(spec)
+
+        # Normal conversion
+        normal_field = model.model_fields["normal_int"]
+        normal_field_annotation = unwrap_optional(normal_field.annotation)
+        assert isinstance(normal_field_annotation, type) and issubclass(
+            normal_field_annotation, int
+        )
+
+        # Override conversion
+        string_field = model.model_fields["string_int"]
+        string_field_annotation = unwrap_optional(string_field.annotation)
+        assert isinstance(string_field_annotation, type) and issubclass(
+            string_field_annotation, str
+        )
+        assert string_field.description == "Integer converted to string"
+
+    def test_precedence_override_over_fallback(self):
+        """Test that column_overrides takes precedence over fallback_type."""
+
+        def custom_geometry_override(field, converter):
+            return str, PydanticField(default=..., description="Custom geometry handling")
+
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[
+                Column(name="fallback_geom", type=Geometry()),
+                Column(name="override_geom", type=Geometry()),
+            ],
+        )
+        config = PydanticConverterConfig(
+            fallback_type=bytes,
+            column_overrides={"override_geom": custom_geometry_override},
+        )
+        converter = PydanticConverter(config)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            model = converter.convert(spec, mode="coerce")
+
+        # Fallback applied to fallback_geom
+        fallback_field = model.model_fields["fallback_geom"]
+        fallback_field_annotation = unwrap_optional(fallback_field.annotation)
+        assert isinstance(fallback_field_annotation, type) and issubclass(
+            fallback_field_annotation, bytes
+        )
+
+        # Override applied to override_geom
+        override_field = model.model_fields["override_geom"]
+        override_field_annotation = unwrap_optional(override_field.annotation)
+        assert isinstance(override_field_annotation, type) and issubclass(
+            override_field_annotation, str
+        )
+        assert override_field.description == "Custom geometry handling"
+
+        # Only one warning for the fallback field
+        assert len(w) == 1
+        assert "fallback_geom" in str(w[0].message)
+
+    # def test_field_metadata_preservation_with_fallback(self):
+    #     """Test that field metadata and description are preserved when fallback is applied."""
+    #     spec = YadsSpec(
+    #         name="test",
+    #         version="1.0.0",
+    #         columns=[
+    #             Column(
+    #                 name="geom",
+    #                 type=Geometry(),
+    #                 description="Geometry column with metadata",
+    #                 metadata={"spatial_ref": "EPSG:4326", "precision": "high"}
+    #             ),
+    #         ],
+    #     )
+    #     config = PydanticConverterConfig(fallback_type=str)
+    #     converter = PydanticConverter(config)
+
+    #     with warnings.catch_warnings(record=True):
+    #         warnings.simplefilter("always")
+    #         model = converter.convert(spec, mode="coerce")
+
+    #     geom_field = model.model_fields["geom"]
+
+    #     # Check that fallback type was applied
+    #     assert unwrap_optional(geom_field.annotation) == str
+
+    #     # Note: Currently, the fallback implementation does not preserve field description
+    #     # This is a limitation that could be addressed in future versions
+    #     # The original field metadata would be available through the converter
+    #     # if needed for custom processing through column overrides
+    #     assert geom_field.description is None  # Current behavior
+
+    def test_unknown_column_in_filters_raises_error(self):
+        """Test that unknown columns in filters raise validation errors."""
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[Column(name="col1", type=String())],
+        )
+
+        # Test unknown ignore_columns
+        config1 = PydanticConverterConfig(ignore_columns={"nonexistent"})
+        converter1 = PydanticConverter(config1)
+
+        with pytest.raises(
+            ConverterConfigError, match="Unknown columns in ignore_columns: nonexistent"
+        ):
+            converter1.convert(spec)
+
+        # Test unknown include_columns
+        config2 = PydanticConverterConfig(include_columns={"nonexistent"})
+        converter2 = PydanticConverter(config2)
+
+        with pytest.raises(
+            ConverterConfigError, match="Unknown columns in include_columns: nonexistent"
+        ):
+            converter2.convert(spec)
+
+    def test_conflicting_ignore_and_include_raises_error(self):
+        """Test that overlapping ignore_columns and include_columns raises error."""
+        with pytest.raises(
+            ConverterConfigError,
+            match="Columns cannot be both ignored and included: \\['col1'\\]",
+        ):
+            PydanticConverterConfig(
+                ignore_columns={"col1", "col2"}, include_columns={"col1", "col3"}
+            )
