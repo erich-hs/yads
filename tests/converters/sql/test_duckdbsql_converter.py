@@ -35,11 +35,6 @@ from yads.types import (
     Variant,
 )
 
-# ==========================================================
-# DuckdbSQLConverter tests
-# Scope: verifies DuckDB dialect and built-in validation rules
-# ==========================================================
-
 
 # %% Types
 class TestDuckdbSQLConverterTypes:

@@ -16,12 +16,6 @@ from yads.converters.sql.validators.ast_validation_rules import (
 )
 
 
-# ==========================================================
-# AST validation rules tests
-# Scope: unit rules: DisallowFixedLengthString, DisallowType
-# ==========================================================
-
-
 # %% DisallowType
 class TestDisallowType:
     @pytest.fixture

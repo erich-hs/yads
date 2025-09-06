@@ -46,12 +46,6 @@ from yads.types import (
 VALID_SPEC_DIR = Path(__file__).parent.parent / "fixtures" / "spec" / "valid"
 INVALID_SPEC_DIR = Path(__file__).parent.parent / "fixtures" / "spec" / "invalid"
 
-# ======================================================================
-# Spec builder tests
-# Scope: parsing (dict/yaml), constraint parsing, generation, storage,
-# partitioning, top-level parsing errors, semantic validation, full spec,
-# invalid spec matrix, and type loading.
-# ======================================================================
 
 # Get all valid spec files
 valid_spec_files = list(VALID_SPEC_DIR.glob("*.yaml"))

@@ -15,11 +15,6 @@ from yads.spec import YadsSpec
 VALID_SPEC_DIR = Path(__file__).parent.parent / "fixtures" / "spec" / "valid"
 
 
-# ==========================================================
-# YAML loader tests
-# Scope: from_yaml_* helpers, streams, errors
-# ==========================================================
-
 # %% Fixtures
 # Get all valid spec files
 valid_spec_files = list(VALID_SPEC_DIR.glob("*.yaml"))

@@ -35,11 +35,6 @@ from yads.types import (
     Variant,
 )
 
-# ==========================================================
-# SparkSQLConverter tests
-# Scope: verifies Spark dialect and built-in validation rules
-# ==========================================================
-
 
 # %% Types
 class TestSparkSQLConverterTypes:
