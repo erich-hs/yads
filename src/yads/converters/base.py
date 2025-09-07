@@ -10,6 +10,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
+from types import MappingProxyType
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -17,6 +18,7 @@ from typing import (
     Generator,
     Generic,
     Literal,
+    Mapping,
     TypeVar,
     cast,
 )
@@ -28,35 +30,55 @@ if TYPE_CHECKING:
     from ..spec import YadsSpec
 
 T = TypeVar("T")
+# Keep permissive here to avoid contravariance issues. Subclasses may narrow.
+ColumnOverrideFunc = Callable[[Field, Any], T]
+ColumnOverrides = Mapping[str, ColumnOverrideFunc[T]]
 
 
 @dataclass(frozen=True)
 class BaseConverterConfig(Generic[T]):
     """Base configuration for all yads converters.
 
+    This configuration is immutable and safely copies user-provided containers.
+
     Args:
-        mode: Conversion mode. "raise" will raise exceptions on unsupported features,
-            "coerce" will attempt to coerce unsupported features to supported ones
-            with warnings. Defaults to "coerce".
-        ignore_columns: Set of column names to ignore during conversion.
-            These columns will be excluded from the output. Defaults to empty set.
-        include_columns: Optional set of column names to include during conversion.
-            If specified, only these columns will be included in the output.
-            If None, all columns (except ignored ones) are included. Defaults to None.
-        column_overrides: Dictionary mapping column names to custom conversion
-            functions. Provides column-specific conversion logic with complete
-            control over field conversion. Function signature:
-            (field, converter) -> converted_result. Defaults to empty dict.
+        mode: Conversion mode. "raise" will raise exceptions on unsupported
+            features. "coerce" will attempt to coerce unsupported features to
+            supported ones with warnings. Defaults to "coerce".
+        ignore_columns: Iterable of column names to ignore during conversion.
+            These columns will be excluded from the output. Accepts any iterable
+            and is stored immutably. Defaults to None (treated as empty).
+        include_columns: Optional iterable of column names to include during
+            conversion. If specified, only these columns will be included in the
+            output. If None, all columns (except ignored ones) are included.
+            Accepts any iterable and is stored immutably. Defaults to None.
+        column_overrides: Mapping of column names to custom conversion functions.
+            These provide column-specific conversion logic with complete control
+            over field conversion. Accepts mutable mappings and is stored as an
+            immutable mapping internally. Function signature:
+            `(field, converter) -> converted_result`.
     """
 
+    # Public fields (inputs are coerced to immutable in __post_init__)
     mode: Literal["raise", "coerce"] = "coerce"
-    ignore_columns: set[str] = field(default_factory=set)
-    include_columns: set[str] | None = None
-    # Keep permissive typing at the base to avoid contravariance issues.
-    # Subclasses may narrow this for better IDE hints.
-    column_overrides: dict[str, Any] = field(default_factory=dict)
+    ignore_columns: frozenset[str] = field(default_factory=frozenset)
+    include_columns: frozenset[str] | None = None
+    column_overrides: Mapping[str, ColumnOverrideFunc[T]] = field(
+        default_factory=lambda: MappingProxyType({})
+    )
 
     def __post_init__(self) -> None:
+        # Convert user inputs to immutable, detached containers
+        object.__setattr__(self, "ignore_columns", frozenset(self.ignore_columns))
+        if self.include_columns is not None:
+            object.__setattr__(self, "include_columns", frozenset(self.include_columns))
+        object.__setattr__(
+            self,
+            "column_overrides",
+            MappingProxyType(dict(self.column_overrides)),
+        )
+
+        # Validation
         if self.mode not in {"raise", "coerce"}:
             raise ConverterConfigError("mode must be one of 'raise' or 'coerce'.")
 
@@ -101,7 +123,10 @@ class BaseConverter(Generic[T], ABC):
     def _validate_column_filters(self, spec: YadsSpec) -> None:
         column_names = {c.name for c in spec.columns}
         unknown_ignored = self.config.ignore_columns - column_names
-        unknown_included = (self.config.include_columns or set()) - column_names
+        if self.config.include_columns is None:
+            unknown_included: set[str] = set()
+        else:
+            unknown_included = set(self.config.include_columns - column_names)
 
         messages: list[str] = []
         if unknown_ignored:
@@ -122,7 +147,7 @@ class BaseConverter(Generic[T], ABC):
 
     def _apply_column_override(self, field: Field) -> T:
         override_func = cast(
-            Callable[[Field, Any], T], self.config.column_overrides[field.name]
+            ColumnOverrideFunc[T], self.config.column_overrides[field.name]
         )
         return override_func(field, self)
 

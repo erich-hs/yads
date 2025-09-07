@@ -24,8 +24,9 @@ from __future__ import annotations
 
 from functools import singledispatchmethod
 import json
-from typing import Any, Callable, Literal
+from typing import Any, Callable, Literal, Mapping
 from dataclasses import dataclass, field
+from types import MappingProxyType
 
 import pyarrow as pa  # type: ignore[import-untyped]
 from ..exceptions import validation_warning
@@ -84,8 +85,8 @@ class PyArrowConverterConfig(BaseConverterConfig[pa.Field]):
     use_large_binary: bool = False
     use_large_list: bool = False
     fallback_type: pa.DataType = pa.string()
-    column_overrides: dict[str, Callable[[Field, PyArrowConverter], pa.Field]] = field(
-        default_factory=dict
+    column_overrides: Mapping[str, Callable[[Field, PyArrowConverter], pa.Field]] = field(
+        default_factory=lambda: MappingProxyType({})
     )  # type: ignore[assignment]
 
     def __post_init__(self) -> None:

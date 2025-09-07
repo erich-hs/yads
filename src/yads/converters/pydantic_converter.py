@@ -27,9 +27,10 @@ from __future__ import annotations
 from functools import singledispatchmethod
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal as PythonDecimal
-from typing import Any, Callable, Literal, Optional, Type, cast
+from typing import Any, Callable, Literal, Optional, Type, cast, Mapping
 from uuid import UUID as PythonUUID
 from dataclasses import dataclass, field
+from types import MappingProxyType
 
 from pydantic import BaseModel, Field, create_model, ConfigDict  # type: ignore[import-untyped]
 from pydantic.fields import FieldInfo  # type: ignore[import-untyped]
@@ -65,9 +66,9 @@ class PydanticConverterConfig(BaseConverterConfig[tuple[Any, FieldInfo]]):
     model_name: str | None = None
     model_config: dict[str, Any] | None = None
     fallback_type: type = str
-    column_overrides: dict[
+    column_overrides: Mapping[
         str, Callable[[spec.Field, PydanticConverter], tuple[Any, FieldInfo]]
-    ] = field(default_factory=dict)  # type: ignore[assignment]
+    ] = field(default_factory=lambda: MappingProxyType({}))  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
         """Validate configuration parameters."""

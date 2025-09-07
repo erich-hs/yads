@@ -10,8 +10,9 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from functools import singledispatchmethod
-from typing import Any, Literal, Generator, Callable
+from typing import Any, Literal, Generator, Callable, Mapping
 from dataclasses import dataclass, field
+from types import MappingProxyType
 
 from sqlglot import exp
 from sqlglot.expressions import convert
@@ -97,8 +98,8 @@ class SQLGlotConverterConfig(BaseConverterConfig[exp.ColumnDef]):
     ignore_catalog: bool = False
     ignore_database: bool = False
     fallback_type: exp.DataType.Type = exp.DataType.Type.TEXT
-    column_overrides: dict[str, Callable[[Field, SQLGlotConverter], exp.ColumnDef]] = (
-        field(default_factory=dict)
+    column_overrides: Mapping[str, Callable[[Field, SQLGlotConverter], exp.ColumnDef]] = (
+        field(default_factory=lambda: MappingProxyType({}))
     )  # type: ignore[assignment]
 
     def __post_init__(self) -> None:

@@ -3,6 +3,8 @@ from yads.exceptions import ConverterConfigError
 from yads.spec import Column, Field, YadsSpec
 from yads.types import Integer, String
 import pytest
+from dataclasses import FrozenInstanceError
+from types import MappingProxyType
 
 
 # %% BaseConverterConfig validations
@@ -18,6 +20,91 @@ class TestBaseConverterConfig:
             ConverterConfigError, match="Columns cannot be both ignored and included"
         ):
             BaseConverterConfig(ignore_columns={"col1"}, include_columns={"col1"})
+
+    def test_config_coerces_mutable_inputs_to_immutable(self):
+        def override_fn(field, converter):
+            return "x"
+
+        cfg = BaseConverterConfig(
+            ignore_columns=["a", "b"],
+            include_columns=("c", "d"),
+            column_overrides={"a": override_fn},
+        )
+
+        assert isinstance(cfg.ignore_columns, frozenset)
+        assert isinstance(cfg.include_columns, frozenset)
+        assert isinstance(cfg.column_overrides, MappingProxyType)
+        assert cfg.ignore_columns == frozenset({"a", "b"})
+        assert cfg.include_columns == frozenset({"c", "d"})
+        assert cfg.column_overrides["a"] is override_fn
+
+    def test_config_immutable_attributes_and_mappings(self):
+        cfg = BaseConverterConfig(
+            ignore_columns={"a"}, include_columns=set(), column_overrides={}
+        )
+
+        # Dataclass is frozen: attribute reassignment not allowed
+        with pytest.raises(FrozenInstanceError):
+            cfg.ignore_columns = frozenset()
+        with pytest.raises(FrozenInstanceError):
+            cfg.include_columns = None
+        with pytest.raises(FrozenInstanceError):
+            cfg.column_overrides = {}
+
+        # Containers themselves are immutable
+        with pytest.raises(AttributeError):
+            cfg.ignore_columns.add("z")  # frozenset has no add
+        if cfg.include_columns is not None:
+            with pytest.raises(AttributeError):
+                cfg.include_columns.add("z")
+        with pytest.raises(TypeError):
+            cfg.column_overrides["x"] = lambda f, c: None
+
+    def test_config_detaches_from_external_mutations(self):
+        def f1(field, converter):
+            return "f1"
+
+        def f2(field, converter):
+            return "f2"
+
+        ignore_mut = ["a", "b"]
+        include_mut = {"c"}
+        overrides_mut = {"a": f1}
+
+        cfg = BaseConverterConfig(
+            ignore_columns=ignore_mut,
+            include_columns=include_mut,
+            column_overrides=overrides_mut,
+        )
+
+        # mutate inputs after construction
+        ignore_mut.append("x")
+        include_mut.add("y")
+        overrides_mut["a"] = f2
+        overrides_mut["b"] = f2
+
+        # config remains unchanged
+        assert cfg.ignore_columns == frozenset({"a", "b"})
+        assert cfg.include_columns == frozenset({"c"})
+        assert cfg.column_overrides == MappingProxyType({"a": f1})
+
+    def test_config_include_columns_none_and_empty(self):
+        # None remains None
+        cfg_none = BaseConverterConfig()
+        assert cfg_none.include_columns is None
+
+        # empty iterables become an empty frozenset
+        cfg_empty = BaseConverterConfig(include_columns=[])
+        assert isinstance(cfg_empty.include_columns, frozenset)
+        assert len(cfg_empty.include_columns) == 0
+
+    def test_config_accepts_generators(self):
+        def gen():
+            for x in ["a", "b", "c"]:
+                yield x
+
+        cfg = BaseConverterConfig(ignore_columns=gen())
+        assert cfg.ignore_columns == frozenset({"a", "b", "c"})
 
 
 # %% BaseConverter context manager
