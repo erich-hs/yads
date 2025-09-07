@@ -467,6 +467,7 @@ class TestTypeAliases:
         "alias, expected_type, expected_params",
         [
             # String Types
+            ("str", String, {}),
             ("string", String, {}),
             ("text", String, {}),
             ("varchar", String, {}),

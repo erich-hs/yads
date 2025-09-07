@@ -956,6 +956,7 @@ class Variant(YadsType):
 
 TYPE_ALIASES: dict[str, tuple[type[YadsType], dict[str, Any]]] = {
     # String Types
+    "str": (String, {}),
     "string": (String, {}),
     "text": (String, {}),
     "varchar": (String, {}),

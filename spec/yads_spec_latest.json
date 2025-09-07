@@ -71,6 +71,8 @@
       "type": "string",
       "description": "The type of a column or field.",
       "enum": [
+        "str",
+        "STR",
         "string",
         "STRING",
         "text",
