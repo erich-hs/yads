@@ -9,7 +9,7 @@ This module contains high-level SQL converters that:
 from __future__ import annotations
 
 from typing import Any, Literal
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from sqlglot import ErrorLevel
 from sqlglot.expressions import DataType
@@ -44,6 +44,11 @@ class SQLConverterConfig(BaseConverterConfig):
     dialect: str = "spark"
     ast_converter: AstConverter | None = None
     ast_validator: AstValidator | None = None
+    # Optional configuration for the default AST converter when one is not supplied.
+    # This allows routing user-facing options (e.g., if_not_exists, or_replace,
+    # ignore_catalog, ignore_database, fallback_type, and column filters) into the
+    # SQLGlotConverter while keeping SQLConverter decoupled from AST details.
+    ast_converter_config: SQLGlotConverterConfig | None = None
 
 
 class SQLConverter(BaseConverter):
@@ -82,7 +87,9 @@ class SQLConverter(BaseConverter):
         if self.config.ast_converter:
             self._ast_converter = self.config.ast_converter
         else:
-            ast_config = SQLGlotConverterConfig(mode=self.config.mode)
+            # Prefer the provided ast_converter_config; ensure mode consistency.
+            base_ast_config = self.config.ast_converter_config or SQLGlotConverterConfig()
+            ast_config = replace(base_ast_config, mode=self.config.mode)
             self._ast_converter = SQLGlotConverter(ast_config)
 
     def convert(
@@ -163,7 +170,12 @@ class SparkSQLConverter(SQLConverter):
       - Disallow fixed length binary → replace with BINARY
     """
 
-    def __init__(self, *, mode: Literal["raise", "coerce"] = "coerce"):
+    def __init__(
+        self,
+        *,
+        mode: Literal["raise", "coerce"] = "coerce",
+        ast_config: SQLGlotConverterConfig | None = None,
+    ):
         """Initialize SparkSQLConverter with built-in Spark-specific settings.
 
         Args:
@@ -202,7 +214,10 @@ class SparkSQLConverter(SQLConverter):
 
         # Build config with Spark-specific settings
         spark_config = SQLConverterConfig(
-            mode=mode, dialect="spark", ast_validator=validator
+            mode=mode,
+            dialect="spark",
+            ast_validator=validator,
+            ast_converter_config=ast_config,
         )
 
         super().__init__(spark_config)
@@ -224,7 +239,12 @@ class DuckdbSQLConverter(SQLConverter):
       - Disallow fixed length binary → replace with BLOB
     """
 
-    def __init__(self, *, mode: Literal["raise", "coerce"] = "coerce"):
+    def __init__(
+        self,
+        *,
+        mode: Literal["raise", "coerce"] = "coerce",
+        ast_config: SQLGlotConverterConfig | None = None,
+    ):
         """Initialize DuckdbSQLConverter with built-in DuckDB-specific settings.
 
         Args:
@@ -251,7 +271,10 @@ class DuckdbSQLConverter(SQLConverter):
 
         # Build config with DuckDB-specific settings
         duckdb_config = SQLConverterConfig(
-            mode=mode, dialect="duckdb", ast_validator=validator
+            mode=mode,
+            dialect="duckdb",
+            ast_validator=validator,
+            ast_converter_config=ast_config,
         )
 
         super().__init__(duckdb_config)
