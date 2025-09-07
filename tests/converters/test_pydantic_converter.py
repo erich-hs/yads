@@ -396,6 +396,173 @@ class TestPydanticConverterTypes:
         )
         model = PydanticConverter().convert(spec)
         assert model.model_fields["c"].description == "desc"
+
+    @pytest.mark.parametrize(
+        "bits,min_val,max_val",
+        [
+            (8, -(2**7), 2**7 - 1),  # -128 to 127
+            (16, -(2**15), 2**15 - 1),  # -32_768 to 32_767
+            (32, -(2**31), 2**31 - 1),  # -2_147_483_648 to 2_147_483_647
+            (64, -(2**63), 2**63 - 1),  # -9_223_372_036_854_775_808 to 9_223_372_036_854_775_807
+        ],
+    )
+    def test_integer_bit_width_boundaries_signed(self, bits: int, min_val: int, max_val: int):
+        """Test that signed integer bit width constraints correctly limit values."""
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[Column(name="int_field", type=Integer(bits=bits))],
+        )
+        model = PydanticConverter().convert(spec)
+        field = model.model_fields["int_field"]
+        
+        # Extract constraints from field metadata
+        constraints = extract_constraints(field)
+        assert constraints.get("ge") == min_val
+        assert constraints.get("le") == max_val
+        
+        # Test that boundary values fit within the bit width
+        # For signed integers, the maximum positive value should fit in bits-1 bits
+        assert max_val.bit_length() <= bits - 1
+        # The minimum negative value should fit in bits bits (including sign)
+        assert abs(min_val).bit_length() <= bits
+
+    @pytest.mark.parametrize(
+        "bits,min_val,max_val",
+        [
+            (8, 0, 2**8 - 1),  # 0 to 255
+            (16, 0, 2**16 - 1),  # 0 to 65_535
+            (32, 0, 2**32 - 1),  # 0 to 4_294_967_295
+            (64, 0, 2**64 - 1),  # 0 to 18_446_744_073_709_551_615
+        ],
+    )
+    def test_integer_bit_width_boundaries_unsigned(self, bits: int, min_val: int, max_val: int):
+        """Test that unsigned integer bit width constraints correctly limit values."""
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[Column(name="int_field", type=Integer(bits=bits, signed=False))],
+        )
+        model = PydanticConverter().convert(spec)
+        field = model.model_fields["int_field"]
+        
+        # Extract constraints from field metadata
+        constraints = extract_constraints(field)
+        assert constraints.get("ge") == min_val
+        assert constraints.get("le") == max_val
+        
+        # Test that boundary values have correct bit lengths
+        assert min_val.bit_length() <= bits
+        assert max_val.bit_length() <= bits
+        
+        # Test that values just outside boundaries would exceed bit length
+        assert (max_val + 1).bit_length() > bits
+
+    def test_integer_bit_width_edge_cases(self):
+        """Test edge cases for integer bit width validation."""
+        # Test 8-bit signed: -128 to 127
+        spec_8bit = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[Column(name="int8", type=Integer(bits=8))],
+        )
+        model_8bit = PydanticConverter().convert(spec_8bit)
+        field_8bit = model_8bit.model_fields["int8"]
+        constraints_8bit = extract_constraints(field_8bit)
+        
+        # Verify exact boundaries
+        assert constraints_8bit.get("ge") == -128
+        assert constraints_8bit.get("le") == 127
+
+        # Test 8-bit unsigned: 0 to 255
+        spec_8bit_unsigned = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[Column(name="uint8", type=Integer(bits=8, signed=False))],
+        )
+        model_8bit_unsigned = PydanticConverter().convert(spec_8bit_unsigned)
+        field_8bit_unsigned = model_8bit_unsigned.model_fields["uint8"]
+        constraints_8bit_unsigned = extract_constraints(field_8bit_unsigned)
+        
+        # Verify exact boundaries
+        assert constraints_8bit_unsigned.get("ge") == 0
+        assert constraints_8bit_unsigned.get("le") == 255
+
+    @pytest.mark.parametrize("bits", [8, 16, 32, 64])
+    def test_integer_bit_width_validation_with_pydantic(self, bits: int):
+        """Test that Pydantic actually enforces the bit width constraints."""
+        # Calculate boundaries for the given bit width
+        max_val = 2**(bits-1) - 1
+        min_val = -(2**(bits-1))
+        
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[Column(name=f"int{bits}", type=Integer(bits=bits))],
+        )
+        model = PydanticConverter().convert(spec)
+        
+        # Check bit width calculations
+        assert max_val.bit_length() <= bits
+        assert min_val.bit_length() <= bits
+
+        # Test valid values
+        valid_instance = model(**{f"int{bits}": max_val})  # Max signed value
+        assert getattr(valid_instance, f"int{bits}") == max_val
+        assert getattr(valid_instance, f"int{bits}").bit_length() <= bits
+        
+        valid_instance_min = model(**{f"int{bits}": min_val})  # Min signed value
+        assert getattr(valid_instance_min, f"int{bits}") == min_val
+        assert getattr(valid_instance_min, f"int{bits}").bit_length() <= bits
+        
+        # Test invalid values (should raise ValidationError)
+        from pydantic import ValidationError
+        
+        # Value too large
+        with pytest.raises(ValidationError):
+            model(**{f"int{bits}": max_val + 1})
+            
+        # Value too small
+        with pytest.raises(ValidationError):
+            model(**{f"int{bits}": min_val - 1})
+
+    @pytest.mark.parametrize("bits", [8, 16, 32, 64])
+    def test_integer_bit_width_unsigned_validation_with_pydantic(self, bits: int):
+        """Test that Pydantic enforces unsigned integer bit width constraints."""
+        # Calculate boundaries for the given bit width
+        max_val = 2**bits - 1
+        min_val = 0
+        
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[Column(name=f"uint{bits}", type=Integer(bits=bits, signed=False))],
+        )
+        model = PydanticConverter().convert(spec)
+        
+        # Check bit width calculations
+        assert max_val.bit_length() <= bits
+        assert min_val.bit_length() <= bits
+
+        # Test valid values
+        valid_instance = model(**{f"uint{bits}": max_val})  # Max unsigned value
+        assert getattr(valid_instance, f"uint{bits}") == max_val
+        assert getattr(valid_instance, f"uint{bits}").bit_length() <= bits
+        
+        valid_instance_min = model(**{f"uint{bits}": min_val})  # Min unsigned value
+        assert getattr(valid_instance_min, f"uint{bits}") == min_val
+        assert getattr(valid_instance_min, f"uint{bits}").bit_length() <= bits
+        
+        # Test invalid values (should raise ValidationError)
+        from pydantic import ValidationError
+        
+        # Value too large
+        with pytest.raises(ValidationError):
+            model(**{f"uint{bits}": max_val + 1})
+            
+        # Value too small (negative)
+        with pytest.raises(ValidationError):
+            model(**{f"uint{bits}": -1})
 # fmt: on
 
 
