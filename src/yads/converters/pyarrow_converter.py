@@ -371,16 +371,13 @@ class PyArrowConverter(BaseConverter):
 
     @_convert_type.register(Interval)
     def _(self, yads_type: Interval) -> pa.DataType:
-        # Arrow currently represents intervals with month_day_nano layout.
         return pa.month_day_nano_interval()
 
     @_convert_type.register(Array)
     def _(self, yads_type: Array) -> pa.DataType:
         value_type = self._convert_type(yads_type.element)
         if yads_type.size is not None:
-            # Fixed-size arrays use list_ with list_size
             return pa.list_(value_type, list_size=yads_type.size)
-        # Variable-size arrays can optionally use large_list
         return (
             pa.large_list(value_type)
             if self.config.use_large_list
