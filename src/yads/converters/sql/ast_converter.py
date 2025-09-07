@@ -1,14 +1,17 @@
 """AST converter from yads `YadsSpec` to sqlglot AST expressions.
 
-Contains the `SQLGlotConverter`, which is responsible for producing a
-dialect-agnostic `sqlglot` AST representing a CREATE TABLE statement
-from the canonical `YadsSpec` format.
+This module provides the abstract base for AST converters and the
+SQLGlotConverter implementation. AST converters are responsible for
+producing dialect-agnostic AST representations from YadsSpec objects.
 """
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
+from contextlib import contextmanager
 from functools import singledispatchmethod
-from typing import Any, Literal
+from typing import Any, Literal, Generator, Callable
+from dataclasses import dataclass, field
 
 from sqlglot import exp
 from sqlglot.expressions import convert
@@ -50,10 +53,72 @@ from ...types import (
     Geography,
     Void,
 )
-from ..base import BaseConverter
+from ..base import BaseConverter, BaseConverterConfig
 
 
-class SQLGlotConverter(BaseConverter):
+class AstConverter(ABC):
+    """Abstract base class for AST converters.
+
+    AST converters transform YadsSpec objects into dialect-agnostic AST
+    representations that can be serialized to SQL DDL for specific databases.
+    """
+
+    @abstractmethod
+    def convert(self, spec: YadsSpec) -> Any: ...
+
+    @abstractmethod
+    @contextmanager
+    def conversion_context(
+        self,
+        *,
+        mode: Literal["raise", "coerce"] | None = None,
+        field: str | None = None,
+    ) -> Generator[None, None, None]: ...
+
+
+@dataclass(frozen=True)
+class SQLGlotConverterConfig(BaseConverterConfig[exp.ColumnDef]):
+    """Configuration for SQLGlotConverter.
+
+    Args:
+        if_not_exists: If True, sets the `exists` property of the `exp.Create`
+            node to `True`. Defaults to False.
+        or_replace: If True, sets the `replace` property of the `exp.Create`
+            node to `True`. Defaults to False.
+        ignore_catalog: If True, omits the catalog from the table name. Defaults to False.
+        ignore_database: If True, omits the database from the table name. Defaults to False.
+        fallback_type: SQL data type to use for unsupported types in coerce mode.
+            Must be one of: exp.DataType.Type.TEXT, exp.DataType.Type.BINARY, exp.DataType.Type.BLOB.
+            Defaults to exp.DataType.Type.TEXT.
+    """
+
+    if_not_exists: bool = False
+    or_replace: bool = False
+    ignore_catalog: bool = False
+    ignore_database: bool = False
+    fallback_type: exp.DataType.Type = exp.DataType.Type.TEXT
+    column_overrides: dict[str, Callable[[Field, SQLGlotConverter], exp.ColumnDef]] = (
+        field(default_factory=dict)
+    )  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        """Validate configuration parameters."""
+        super().__post_init__()
+
+        # Validate fallback_type
+        valid_fallback_types = {
+            exp.DataType.Type.TEXT,
+            exp.DataType.Type.BINARY,
+            exp.DataType.Type.BLOB,
+        }
+        if self.fallback_type not in valid_fallback_types:
+            raise UnsupportedFeatureError(
+                f"fallback_type must be one of: exp.DataType.Type.TEXT, "
+                f"exp.DataType.Type.BINARY, exp.DataType.Type.BLOB. Got: {self.fallback_type}"
+            )
+
+
+class SQLGlotConverter(BaseConverter, AstConverter):
     """Core converter that transforms yads specs into sqlglot AST expressions.
 
     SQLGlotConverter is the foundational converter that handles the transformation
@@ -79,15 +144,14 @@ class SQLGlotConverter(BaseConverter):
         >>> sql = ast.sql(dialect="spark")
     """
 
-    def __init__(self, mode: Literal["raise", "coerce"] = "coerce") -> None:
+    def __init__(self, config: SQLGlotConverterConfig | None = None) -> None:
         """Initialize the SQLGlotConverter.
 
         Args:
-            mode: "raise" or "coerce". When "coerce", unsupported or
-                incompatible constructs are coerced to a valid AST with a
-                warning. Defaults to "coerce".
+            config: Configuration object. If None, uses default SQLGlotConverterConfig.
         """
-        super().__init__(mode=mode)
+        self.config: SQLGlotConverterConfig = config or SQLGlotConverterConfig()
+        super().__init__(self.config)
 
     _TRANSFORM_HANDLERS: dict[str, str] = {
         "bucket": "_handle_bucket_transform",
@@ -97,7 +161,12 @@ class SQLGlotConverter(BaseConverter):
         "trunc": "_handle_date_trunc_transform",
     }
 
-    def convert(self, spec: YadsSpec, **kwargs: Any) -> exp.Create:
+    def convert(
+        self,
+        spec: YadsSpec,
+        *,
+        mode: Literal["raise", "coerce"] | None = None,
+    ) -> exp.Create:
         """Convert a yads `YadsSpec` into a sqlglot `exp.Create` AST expression.
 
         The resulting AST is dialect-agnostic and can be serialized to SQL for
@@ -106,16 +175,10 @@ class SQLGlotConverter(BaseConverter):
 
         Args:
             spec: The yads spec as a `YadsSpec` object.
-            **kwargs: Optional conversion modifiers:
-                if_not_exists: If True, sets the `exists` property of the `exp.Create`
-                               node to `True`.
-                or_replace: If True, sets the `replace` property of the `exp.Create`
-                            node to `True`.
-                ignore_catalog: If True, omits the catalog from the table name.
-                ignore_database: If True, omits the database from the table name.
-                mode: "raise" or "coerce". When "coerce", unsupported or
-                    incompatible constructs are coerced to a valid AST with a
-                    warning. Defaults to "coerce".
+            mode: Optional conversion mode override for this call. When not
+                provided, the converter's configured mode is used. If provided:
+                - "raise": Raise on any unsupported features.
+                - "coerce": Apply adjustments to produce a valid AST and emit warnings.
 
         Returns:
             sqlglot `exp.Create` expression representing a CREATE TABLE statement.
@@ -123,20 +186,21 @@ class SQLGlotConverter(BaseConverter):
             from the yads spec.
 
         Example:
-            >>> converter = SQLGlotConverter()
-            >>> ast = converter.convert(spec, if_not_exists=True)
+            >>> config = SQLGlotConverterConfig(if_not_exists=True)
+            >>> converter = SQLGlotConverter(config)
+            >>> ast = converter.convert(spec)
             >>> print(type(ast))
             <class 'sqlglot.expressions.Create'>
             >>> print(ast.sql(dialect="spark"))
             CREATE TABLE IF NOT EXISTS ...
         """
         # Set mode for this conversion call
-        mode_override = kwargs.get("mode", None)
-        with self.conversion_context(mode=mode_override):
+        with self.conversion_context(mode=mode):
+            self._validate_column_filters(spec)
             table = self._parse_full_table_name(
                 spec.name,
-                ignore_catalog=kwargs.get("ignore_catalog", False),
-                ignore_database=kwargs.get("ignore_database", False),
+                ignore_catalog=self.config.ignore_catalog,
+                ignore_database=self.config.ignore_database,
             )
             properties = self._collect_properties(spec)
             expressions = self._collect_expressions(spec)
@@ -144,8 +208,8 @@ class SQLGlotConverter(BaseConverter):
         return exp.Create(
             this=exp.Schema(this=table, expressions=expressions),
             kind="TABLE",
-            exists=kwargs.get("if_not_exists", False) or None,
-            replace=kwargs.get("or_replace", False) or None,
+            exists=self.config.if_not_exists or None,
+            replace=self.config.or_replace or None,
             properties=(exp.Properties(expressions=properties) if properties else None),
         )
 
@@ -163,17 +227,17 @@ class SQLGlotConverter(BaseConverter):
         except ParseError:
             # Currently unsupported in sqlglot:
             # - Duration
-            if self._mode == "coerce":
+            if self.config.mode == "coerce":
                 validation_warning(
                     message=(
                         f"SQLGlotConverter does not support type: {yads_type}"
                         f" for column '{self._current_field_name or '<unknown>'}'."
-                        f" The data type will be replaced with TEXT."
+                        f" The data type will be replaced with {self.config.fallback_type.name}."
                     ),
                     filename="yads.converters.sql.ast_converter",
                     module=__name__,
                 )
-                return exp.DataType(this=exp.DataType.Type.TEXT)
+                return exp.DataType(this=self.config.fallback_type)
             raise UnsupportedFeatureError(
                 f"SQLGlotConverter does not support type: {yads_type}"
                 f" for column '{self._current_field_name or '<unknown>'}'."
@@ -195,24 +259,21 @@ class SQLGlotConverter(BaseConverter):
         if yads_type.signed:
             if bits == 8:
                 return exp.DataType(this=exp.DataType.Type.TINYINT)
-            if bits == 16:
+            elif bits == 16:
                 return exp.DataType(this=exp.DataType.Type.SMALLINT)
-            if bits == 32:
+            elif bits == 32:
                 return exp.DataType(this=exp.DataType.Type.INT)
-            if bits == 64:
+            elif bits == 64:
                 return exp.DataType(this=exp.DataType.Type.BIGINT)
-            raise UnsupportedFeatureError(
-                f"Unsupported Integer bits: {bits}. Expected 8/16/32/64."
-            )
-        # Unsigned integers
-        if bits == 8:
-            return exp.DataType(this=exp.DataType.Type.UTINYINT)
-        if bits == 16:
-            return exp.DataType(this=exp.DataType.Type.USMALLINT)
-        if bits == 32:
-            return exp.DataType(this=exp.DataType.Type.UINT)
-        if bits == 64:
-            return exp.DataType(this=exp.DataType.Type.UBIGINT)
+        else:
+            if bits == 8:
+                return exp.DataType(this=exp.DataType.Type.UTINYINT)
+            elif bits == 16:
+                return exp.DataType(this=exp.DataType.Type.USMALLINT)
+            elif bits == 32:
+                return exp.DataType(this=exp.DataType.Type.UINT)
+            elif bits == 64:
+                return exp.DataType(this=exp.DataType.Type.UBIGINT)
         raise UnsupportedFeatureError(
             f"Unsupported Integer bits: {bits}. Expected 8/16/32/64."
         )
@@ -221,7 +282,7 @@ class SQLGlotConverter(BaseConverter):
     def _(self, yads_type: Float) -> exp.DataType:
         bits = yads_type.bits or 32
         if bits == 16:
-            if self._mode == "coerce":
+            if self.config.mode == "coerce":
                 validation_warning(
                     message=(
                         f"SQLGlotConverter does not support half-precision Float (bits={bits})."
@@ -234,9 +295,9 @@ class SQLGlotConverter(BaseConverter):
             raise UnsupportedFeatureError(
                 f"SQLGlotConverter does not support half-precision Float (bits={bits})."
             )
-        if bits == 32:
+        elif bits == 32:
             return exp.DataType(this=exp.DataType.Type.FLOAT)
-        if bits == 64:
+        elif bits == 64:
             return exp.DataType(this=exp.DataType.Type.DOUBLE)
         raise UnsupportedFeatureError(
             f"Unsupported Float bits: {bits}. Expected 16/32/64."
@@ -369,7 +430,7 @@ class SQLGlotConverter(BaseConverter):
 
     @singledispatchmethod
     def _convert_column_constraint(self, constraint: Any) -> exp.ColumnConstraint | None:
-        if self._mode == "coerce":
+        if self.config.mode == "coerce":
             validation_warning(
                 message=(
                     f"SQLGlotConverter does not support constraint: {type(constraint)}"
@@ -440,7 +501,7 @@ class SQLGlotConverter(BaseConverter):
 
     @singledispatchmethod
     def _convert_table_constraint(self, constraint: Any) -> exp.Expression | None:
-        if self._mode == "coerce":
+        if self.config.mode == "coerce":
             validation_warning(
                 message=(
                     f"SQLGlotConverter does not support table constraint: {type(constraint)}"
@@ -561,19 +622,19 @@ class SQLGlotConverter(BaseConverter):
         self._validate_transform_args("cast", len(transform_args), 1)
         cast_to_type = transform_args[0].upper()
         if cast_to_type not in exp.DataType.Type:
-            if self._mode == "coerce":
+            if self.config.mode == "coerce":
                 validation_warning(
                     message=(
                         f"Transform type '{cast_to_type}' is not a valid sqlglot Type"
                         f" for column '{self._current_field_name or '<unknown>'}'."
-                        f" The expression will be coerced to CAST(... AS TEXT)."
+                        f" The expression will be coerced to CAST(... AS {self.config.fallback_type.name})."
                     ),
                     filename="yads.converters.sqlglot",
                     module=__name__,
                 )
                 return exp.Cast(
                     this=exp.column(column),
-                    to=exp.DataType(this=exp.DataType.Type.TEXT),
+                    to=exp.DataType(this=self.config.fallback_type),
                 )
             raise UnsupportedFeatureError(
                 f"Transform type '{cast_to_type}' is not a valid sqlglot Type"
@@ -649,14 +710,24 @@ class SQLGlotConverter(BaseConverter):
                 constraints=constraints if constraints else None,
             )
 
+    def _convert_field_default(self, field: Field) -> exp.ColumnDef:
+        if not isinstance(field, Column):  # Overrides happen on column level
+            raise TypeError(f"Expected Column, got {type(field)}")
+        return self._convert_column(field)
+
     def _collect_expressions(self, spec: YadsSpec) -> list[exp.Expression]:
         expressions: list[exp.Expression] = []
-        for col in spec.columns:
-            expressions.append(self._convert_column(col))
-        for constraint in spec.table_constraints:
-            converted = self._convert_table_constraint(constraint)
-            if converted is not None:
-                expressions.append(converted)
+        for col in self._filter_columns(spec):
+            # Set field context during conversion
+            with self.conversion_context(field=col.name):
+                # Use centralized override resolution
+                column_expr = self._convert_field_with_overrides(col)
+                expressions.append(column_expr)
+
+        for tbl_constraint in spec.table_constraints:
+            converted_constraint = self._convert_table_constraint(tbl_constraint)
+            if converted_constraint is not None:
+                expressions.append(converted_constraint)
         return expressions
 
     def _parse_full_table_name(

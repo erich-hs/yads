@@ -35,11 +35,6 @@ from yads.types import (
     Variant,
 )
 
-# ==========================================================
-# SparkSQLConverter tests
-# Scope: verifies Spark dialect and built-in validation rules
-# ==========================================================
-
 
 # %% Types
 class TestSparkSQLConverterTypes:
@@ -236,11 +231,11 @@ class TestSparkSQLConverterTypes:
 class TestSparkSQLConverterDialect:
     def test_convert_full_spec_matches_spark_fixture(self):
         spec = from_yaml_path("tests/fixtures/spec/valid/full_spec.yaml")
-        converter = SparkSQLConverter(pretty=True)
+        converter = SparkSQLConverter()
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            ddl = converter.convert(spec)
+            ddl = converter.convert(spec, pretty=True)
 
         assert len(w) == 5
         assert all(issubclass(wi.category, ValidationWarning) for wi in w)
@@ -283,12 +278,12 @@ class TestSparkSQLConverterValidation:
         """
         spec = from_yaml_string(yaml_string)
 
-        converter = SparkSQLConverter(pretty=True)
+        converter = SparkSQLConverter()
         with pytest.warns(
             UserWarning,
             match=f"Data type '{original_type_sql}' is not supported for column 'col1'.",
         ):
-            ddl = converter.convert(spec, mode="coerce")
+            ddl = converter.convert(spec, mode="coerce", pretty=True)
 
         expected_ddl = """CREATE TABLE my_db.my_table (
   col1 STRING
@@ -316,7 +311,7 @@ class TestSparkSQLConverterValidation:
         """
         spec = from_yaml_string(yaml_string)
 
-        converter = SparkSQLConverter(pretty=True)
+        converter = SparkSQLConverter()
         with pytest.raises(
             AstValidationError,
             match=f"Data type '{original_type_sql}' is not supported for column 'col1'.",

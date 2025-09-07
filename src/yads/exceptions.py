@@ -135,6 +135,14 @@ class ConverterError(YadsError):
     """
 
 
+class ConverterConfigError(ConverterError):
+    """Errors during converter configuration.
+
+    Raised when there are issues with converter configuration, such as invalid
+    configuration parameters or conflicting settings.
+    """
+
+
 class ConversionError(ConverterError):
     """Errors during conversion process.
 

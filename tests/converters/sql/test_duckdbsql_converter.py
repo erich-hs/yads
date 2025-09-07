@@ -35,11 +35,6 @@ from yads.types import (
     Variant,
 )
 
-# ==========================================================
-# DuckdbSQLConverter tests
-# Scope: verifies DuckDB dialect and built-in validation rules
-# ==========================================================
-
 
 # %% Types
 class TestDuckdbSQLConverterTypes:
@@ -252,11 +247,11 @@ class TestDuckdbSQLConverterTypes:
 class TestDuckdbSQLConverterDialect:
     def test_convert_full_spec_matches_duckdb_fixture(self):
         spec = from_yaml_path("tests/fixtures/spec/valid/full_spec.yaml")
-        converter = DuckdbSQLConverter(pretty=True)
+        converter = DuckdbSQLConverter()
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            ddl = converter.convert(spec)
+            ddl = converter.convert(spec, pretty=True)
 
         assert len(w) == 8
         assert all(issubclass(wi.category, ValidationWarning) for wi in w)
@@ -313,12 +308,12 @@ class TestDuckdbSQLConverterValidation:
         """
         spec = from_yaml_string(yaml_string)
 
-        converter = DuckdbSQLConverter(pretty=True)
+        converter = DuckdbSQLConverter()
         with pytest.warns(
             UserWarning,
             match=f"Data type '{original_type_sql}' is not supported for column 'col1'.",
         ):
-            ddl = converter.convert(spec, mode="coerce")
+            ddl = converter.convert(spec, mode="coerce", pretty=True)
 
         expected_ddl = f"""CREATE TABLE my_db.my_table (
   col1 {expected_sql}
@@ -337,12 +332,12 @@ class TestDuckdbSQLConverterValidation:
         """
         spec = from_yaml_string(yaml_string)
 
-        converter = DuckdbSQLConverter(pretty=True)
+        converter = DuckdbSQLConverter()
         with pytest.warns(
             UserWarning,
             match="Parameterized 'GEOMETRY' is not supported for column 'col1'.",
         ):
-            ddl = converter.convert(spec, mode="coerce")
+            ddl = converter.convert(spec, mode="coerce", pretty=True)
 
         expected_ddl = """CREATE TABLE my_db.my_table (
   col1 GEOMETRY
@@ -370,7 +365,7 @@ class TestDuckdbSQLConverterValidation:
         """
         spec = from_yaml_string(yaml_string)
 
-        converter = DuckdbSQLConverter(pretty=True)
+        converter = DuckdbSQLConverter()
         with pytest.raises(
             AstValidationError,
             match=f"Data type '{original_type_sql}' is not supported for column 'col1'.",
@@ -389,7 +384,7 @@ class TestDuckdbSQLConverterValidation:
         """
         spec = from_yaml_string(yaml_string)
 
-        converter = DuckdbSQLConverter(pretty=True)
+        converter = DuckdbSQLConverter()
         with pytest.raises(
             AstValidationError,
             match="Parameterized 'GEOMETRY' is not supported for column 'col1'.",

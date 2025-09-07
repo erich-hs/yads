@@ -15,12 +15,6 @@ if TYPE_CHECKING:
     from sqlglot.expressions import Expression, Create
 
 
-# ==========================================================
-# AstValidator tests
-# Scope: rule application across modes: raise, coerce
-# ==========================================================
-
-
 # %% Mocks
 class DisallowTextTypeRule(AstValidationRule):
     def validate(self, node: Expression) -> str | None:

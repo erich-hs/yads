@@ -46,12 +46,6 @@ from yads.types import (
 VALID_SPEC_DIR = Path(__file__).parent.parent / "fixtures" / "spec" / "valid"
 INVALID_SPEC_DIR = Path(__file__).parent.parent / "fixtures" / "spec" / "invalid"
 
-# ======================================================================
-# Spec builder tests
-# Scope: parsing (dict/yaml), constraint parsing, generation, storage,
-# partitioning, top-level parsing errors, semantic validation, full spec,
-# invalid spec matrix, and type loading.
-# ======================================================================
 
 # Get all valid spec files
 valid_spec_files = list(VALID_SPEC_DIR.glob("*.yaml"))
@@ -208,6 +202,112 @@ class TestConstraintParsing:
             match=r"The 'constraints' attribute of a column must be a dictionary",
         ):
             from_dict(spec_dict)
+
+    def test_not_null_constraint_false_creates_no_constraint(self):
+        """Test that not_null: false does not create a NotNullConstraint."""
+        spec_dict = self._create_minimal_spec_with_constraint({"not_null": False})
+        spec = from_dict(spec_dict)
+
+        column = spec.columns[0]
+        not_null_constraints = [
+            c for c in column.constraints if isinstance(c, NotNullConstraint)
+        ]
+        assert len(not_null_constraints) == 0
+        assert column.is_nullable is True
+
+    def test_not_null_constraint_true_creates_constraint(self):
+        """Test that not_null: true creates a NotNullConstraint."""
+        spec_dict = self._create_minimal_spec_with_constraint({"not_null": True})
+        spec = from_dict(spec_dict)
+
+        column = spec.columns[0]
+        not_null_constraints = [
+            c for c in column.constraints if isinstance(c, NotNullConstraint)
+        ]
+        assert len(not_null_constraints) == 1
+        assert column.is_nullable is False
+
+    def test_primary_key_constraint_false_creates_no_constraint(self):
+        """Test that primary_key: false does not create a PrimaryKeyConstraint."""
+        spec_dict = self._create_minimal_spec_with_constraint({"primary_key": False})
+        spec = from_dict(spec_dict)
+
+        column = spec.columns[0]
+        primary_key_constraints = [
+            c
+            for c in column.constraints
+            if c.__class__.__name__ == "PrimaryKeyConstraint"
+        ]
+        assert len(primary_key_constraints) == 0
+
+    def test_primary_key_constraint_true_creates_constraint(self):
+        """Test that primary_key: true creates a PrimaryKeyConstraint."""
+        spec_dict = self._create_minimal_spec_with_constraint({"primary_key": True})
+        spec = from_dict(spec_dict)
+
+        column = spec.columns[0]
+        primary_key_constraints = [
+            c
+            for c in column.constraints
+            if c.__class__.__name__ == "PrimaryKeyConstraint"
+        ]
+        assert len(primary_key_constraints) == 1
+
+    def test_multiple_boolean_constraints_mixed_values(self):
+        """Test handling of multiple boolean constraints with mixed true/false values."""
+        spec_dict = self._create_minimal_spec_with_constraint(
+            {
+                "not_null": True,
+                "primary_key": False,
+            }
+        )
+        spec = from_dict(spec_dict)
+
+        column = spec.columns[0]
+        not_null_constraints = [
+            c for c in column.constraints if isinstance(c, NotNullConstraint)
+        ]
+        primary_key_constraints = [
+            c
+            for c in column.constraints
+            if c.__class__.__name__ == "PrimaryKeyConstraint"
+        ]
+
+        # Should have NotNullConstraint but no PrimaryKeyConstraint
+        assert len(not_null_constraints) == 1
+        assert len(primary_key_constraints) == 0
+        assert column.is_nullable is False
+
+    def test_boolean_constraints_with_other_constraints(self):
+        """Test that boolean constraints work correctly alongside other constraint types."""
+        spec_dict = self._create_minimal_spec_with_constraint(
+            {
+                "not_null": False,
+                "default": "test_value",
+                "primary_key": True,
+            }
+        )
+        spec = from_dict(spec_dict)
+
+        column = spec.columns[0]
+        not_null_constraints = [
+            c for c in column.constraints if isinstance(c, NotNullConstraint)
+        ]
+        primary_key_constraints = [
+            c
+            for c in column.constraints
+            if c.__class__.__name__ == "PrimaryKeyConstraint"
+        ]
+        default_constraints = [
+            c for c in column.constraints if isinstance(c, DefaultConstraint)
+        ]
+
+        # Should have PrimaryKeyConstraint and DefaultConstraint, but no NotNullConstraint
+        assert len(not_null_constraints) == 0
+        assert len(primary_key_constraints) == 1
+        assert len(default_constraints) == 1
+        assert column.is_nullable is True
+        assert default_constraints[0].value == "test_value"
 
 
 # %% Generated column clause parsing

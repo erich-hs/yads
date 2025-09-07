@@ -337,6 +337,13 @@ class SpecBuilder:
         for key, value in constraints_def.items():
             if parser_method_name := self._COLUMN_CONSTRAINT_PARSERS.get(key):
                 parser_method = getattr(self, parser_method_name)
+                # For boolean constraints, only add the constraint if the value is True
+                if (
+                    key in ("not_null", "primary_key")
+                    and isinstance(value, bool)
+                    and not value
+                ):
+                    continue  # Skip adding the constraint when value is False
                 constraints.append(parser_method(value))
             else:
                 raise UnknownConstraintError(f"Unknown column constraint: {key}.")

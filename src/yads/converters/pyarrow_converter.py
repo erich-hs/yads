@@ -24,7 +24,8 @@ from __future__ import annotations
 
 from functools import singledispatchmethod
 import json
-from typing import Any, Literal
+from typing import Any, Callable, Literal
+from dataclasses import dataclass, field
 
 import pyarrow as pa  # type: ignore[import-untyped]
 from ..exceptions import validation_warning
@@ -52,10 +53,57 @@ from ..types import (
     Struct,
     Map,
     JSON,
+    Geometry,
+    Geography,
     UUID,
     Void,
+    Variant,
 )
-from .base import BaseConverter
+from .base import BaseConverter, BaseConverterConfig
+
+
+@dataclass(frozen=True)
+class PyArrowConverterConfig(BaseConverterConfig[pa.Field]):
+    """Configuration for PyArrowConverter.
+
+    Args:
+        use_large_string: If True, use `pa.large_string()` for
+            `String`. Defaults to False.
+        use_large_binary: If True, use `pa.large_binary()` for
+            `Binary(length=None)`. When a fixed `length` is provided, a fixed-size
+            `pa.binary(length)` is always used. Defaults to False.
+        use_large_list: If True, use `pa.large_list(element)` for
+            variable-length `Array` (i.e., `size is None`). For fixed-size arrays
+            (`size` set), `pa.list_(element, list_size=size)` is used. Defaults to False.
+        fallback_type: PyArrow data type to use for unsupported types in coerce mode.
+            Must be one of: pa.binary(), pa.large_binary(), pa.string(), pa.large_string().
+            Defaults to pa.string().
+    """
+
+    use_large_string: bool = False
+    use_large_binary: bool = False
+    use_large_list: bool = False
+    fallback_type: pa.DataType = pa.string()
+    column_overrides: dict[str, Callable[[Field, PyArrowConverter], pa.Field]] = field(
+        default_factory=dict
+    )  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        """Validate configuration parameters."""
+        super().__post_init__()
+
+        # Validate fallback_type
+        valid_fallback_types = {
+            pa.binary(),
+            pa.large_binary(),
+            pa.string(),
+            pa.large_string(),
+        }
+        if self.fallback_type not in valid_fallback_types:
+            raise UnsupportedFeatureError(
+                f"fallback_type must be one of: pa.binary(), pa.large_binary(), "
+                f"pa.string(), pa.large_string(). Got: {self.fallback_type}"
+            )
 
 
 class PyArrowConverter(BaseConverter):
@@ -65,93 +113,74 @@ class PyArrowConverter(BaseConverter):
     `pyarrow.Schema`. Complex types such as arrays, structs, and maps are
     recursively converted.
 
-    The following options are supported via `**kwargs` to customize
-    conversion:
-
-    - use_large_string: If True, use `pa.large_string()` for
-      `String`. Default False.
-    - use_large_binary: If True, use `pa.large_binary()` for
-      `Binary(length=None)`. When a fixed `length` is provided, a fixed-size
-      `pa.binary(length)` is always used. Default False.
-    - use_large_list: If True, use `pa.large_list(element)` for
-      variable-length `Array` (i.e., `size is None`). For fixed-size arrays
-      (`size` set), `pa.list_(element, list_size=size)` is used. Default
-      False.
-    - mode: Controls validation/coercion behavior for incompatible
-      parameter combinations. One of "raise" or "coerce" (default).
-      In "raise" mode, incompatible parameters raise
-      `UnsupportedFeatureError`. In "coerce" mode, the converter attempts
-      to coerce to a compatible target (e.g., promote decimal to 256-bit or
-      time to 64-bit when units require it). If a logical type is unsupported
-      by PyArrow, it is mapped to a canonical placeholder `pa.binary()`.
+    In "raise" mode, incompatible parameters raise `UnsupportedFeatureError`.
+    In "coerce" mode, the converter attempts to coerce to a compatible target
+    (e.g., promote decimal to 256-bit or time to 64-bit when units require it).
+    If a logical type is unsupported by PyArrow, it is mapped to a canonical
+    fallback `pa.binary()`.
 
     Notes:
         - Arrow strings are variable-length; any `String.length` hint is
           ignored in the resulting Arrow schema.
         - `Geometry`, `Geography`, and `Variant` are not supported and raise
-          `UnsupportedFeatureError`.
+          `UnsupportedFeatureError` unless in coerce mode.
     """
 
-    def __init__(self, mode: Literal["raise", "coerce"] = "coerce") -> None:
+    def __init__(self, config: PyArrowConverterConfig | None = None) -> None:
         """Initialize the PyArrowConverter.
 
         Args:
-            mode: "raise" or "coerce". When "coerce", unsupported or
-                incompatible constructs are coerced to a valid pyarrow
-                type with a warning. Defaults to "coerce".
+            config: Configuration object. If None, uses default PyArrowConverterConfig.
         """
-        super().__init__(mode=mode)
+        self.config: PyArrowConverterConfig = config or PyArrowConverterConfig()
+        super().__init__(self.config)
 
-    def convert(self, spec: YadsSpec, **kwargs: Any) -> pa.Schema:
+    def convert(
+        self,
+        spec: YadsSpec,
+        *,
+        mode: Literal["raise", "coerce"] | None = None,
+    ) -> pa.Schema:
         """Convert a yads `YadsSpec` into a `pyarrow.Schema`.
 
         Args:
             spec: The yads spec as a `YadsSpec` object.
-            **kwargs: Optional conversion modifiers:
-                use_large_string: If True, maps `String` to
-                    `pa.large_string()`. Defaults to False.
-                use_large_binary: If True, maps `Binary(length=None)` to
-                    `pa.large_binary()`. Fixed-size binaries always use
-                    `pa.binary(length)`. Defaults to False.
-                use_large_list: If True, maps variable-length `Array` to
-                    `pa.large_list(element)`. Fixed-size arrays always use
-                    `pa.list_(element, list_size)`. Defaults to False.
-                mode: "raise" or "coerce". When "coerce", unsupported or
-                    incompatible constructs are coerced to a valid pyarrow
-                    type with a warning. Defaults to "coerce".
+            mode: Optional conversion mode override for this call. When not
+                provided, the converter's configured mode is used. If provided:
+                - "raise": Raise on any unsupported features.
+                - "coerce": Apply adjustments to produce a valid schema and emit warnings.
 
         Returns:
             A `pyarrow.Schema` with fields mapped from the spec columns.
         """
-        mode_override = kwargs.get("mode", None)
-        self._use_large_string: bool = bool(kwargs.get("use_large_string", False))
-        self._use_large_binary: bool = bool(kwargs.get("use_large_binary", False))
-        self._use_large_list: bool = bool(kwargs.get("use_large_list", False))
-
         fields: list[pa.Field] = []
         # Set mode for this conversion call
-        with self.conversion_context(mode=mode_override):
-            for col in spec.columns:
+        with self.conversion_context(mode=mode):
+            self._validate_column_filters(spec)
+            for col in self._filter_columns(spec):
                 try:
                     # Set field context during conversion
                     with self.conversion_context(field=col.name):
-                        fields.append(self._convert_field(col))
+                        # Use centralized override resolution with PyArrow-specific adapter
+                        field_result = self._convert_field_with_overrides(col)
+
+                        fields.append(field_result)
                 except UnsupportedFeatureError:
-                    # Currently unsupported in PyArrow:
-                    # - Geometry
-                    # - Geography
-                    # - Variant
-                    if self._mode == "coerce":
+                    if self.config.mode == "coerce":
+                        fallback_name = str(self.config.fallback_type)
                         validation_warning(
                             message=(
                                 f"Data type '{type(col.type).__name__.upper()}' is not supported"
-                                f" for column '{col.name}'. The data type will be replaced with pyarrow.binary()."
+                                f" for column '{col.name}'. The data type will be replaced with {fallback_name}."
                             ),
-                            filename="yads.converters.pyarrow",
+                            filename="yads.converters.pyarrow_converter",
                             module=__name__,
                         )
                         fallback = pa.field(
-                            col.name, pa.binary(), nullable=col.is_nullable
+                            col.name,
+                            self.config.fallback_type,
+                            nullable=col.is_nullable,
+                            metadata=self._build_field_metadata(col),
                         )
                         fields.append(fallback)
                         continue
@@ -171,7 +200,7 @@ class PyArrowConverter(BaseConverter):
     @_convert_type.register(String)
     def _(self, yads_type: String) -> pa.DataType:
         # Arrow strings are variable-length. Optionally use large_string.
-        return pa.large_string() if self._use_large_string else pa.string()
+        return pa.large_string() if self.config.use_large_string else pa.string()
 
     @_convert_type.register(Integer)
     def _(self, yads_type: Integer) -> pa.DataType:
@@ -179,23 +208,21 @@ class PyArrowConverter(BaseConverter):
         if yads_type.signed:
             if bits == 8:
                 return pa.int8()
-            if bits == 16:
+            elif bits == 16:
                 return pa.int16()
-            if bits == 32:
+            elif bits == 32:
                 return pa.int32()
-            if bits == 64:
+            elif bits == 64:
                 return pa.int64()
-            raise UnsupportedFeatureError(
-                f"Unsupported Integer bits: {bits}. Expected 8/16/32/64."
-            )
-        if bits == 8:
-            return pa.uint8()
-        if bits == 16:
-            return pa.uint16()
-        if bits == 32:
-            return pa.uint32()
-        if bits == 64:
-            return pa.uint64()
+        else:
+            if bits == 8:
+                return pa.uint8()
+            elif bits == 16:
+                return pa.uint16()
+            elif bits == 32:
+                return pa.uint32()
+            elif bits == 64:
+                return pa.uint64()
         raise UnsupportedFeatureError(
             f"Unsupported Integer bits: {bits}. Expected 8/16/32/64."
         )
@@ -205,9 +232,9 @@ class PyArrowConverter(BaseConverter):
         bits = yads_type.bits or 32
         if bits == 16:
             return pa.float16()
-        if bits == 32:
+        elif bits == 32:
             return pa.float32()
-        if bits == 64:
+        elif bits == 64:
             return pa.float64()
         raise UnsupportedFeatureError(
             f"Unsupported Float bits: {bits}. Expected 16/32/64."
@@ -216,8 +243,8 @@ class PyArrowConverter(BaseConverter):
     @_convert_type.register(Decimal)
     def _(self, yads_type: Decimal) -> pa.DataType:
         # Determine width function first, considering precision constraints.
-        precision = yads_type.precision if yads_type.precision is not None else 38
-        scale = yads_type.scale if yads_type.scale is not None else 0
+        precision = yads_type.precision or 38
+        scale = yads_type.scale or 0
         bits = yads_type.bits
 
         def build_decimal(width_bits: int) -> pa.DataType:
@@ -234,14 +261,14 @@ class PyArrowConverter(BaseConverter):
             return build_decimal(256 if precision > 38 else 128)
 
         if bits == 128 and precision > 38:
-            if self._mode == "coerce":
+            if self.config.mode == "coerce":
                 validation_warning(
                     message=(
                         "Precision greater than 38 is incompatible with Decimal(bits=128)"
                         f" for column '{self._current_field_name or '<unknown>'}'."
                         f" The data type will be replaced with pyarrow.decimal256({precision=}, {scale=})."
                     ),
-                    filename="yads.converters.pyarrow",
+                    filename="yads.converters.pyarrow_converter",
                     module=__name__,
                 )
                 return build_decimal(256)
@@ -258,14 +285,14 @@ class PyArrowConverter(BaseConverter):
     def _(self, yads_type: Binary) -> pa.DataType:
         if yads_type.length is not None:
             return pa.binary(yads_type.length)
-        return pa.large_binary() if self._use_large_binary else pa.binary()
+        return pa.large_binary() if self.config.use_large_binary else pa.binary()
 
     @_convert_type.register(Date)
     def _(self, yads_type: Date) -> pa.DataType:
         bits = yads_type.bits or 32
         if bits == 32:
             return pa.date32()
-        if bits == 64:
+        elif bits == 64:
             return pa.date64()
         raise UnsupportedFeatureError(f"Unsupported Date bits: {bits}. Expected 32/64.")
 
@@ -282,14 +309,14 @@ class PyArrowConverter(BaseConverter):
 
         if bits == 32:
             if unit not in {"s", "ms"}:
-                if self._mode == "coerce":
+                if self.config.mode == "coerce":
                     validation_warning(
                         message=(
                             "time32 supports only 's' or 'ms' units"
                             f" (got '{unit}') for column '{self._current_field_name or '<unknown>'}'."
                             f" The data type will be replaced with pyarrow.time64({unit=})."
                         ),
-                        filename="yads.converters.pyarrow",
+                        filename="yads.converters.pyarrow_converter",
                         module=__name__,
                     )
                     return pa.time64(unit)
@@ -297,9 +324,9 @@ class PyArrowConverter(BaseConverter):
                     "time32 supports only 's' or 'ms' units (got '" + unit + "')."
                 )
             return pa.time32(unit)
-        if bits == 64:
+        elif bits == 64:
             if unit not in {"us", "ns"}:
-                if self._mode == "coerce":
+                if self.config.mode == "coerce":
                     # Promote coarse units to 32 if asked for 64 but unit is s/ms
                     validation_warning(
                         message=(
@@ -307,7 +334,7 @@ class PyArrowConverter(BaseConverter):
                             f" (got '{unit}') for column '{self._current_field_name or '<unknown>'}'."
                             f" The data type will be replaced with pyarrow.time32({unit=})."
                         ),
-                        filename="yads.converters.pyarrow",
+                        filename="yads.converters.pyarrow_converter",
                         module=__name__,
                     )
                     return pa.time32(unit)
@@ -354,7 +381,11 @@ class PyArrowConverter(BaseConverter):
             # Fixed-size arrays use list_ with list_size
             return pa.list_(value_type, list_size=yads_type.size)
         # Variable-size arrays can optionally use large_list
-        return pa.large_list(value_type) if self._use_large_list else pa.list_(value_type)
+        return (
+            pa.large_list(value_type)
+            if self.config.use_large_list
+            else pa.list_(value_type)
+        )
 
     @_convert_type.register(Struct)
     def _(self, yads_type: Struct) -> pa.DataType:
@@ -371,6 +402,18 @@ class PyArrowConverter(BaseConverter):
     def _(self, yads_type: JSON) -> pa.DataType:
         return pa.json_(storage_type=pa.utf8())
 
+    @_convert_type.register(Geometry)
+    def _(self, yads_type: Geometry) -> pa.DataType:
+        raise UnsupportedFeatureError(
+            f"PyArrowConverter does not support type: {type(yads_type).__name__}."
+        )
+
+    @_convert_type.register(Geography)
+    def _(self, yads_type: Geography) -> pa.DataType:
+        raise UnsupportedFeatureError(
+            f"PyArrowConverter does not support type: {type(yads_type).__name__}."
+        )
+
     @_convert_type.register(UUID)
     def _(self, yads_type: UUID) -> pa.DataType:
         return pa.uuid()
@@ -379,7 +422,12 @@ class PyArrowConverter(BaseConverter):
     def _(self, yads_type: Void) -> pa.DataType:
         return pa.null()
 
-    # Helpers
+    @_convert_type.register(Variant)
+    def _(self, yads_type: Variant) -> pa.DataType:
+        raise UnsupportedFeatureError(
+            f"PyArrowConverter does not support type: {type(yads_type).__name__}."
+        )
+
     def _convert_field(self, field: Field) -> pa.Field:
         """Convert a yads `Field` into a `pyarrow.Field`.
 
@@ -390,11 +438,18 @@ class PyArrowConverter(BaseConverter):
             A `pyarrow.Field` with mapped type, nullability and metadata.
         """
         pa_type = self._convert_type(field.type)
-        metadata = self._coerce_metadata(field.metadata) if field.metadata else None
+        metadata = self._build_field_metadata(field)
         return pa.field(
-            field.name, pa_type, nullable=field.is_nullable, metadata=metadata
+            field.name,
+            pa_type,
+            nullable=field.is_nullable,
+            metadata=metadata,
         )
 
+    def _convert_field_default(self, field: Field) -> pa.Field:
+        return self._convert_field(field)
+
+    # Helpers
     @staticmethod
     def _to_pa_time_unit(unit: TimeUnit | None) -> str:
         """Map yads `TimeUnit` to a PyArrow unit string.
@@ -412,6 +467,14 @@ class PyArrowConverter(BaseConverter):
         return unit.value
 
     # Metadata helpers
+    def _build_field_metadata(self, field: Field) -> dict[str, str] | None:
+        metadata: dict[str, Any] = {}
+        if field.description is not None:
+            metadata["description"] = field.description
+        if field.metadata is not None:
+            metadata.update(field.metadata)
+        return self._coerce_metadata(metadata) if metadata else None
+
     @staticmethod
     def _coerce_metadata(metadata: dict[str, Any]) -> dict[str, str]:
         """Coerce arbitrary metadata values to strings for PyArrow.
