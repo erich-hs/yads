@@ -21,6 +21,7 @@ from typing import IO, Any, cast
 from ..spec import YadsSpec
 from .base import DictLoader
 from .yaml_loader import YamlLoader
+from .pyarrow_loader import PyArrowLoader
 
 __all__ = [
     "from_dict",
@@ -28,6 +29,7 @@ __all__ = [
     "from_yaml_path",
     "from_yaml_stream",
     "from_yaml",
+    "from_pyarrow",
 ]
 
 
@@ -158,3 +160,23 @@ def from_yaml(
     if hasattr(source, "read"):
         return from_yaml_stream(cast(IO[str] | IO[bytes], source), encoding=encoding)
     return from_yaml_path(cast(str | Path, source), encoding=encoding)
+
+
+def from_pyarrow(
+    schema: "Any", *, name: str, version: str, description: str | None = None
+) -> YadsSpec:  # type: ignore[name-defined]
+    """Load a spec from a `pyarrow.Schema`.
+
+    Args:
+        schema: An instance of `pyarrow.Schema`.
+        name: Fully-qualified spec name to assign.
+        version: Spec version string.
+        description: Optional human-readable description.
+
+    Returns:
+        A validated immutable `YadsSpec` instance.
+    """
+    # Lazy import typing to avoid hard dependency at import time in this module
+    return PyArrowLoader(
+        schema, name=name, version=version, description=description
+    ).load()
