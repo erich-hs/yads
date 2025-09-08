@@ -50,6 +50,7 @@ from .. import spec
 from .. import types as ytypes
 
 
+# %% ---- Configuration --------------------------------------------------------------
 @dataclass(frozen=True)
 class PydanticConverterConfig(BaseConverterConfig[tuple[Any, FieldInfo]]):
     """Configuration for PydanticConverter.
@@ -82,6 +83,7 @@ class PydanticConverterConfig(BaseConverterConfig[tuple[Any, FieldInfo]]):
             )
 
 
+# %% ---- Converter ------------------------------------------------------------------
 class PydanticConverter(BaseConverter):
     """Convert a yads `YadsSpec` into a Pydantic `BaseModel` class.
 
@@ -170,7 +172,7 @@ class PydanticConverter(BaseConverter):
 
         return model
 
-    # Type conversion
+    # %% ---- Type conversion ---------------------------------------------------------
     @singledispatchmethod
     def _convert_type(self, yads_type: ytypes.YadsType) -> tuple[Any, FieldInfo]:
         # Unsupported logical types will be handled by the caller depending on mode.
@@ -441,6 +443,7 @@ class PydanticConverter(BaseConverter):
             )
         return annotation, field_info
 
+    # %% ---- Constraint conversion ---------------------------------------------------
     @singledispatchmethod
     def _apply_constraint(
         self, constraint: ColumnConstraint, field_info: FieldInfo
@@ -485,7 +488,7 @@ class PydanticConverter(BaseConverter):
             identity_metadata["increment"] = constraint.increment
         return self._merge_schema_extra(field_info, {"identity": identity_metadata})
 
-    # Helpers
+    # %% ---- Helpers -----------------------------------------------------------------
     @staticmethod
     def required(**kwargs: Any) -> FieldInfo:
         return Field(default=..., **kwargs)

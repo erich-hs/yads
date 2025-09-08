@@ -78,6 +78,7 @@ class AstConverter(ABC):
 
 
 @dataclass(frozen=True)
+# %% ---- Configuration --------------------------------------------------------------
 class SQLGlotConverterConfig(BaseConverterConfig[exp.ColumnDef]):
     """Configuration for SQLGlotConverter.
 
@@ -119,6 +120,7 @@ class SQLGlotConverterConfig(BaseConverterConfig[exp.ColumnDef]):
             )
 
 
+# %% ---- Converter ------------------------------------------------------------------
 class SQLGlotConverter(BaseConverter, AstConverter):
     """Core converter that transforms yads specs into sqlglot AST expressions.
 
@@ -214,6 +216,7 @@ class SQLGlotConverter(BaseConverter, AstConverter):
             properties=(exp.Properties(expressions=properties) if properties else None),
         )
 
+    # %% ---- Type conversion ---------------------------------------------------------
     @singledispatchmethod
     def _convert_type(self, yads_type: YadsType) -> exp.DataType:
         # Fallback to default sqlglot DataType.build method.
@@ -429,6 +432,7 @@ class SQLGlotConverter(BaseConverter, AstConverter):
         )
         return exp.DataType(this=exp.DataType.Type.GEOGRAPHY, expressions=expressions)
 
+    # %% ---- Column constraints ------------------------------------------------------
     @singledispatchmethod
     def _convert_column_constraint(self, constraint: Any) -> exp.ColumnConstraint | None:
         if self.config.mode == "coerce":
@@ -500,6 +504,7 @@ class SQLGlotConverter(BaseConverter, AstConverter):
             )
         return exp.ColumnConstraint(kind=reference_expression)
 
+    # %% ---- Table constraints -------------------------------------------------------
     @singledispatchmethod
     def _convert_table_constraint(self, constraint: Any) -> exp.Expression | None:
         if self.config.mode == "coerce":
@@ -549,7 +554,7 @@ class SQLGlotConverter(BaseConverter, AstConverter):
             )
         raise ConversionError("Foreign key constraint must have a name.")
 
-    # Properties
+    # %% ---- Properties --------------------------------------------------------------
     def _handle_storage_properties(self, storage: Storage | None) -> list[exp.Property]:
         if not storage:
             return []
@@ -599,7 +604,7 @@ class SQLGlotConverter(BaseConverter, AstConverter):
             properties.append(self._handle_partitioned_by_property(spec.partitioned_by))
         return properties
 
-    # Transform handlers
+    # %% ---- Transform handlers ------------------------------------------------------
     def _handle_transformation(
         self, column: str, transform: str, transform_args: list
     ) -> exp.Expression:
@@ -677,7 +682,7 @@ class SQLGlotConverter(BaseConverter, AstConverter):
                 f" Got {received_args_len}."
             )
 
-    # Field/column helpers
+    # %% ---- Helpers -----------------------------------------------------------------
     def _convert_field(self, field: Field) -> exp.ColumnDef:
         return exp.ColumnDef(
             this=exp.Identifier(this=field.name),

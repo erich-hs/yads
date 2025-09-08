@@ -30,6 +30,7 @@ from .validators.ast_validation_rules import (
 )
 
 
+# %% ---- Configuration --------------------------------------------------------------
 @dataclass(frozen=True)
 class SQLConverterConfig(BaseConverterConfig):
     """Configuration for SQLConverter.
@@ -51,6 +52,7 @@ class SQLConverterConfig(BaseConverterConfig):
     ast_converter_config: SQLGlotConverterConfig | None = None
 
 
+# %% ---- Converters -----------------------------------------------------------------
 class SQLConverter(BaseConverter):
     """Base class for SQL DDL generation.
 

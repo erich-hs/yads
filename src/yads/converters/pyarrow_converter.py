@@ -63,6 +63,7 @@ from ..types import (
 from .base import BaseConverter, BaseConverterConfig
 
 
+# %% ---- Configuration --------------------------------------------------------------
 @dataclass(frozen=True)
 class PyArrowConverterConfig(BaseConverterConfig[pa.Field]):
     """Configuration for PyArrowConverter.
@@ -107,6 +108,7 @@ class PyArrowConverterConfig(BaseConverterConfig[pa.Field]):
             )
 
 
+# %% ---- Converter ------------------------------------------------------------------
 class PyArrowConverter(BaseConverter):
     """Convert a yads `YadsSpec` into a `pyarrow.Schema`.
 
@@ -190,7 +192,7 @@ class PyArrowConverter(BaseConverter):
         schema_metadata = self._coerce_metadata(spec.metadata) if spec.metadata else None
         return pa.schema(fields, metadata=schema_metadata)
 
-    # Type conversion
+    # %% ---- Type conversion ---------------------------------------------------------
     @singledispatchmethod
     def _convert_type(self, yads_type: YadsType) -> pa.DataType:
         # Unsupported logical types will be handled by the caller depending on mode.
@@ -447,7 +449,7 @@ class PyArrowConverter(BaseConverter):
     def _convert_field_default(self, field: Field) -> pa.Field:
         return self._convert_field(field)
 
-    # Helpers
+    # %% ---- Helpers -----------------------------------------------------------------
     @staticmethod
     def _to_pa_time_unit(unit: TimeUnit | None) -> str:
         """Map yads `TimeUnit` to a PyArrow unit string.
