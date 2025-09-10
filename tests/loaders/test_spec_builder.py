@@ -1156,6 +1156,41 @@ class TestTypeLoading:
         assert column.type.key == expected_key_type
         assert column.type.value == expected_value_type
 
+    def test_map_type_with_keys_sorted_parameter_true(self):
+        """Test that Map type correctly handles keys_sorted parameter from params section."""
+        type_def = {
+            "type": "map",
+            "key": {"type": "integer"},
+            "value": {"type": "string"},
+            "params": {"keys_sorted": True},
+        }
+        spec_dict = self._create_minimal_spec_with_type(type_def)
+        spec = from_dict(spec_dict)
+
+        column = spec.columns[0]
+        assert isinstance(column.type, Map)
+        assert column.type.key == Integer(bits=32)
+        assert column.type.value == String()
+        assert column.type.keys_sorted is True
+        assert str(column.type) == "map<integer(bits=32), string, keys_sorted=True>"
+
+    def test_map_type_with_keys_sorted_parameter_false(self):
+        type_def = {
+            "type": "map",
+            "key": {"type": "integer"},
+            "value": {"type": "string"},
+            "params": {"keys_sorted": False},
+        }
+        spec_dict = self._create_minimal_spec_with_type(type_def)
+        spec = from_dict(spec_dict)
+
+        column = spec.columns[0]
+        assert isinstance(column.type, Map)
+        assert column.type.key == Integer(bits=32)
+        assert column.type.value == String()
+        assert column.type.keys_sorted is False
+        assert str(column.type) == "map<integer(bits=32), string>"
+
     def test_struct_type_loading(self):
         type_def = {
             "type": "struct",

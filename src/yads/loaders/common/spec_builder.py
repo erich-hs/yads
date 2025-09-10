@@ -217,9 +217,12 @@ class SpecBuilder:
 
         key_def = type_def["key"]
         value_def = type_def["value"]
+        final_params = self._get_processed_type_params(type_def.get("type", ""), type_def)
+
         return Map(
             key=self._parse_type(key_def["type"], key_def),
             value=self._parse_type(value_def["type"], value_def),
+            **final_params,
         )
 
     # Field/Column parsing
