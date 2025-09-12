@@ -82,7 +82,7 @@ class PyArrowLoader(BaseLoader):
             "name": field.name,
         }
 
-        type_def = self._convert_type(field.type)
+        type_def = self._convert_type(field.type, field_name=field.name)
         col.update(type_def)
 
         if description is not None:
@@ -96,7 +96,9 @@ class PyArrowLoader(BaseLoader):
 
         return col
 
-    def _convert_type(self, dtype: pa.DataType) -> dict[str, Any]:
+    def _convert_type(
+        self, dtype: pa.DataType, field_name: str | None = None
+    ) -> dict[str, Any]:
         """Convert an Arrow data type to a normalized type definition.
 
         The returned mapping is shaped for `SpecBuilder`:
@@ -105,6 +107,10 @@ class PyArrowLoader(BaseLoader):
           - Struct: {"type": "struct", "fields": [{<field def>}, ...]}
           - Map: {"type": "map", "key": {<type def>}, "value": {<type def>}}
           - Interval: {"type": "interval", "params": {"interval_start": ...}}
+
+        Args:
+            dtype: The Arrow data type to convert.
+            field_name: Optional field name for improved error context.
         """
         t = dtype
         types = pa.types
@@ -212,7 +218,7 @@ class PyArrowLoader(BaseLoader):
             or getattr(types, "is_list_view", lambda _t: False)(t)
             or getattr(types, "is_large_list_view", lambda _t: False)(t)
         ):
-            elem_def = self._convert_type(t.value_type)
+            elem_def = self._convert_type(t.value_type, field_name=field_name)
             return {"type": "array", "element": elem_def}
 
         if types.is_struct(t):
@@ -221,8 +227,8 @@ class PyArrowLoader(BaseLoader):
             return {"type": "struct", "fields": fields}
 
         if types.is_map(t):
-            key_def = self._convert_type(t.key_type)
-            val_def = self._convert_type(t.item_type)
+            key_def = self._convert_type(t.key_type, field_name=field_name)
+            val_def = self._convert_type(t.item_type, field_name=field_name)
             if t.keys_sorted:
                 return {
                     "type": "map",
@@ -232,28 +238,52 @@ class PyArrowLoader(BaseLoader):
                 }
             return {"type": "map", "key": key_def, "value": val_def}
 
-        # JSON / UUID (available in recent PyArrow versions)
-        if getattr(types, "is_json", lambda _t: False)(t):
-            return {"type": "json"}
-        if getattr(types, "is_uuid", lambda _t: False)(t):
-            return {"type": "uuid"}
-
         # Unsupported Arrow constructs (dictionary, unions, tensors, etc.)
         if types.is_dictionary(t):
-            raise UnsupportedFeatureError("Dictionary-encoded types are not supported.")
+            raise UnsupportedFeatureError(
+                self._format_error_with_field_context(
+                    "Dictionary-encoded types are not supported", field_name
+                )
+            )
         if getattr(types, "is_run_end_encoded", lambda _t: False)(t):
-            raise UnsupportedFeatureError("Run-end encoded types are not supported.")
+            raise UnsupportedFeatureError(
+                self._format_error_with_field_context(
+                    "Run-end encoded types are not supported", field_name
+                )
+            )
         if getattr(types, "is_fixed_size_list", lambda _t: False)(t):
-            elem_def = self._convert_type(t.value_type)
+            elem_def = self._convert_type(t.value_type, field_name=field_name)
             return {"type": "array", "element": elem_def, "params": {"size": t.list_size}}
         if getattr(types, "is_union", lambda _t: False)(t):
-            raise UnsupportedFeatureError("Union types are not supported.")
+            raise UnsupportedFeatureError(
+                self._format_error_with_field_context(
+                    "Union types are not supported", field_name
+                )
+            )
+
+        # Canonical extension types supported by checking the typeclass
+        # https://arrow.apache.org/docs/format/CanonicalExtensions.html
+        if isinstance(t, pa.UuidType):
+            return {"type": "uuid"}
+        if isinstance(t, pa.JsonType):
+            return {"type": "json"}
+        if isinstance(t, pa.Bool8Type):
+            return {"type": "boolean"}
 
         raise UnsupportedFeatureError(
-            f"Unsupported or unknown Arrow type: {t} ({type(t).__name__})."
+            self._format_error_with_field_context(
+                f"Unsupported or unknown Arrow type: {t} ({type(t).__name__})", field_name
+            )
         )
 
-    # %% ---- Metadata helpers --------------------------------------------------------
+    # %% ------------- Helpers --------------------------------------------------------
+    def _format_error_with_field_context(
+        self, message: str, field_name: str | None = None
+    ) -> str:
+        if field_name:
+            return f"{message} for field '{field_name}'."
+        return f"{message}."
+
     @staticmethod
     def _decode_key_value_metadata(
         metadata: Mapping[bytes | str, bytes | str] | None,
