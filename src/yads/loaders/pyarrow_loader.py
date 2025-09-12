@@ -35,8 +35,6 @@ class PyArrowLoader(BaseLoader):
         - Arrow field nullability maps to a `not_null` constraint when False.
         - Field metadata key "description" is lifted to the column description.
         - Complex types are converted recursively.
-        - Fixed-size list and `map_.keys_sorted` flags are currently ignored by
-          the spec grammar and are not represented.
     """
 
     def __init__(
@@ -144,11 +142,11 @@ class PyArrowLoader(BaseLoader):
             return {"type": "float", "params": {"bits": 64}}
 
         # Strings / Binary
-        if types.is_string(t) or getattr(types, "is_utf8", lambda _t: False)(t):
+        if types.is_string(t):
             return {"type": "string"}
-        if getattr(types, "is_large_string", lambda _t: False)(t) or getattr(
-            types, "is_large_utf8", lambda _t: False
-        )(t):
+        if getattr(types, "is_large_string", lambda _t: False)(t):
+            return {"type": "string"}
+        if types.is_string_view(t):
             return {"type": "string"}
         if types.is_fixed_size_binary(t):
             # pyarrow.FixedSizeBinaryType exposes byte_width
@@ -156,8 +154,11 @@ class PyArrowLoader(BaseLoader):
                 "type": "binary",
                 "params": {"length": getattr(t, "byte_width", None)},
             }
-        if types.is_binary(t) or getattr(types, "is_large_binary", lambda _t: False)(t):
-            # Variable-length binary
+        if types.is_binary(t):
+            return {"type": "binary"}
+        if getattr(types, "is_large_binary", lambda _t: False)(t):
+            return {"type": "binary"}
+        if getattr(types, "is_binary_view", lambda _t: False)(t):
             return {"type": "binary"}
 
         # Decimal
@@ -198,7 +199,7 @@ class PyArrowLoader(BaseLoader):
         if types.is_duration(t):
             return {"type": "duration", "params": {"unit": t.unit}}
         # Only M/D/N interval exists in Arrow; default to DAY as start unit
-        if getattr(types, "is_month_day_nano_interval", lambda _t: False)(t):
+        if getattr(types, "is_interval", lambda _t: False)(t):
             return {
                 "type": "interval",
                 "params": {"interval_start": "DAY"},
@@ -222,6 +223,13 @@ class PyArrowLoader(BaseLoader):
         if types.is_map(t):
             key_def = self._convert_type(t.key_type)
             val_def = self._convert_type(t.item_type)
+            if t.keys_sorted:
+                return {
+                    "type": "map",
+                    "key": key_def,
+                    "value": val_def,
+                    "params": {"keys_sorted": True},
+                }
             return {"type": "map", "key": key_def, "value": val_def}
 
         # JSON / UUID (available in recent PyArrow versions)
@@ -236,9 +244,8 @@ class PyArrowLoader(BaseLoader):
         if getattr(types, "is_run_end_encoded", lambda _t: False)(t):
             raise UnsupportedFeatureError("Run-end encoded types are not supported.")
         if getattr(types, "is_fixed_size_list", lambda _t: False)(t):
-            # Represent as array without fixed-size semantics (not in grammar yet)
             elem_def = self._convert_type(t.value_type)
-            return {"type": "array", "element": elem_def}
+            return {"type": "array", "element": elem_def, "params": {"size": t.list_size}}
         if getattr(types, "is_union", lambda _t: False)(t):
             raise UnsupportedFeatureError("Union types are not supported.")
 
