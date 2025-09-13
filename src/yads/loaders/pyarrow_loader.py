@@ -24,45 +24,38 @@ class PyArrowLoader(BaseLoader):
     The loader converts the Arrow schema to the normalized dictionary format
     expected by `SpecBuilder`. It preserves column-level nullability and
     propagates field and schema metadata when available.
-
-    Args:
-        schema: Source Arrow schema.
-        name: Fully-qualified spec name to assign.
-        version: Spec version string.
-        description: Optional human-readable description.
-
-    Notes:
-        - Arrow field nullability maps to a `not_null` constraint when False.
-        - Field metadata key "description" is lifted to the column description.
-        - Complex types are converted recursively.
     """
 
-    def __init__(
+    def load(
         self,
         schema: pa.Schema,
         *,
         name: str,
         version: str,
         description: str | None = None,
-    ) -> None:
-        self._schema = schema
-        self._name = name
-        self._version = version
-        self._description = description
+    ) -> "YadsSpec":
+        """Convert the Arrow schema to `YadsSpec`.
 
-    def load(self) -> "YadsSpec":
-        """Convert the Arrow schema to `YadsSpec`."""
+        Args:
+            schema: Source Arrow schema.
+            name: Fully-qualified spec name to assign.
+            version: Spec version string.
+            description: Optional human-readable description.
+
+        Returns:
+            A validated immutable `YadsSpec` instance.
+        """
         data: dict[str, Any] = {
-            "name": self._name,
-            "version": self._version,
-            "columns": [self._convert_field(f) for f in self._schema],
+            "name": name,
+            "version": version,
+            "columns": [self._convert_field(f) for f in schema],
         }
 
-        if self._description:
-            data["description"] = self._description
+        if description:
+            data["description"] = description
 
-        if self._schema.metadata:
-            data["metadata"] = self._decode_key_value_metadata(self._schema.metadata)
+        if schema.metadata:
+            data["metadata"] = self._decode_key_value_metadata(schema.metadata)
 
         return SpecBuilder(data).build()
 

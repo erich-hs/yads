@@ -61,7 +61,7 @@ def from_dict(data: dict[str, Any]) -> YadsSpec:
         >>> print(f"Loaded spec: {spec.name} v{spec.version}")
         Loaded spec: users v1.0.0
     """
-    return DictLoader(data).load()
+    return DictLoader().load(data)
 
 
 def from_yaml_string(content: str) -> YadsSpec:
@@ -87,7 +87,7 @@ def from_yaml_string(content: str) -> YadsSpec:
         >>> print(f"Loaded spec: {spec.name} v{spec.version}")
         Loaded spec: users v1.0.0
     """
-    return YamlLoader(content).load()
+    return YamlLoader().load(content)
 
 
 def from_yaml_path(path: str | Path, *, encoding: str = "utf-8") -> YadsSpec:
@@ -109,7 +109,7 @@ def from_yaml_path(path: str | Path, *, encoding: str = "utf-8") -> YadsSpec:
         Loaded spec: users v1.0.0
     """
     text = Path(path).read_text(encoding=encoding)
-    return YamlLoader(text).load()
+    return YamlLoader().load(text)
 
 
 def from_yaml_stream(stream: IO[str] | IO[bytes], *, encoding: str = "utf-8") -> YadsSpec:
@@ -132,7 +132,7 @@ def from_yaml_stream(stream: IO[str] | IO[bytes], *, encoding: str = "utf-8") ->
     """
     raw = stream.read()
     text = raw.decode(encoding) if isinstance(raw, (bytes, bytearray)) else raw
-    return YamlLoader(text).load()
+    return YamlLoader().load(text)
 
 
 def from_yaml(
@@ -177,6 +177,6 @@ def from_pyarrow(
         A validated immutable `YadsSpec` instance.
     """
     # Lazy import typing to avoid hard dependency at import time in this module
-    return PyArrowLoader(
+    return PyArrowLoader().load(
         schema, name=name, version=version, description=description
-    ).load()
+    )

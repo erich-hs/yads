@@ -105,8 +105,8 @@ class TestPyArrowLoaderTypeConversion:
         self, pa_type: pa.DataType, expected_yads_type: YadsType
     ):
         schema = pa.schema([pa.field("col1", pa_type)])
-        loader = PyArrowLoader(schema, name="test_spec", version="1.0.0")
-        spec = loader.load()
+        loader = PyArrowLoader()
+        spec = loader.load(schema, name="test_spec", version="1.0.0")
         
         assert spec.name == "test_spec"
         assert spec.version == "1.0.0"
@@ -145,8 +145,8 @@ class TestPyArrowLoaderTypeConversion:
         self, pa_type: pa.DataType, expected_element_type: YadsType, expected_size: int | None
     ):
         schema = pa.schema([pa.field("col1", pa_type)])
-        loader = PyArrowLoader(schema, name="test_spec", version="1.0.0")
-        spec = loader.load()
+        loader = PyArrowLoader()
+        spec = loader.load(schema, name="test_spec", version="1.0.0")
         
         column = spec.columns[0]
         assert isinstance(column.type, Array)
@@ -173,8 +173,8 @@ class TestPyArrowLoaderTypeConversion:
         expected_value_type: YadsType, expected_keys_sorted: bool
     ):
         schema = pa.schema([pa.field("col1", pa_type)])
-        loader = PyArrowLoader(schema, name="test_spec", version="1.0.0")
-        spec = loader.load()
+        loader = PyArrowLoader()
+        spec = loader.load(schema, name="test_spec", version="1.0.0")
         
         column = spec.columns[0]
         assert isinstance(column.type, Map)
@@ -190,8 +190,8 @@ class TestPyArrowLoaderTypeConversion:
                 pa.field("z", pa.float64()),
             ]))
         ])
-        loader = PyArrowLoader(schema, name="test_spec", version="1.0.0")
-        spec = loader.load()
+        loader = PyArrowLoader()
+        spec = loader.load(schema, name="test_spec", version="1.0.0")
         
         column = spec.columns[0]
         assert isinstance(column.type, Struct)
@@ -215,8 +215,8 @@ class TestPyArrowLoaderTypeConversion:
             pa.field("metadata", pa.map_(pa.string(), pa.string())),
         ])
         schema = pa.schema([pa.field("nested", pa.list_(inner_struct))])
-        loader = PyArrowLoader(schema, name="test_spec", version="1.0.0")
-        spec = loader.load()
+        loader = PyArrowLoader()
+        spec = loader.load(schema, name="test_spec", version="1.0.0")
         
         column = spec.columns[0]
         assert isinstance(column.type, Array)
@@ -243,8 +243,8 @@ class TestPyArrowLoaderTypeConversion:
         schema = pa.schema([
             pa.field("complex_col", pa.map_(pa.string(), pa.list_(inner_struct)))
         ])
-        loader = PyArrowLoader(schema, name="test_spec", version="1.0.0")
-        spec = loader.load()
+        loader = PyArrowLoader()
+        spec = loader.load(schema, name="test_spec", version="1.0.0")
         
         column = spec.columns[0]
         assert isinstance(column.type, Map)
@@ -274,8 +274,8 @@ class TestPyArrowLoaderNullability:
                 pa.field("non_nullable_col", pa.string(), nullable=False),
             ]
         )
-        loader = PyArrowLoader(schema, name="test_spec", version="1.0.0")
-        spec = loader.load()
+        loader = PyArrowLoader()
+        spec = loader.load(schema, name="test_spec", version="1.0.0")
 
         nullable_col = spec.columns[0]
         assert nullable_col.name == "nullable_col"
@@ -302,8 +302,8 @@ class TestPyArrowLoaderNullability:
                 )
             ]
         )
-        loader = PyArrowLoader(schema, name="test_spec", version="1.0.0")
-        spec = loader.load()
+        loader = PyArrowLoader()
+        spec = loader.load(schema, name="test_spec", version="1.0.0")
 
         struct_col = spec.columns[0]
         assert isinstance(struct_col.type, Struct)
@@ -329,8 +329,8 @@ class TestPyArrowLoaderMetadata:
             "numeric_value": "42",  # PyArrow metadata values must be strings or bytes
         }
         schema = pa.schema([pa.field("test_col", pa.string(), metadata=field_metadata)])
-        loader = PyArrowLoader(schema, name="test_spec", version="1.0.0")
-        spec = loader.load()
+        loader = PyArrowLoader()
+        spec = loader.load(schema, name="test_spec", version="1.0.0")
 
         column = spec.columns[0]
         assert column.name == "test_col"
@@ -350,8 +350,8 @@ class TestPyArrowLoaderMetadata:
             ],
             metadata=schema_metadata,
         )
-        loader = PyArrowLoader(schema, name="test_spec", version="1.0.0")
-        spec = loader.load()
+        loader = PyArrowLoader()
+        spec = loader.load(schema, name="test_spec", version="1.0.0")
 
         assert spec.metadata["owner"] == "data-eng"
         assert spec.metadata["version_info"] == {"major": 1, "minor": 0}
@@ -363,8 +363,8 @@ class TestPyArrowLoaderMetadata:
             "other_key": "other_value",
         }
         schema = pa.schema([pa.field("test_col", pa.string(), metadata=field_metadata)])
-        loader = PyArrowLoader(schema, name="test_spec", version="1.0.0")
-        spec = loader.load()
+        loader = PyArrowLoader()
+        spec = loader.load(schema, name="test_spec", version="1.0.0")
 
         column = spec.columns[0]
         assert column.description == "This is a description"
@@ -377,8 +377,8 @@ class TestPyArrowLoaderMetadata:
             "simple_string": "just a string",
         }
         schema = pa.schema([pa.field("test_col", pa.string(), metadata=field_metadata)])
-        loader = PyArrowLoader(schema, name="test_spec", version="1.0.0")
-        spec = loader.load()
+        loader = PyArrowLoader()
+        spec = loader.load(schema, name="test_spec", version="1.0.0")
 
         column = spec.columns[0]
         assert column.metadata["config"] == {"retries": 3, "timeout": 30}
@@ -392,8 +392,8 @@ class TestPyArrowLoaderMetadata:
             "number": "123",
         }
         schema = pa.schema([pa.field("test_col", pa.string(), metadata=field_metadata)])
-        loader = PyArrowLoader(schema, name="test_spec", version="1.0.0")
-        spec = loader.load()
+        loader = PyArrowLoader()
+        spec = loader.load(schema, name="test_spec", version="1.0.0")
 
         column = spec.columns[0]
         assert column.metadata["valid_json"] == {"key": "value"}
@@ -406,8 +406,8 @@ class TestPyArrowLoaderMetadata:
             b"encoding": b"utf-8",
         }
         schema = pa.schema([pa.field("test_col", pa.string(), metadata=field_metadata)])
-        loader = PyArrowLoader(schema, name="test_spec", version="1.0.0")
-        spec = loader.load()
+        loader = PyArrowLoader()
+        spec = loader.load(schema, name="test_spec", version="1.0.0")
 
         column = spec.columns[0]
         assert column.description == "A field with bytes metadata"
@@ -419,8 +419,8 @@ class TestPyArrowLoaderMetadata:
             b"bytes_key": b"bytes_value",
         }
         schema = pa.schema([pa.field("test_col", pa.string(), metadata=field_metadata)])
-        loader = PyArrowLoader(schema, name="test_spec", version="1.0.0")
-        spec = loader.load()
+        loader = PyArrowLoader()
+        spec = loader.load(schema, name="test_spec", version="1.0.0")
 
         column = spec.columns[0]
         assert column.metadata == {
@@ -435,8 +435,8 @@ class TestPyArrowLoaderMetadata:
                 pa.field("col2", pa.int32()),
             ]
         )
-        loader = PyArrowLoader(schema, name="test", version="1.0.0")
-        spec = loader.load()
+        loader = PyArrowLoader()
+        spec = loader.load(schema, name="test", version="1.0.0")
 
         assert spec.metadata == {}
         for column in spec.columns:
@@ -448,8 +448,8 @@ class TestPyArrowLoaderMetadata:
                 pa.field("col1", pa.string(), metadata={}),
             ]
         )
-        loader = PyArrowLoader(schema, name="test", version="1.0.0")
-        spec = loader.load()
+        loader = PyArrowLoader()
+        spec = loader.load(schema, name="test", version="1.0.0")
 
         column = spec.columns[0]
         assert column.metadata == {}
@@ -461,8 +461,8 @@ class TestPyArrowLoaderMetadata:
             ],
             metadata={},
         )
-        loader = PyArrowLoader(schema, name="test", version="1.0.0")
-        spec = loader.load()
+        loader = PyArrowLoader()
+        spec = loader.load(schema, name="test", version="1.0.0")
 
         assert spec.metadata == {}
 
@@ -471,8 +471,8 @@ class TestPyArrowLoaderMetadata:
 class TestPyArrowLoaderSchema:
     def test_schema_without_description(self):
         schema = pa.schema([pa.field("id", pa.int32())])
-        loader = PyArrowLoader(schema, name="test", version="1.0.0")
-        spec = loader.load()
+        loader = PyArrowLoader()
+        spec = loader.load(schema, name="test", version="1.0.0")
 
         assert spec.name == "test"
         assert spec.version == "1.0.0"
@@ -480,8 +480,8 @@ class TestPyArrowLoaderSchema:
 
     def test_empty_schema(self):
         schema = pa.schema([])
-        loader = PyArrowLoader(schema, name="empty", version="1.0.0")
-        spec = loader.load()
+        loader = PyArrowLoader()
+        spec = loader.load(schema, name="empty", version="1.0.0")
 
         assert spec.name == "empty"
         assert spec.version == "1.0.0"
@@ -492,26 +492,26 @@ class TestPyArrowLoaderSchema:
 class TestPyArrowLoaderUnsupportedTypes:
     def test_dictionary_encoded_type_raises_error(self):
         schema = pa.schema([pa.field("dict_col", pa.dictionary(pa.int32(), pa.string()))])
-        loader = PyArrowLoader(schema, name="test", version="1.0.0")
+        loader = PyArrowLoader()
 
         with pytest.raises(
             UnsupportedFeatureError,
             match="Dictionary-encoded types are not supported for field 'dict_col'",
         ):
-            loader.load()
+            loader.load(schema, name="test", version="1.0.0")
 
     def test_run_end_encoded_type_raises_error(self):
         if hasattr(pa, "run_end_encoded"):
             schema = pa.schema(
                 [pa.field("run_col", pa.run_end_encoded(pa.int32(), pa.string()))]
             )
-            loader = PyArrowLoader(schema, name="test", version="1.0.0")
+            loader = PyArrowLoader()
 
             with pytest.raises(
                 UnsupportedFeatureError,
                 match="Run-end encoded types are not supported for field 'run_col'",
             ):
-                loader.load()
+                loader.load(schema, name="test", version="1.0.0")
 
     def test_union_type_raises_error(self):
         if hasattr(pa, "dense_union"):
@@ -528,10 +528,10 @@ class TestPyArrowLoaderUnsupportedTypes:
                     )
                 ]
             )
-            loader = PyArrowLoader(schema, name="test", version="1.0.0")
+            loader = PyArrowLoader()
 
             with pytest.raises(
                 UnsupportedFeatureError,
                 match="Union types are not supported for field 'union_col'",
             ):
-                loader.load()
+                loader.load(schema, name="test", version="1.0.0")

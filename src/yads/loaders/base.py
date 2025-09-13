@@ -19,7 +19,7 @@ class BaseLoader(ABC):
     """
 
     @abstractmethod
-    def load(self) -> YadsSpec:
+    def load(self, *args: Any, **kwargs: Any) -> YadsSpec:
         """Load a `YadsSpec` from a source.
 
         Returns:
@@ -31,17 +31,13 @@ class BaseLoader(ABC):
 class DictLoader(BaseLoader):
     """Loads a `YadsSpec` from a Python dictionary."""
 
-    def __init__(self, data: dict[str, Any]):
-        """
+    def load(self, data: dict[str, Any]) -> YadsSpec:
+        """Builds the spec from the dictionary.
+
         Args:
             data: The dictionary representation of the spec.
-        """
-        self._data = data
-
-    def load(self) -> YadsSpec:
-        """Builds the spec from the dictionary.
 
         Returns:
             A `YadsSpec` instance.
         """
-        return SpecBuilder(self._data).build()
+        return SpecBuilder(data).build()
