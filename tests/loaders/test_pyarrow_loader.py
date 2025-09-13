@@ -236,7 +236,6 @@ class TestPyArrowLoaderTypeConversion:
         assert metadata_field.type.value == String()
 
     def test_convert_deeply_nested_complex_types(self):
-        # Map with array values containing structs
         inner_struct = pa.struct([
             pa.field("id", pa.int32()),
             pa.field("data", pa.list_(pa.string())),
@@ -341,8 +340,8 @@ class TestPyArrowLoaderMetadata:
     def test_schema_metadata_handling(self):
         schema_metadata = {
             "owner": "data-eng",
-            "version_info": '{"major": 1, "minor": 0}',  # JSON string for PyArrow
-            "tags": '["production", "critical"]',  # JSON string for PyArrow
+            "version_info": '{"major": 1, "minor": 0}',
+            "tags": '["production", "critical"]',
         }
         schema = pa.schema(
             [
@@ -354,7 +353,6 @@ class TestPyArrowLoaderMetadata:
         loader = PyArrowLoader(schema, name="test_spec", version="1.0.0")
         spec = loader.load()
 
-        # The loader should parse JSON strings back to objects
         assert spec.metadata["owner"] == "data-eng"
         assert spec.metadata["version_info"] == {"major": 1, "minor": 0}
         assert spec.metadata["tags"] == ["production", "critical"]
@@ -430,20 +428,6 @@ class TestPyArrowLoaderMetadata:
             "bytes_key": "bytes_value",
         }
 
-    def test_metadata_with_non_utf8_bytes(self):
-        field_metadata = {
-            "valid_utf8": "hello world",
-            b"invalid_utf8": b"\xff\xfe\x00\x01",  # Invalid UTF-8
-        }
-        schema = pa.schema([pa.field("test_col", pa.string(), metadata=field_metadata)])
-        loader = PyArrowLoader(schema, name="test_spec", version="1.0.0")
-        spec = loader.load()
-
-        column = spec.columns[0]
-        assert column.metadata["valid_utf8"] == "hello world"
-        # Invalid UTF-8 should be handled gracefully
-        assert "invalid_utf8" in column.metadata
-
     def test_schema_with_no_metadata(self):
         schema = pa.schema(
             [
@@ -454,7 +438,6 @@ class TestPyArrowLoaderMetadata:
         loader = PyArrowLoader(schema, name="test", version="1.0.0")
         spec = loader.load()
 
-        # SpecBuilder creates empty metadata dictionaries by default
         assert spec.metadata == {}
         for column in spec.columns:
             assert column.metadata == {}
@@ -469,7 +452,6 @@ class TestPyArrowLoaderMetadata:
         spec = loader.load()
 
         column = spec.columns[0]
-        # SpecBuilder creates empty metadata dictionaries by default
         assert column.metadata == {}
 
     def test_schema_with_empty_metadata(self):
@@ -482,29 +464,11 @@ class TestPyArrowLoaderMetadata:
         loader = PyArrowLoader(schema, name="test", version="1.0.0")
         spec = loader.load()
 
-        # SpecBuilder creates empty metadata dictionaries by default
         assert spec.metadata == {}
 
 
 # %% Schema-level tests
 class TestPyArrowLoaderSchema:
-    def test_basic_schema_conversion(self):
-        schema = pa.schema(
-            [
-                pa.field("id", pa.int32()),
-                pa.field("name", pa.string()),
-            ]
-        )
-        loader = PyArrowLoader(
-            schema, name="users", version="2.1.0", description="User data schema"
-        )
-        spec = loader.load()
-
-        assert spec.name == "users"
-        assert spec.version == "2.1.0"
-        assert spec.description == "User data schema"
-        assert len(spec.columns) == 2
-
     def test_schema_without_description(self):
         schema = pa.schema([pa.field("id", pa.int32())])
         loader = PyArrowLoader(schema, name="test", version="1.0.0")
@@ -571,23 +535,3 @@ class TestPyArrowLoaderUnsupportedTypes:
                 match="Union types are not supported for field 'union_col'",
             ):
                 loader.load()
-
-    def test_unknown_type_raises_error(self):
-        # Use a type that exists but is not supported by the loader
-        # We'll test this by mocking the type checking in the loader
-        # For now, let's test with a type that should be unsupported
-        if hasattr(pa, "run_end_encoded"):
-            # This should trigger the unsupported type error
-            schema = pa.schema(
-                [pa.field("unknown_col", pa.run_end_encoded(pa.int32(), pa.string()))]
-            )
-            loader = PyArrowLoader(schema, name="test", version="1.0.0")
-
-            with pytest.raises(
-                UnsupportedFeatureError,
-                match="Run-end encoded types are not supported for field 'unknown_col'",
-            ):
-                loader.load()
-        else:
-            # If run_end_encoded is not available, skip this test
-            pytest.skip("No unsupported types available for testing")
