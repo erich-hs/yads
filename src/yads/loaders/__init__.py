@@ -16,14 +16,23 @@ All functions return a validated immutable `YadsSpec` instance.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import IO, Any, cast
+from typing import IO, Any, cast, Literal
 
 from ..spec import YadsSpec
-from .base import DictLoader
+from .base import BaseLoader, BaseLoaderConfig, ConfigurableLoader, DictLoader
 from .yaml_loader import YamlLoader
-from .pyarrow_loader import PyArrowLoader
+from .pyarrow_loader import PyArrowLoader, PyArrowLoaderConfig
 
 __all__ = [
+    # Loader classes
+    "BaseLoader",
+    "BaseLoaderConfig",
+    "ConfigurableLoader",
+    "DictLoader",
+    "YamlLoader",
+    "PyArrowLoader",
+    "PyArrowLoaderConfig",
+    # Convenience functions
     "from_dict",
     "from_yaml_string",
     "from_yaml_path",
@@ -163,8 +172,13 @@ def from_yaml(
 
 
 def from_pyarrow(
-    schema: "Any", *, name: str, version: str, description: str | None = None
-) -> YadsSpec:  # type: ignore[name-defined]
+    schema: Any,
+    *,
+    mode: Literal["raise", "coerce"] = "coerce",
+    name: str,
+    version: str,
+    description: str | None = None,
+) -> YadsSpec:
     """Load a spec from a `pyarrow.Schema`.
 
     Args:
@@ -176,7 +190,7 @@ def from_pyarrow(
     Returns:
         A validated immutable `YadsSpec` instance.
     """
-    # Lazy import typing to avoid hard dependency at import time in this module
-    return PyArrowLoader().load(
+    config = PyArrowLoaderConfig(mode=mode)
+    return PyArrowLoader(config).load(
         schema, name=name, version=version, description=description
     )

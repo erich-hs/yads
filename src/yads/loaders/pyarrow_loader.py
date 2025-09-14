@@ -1,30 +1,82 @@
 """Load a `YadsSpec` from a `pyarrow.Schema`.
 
-This loader builds a normalized dictionary from a PyArrow schema and delegates
-spec construction and validation to `SpecBuilder`.
+This loader converts PyArrow schemas to yads specifications by building a
+normalized dictionary representation and delegating spec construction and
+validation to `SpecBuilder`. It preserves column-level nullability and
+propagates field and schema metadata when available.
+
+Example:
+    >>> import pyarrow as pa
+    >>> from yads.loaders import PyArrowLoader
+    >>> schema = pa.schema([
+    ...     pa.field("id", pa.int64(), nullable=False),
+    ...     pa.field("name", pa.string()),
+    ... ])
+    >>> loader = PyArrowLoader()
+    >>> spec = loader.load(schema, name="test.table", version="1.0.0")
+    >>> spec.name
+    'test.table'
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Mapping
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Literal, Mapping
 
 import pyarrow as pa  # type: ignore[import-untyped]
 
-from ..exceptions import UnsupportedFeatureError
-from .base import BaseLoader
+from .. import types as ytypes
+from ..exceptions import LoaderConfigError, UnsupportedFeatureError, validation_warning
+from .base import BaseLoaderConfig, ConfigurableLoader
 from .common import SpecBuilder
 
 if TYPE_CHECKING:
     from ..spec import YadsSpec
 
 
-class PyArrowLoader(BaseLoader):
+@dataclass(frozen=True)
+class PyArrowLoaderConfig(BaseLoaderConfig):
+    """Configuration for PyArrowLoader.
+
+    Args:
+        mode: Loading mode. "raise" will raise exceptions on unsupported
+            features. "coerce" will attempt to coerce unsupported features to
+            supported ones with warnings. Defaults to "coerce".
+        fallback_type: A yads type to use as fallback when an unsupported
+            PyArrow type is encountered. Only used when mode is "coerce".
+            Must be either String or Binary. Defaults to String.
+    """
+
+    fallback_type: ytypes.YadsType = ytypes.String()
+
+    def __post_init__(self) -> None:
+        """Validate configuration parameters."""
+        super().__post_init__()
+        if not isinstance(self.fallback_type, (ytypes.String, ytypes.Binary)):
+            raise LoaderConfigError("fallback_type must be either String or Binary type.")
+
+
+class PyArrowLoader(ConfigurableLoader):
     """Load a `YadsSpec` from a `pyarrow.Schema`.
 
-    The loader converts the Arrow schema to the normalized dictionary format
-    expected by `SpecBuilder`. It preserves column-level nullability and
+    The loader converts PyArrow schemas to yads specifications by building a
+    normalized dictionary representation and delegating spec construction and
+    validation to `SpecBuilder`. It preserves column-level nullability and
     propagates field and schema metadata when available.
+
+    In "raise" mode, incompatible Arrow types raise `UnsupportedFeatureError`.
+    In "coerce" mode, the loader attempts to coerce unsupported types to
+    compatible fallback types (String or Binary) with warnings.
     """
+
+    def __init__(self, config: PyArrowLoaderConfig | None = None) -> None:
+        """Initialize the PyArrowLoader.
+
+        Args:
+            config: Configuration object. If None, uses default PyArrowLoaderConfig.
+        """
+        self.config: PyArrowLoaderConfig = config or PyArrowLoaderConfig()
+        super().__init__(self.config)
 
     def load(
         self,
@@ -33,7 +85,8 @@ class PyArrowLoader(BaseLoader):
         name: str,
         version: str,
         description: str | None = None,
-    ) -> "YadsSpec":
+        mode: Literal["raise", "coerce"] | None = None,
+    ) -> YadsSpec:
         """Convert the Arrow schema to `YadsSpec`.
 
         Args:
@@ -41,31 +94,54 @@ class PyArrowLoader(BaseLoader):
             name: Fully-qualified spec name to assign.
             version: Spec version string.
             description: Optional human-readable description.
+            mode: Optional override for the loading mode. When not provided, the
+                loader's configured mode is used. If provided:
+                - "raise": Raise on any unsupported features.
+                - "coerce": Apply adjustments to produce a valid spec and emit warnings.
 
         Returns:
             A validated immutable `YadsSpec` instance.
         """
-        data: dict[str, Any] = {
-            "name": name,
-            "version": version,
-            "columns": [self._convert_field(f) for f in schema],
-        }
+        with self.load_context(mode=mode):
+            columns: list[dict[str, Any]] = []
+            for field in schema:
+                try:
+                    # Set field context during conversion
+                    with self.load_context(field=field.name):
+                        column_def = self._convert_field(field)
+                        columns.append(column_def)
+                except UnsupportedFeatureError:
+                    if self.config.mode == "coerce":
+                        validation_warning(
+                            message=(
+                                f"Arrow field '{field.name}' has unsupported type '{field.type}'. "
+                                f"The data type will be coerced to {self.config.fallback_type}."
+                            ),
+                            filename="yads.loaders.pyarrow_loader",
+                            module=__name__,
+                        )
+                        fallback_col = self._create_fallback_column(field)
+                        columns.append(fallback_col)
+                        continue
+                    raise
 
-        if description:
-            data["description"] = description
+            data: dict[str, Any] = {
+                "name": name,
+                "version": version,
+                "columns": columns,
+            }
 
-        if schema.metadata:
-            data["metadata"] = self._decode_key_value_metadata(schema.metadata)
+            if description:
+                data["description"] = description
 
-        return SpecBuilder(data).build()
+            if schema.metadata:
+                data["metadata"] = self._decode_key_value_metadata(schema.metadata)
+
+            return SpecBuilder(data).build()
 
     # %% ---- Field and type conversion -----------------------------------------------
     def _convert_field(self, field: pa.Field) -> dict[str, Any]:
-        """Convert an Arrow field to a normalized column definition.
-
-        Returns:
-            A dictionary with keys compatible with `SpecBuilder` column parsing.
-        """
+        """Convert an Arrow field to a normalized column definition."""
         field_meta = self._decode_key_value_metadata(field.metadata)
 
         # Lift description out of metadata if present
@@ -75,7 +151,7 @@ class PyArrowLoader(BaseLoader):
             "name": field.name,
         }
 
-        type_def = self._convert_type(field.type, field_name=field.name)
+        type_def = self._convert_type(field.type)
         col.update(type_def)
 
         if description is not None:
@@ -89,21 +165,15 @@ class PyArrowLoader(BaseLoader):
 
         return col
 
-    def _convert_type(
-        self, dtype: pa.DataType, field_name: str | None = None
-    ) -> dict[str, Any]:
+    def _convert_type(self, dtype: pa.DataType) -> dict[str, Any]:
         """Convert an Arrow data type to a normalized type definition.
 
-        The returned mapping is shaped for `SpecBuilder`:
-          - Simple types: {"type": "string_name", "params": {...}}
-          - Array: {"type": "array", "element": {<type def>}}
-          - Struct: {"type": "struct", "fields": [{<field def>}, ...]}
-          - Map: {"type": "map", "key": {<type def>}, "value": {<type def>}}
-          - Interval: {"type": "interval", "params": {"interval_start": ...}}
-
-        Args:
-            dtype: The Arrow data type to convert.
-            field_name: Optional field name for improved error context.
+        Currently unsupported:
+            - pa.DictionaryType
+            - pa.RunEndEncodedType
+            - pa.UnionType
+            - pa.DenseUnionType
+            - pa.SparseUnionType
         """
         t = dtype
         types = pa.types
@@ -211,8 +281,12 @@ class PyArrowLoader(BaseLoader):
             or getattr(types, "is_list_view", lambda _t: False)(t)
             or getattr(types, "is_large_list_view", lambda _t: False)(t)
         ):
-            elem_def = self._convert_type(t.value_type, field_name=field_name)
+            elem_def = self._convert_type(t.value_type)
             return {"type": "array", "element": elem_def}
+
+        if getattr(types, "is_fixed_size_list", lambda _t: False)(t):
+            elem_def = self._convert_type(t.value_type)
+            return {"type": "array", "element": elem_def, "params": {"size": t.list_size}}
 
         if types.is_struct(t):
             # t is a StructType; iterate contained pa.Field entries
@@ -220,8 +294,8 @@ class PyArrowLoader(BaseLoader):
             return {"type": "struct", "fields": fields}
 
         if types.is_map(t):
-            key_def = self._convert_type(t.key_type, field_name=field_name)
-            val_def = self._convert_type(t.item_type, field_name=field_name)
+            key_def = self._convert_type(t.key_type)
+            val_def = self._convert_type(t.item_type)
             if t.keys_sorted:
                 return {
                     "type": "map",
@@ -230,29 +304,6 @@ class PyArrowLoader(BaseLoader):
                     "params": {"keys_sorted": True},
                 }
             return {"type": "map", "key": key_def, "value": val_def}
-
-        # Unsupported Arrow constructs (dictionary, unions, tensors, etc.)
-        if types.is_dictionary(t):
-            raise UnsupportedFeatureError(
-                self._format_error_with_field_context(
-                    "Dictionary-encoded types are not supported", field_name
-                )
-            )
-        if getattr(types, "is_run_end_encoded", lambda _t: False)(t):
-            raise UnsupportedFeatureError(
-                self._format_error_with_field_context(
-                    "Run-end encoded types are not supported", field_name
-                )
-            )
-        if getattr(types, "is_fixed_size_list", lambda _t: False)(t):
-            elem_def = self._convert_type(t.value_type, field_name=field_name)
-            return {"type": "array", "element": elem_def, "params": {"size": t.list_size}}
-        if getattr(types, "is_union", lambda _t: False)(t):
-            raise UnsupportedFeatureError(
-                self._format_error_with_field_context(
-                    "Union types are not supported", field_name
-                )
-            )
 
         # Canonical extension types supported by checking the typeclass
         # https://arrow.apache.org/docs/format/CanonicalExtensions.html
@@ -265,28 +316,56 @@ class PyArrowLoader(BaseLoader):
 
         raise UnsupportedFeatureError(
             self._format_error_with_field_context(
-                f"Unsupported or unknown Arrow type: {t} ({type(t).__name__})", field_name
+                f"Unsupported or unknown Arrow type: {t} ({type(t).__name__})"
             )
         )
 
-    # %% ------------- Helpers --------------------------------------------------------
-    def _format_error_with_field_context(
-        self, message: str, field_name: str | None = None
-    ) -> str:
-        if field_name:
-            return f"{message} for field '{field_name}'."
+    def _create_fallback_column(self, field: pa.Field) -> dict[str, Any]:
+        """Create a fallback column definition preserving metadata,
+        nullability, and field description.
+        """
+        field_meta = self._decode_key_value_metadata(field.metadata)
+        description = field_meta.pop("description", None)
+
+        fallback_col: dict[str, Any] = {
+            "name": field.name,
+        }
+
+        type_def = self._get_fallback_type_definition()
+        fallback_col.update(type_def)
+
+        if description is not None:
+            fallback_col["description"] = description
+        if field_meta:
+            fallback_col["metadata"] = field_meta
+
+        if not field.nullable:
+            fallback_col["constraints"] = {"not_null": True}
+
+        return fallback_col
+
+    def _format_error_with_field_context(self, message: str) -> str:
+        if self._current_field_name:
+            return f"{message} for field '{self._current_field_name}'."
         return f"{message}."
+
+    def _get_fallback_type_definition(self) -> dict[str, Any]:
+        if isinstance(self.config.fallback_type, ytypes.Binary):
+            binary_type = self.config.fallback_type
+            if binary_type.length is not None:
+                return {"type": "binary", "params": {"length": binary_type.length}}
+            return {"type": "binary"}
+        else:  # String (default)
+            string_type = self.config.fallback_type
+            assert isinstance(string_type, ytypes.String)  # Validated in __post_init__
+            if string_type.length is not None:
+                return {"type": "string", "params": {"length": string_type.length}}
+            return {"type": "string"}
 
     @staticmethod
     def _decode_key_value_metadata(
         metadata: Mapping[bytes | str, bytes | str] | None,
     ) -> dict[str, Any]:
-        """Decode Arrow KeyValueMetadata to a JSON-friendly dict.
-
-        - Keys are coerced to `str`.
-        - Byte values are decoded as UTF-8 when possible.
-        - Values that look like JSON are parsed; otherwise left as strings.
-        """
         result: dict[str, Any] = {}
         if not metadata:
             return result

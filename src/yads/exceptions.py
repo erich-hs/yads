@@ -159,6 +159,23 @@ class UnsupportedFeatureError(ConverterError):
     """
 
 
+# Loader Exceptions
+class LoaderError(YadsError):
+    """Base for loader-related errors.
+
+    Raised when there are issues during the loading process from external
+    sources to yads specs.
+    """
+
+
+class LoaderConfigError(LoaderError):
+    """Errors during loader configuration.
+
+    Raised when there are issues with loader configuration, such as invalid
+    configuration parameters or conflicting settings.
+    """
+
+
 # Validator Exceptions
 class AstValidationError(YadsValidationError):
     """Validation rule processing errors.
