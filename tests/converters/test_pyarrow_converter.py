@@ -104,13 +104,13 @@ class TestPyArrowConverterTypes:
             ),
             (Map(key=String(), value=Integer()), pa.map_(pa.string(), pa.int32()), None),
             (JSON(), pa.json_(storage_type=pa.utf8()), None),
-            (Geometry(), pa.string(), "Data type 'GEOMETRY' is not supported for column 'col1'."),
-            (Geometry(srid=4326), pa.string(), "Data type 'GEOMETRY' is not supported for column 'col1'."),
-            (Geography(), pa.string(), "Data type 'GEOGRAPHY' is not supported for column 'col1'."),
-            (Geography(srid=4326), pa.string(), "Data type 'GEOGRAPHY' is not supported for column 'col1'."),
+            (Geometry(), pa.string(), "Data type 'GEOMETRY' is not supported for field 'col1'."),
+            (Geometry(srid=4326), pa.string(), "Data type 'GEOMETRY' is not supported for field 'col1'."),
+            (Geography(), pa.string(), "Data type 'GEOGRAPHY' is not supported for field 'col1'."),
+            (Geography(srid=4326), pa.string(), "Data type 'GEOGRAPHY' is not supported for field 'col1'."),
             (UUID(), pa.uuid(), None),
             (Void(), pa.null(), None),
-            (Variant(), pa.string(), "Data type 'VARIANT' is not supported for column 'col1'."),
+            (Variant(), pa.string(), "Data type 'VARIANT' is not supported for field 'col1'."),
         ],
     )
     def test_convert_type(
@@ -826,3 +826,459 @@ class TestPyArrowConverterCustomization:
         assert metadata["has_description"] == "True"
         assert metadata["constraint_count"] == "1"
         assert metadata["original_length"] == "100"
+
+
+# %% Field-level fallback in complex types
+class TestPyArrowConverterFieldLevelFallback:
+    def test_struct_with_unsupported_field_fallback(self):
+        struct_with_unsupported = Struct(
+            fields=[
+                Field(name="supported_field", type=String()),
+                Field(name="unsupported_field", type=Geography()),
+                Field(name="another_supported", type=Integer()),
+            ]
+        )
+
+        spec = YadsSpec(
+            name="test_struct_fallback",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer()),
+                Column(name="data", type=struct_with_unsupported),
+            ],
+        )
+
+        config = PyArrowConverterConfig(fallback_type=pa.string())
+        converter = PyArrowConverter(config)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            schema = converter.convert(spec, mode="coerce")
+
+        # Should have warnings for the unsupported field within the struct
+        assert len(w) == 1
+        assert issubclass(w[0].category, ValidationWarning)
+        assert "GEOGRAPHY" in str(w[0].message)
+        assert "unsupported_field" in str(w[0].message)
+
+        # The struct field should still be a struct, not a fallback
+        data_field = schema.field("data")
+        assert pa.types.is_struct(data_field.type)
+
+        # Check individual struct fields
+        struct_type = data_field.type
+        assert struct_type.num_fields == 3
+
+        # Supported fields should be converted normally
+        supported_field = struct_type.field("supported_field")
+        assert supported_field.type == pa.string()
+
+        another_supported = struct_type.field("another_supported")
+        assert another_supported.type == pa.int32()
+
+        # Unsupported field should get fallback
+        unsupported_field = struct_type.field("unsupported_field")
+        assert unsupported_field.type == pa.string()  # fallback type
+
+    def test_nested_struct_with_multiple_unsupported_fields(self):
+        inner_struct = Struct(
+            fields=[
+                Field(name="inner_geom", type=Geometry()),
+                Field(name="inner_string", type=String()),
+            ]
+        )
+
+        outer_struct = Struct(
+            fields=[
+                Field(name="outer_geog", type=Geography()),
+                Field(name="inner_data", type=inner_struct),
+                Field(name="outer_int", type=Integer()),
+            ]
+        )
+
+        spec = YadsSpec(
+            name="test_nested_fallback",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer()),
+                Column(name="complex_data", type=outer_struct),
+            ],
+        )
+
+        config = PyArrowConverterConfig(fallback_type=pa.string())
+        converter = PyArrowConverter(config)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            schema = converter.convert(spec, mode="coerce")
+
+        # Should have warnings for both unsupported fields
+        assert len(w) == 2
+        assert all(issubclass(warning.category, ValidationWarning) for warning in w)
+
+        warning_messages = [str(warning.message) for warning in w]
+        assert any("GEOGRAPHY" in msg and "outer_geog" in msg for msg in warning_messages)
+        assert any("GEOMETRY" in msg and "inner_geom" in msg for msg in warning_messages)
+
+        # The outer struct should still be a struct
+        complex_field = schema.field("complex_data")
+        assert pa.types.is_struct(complex_field.type)
+
+        outer_struct_type = complex_field.type
+        assert outer_struct_type.num_fields == 3
+
+        # Check outer level fields
+        outer_geog_field = outer_struct_type.field("outer_geog")
+        assert outer_geog_field.type == pa.string()  # fallback
+
+        outer_int_field = outer_struct_type.field("outer_int")
+        assert outer_int_field.type == pa.int32()  # normal conversion
+
+        # Check inner struct
+        inner_data_field = outer_struct_type.field("inner_data")
+        assert pa.types.is_struct(inner_data_field.type)
+
+        inner_struct_type = inner_data_field.type
+        assert inner_struct_type.num_fields == 2
+
+        inner_geom_field = inner_struct_type.field("inner_geom")
+        assert inner_geom_field.type == pa.string()  # fallback
+
+        inner_string_field = inner_struct_type.field("inner_string")
+        assert inner_string_field.type == pa.string()  # normal conversion
+
+    def test_array_with_unsupported_element_type(self):
+        array_with_unsupported = Array(element=Geography())
+
+        spec = YadsSpec(
+            name="test_array_fallback",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer()),
+                Column(name="locations", type=array_with_unsupported),
+            ],
+        )
+
+        config = PyArrowConverterConfig(fallback_type=pa.string())
+        converter = PyArrowConverter(config)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            schema = converter.convert(spec, mode="coerce")
+
+        # Should have warning for the unsupported element type
+        assert len(w) == 1
+        assert issubclass(w[0].category, ValidationWarning)
+        assert "GEOGRAPHY" in str(w[0].message)
+
+        # The array field should still be an array, not a fallback
+        locations_field = schema.field("locations")
+        assert pa.types.is_list(locations_field.type)
+
+        # The element type should be the fallback
+        element_type = locations_field.type.value_type
+        assert element_type == pa.string()  # fallback type
+
+    def test_map_with_unsupported_key_or_value(self):
+        # Map with unsupported key
+        map_unsupported_key = Map(key=Geometry(), value=String())
+
+        # Map with unsupported value
+        map_unsupported_value = Map(key=String(), value=Geography())
+
+        spec = YadsSpec(
+            name="test_map_fallback",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer()),
+                Column(name="geom_keys", type=map_unsupported_key),
+                Column(name="geog_values", type=map_unsupported_value),
+            ],
+        )
+
+        config = PyArrowConverterConfig(fallback_type=pa.string())
+        converter = PyArrowConverter(config)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            schema = converter.convert(spec, mode="coerce")
+
+        # Should have warnings for both unsupported types
+        assert len(w) == 2
+        assert all(issubclass(warning.category, ValidationWarning) for warning in w)
+
+        warning_messages = [str(warning.message) for warning in w]
+        assert any("GEOMETRY" in msg for msg in warning_messages)
+        assert any("GEOGRAPHY" in msg for msg in warning_messages)
+
+        # Both map fields should still be maps
+        geom_keys_field = schema.field("geom_keys")
+        assert pa.types.is_map(geom_keys_field.type)
+
+        geog_values_field = schema.field("geog_values")
+        assert pa.types.is_map(geog_values_field.type)
+
+        # Check key/value types
+        geom_keys_map = geom_keys_field.type
+        assert geom_keys_map.key_type == pa.string()  # fallback for key
+        assert geom_keys_map.item_type == pa.string()  # normal conversion for value
+
+        geog_values_map = geog_values_field.type
+        assert geog_values_map.key_type == pa.string()  # normal conversion for key
+        assert geog_values_map.item_type == pa.string()  # fallback for value
+
+    def test_array_of_struct_with_unsupported_fields(self):
+        struct_with_unsupported = Struct(
+            fields=[
+                Field(name="name", type=String()),
+                Field(name="location", type=Geography()),
+            ]
+        )
+
+        array_of_structs = Array(element=struct_with_unsupported)
+
+        spec = YadsSpec(
+            name="test_array_struct_fallback",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer()),
+                Column(name="items", type=array_of_structs),
+            ],
+        )
+
+        config = PyArrowConverterConfig(fallback_type=pa.string())
+        converter = PyArrowConverter(config)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            schema = converter.convert(spec, mode="coerce")
+
+        # Should have warning for the unsupported field within the struct
+        assert len(w) == 1
+        assert issubclass(w[0].category, ValidationWarning)
+        assert "GEOGRAPHY" in str(w[0].message)
+        assert "location" in str(w[0].message)
+
+        # The array field should still be an array
+        items_field = schema.field("items")
+        assert pa.types.is_list(items_field.type)
+
+        # The element should be a struct
+        element_type = items_field.type.value_type
+        assert pa.types.is_struct(element_type)
+
+        # Check struct fields
+        assert element_type.num_fields == 2
+
+        name_field = element_type.field("name")
+        assert name_field.type == pa.string()  # normal conversion
+
+        location_field = element_type.field("location")
+        assert location_field.type == pa.string()  # fallback
+
+    def test_complex_nested_structure_with_mixed_fallbacks(self):
+        innermost_struct = Struct(
+            fields=[
+                Field(name="variant_field", type=Variant()),
+                Field(name="normal_string", type=String()),
+            ]
+        )
+
+        middle_struct = Struct(
+            fields=[
+                Field(name="geometry_field", type=Geometry()),
+                Field(name="inner_data", type=innermost_struct),
+                Field(name="normal_int", type=Integer()),
+            ]
+        )
+
+        array_of_middle_structs = Array(element=middle_struct)
+
+        map_with_unsupported = Map(key=Geography(), value=array_of_middle_structs)
+
+        spec = YadsSpec(
+            name="test_complex_nested_fallback",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer()),
+                Column(name="complex_map", type=map_with_unsupported),
+            ],
+        )
+
+        config = PyArrowConverterConfig(fallback_type=pa.string())
+        converter = PyArrowConverter(config)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            schema = converter.convert(spec, mode="coerce")
+
+        # Should have warnings for all unsupported types
+        assert len(w) == 3
+        assert all(issubclass(warning.category, ValidationWarning) for warning in w)
+
+        warning_messages = [str(warning.message) for warning in w]
+        assert any("GEOGRAPHY" in msg for msg in warning_messages)
+        assert any("GEOMETRY" in msg for msg in warning_messages)
+        assert any("VARIANT" in msg for msg in warning_messages)
+
+        # The map field should still be a map
+        complex_map_field = schema.field("complex_map")
+        assert pa.types.is_map(complex_map_field.type)
+
+        map_type = complex_map_field.type
+        assert map_type.key_type == pa.string()  # fallback for Geography key
+
+        # The value should be an array
+        assert pa.types.is_list(map_type.item_type)
+        array_element_type = map_type.item_type.value_type
+
+        # The array element should be a struct
+        assert pa.types.is_struct(array_element_type)
+        assert array_element_type.num_fields == 3
+
+        # Check middle struct fields
+        geometry_field = array_element_type.field("geometry_field")
+        assert geometry_field.type == pa.string()  # fallback
+
+        normal_int_field = array_element_type.field("normal_int")
+        assert normal_int_field.type == pa.int32()  # normal conversion
+
+        # Check inner struct
+        inner_data_field = array_element_type.field("inner_data")
+        assert pa.types.is_struct(inner_data_field.type)
+
+        inner_struct_type = inner_data_field.type
+        assert inner_struct_type.num_fields == 2
+
+        variant_field = inner_struct_type.field("variant_field")
+        assert variant_field.type == pa.string()  # fallback
+
+        normal_string_field = inner_struct_type.field("normal_string")
+        assert normal_string_field.type == pa.string()  # normal conversion
+
+    @pytest.mark.parametrize(
+        "fallback_type",
+        [pa.string(), pa.binary(), pa.large_string(), pa.large_binary()],
+    )
+    def test_fallback_type_preservation_in_nested_structures(
+        self, fallback_type: pa.DataType
+    ):
+        struct_with_unsupported = Struct(
+            fields=[
+                Field(name="geom", type=Geometry()),
+                Field(name="geog", type=Geography()),
+                Field(name="variant", type=Variant()),
+            ]
+        )
+
+        spec = YadsSpec(
+            name="test_fallback_preservation",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer()),
+                Column(name="data", type=struct_with_unsupported),
+            ],
+        )
+
+        config = PyArrowConverterConfig(fallback_type=fallback_type)
+        converter = PyArrowConverter(config)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            schema = converter.convert(spec, mode="coerce")
+
+        # Should have warnings for all unsupported types
+        assert len(w) == 3
+
+        # The struct should still be a struct
+        data_field = schema.field("data")
+        assert pa.types.is_struct(data_field.type)
+
+        struct_type = data_field.type
+        assert struct_type.num_fields == 3
+
+        # All unsupported fields should get the same fallback type
+        geom_field = struct_type.field("geom")
+        assert geom_field.type == fallback_type
+
+        geog_field = struct_type.field("geog")
+        assert geog_field.type == fallback_type
+
+        variant_field = struct_type.field("variant")
+        assert variant_field.type == fallback_type
+
+    def test_field_metadata_preservation_in_nested_fallback(self):
+        struct_with_metadata = Struct(
+            fields=[
+                Field(
+                    name="geom_with_metadata",
+                    type=Geometry(),
+                    description="A geometry field",
+                    metadata={"srid": "4326", "precision": "high"},
+                ),
+                Field(name="normal_field", type=String()),
+            ]
+        )
+
+        spec = YadsSpec(
+            name="test_nested_metadata_preservation",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer()),
+                Column(name="data", type=struct_with_metadata),
+            ],
+        )
+
+        config = PyArrowConverterConfig(fallback_type=pa.string())
+        converter = PyArrowConverter(config)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            schema = converter.convert(spec, mode="coerce")
+
+        # Should have warning for the unsupported field
+        assert len(w) == 1
+
+        # Check that metadata was preserved
+        data_field = schema.field("data")
+        struct_type = data_field.type
+
+        geom_field = struct_type.field("geom_with_metadata")
+        assert geom_field.type == pa.string()  # fallback applied
+
+        # Check that metadata was preserved
+        assert geom_field.metadata is not None
+        metadata = {k.decode(): v.decode() for k, v in geom_field.metadata.items()}
+        assert metadata["description"] == "A geometry field"
+        assert metadata["srid"] == "4326"
+        assert metadata["precision"] == "high"
+
+        # Normal field should work as expected
+        normal_field = struct_type.field("normal_field")
+        assert normal_field.type == pa.string()
+
+    def test_raise_mode_still_raises_for_nested_unsupported_types(self):
+        struct_with_unsupported = Struct(
+            fields=[
+                Field(name="geom", type=Geometry()),
+                Field(name="normal_field", type=String()),
+            ]
+        )
+
+        spec = YadsSpec(
+            name="test_raise_mode_nested",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer()),
+                Column(name="data", type=struct_with_unsupported),
+            ],
+        )
+
+        config = PyArrowConverterConfig(mode="raise")
+        converter = PyArrowConverter(config)
+
+        with pytest.raises(
+            UnsupportedFeatureError,
+            match="PyArrowConverter does not support type: Geometry",
+        ):
+            converter.convert(spec)
