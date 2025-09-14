@@ -153,8 +153,12 @@ class PydanticConverter(BaseConverter):
                             filename="yads.converters.pydantic_converter",
                             module=__name__,
                         )
+                        fallback_type: Any = self.config.fallback_type
+                        if col.is_nullable:
+                            fallback_type = Optional[fallback_type]
+
                         fields[col.name] = (
-                            self.config.fallback_type,
+                            fallback_type,
                             self._create_fallback_field_info(col),
                         )
                         continue

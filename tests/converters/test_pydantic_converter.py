@@ -1182,3 +1182,159 @@ class TestPydanticConverterCustomization:
             "category": "user_input",
             "validation": "strict",
         }
+
+    def test_fallback_preserves_nullability(self):
+        """Test that fallback fields preserve nullability annotations."""
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[
+                # Nullable fields that will fallback
+                Column(name="nullable_geom", type=Geometry()),
+                Column(name="nullable_geo", type=Geography()),
+                # Non-nullable fields that will fallback
+                Column(
+                    name="not_null_geom",
+                    type=Geometry(),
+                    constraints=[NotNullConstraint()],
+                ),
+                Column(
+                    name="not_null_geo",
+                    type=Geography(),
+                    constraints=[NotNullConstraint()],
+                ),
+            ],
+        )
+        config = PydanticConverterConfig(fallback_type=str)
+        converter = PydanticConverter(config)
+
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            model = converter.convert(spec, mode="coerce")
+
+        # Check nullable fallback fields
+        nullable_geom_field = model.model_fields["nullable_geom"]
+        nullable_geo_field = model.model_fields["nullable_geo"]
+
+        # These should be Optional[str]
+        assert type(None) in get_args(nullable_geom_field.annotation)
+        assert type(None) in get_args(nullable_geo_field.annotation)
+
+        # Unwrap Optional to get the base type
+        geom_base_type = unwrap_optional(nullable_geom_field.annotation)
+        geo_base_type = unwrap_optional(nullable_geo_field.annotation)
+        assert isinstance(geom_base_type, type) and issubclass(geom_base_type, str)
+        assert isinstance(geo_base_type, type) and issubclass(geo_base_type, str)
+
+        # Check non-nullable fallback fields
+        not_null_geom_field = model.model_fields["not_null_geom"]
+        not_null_geo_field = model.model_fields["not_null_geo"]
+
+        # These should be str (not Optional[str])
+        assert type(None) not in get_args(not_null_geom_field.annotation)
+        assert type(None) not in get_args(not_null_geo_field.annotation)
+
+        # Should be plain str type
+        assert isinstance(not_null_geom_field.annotation, type) and issubclass(
+            not_null_geom_field.annotation, str
+        )
+        assert isinstance(not_null_geo_field.annotation, type) and issubclass(
+            not_null_geo_field.annotation, str
+        )
+
+    def test_fallback_preserves_nullability_with_different_fallback_types(self):
+        """Test nullability preservation with different fallback types."""
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[
+                Column(name="nullable_geom", type=Geometry()),
+                Column(
+                    name="not_null_geom",
+                    type=Geometry(),
+                    constraints=[NotNullConstraint()],
+                ),
+            ],
+        )
+
+        # Test with dict fallback
+        config_dict = PydanticConverterConfig(fallback_type=dict)
+        converter_dict = PydanticConverter(config_dict)
+
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            model_dict = converter_dict.convert(spec, mode="coerce")
+
+        nullable_dict_field = model_dict.model_fields["nullable_geom"]
+        not_null_dict_field = model_dict.model_fields["not_null_geom"]
+
+        # Nullable should be Optional[dict]
+        assert type(None) in get_args(nullable_dict_field.annotation)
+        nullable_dict_base = unwrap_optional(nullable_dict_field.annotation)
+        assert isinstance(nullable_dict_base, type) and issubclass(
+            nullable_dict_base, dict
+        )
+
+        # Non-nullable should be dict
+        assert type(None) not in get_args(not_null_dict_field.annotation)
+        assert isinstance(not_null_dict_field.annotation, type) and issubclass(
+            not_null_dict_field.annotation, dict
+        )
+
+        # Test with bytes fallback
+        config_bytes = PydanticConverterConfig(fallback_type=bytes)
+        converter_bytes = PydanticConverter(config_bytes)
+
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            model_bytes = converter_bytes.convert(spec, mode="coerce")
+
+        nullable_bytes_field = model_bytes.model_fields["nullable_geom"]
+        not_null_bytes_field = model_bytes.model_fields["not_null_geom"]
+
+        # Nullable should be Optional[bytes]
+        assert type(None) in get_args(nullable_bytes_field.annotation)
+        nullable_bytes_base = unwrap_optional(nullable_bytes_field.annotation)
+        assert isinstance(nullable_bytes_base, type) and issubclass(
+            nullable_bytes_base, bytes
+        )
+
+        # Non-nullable should be bytes
+        assert type(None) not in get_args(not_null_bytes_field.annotation)
+        assert isinstance(not_null_bytes_field.annotation, type) and issubclass(
+            not_null_bytes_field.annotation, bytes
+        )
+
+    def test_fallback_preserves_nullability_in_nested_structs(self):
+        """Test that nullability is preserved in nested struct fields that fallback."""
+        nested_struct = Struct(
+            fields=[
+                Field(name="nullable_geom", type=Geometry()),
+                Field(
+                    name="not_null_geom",
+                    type=Geometry(),
+                    constraints=[NotNullConstraint()],
+                ),
+            ]
+        )
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[
+                Column(name="struct", type=nested_struct),
+            ],
+        )
+        config = PydanticConverterConfig(fallback_type=str)
+        converter = PydanticConverter(config)
+
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            model = converter.convert(spec, mode="coerce")
+
+        # The struct field itself should be Optional[str] (since it's nullable by default)
+        struct_field = model.model_fields["struct"]
+        assert type(None) in get_args(struct_field.annotation)
+        struct_base_type = unwrap_optional(struct_field.annotation)
+
+        # The whole struct is coerced to str
+        assert isinstance(struct_base_type, type) and issubclass(struct_base_type, str)
