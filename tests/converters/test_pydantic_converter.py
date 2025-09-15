@@ -197,8 +197,8 @@ class TestPydanticConverterTypes:
             (JSON(), dict, None, lambda f: None),
 
             # Spatial types -> coerce to str with warning
-            (Geometry(), str, "Data type 'GEOMETRY' is not supported", lambda f: None),
-            (Geography(), str, "Data type 'GEOGRAPHY' is not supported", lambda f: None),
+            (Geometry(), str, "PydanticConverter does not support type: geometry", lambda f: None),
+            (Geography(), str, "PydanticConverter does not support type: geography", lambda f: None),
 
             # Other
             (UUID(), PyUUID, None, lambda f: None),
@@ -242,9 +242,7 @@ class TestPydanticConverterTypes:
         if expected_warning is not None:
             assert len(w) == 1
             assert issubclass(w[0].category, ValidationWarning)
-            assert "does not support type" in str(w[0].message) or (
-                expected_warning in str(w[0].message)
-            )
+            assert expected_warning in str(w[0].message)
         else:
             assert len(w) == 0
 
@@ -379,7 +377,7 @@ class TestPydanticConverterTypes:
             model = PydanticConverter().convert(spec, mode="coerce")
         assert len(w) == 2
         msgs = "\n".join(str(x.message) for x in w)
-        assert "GEOMETRY" in msgs and "GEOGRAPHY" in msgs
+        assert "geometry" in msgs and "geography" in msgs
         ann_g1 = unwrap_optional(model.model_fields["g1"].annotation)
         ann_g2 = unwrap_optional(model.model_fields["g2"].annotation)
         assert isinstance(ann_g1, type) and issubclass(ann_g1, str)
@@ -868,8 +866,8 @@ class TestPydanticConverterCustomization:
 
         # Check warning was emitted
         assert len(w) == 1
-        assert "GEOMETRY" in str(w[0].message)
-        assert fallback_type.__name__.upper() in str(w[0].message)
+        assert "geometry" in str(w[0].message)
+        assert fallback_type.__name__ in str(w[0].message)
 
     def test_invalid_fallback_type_raises_error(self):
         """Test that invalid fallback_type raises UnsupportedFeatureError."""
@@ -1391,7 +1389,7 @@ class TestPydanticConverterFieldLevelFallback:
         # Should have warnings for the unsupported field within the struct
         assert len(w) == 1
         assert issubclass(w[0].category, ValidationWarning)
-        assert "GEOGRAPHY" in str(w[0].message)
+        assert "geography" in str(w[0].message)
         assert "unsupported_field" in str(w[0].message)
 
         # The struct field should still be a struct model, not a fallback
@@ -1460,8 +1458,8 @@ class TestPydanticConverterFieldLevelFallback:
         assert all(issubclass(warning.category, ValidationWarning) for warning in w)
 
         warning_messages = [str(warning.message) for warning in w]
-        assert any("GEOGRAPHY" in msg and "outer_geog" in msg for msg in warning_messages)
-        assert any("GEOMETRY" in msg and "inner_geom" in msg for msg in warning_messages)
+        assert any("geography" in msg and "outer_geog" in msg for msg in warning_messages)
+        assert any("geometry" in msg and "inner_geom" in msg for msg in warning_messages)
 
         # The outer struct should still be a struct
         complex_field = model.model_fields["complex_data"]
@@ -1532,7 +1530,7 @@ class TestPydanticConverterFieldLevelFallback:
         # Should have warning for the unsupported element type
         assert len(w) == 1
         assert issubclass(w[0].category, ValidationWarning)
-        assert "GEOGRAPHY" in str(w[0].message)
+        assert "geography" in str(w[0].message)
 
         # The array field should still be an array, not a fallback
         locations_field = model.model_fields["locations"]
@@ -1574,8 +1572,8 @@ class TestPydanticConverterFieldLevelFallback:
         assert all(issubclass(warning.category, ValidationWarning) for warning in w)
 
         warning_messages = [str(warning.message) for warning in w]
-        assert any("GEOMETRY" in msg for msg in warning_messages)
-        assert any("GEOGRAPHY" in msg for msg in warning_messages)
+        assert any("geometry" in msg for msg in warning_messages)
+        assert any("geography" in msg for msg in warning_messages)
 
         # Both map fields should still be maps
         geom_keys_field = model.model_fields["geom_keys"]
@@ -1632,7 +1630,7 @@ class TestPydanticConverterFieldLevelFallback:
         # Should have warning for the unsupported field within the struct
         assert len(w) == 1
         assert issubclass(w[0].category, ValidationWarning)
-        assert "GEOGRAPHY" in str(w[0].message)
+        assert "geography" in str(w[0].message)
         assert "location" in str(w[0].message)
 
         # The array field should still be an array
@@ -1701,8 +1699,8 @@ class TestPydanticConverterFieldLevelFallback:
         assert all(issubclass(warning.category, ValidationWarning) for warning in w)
 
         warning_messages = [str(warning.message) for warning in w]
-        assert any("GEOGRAPHY" in msg for msg in warning_messages)
-        assert any("GEOMETRY" in msg for msg in warning_messages)
+        assert any("geography" in msg for msg in warning_messages)
+        assert any("geometry" in msg for msg in warning_messages)
 
         # The map field should still be a map
         complex_map_field = model.model_fields["complex_map"]
@@ -1894,6 +1892,6 @@ class TestPydanticConverterFieldLevelFallback:
 
         with pytest.raises(
             UnsupportedFeatureError,
-            match="PydanticConverter does not support type: Geometry",
+            match="PydanticConverter does not support type: geometry",
         ):
             converter.convert(spec)

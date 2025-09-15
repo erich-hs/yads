@@ -160,12 +160,11 @@ class PydanticConverter(BaseConverter):
         # - Geometry
         # - Geography
         if self.config.mode == "coerce":
-            type_name = type(yads_type).__name__.upper()
             validation_warning(
                 message=(
-                    f"Data type '{type_name}' is not supported"
-                    f" for column '{self._current_field_name or '<unknown>'}'."
-                    f" The data type will be replaced with {self.config.fallback_type.__name__.upper()}."
+                    f"PydanticConverter does not support type: {yads_type}"
+                    f" for '{self._current_field_name or '<unknown>'}'."
+                    f" The data type will be coerced to {self.config.fallback_type.__name__}."
                 ),
                 filename="yads.converters.pydantic_converter",
                 module=__name__,
@@ -173,8 +172,8 @@ class PydanticConverter(BaseConverter):
             fallback_type: Any = self.config.fallback_type
             return fallback_type, self.required()
         raise UnsupportedFeatureError(
-            f"PydanticConverter does not support type: {type(yads_type).__name__}"
-            f" for column '{self._current_field_name or '<unknown>'}'."
+            f"PydanticConverter does not support type: {yads_type}"
+            f" for '{self._current_field_name or '<unknown>'}'."
         )
 
     @_convert_type.register(ytypes.String)
