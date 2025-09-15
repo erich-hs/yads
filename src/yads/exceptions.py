@@ -126,6 +126,25 @@ class ConstraintConflictError(ConstraintError):
     """
 
 
+# Cross-cutting Exceptions (used across multiple domains)
+class ConfigError(YadsError):
+    """Base for configuration-related errors.
+
+    Raised when there are issues with configuration parameters, invalid
+    settings, or conflicting configuration options across different
+    components (converters, loaders, etc.).
+    """
+
+
+class UnsupportedFeatureError(YadsError):
+    """Feature not supported by target system/component.
+
+    Raised when attempting to use a feature that is not supported by the
+    target format, dialect, or component. This is a cross-cutting concern
+    that can occur in converters, loaders, and other components.
+    """
+
+
 # Converter Exceptions
 class ConverterError(YadsError):
     """Base for converter-related errors.
@@ -135,7 +154,7 @@ class ConverterError(YadsError):
     """
 
 
-class ConverterConfigError(ConverterError):
+class ConverterConfigError(ConfigError):
     """Errors during converter configuration.
 
     Raised when there are issues with converter configuration, such as invalid
@@ -151,11 +170,20 @@ class ConversionError(ConverterError):
     """
 
 
-class UnsupportedFeatureError(ConverterError):
-    """Feature not supported by target converter/dialect.
+# Loader Exceptions
+class LoaderError(YadsError):
+    """Base for loader-related errors.
 
-    Raised when attempting to convert a yads feature that is not supported
-    by the target format or dialect.
+    Raised when there are issues during the loading process from external
+    sources to yads specs.
+    """
+
+
+class LoaderConfigError(ConfigError):
+    """Errors during loader configuration.
+
+    Raised when there are issues with loader configuration, such as invalid
+    configuration parameters or conflicting settings.
     """
 
 

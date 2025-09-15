@@ -15,16 +15,11 @@ if TYPE_CHECKING:
 class YamlLoader(BaseLoader):
     """Loads a `YadsSpec` from a YAML string."""
 
-    def __init__(self, content: str):
-        """Initializes the loader with YAML content.
+    def load(self, content: str) -> YadsSpec:
+        """Parses the YAML content and builds the spec.
 
         Args:
             content: The YAML string content.
-        """
-        self._content = content
-
-    def load(self) -> YadsSpec:
-        """Parses the YAML content and builds the spec.
 
         Returns:
             A `YadsSpec` instance.
@@ -33,7 +28,7 @@ class YamlLoader(BaseLoader):
             SpecParsingError: If the YAML content is invalid or does not
                               parse to a dictionary.
         """
-        data = yaml.safe_load(self._content)
+        data = yaml.safe_load(content)
         if not isinstance(data, dict):
             raise SpecParsingError("Loaded YAML content did not parse to a dictionary.")
-        return DictLoader(data).load()
+        return DictLoader().load(data)

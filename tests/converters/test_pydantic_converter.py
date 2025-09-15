@@ -197,8 +197,8 @@ class TestPydanticConverterTypes:
             (JSON(), dict, None, lambda f: None),
 
             # Spatial types -> coerce to str with warning
-            (Geometry(), str, "Data type 'GEOMETRY' is not supported", lambda f: None),
-            (Geography(), str, "Data type 'GEOGRAPHY' is not supported", lambda f: None),
+            (Geometry(), str, "PydanticConverter does not support type: geometry", lambda f: None),
+            (Geography(), str, "PydanticConverter does not support type: geography", lambda f: None),
 
             # Other
             (UUID(), PyUUID, None, lambda f: None),
@@ -242,9 +242,7 @@ class TestPydanticConverterTypes:
         if expected_warning is not None:
             assert len(w) == 1
             assert issubclass(w[0].category, ValidationWarning)
-            assert "does not support type" in str(w[0].message) or (
-                expected_warning in str(w[0].message)
-            )
+            assert expected_warning in str(w[0].message)
         else:
             assert len(w) == 0
 
@@ -379,7 +377,7 @@ class TestPydanticConverterTypes:
             model = PydanticConverter().convert(spec, mode="coerce")
         assert len(w) == 2
         msgs = "\n".join(str(x.message) for x in w)
-        assert "GEOMETRY" in msgs and "GEOGRAPHY" in msgs
+        assert "geometry" in msgs and "geography" in msgs
         ann_g1 = unwrap_optional(model.model_fields["g1"].annotation)
         ann_g2 = unwrap_optional(model.model_fields["g2"].annotation)
         assert isinstance(ann_g1, type) and issubclass(ann_g1, str)
@@ -868,8 +866,8 @@ class TestPydanticConverterCustomization:
 
         # Check warning was emitted
         assert len(w) == 1
-        assert "GEOMETRY" in str(w[0].message)
-        assert fallback_type.__name__.upper() in str(w[0].message)
+        assert "geometry" in str(w[0].message)
+        assert fallback_type.__name__ in str(w[0].message)
 
     def test_invalid_fallback_type_raises_error(self):
         """Test that invalid fallback_type raises UnsupportedFeatureError."""
@@ -1182,3 +1180,718 @@ class TestPydanticConverterCustomization:
             "category": "user_input",
             "validation": "strict",
         }
+
+    def test_fallback_preserves_nullability(self):
+        """Test that fallback fields preserve nullability annotations."""
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[
+                # Nullable fields that will fallback
+                Column(name="nullable_geom", type=Geometry()),
+                Column(name="nullable_geo", type=Geography()),
+                # Non-nullable fields that will fallback
+                Column(
+                    name="not_null_geom",
+                    type=Geometry(),
+                    constraints=[NotNullConstraint()],
+                ),
+                Column(
+                    name="not_null_geo",
+                    type=Geography(),
+                    constraints=[NotNullConstraint()],
+                ),
+            ],
+        )
+        config = PydanticConverterConfig(fallback_type=str)
+        converter = PydanticConverter(config)
+
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            model = converter.convert(spec, mode="coerce")
+
+        # Check nullable fallback fields
+        nullable_geom_field = model.model_fields["nullable_geom"]
+        nullable_geo_field = model.model_fields["nullable_geo"]
+
+        # These should be Optional[str]
+        assert type(None) in get_args(nullable_geom_field.annotation)
+        assert type(None) in get_args(nullable_geo_field.annotation)
+
+        # Unwrap Optional to get the base type
+        geom_base_type = unwrap_optional(nullable_geom_field.annotation)
+        geo_base_type = unwrap_optional(nullable_geo_field.annotation)
+        assert isinstance(geom_base_type, type) and issubclass(geom_base_type, str)
+        assert isinstance(geo_base_type, type) and issubclass(geo_base_type, str)
+
+        # Check non-nullable fallback fields
+        not_null_geom_field = model.model_fields["not_null_geom"]
+        not_null_geo_field = model.model_fields["not_null_geo"]
+
+        # These should be str (not Optional[str])
+        assert type(None) not in get_args(not_null_geom_field.annotation)
+        assert type(None) not in get_args(not_null_geo_field.annotation)
+
+        # Should be plain str type
+        assert isinstance(not_null_geom_field.annotation, type) and issubclass(
+            not_null_geom_field.annotation, str
+        )
+        assert isinstance(not_null_geo_field.annotation, type) and issubclass(
+            not_null_geo_field.annotation, str
+        )
+
+    def test_fallback_preserves_nullability_with_different_fallback_types(self):
+        """Test nullability preservation with different fallback types."""
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[
+                Column(name="nullable_geom", type=Geometry()),
+                Column(
+                    name="not_null_geom",
+                    type=Geometry(),
+                    constraints=[NotNullConstraint()],
+                ),
+            ],
+        )
+
+        # Test with dict fallback
+        config_dict = PydanticConverterConfig(fallback_type=dict)
+        converter_dict = PydanticConverter(config_dict)
+
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            model_dict = converter_dict.convert(spec, mode="coerce")
+
+        nullable_dict_field = model_dict.model_fields["nullable_geom"]
+        not_null_dict_field = model_dict.model_fields["not_null_geom"]
+
+        # Nullable should be Optional[dict]
+        assert type(None) in get_args(nullable_dict_field.annotation)
+        nullable_dict_base = unwrap_optional(nullable_dict_field.annotation)
+        assert isinstance(nullable_dict_base, type) and issubclass(
+            nullable_dict_base, dict
+        )
+
+        # Non-nullable should be dict
+        assert type(None) not in get_args(not_null_dict_field.annotation)
+        assert isinstance(not_null_dict_field.annotation, type) and issubclass(
+            not_null_dict_field.annotation, dict
+        )
+
+        # Test with bytes fallback
+        config_bytes = PydanticConverterConfig(fallback_type=bytes)
+        converter_bytes = PydanticConverter(config_bytes)
+
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            model_bytes = converter_bytes.convert(spec, mode="coerce")
+
+        nullable_bytes_field = model_bytes.model_fields["nullable_geom"]
+        not_null_bytes_field = model_bytes.model_fields["not_null_geom"]
+
+        # Nullable should be Optional[bytes]
+        assert type(None) in get_args(nullable_bytes_field.annotation)
+        nullable_bytes_base = unwrap_optional(nullable_bytes_field.annotation)
+        assert isinstance(nullable_bytes_base, type) and issubclass(
+            nullable_bytes_base, bytes
+        )
+
+        # Non-nullable should be bytes
+        assert type(None) not in get_args(not_null_bytes_field.annotation)
+        assert isinstance(not_null_bytes_field.annotation, type) and issubclass(
+            not_null_bytes_field.annotation, bytes
+        )
+
+    def test_fallback_preserves_nullability_in_nested_structs(self):
+        """Test that nullability is preserved in nested struct fields that fallback."""
+        nested_struct = Struct(
+            fields=[
+                Field(name="nullable_geom", type=Geometry()),
+                Field(
+                    name="not_null_geom",
+                    type=Geometry(),
+                    constraints=[NotNullConstraint()],
+                ),
+            ]
+        )
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[
+                Column(name="struct", type=nested_struct),
+            ],
+        )
+        config = PydanticConverterConfig(fallback_type=str)
+        converter = PydanticConverter(config)
+
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            model = converter.convert(spec, mode="coerce")
+
+        # The struct field itself should be Optional[StructModel] (since it's nullable by default)
+        struct_field = model.model_fields["struct"]
+        assert type(None) in get_args(struct_field.annotation)
+        struct_base_type = unwrap_optional(struct_field.annotation)
+
+        # The struct should remain a struct model, not be coerced to str
+        assert isinstance(struct_base_type, type) and issubclass(
+            struct_base_type, BaseModel
+        )
+
+        # Check that the struct fields are properly converted with fallback
+        struct_fields = struct_base_type.model_fields
+        assert set(struct_fields.keys()) == {"nullable_geom", "not_null_geom"}
+
+        # Check nullability preservation in fallback fields
+        nullable_geom_field = struct_fields["nullable_geom"]
+        assert type(None) in get_args(nullable_geom_field.annotation)
+        nullable_geom_type = unwrap_optional(nullable_geom_field.annotation)
+        assert isinstance(nullable_geom_type, type) and issubclass(
+            nullable_geom_type, str
+        )
+
+        not_null_geom_field = struct_fields["not_null_geom"]
+        assert type(None) not in get_args(not_null_geom_field.annotation)
+        not_null_geom_type = unwrap_optional(not_null_geom_field.annotation)
+        assert isinstance(not_null_geom_type, type) and issubclass(
+            not_null_geom_type, str
+        )
+
+
+# %% Field-level fallback in complex types
+class TestPydanticConverterFieldLevelFallback:
+    def test_struct_with_unsupported_field_fallback(self):
+        struct_with_unsupported = Struct(
+            fields=[
+                Field(name="supported_field", type=String()),
+                Field(name="unsupported_field", type=Geography()),
+                Field(name="another_supported", type=Integer()),
+            ]
+        )
+
+        spec = YadsSpec(
+            name="test_struct_fallback",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer()),
+                Column(name="data", type=struct_with_unsupported),
+            ],
+        )
+
+        config = PydanticConverterConfig(fallback_type=str)
+        converter = PydanticConverter(config)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            model = converter.convert(spec, mode="coerce")
+
+        # Should have warnings for the unsupported field within the struct
+        assert len(w) == 1
+        assert issubclass(w[0].category, ValidationWarning)
+        assert "geography" in str(w[0].message)
+        assert "unsupported_field" in str(w[0].message)
+
+        # The struct field should still be a struct model, not a fallback
+        data_field = model.model_fields["data"]
+        data_type = unwrap_optional(data_field.annotation)
+        assert isinstance(data_type, type) and issubclass(data_type, BaseModel)
+
+        # Check individual struct fields
+        struct_fields = data_type.model_fields
+        assert set(struct_fields.keys()) == {
+            "supported_field",
+            "unsupported_field",
+            "another_supported",
+        }
+
+        # Supported fields should be converted normally
+        supported_field = struct_fields["supported_field"]
+        supported_type = unwrap_optional(supported_field.annotation)
+        assert isinstance(supported_type, type) and issubclass(supported_type, str)
+
+        another_supported = struct_fields["another_supported"]
+        another_type = unwrap_optional(another_supported.annotation)
+        assert isinstance(another_type, type) and issubclass(another_type, int)
+
+        # Unsupported field should get fallback
+        unsupported_field = struct_fields["unsupported_field"]
+        unsupported_type = unwrap_optional(unsupported_field.annotation)
+        assert isinstance(unsupported_type, type) and issubclass(
+            unsupported_type, str
+        )  # fallback type
+
+    def test_nested_struct_with_multiple_unsupported_fields(self):
+        inner_struct = Struct(
+            fields=[
+                Field(name="inner_geom", type=Geometry()),
+                Field(name="inner_string", type=String()),
+            ]
+        )
+
+        outer_struct = Struct(
+            fields=[
+                Field(name="outer_geog", type=Geography()),
+                Field(name="inner_data", type=inner_struct),
+                Field(name="outer_int", type=Integer()),
+            ]
+        )
+
+        spec = YadsSpec(
+            name="test_nested_fallback",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer()),
+                Column(name="complex_data", type=outer_struct),
+            ],
+        )
+
+        config = PydanticConverterConfig(fallback_type=str)
+        converter = PydanticConverter(config)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            model = converter.convert(spec, mode="coerce")
+
+        # Should have warnings for both unsupported fields
+        assert len(w) == 2
+        assert all(issubclass(warning.category, ValidationWarning) for warning in w)
+
+        warning_messages = [str(warning.message) for warning in w]
+        assert any("geography" in msg and "outer_geog" in msg for msg in warning_messages)
+        assert any("geometry" in msg and "inner_geom" in msg for msg in warning_messages)
+
+        # The outer struct should still be a struct
+        complex_field = model.model_fields["complex_data"]
+        complex_type = unwrap_optional(complex_field.annotation)
+        assert isinstance(complex_type, type) and issubclass(complex_type, BaseModel)
+
+        outer_struct_fields = complex_type.model_fields
+        assert set(outer_struct_fields.keys()) == {
+            "outer_geog",
+            "inner_data",
+            "outer_int",
+        }
+
+        # Check outer level fields
+        outer_geog_field = outer_struct_fields["outer_geog"]
+        outer_geog_type = unwrap_optional(outer_geog_field.annotation)
+        assert isinstance(outer_geog_type, type) and issubclass(
+            outer_geog_type, str
+        )  # fallback
+
+        outer_int_field = outer_struct_fields["outer_int"]
+        outer_int_type = unwrap_optional(outer_int_field.annotation)
+        assert isinstance(outer_int_type, type) and issubclass(
+            outer_int_type, int
+        )  # normal conversion
+
+        # Check inner struct
+        inner_data_field = outer_struct_fields["inner_data"]
+        inner_data_type = unwrap_optional(inner_data_field.annotation)
+        assert isinstance(inner_data_type, type) and issubclass(
+            inner_data_type, BaseModel
+        )
+
+        inner_struct_fields = inner_data_type.model_fields
+        assert set(inner_struct_fields.keys()) == {"inner_geom", "inner_string"}
+
+        inner_geom_field = inner_struct_fields["inner_geom"]
+        inner_geom_type = unwrap_optional(inner_geom_field.annotation)
+        assert isinstance(inner_geom_type, type) and issubclass(
+            inner_geom_type, str
+        )  # fallback
+
+        inner_string_field = inner_struct_fields["inner_string"]
+        inner_string_type = unwrap_optional(inner_string_field.annotation)
+        assert isinstance(inner_string_type, type) and issubclass(
+            inner_string_type, str
+        )  # normal conversion
+
+    def test_array_with_unsupported_element_type(self):
+        array_with_unsupported = Array(element=Geography())
+
+        spec = YadsSpec(
+            name="test_array_fallback",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer()),
+                Column(name="locations", type=array_with_unsupported),
+            ],
+        )
+
+        config = PydanticConverterConfig(fallback_type=str)
+        converter = PydanticConverter(config)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            model = converter.convert(spec, mode="coerce")
+
+        # Should have warning for the unsupported element type
+        assert len(w) == 1
+        assert issubclass(w[0].category, ValidationWarning)
+        assert "geography" in str(w[0].message)
+
+        # The array field should still be an array, not a fallback
+        locations_field = model.model_fields["locations"]
+        locations_type = unwrap_optional(locations_field.annotation)
+        assert get_origin(locations_type) is list
+
+        # The element type should be the fallback
+        element_type = get_args(locations_type)[0]
+        assert isinstance(element_type, type) and issubclass(
+            element_type, str
+        )  # fallback type
+
+    def test_map_with_unsupported_key_or_value(self):
+        # Map with unsupported key
+        map_unsupported_key = Map(key=Geometry(), value=String())
+
+        # Map with unsupported value
+        map_unsupported_value = Map(key=String(), value=Geography())
+
+        spec = YadsSpec(
+            name="test_map_fallback",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer()),
+                Column(name="geom_keys", type=map_unsupported_key),
+                Column(name="geog_values", type=map_unsupported_value),
+            ],
+        )
+
+        config = PydanticConverterConfig(fallback_type=str)
+        converter = PydanticConverter(config)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            model = converter.convert(spec, mode="coerce")
+
+        # Should have warnings for both unsupported types
+        assert len(w) == 2
+        assert all(issubclass(warning.category, ValidationWarning) for warning in w)
+
+        warning_messages = [str(warning.message) for warning in w]
+        assert any("geometry" in msg for msg in warning_messages)
+        assert any("geography" in msg for msg in warning_messages)
+
+        # Both map fields should still be maps
+        geom_keys_field = model.model_fields["geom_keys"]
+        geom_keys_type = unwrap_optional(geom_keys_field.annotation)
+        assert get_origin(geom_keys_type) is dict
+
+        geog_values_field = model.model_fields["geog_values"]
+        geog_values_type = unwrap_optional(geog_values_field.annotation)
+        assert get_origin(geog_values_type) is dict
+
+        # Check key/value types
+        geom_keys_args = get_args(geom_keys_type)
+        assert isinstance(geom_keys_args[0], type) and issubclass(
+            geom_keys_args[0], str
+        )  # fallback for key
+        assert isinstance(geom_keys_args[1], type) and issubclass(
+            geom_keys_args[1], str
+        )  # normal conversion for value
+
+        geog_values_args = get_args(geog_values_type)
+        assert isinstance(geog_values_args[0], type) and issubclass(
+            geog_values_args[0], str
+        )  # normal conversion for key
+        assert isinstance(geog_values_args[1], type) and issubclass(
+            geog_values_args[1], str
+        )  # fallback for value
+
+    def test_array_of_struct_with_unsupported_fields(self):
+        struct_with_unsupported = Struct(
+            fields=[
+                Field(name="name", type=String()),
+                Field(name="location", type=Geography()),
+            ]
+        )
+
+        array_of_structs = Array(element=struct_with_unsupported)
+
+        spec = YadsSpec(
+            name="test_array_struct_fallback",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer()),
+                Column(name="items", type=array_of_structs),
+            ],
+        )
+
+        config = PydanticConverterConfig(fallback_type=str)
+        converter = PydanticConverter(config)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            model = converter.convert(spec, mode="coerce")
+
+        # Should have warning for the unsupported field within the struct
+        assert len(w) == 1
+        assert issubclass(w[0].category, ValidationWarning)
+        assert "geography" in str(w[0].message)
+        assert "location" in str(w[0].message)
+
+        # The array field should still be an array
+        items_field = model.model_fields["items"]
+        items_type = unwrap_optional(items_field.annotation)
+        assert get_origin(items_type) is list
+
+        # The element should be a struct model
+        element_type = get_args(items_type)[0]
+        assert isinstance(element_type, type) and issubclass(element_type, BaseModel)
+
+        # Check struct fields
+        struct_fields = element_type.model_fields
+        assert set(struct_fields.keys()) == {"name", "location"}
+
+        name_field = struct_fields["name"]
+        name_type = unwrap_optional(name_field.annotation)
+        assert isinstance(name_type, type) and issubclass(
+            name_type, str
+        )  # normal conversion
+
+        location_field = struct_fields["location"]
+        location_type = unwrap_optional(location_field.annotation)
+        assert isinstance(location_type, type) and issubclass(
+            location_type, str
+        )  # fallback
+
+    def test_complex_nested_structure_with_mixed_fallbacks(self):
+        innermost_struct = Struct(
+            fields=[
+                Field(name="geography_field", type=Geography()),
+                Field(name="normal_string", type=String()),
+            ]
+        )
+
+        middle_struct = Struct(
+            fields=[
+                Field(name="geometry_field", type=Geometry()),
+                Field(name="inner_data", type=innermost_struct),
+                Field(name="normal_int", type=Integer()),
+            ]
+        )
+
+        array_of_middle_structs = Array(element=middle_struct)
+
+        map_with_unsupported = Map(key=Geography(), value=array_of_middle_structs)
+
+        spec = YadsSpec(
+            name="test_complex_nested_fallback",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer()),
+                Column(name="complex_map", type=map_with_unsupported),
+            ],
+        )
+
+        config = PydanticConverterConfig(fallback_type=str)
+        converter = PydanticConverter(config)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            model = converter.convert(spec, mode="coerce")
+
+        # Should have warnings for unsupported types (Geometry and Geography, but not Variant)
+        assert len(w) == 3
+        assert all(issubclass(warning.category, ValidationWarning) for warning in w)
+
+        warning_messages = [str(warning.message) for warning in w]
+        assert any("geography" in msg for msg in warning_messages)
+        assert any("geometry" in msg for msg in warning_messages)
+
+        # The map field should still be a map
+        complex_map_field = model.model_fields["complex_map"]
+        complex_map_type = unwrap_optional(complex_map_field.annotation)
+        assert get_origin(complex_map_type) is dict
+
+        map_args = get_args(complex_map_type)
+        assert isinstance(map_args[0], type) and issubclass(
+            map_args[0], str
+        )  # fallback for Geography key
+
+        # The value should be an array
+        value_type = map_args[1]
+        assert get_origin(value_type) is list
+        array_element_type = get_args(value_type)[0]
+
+        # The array element should be a struct
+        assert isinstance(array_element_type, type) and issubclass(
+            array_element_type, BaseModel
+        )
+        middle_struct_fields = array_element_type.model_fields
+        assert set(middle_struct_fields.keys()) == {
+            "geometry_field",
+            "inner_data",
+            "normal_int",
+        }
+
+        # Check middle struct fields
+        geometry_field = middle_struct_fields["geometry_field"]
+        geometry_type = unwrap_optional(geometry_field.annotation)
+        assert isinstance(geometry_type, type) and issubclass(
+            geometry_type, str
+        )  # fallback
+
+        normal_int_field = middle_struct_fields["normal_int"]
+        normal_int_type = unwrap_optional(normal_int_field.annotation)
+        assert isinstance(normal_int_type, type) and issubclass(
+            normal_int_type, int
+        )  # normal conversion
+
+        # Check inner struct
+        inner_data_field = middle_struct_fields["inner_data"]
+        inner_data_type = unwrap_optional(inner_data_field.annotation)
+        assert isinstance(inner_data_type, type) and issubclass(
+            inner_data_type, BaseModel
+        )
+
+        inner_struct_fields = inner_data_type.model_fields
+        assert set(inner_struct_fields.keys()) == {"geography_field", "normal_string"}
+
+        geography_field = inner_struct_fields["geography_field"]
+        geography_type = unwrap_optional(geography_field.annotation)
+        assert isinstance(geography_type, type) and issubclass(
+            geography_type, str
+        )  # fallback
+
+        normal_string_field = inner_struct_fields["normal_string"]
+        normal_string_type = unwrap_optional(normal_string_field.annotation)
+        assert isinstance(normal_string_type, type) and issubclass(
+            normal_string_type, str
+        )  # normal conversion
+
+    @pytest.mark.parametrize("fallback_type", [str, dict, bytes])
+    def test_fallback_type_preservation_in_nested_structures(self, fallback_type: type):
+        struct_with_unsupported = Struct(
+            fields=[
+                Field(name="geom", type=Geometry()),
+                Field(name="geog", type=Geography()),
+                Field(name="variant", type=Variant()),
+            ]
+        )
+
+        spec = YadsSpec(
+            name="test_fallback_preservation",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer()),
+                Column(name="data", type=struct_with_unsupported),
+            ],
+        )
+
+        config = PydanticConverterConfig(fallback_type=fallback_type)
+        converter = PydanticConverter(config)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            model = converter.convert(spec, mode="coerce")
+
+        # Should have warnings for unsupported types (Geometry and Geography, but not Variant)
+        assert len(w) == 2
+
+        # The struct should still be a struct
+        data_field = model.model_fields["data"]
+        data_type = unwrap_optional(data_field.annotation)
+        assert isinstance(data_type, type) and issubclass(data_type, BaseModel)
+
+        struct_fields = data_type.model_fields
+        assert set(struct_fields.keys()) == {"geom", "geog", "variant"}
+
+        # Unsupported fields should get the fallback type
+        geom_field = struct_fields["geom"]
+        geom_type = unwrap_optional(geom_field.annotation)
+        assert isinstance(geom_type, type) and issubclass(geom_type, fallback_type)
+
+        geog_field = struct_fields["geog"]
+        geog_type = unwrap_optional(geog_field.annotation)
+        assert isinstance(geog_type, type) and issubclass(geog_type, fallback_type)
+
+        # Variant is supported and converts to Any
+        variant_field = struct_fields["variant"]
+        variant_type = unwrap_optional(variant_field.annotation)
+        assert variant_type is Any
+
+    def test_field_metadata_preservation_in_nested_fallback(self):
+        """Test that field metadata is preserved in nested fallback."""
+        struct_with_metadata = Struct(
+            fields=[
+                Field(
+                    name="geom_with_metadata",
+                    type=Geometry(),
+                    description="A geometry field",
+                    metadata={"srid": "4326", "precision": "high"},
+                ),
+                Field(name="normal_field", type=String()),
+            ]
+        )
+
+        spec = YadsSpec(
+            name="test_nested_metadata_preservation",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer()),
+                Column(name="data", type=struct_with_metadata),
+            ],
+        )
+
+        config = PydanticConverterConfig(fallback_type=str)
+        converter = PydanticConverter(config)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            model = converter.convert(spec, mode="coerce")
+
+        # Should have warning for the unsupported field
+        assert len(w) == 1
+
+        # Check that metadata was preserved
+        data_field = model.model_fields["data"]
+        data_type = unwrap_optional(data_field.annotation)
+        struct_fields = data_type.model_fields
+
+        geom_field = struct_fields["geom_with_metadata"]
+        geom_type = unwrap_optional(geom_field.annotation)
+        assert isinstance(geom_type, type) and issubclass(
+            geom_type, str
+        )  # fallback applied
+
+        # Check that metadata was preserved
+        assert geom_field.description == "A geometry field"
+        assert geom_field.json_schema_extra is not None
+        yads_metadata = geom_field.json_schema_extra.get("yads", {})
+        assert yads_metadata.get("metadata") == {"srid": "4326", "precision": "high"}
+
+        # Normal field should work as expected
+        normal_field = struct_fields["normal_field"]
+        normal_type = unwrap_optional(normal_field.annotation)
+        assert isinstance(normal_type, type) and issubclass(normal_type, str)
+
+    def test_raise_mode_still_raises_for_nested_unsupported_types(self):
+        """Test that raise mode still raises for nested unsupported types."""
+        struct_with_unsupported = Struct(
+            fields=[
+                Field(name="geom", type=Geometry()),
+                Field(name="normal_field", type=String()),
+            ]
+        )
+
+        spec = YadsSpec(
+            name="test_raise_mode_nested",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer()),
+                Column(name="data", type=struct_with_unsupported),
+            ],
+        )
+
+        config = PydanticConverterConfig(mode="raise")
+        converter = PydanticConverter(config)
+
+        with pytest.raises(
+            UnsupportedFeatureError,
+            match="PydanticConverter does not support type: geometry",
+        ):
+            converter.convert(spec)

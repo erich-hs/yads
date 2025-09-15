@@ -29,9 +29,7 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 
 import pyarrow as pa  # type: ignore[import-untyped]
-from ..exceptions import validation_warning
-
-from ..exceptions import UnsupportedFeatureError
+from ..exceptions import UnsupportedFeatureError, validation_warning
 from ..spec import Field, YadsSpec
 from ..types import (
     YadsType,
@@ -54,11 +52,8 @@ from ..types import (
     Struct,
     Map,
     JSON,
-    Geometry,
-    Geography,
     UUID,
     Void,
-    Variant,
 )
 from .base import BaseConverter, BaseConverterConfig
 
@@ -161,43 +156,40 @@ class PyArrowConverter(BaseConverter):
         with self.conversion_context(mode=mode):
             self._validate_column_filters(spec)
             for col in self._filter_columns(spec):
-                try:
-                    # Set field context during conversion
-                    with self.conversion_context(field=col.name):
-                        # Use centralized override resolution with PyArrow-specific adapter
-                        field_result = self._convert_field_with_overrides(col)
-
-                        fields.append(field_result)
-                except UnsupportedFeatureError:
-                    if self.config.mode == "coerce":
-                        fallback_name = str(self.config.fallback_type)
-                        validation_warning(
-                            message=(
-                                f"Data type '{type(col.type).__name__.upper()}' is not supported"
-                                f" for column '{col.name}'. The data type will be replaced with {fallback_name}."
-                            ),
-                            filename="yads.converters.pyarrow_converter",
-                            module=__name__,
-                        )
-                        fallback = pa.field(
-                            col.name,
-                            self.config.fallback_type,
-                            nullable=col.is_nullable,
-                            metadata=self._build_field_metadata(col),
-                        )
-                        fields.append(fallback)
-                        continue
-                    raise
+                # Set field context during conversion
+                with self.conversion_context(field=col.name):
+                    # Use centralized override resolution - fallback is handled by decorator
+                    field_result = self._convert_field_with_overrides(col)
+                    fields.append(field_result)
         # Attach schema-level metadata if present, coercing values to strings
         schema_metadata = self._coerce_metadata(spec.metadata) if spec.metadata else None
         return pa.schema(fields, metadata=schema_metadata)
 
     # %% ---- Type conversion ---------------------------------------------------------
+    # Time unit constraints for Arrow
+    _TIME32_UNITS: frozenset[str] = frozenset({"s", "ms"})
+    _TIME64_UNITS: frozenset[str] = frozenset({"us", "ns"})
+
     @singledispatchmethod
     def _convert_type(self, yads_type: YadsType) -> pa.DataType:
-        # Unsupported logical types will be handled by the caller depending on mode.
+        # Fallback for currently unsupported:
+        # - Geometry
+        # - Geography
+        # - Variant
+        if self.config.mode == "coerce":
+            validation_warning(
+                message=(
+                    f"PyArrowConverter does not support type: {yads_type}"
+                    f" for '{self._current_field_name or '<unknown>'}'."
+                    f" The data type will be coerced to {self.config.fallback_type}."
+                ),
+                filename="yads.converters.pyarrow_converter",
+                module=__name__,
+            )
+            return self.config.fallback_type
         raise UnsupportedFeatureError(
-            f"PyArrowConverter does not support type: {type(yads_type).__name__}."
+            f"PyArrowConverter does not support type: {yads_type}"
+            f" for '{self._current_field_name or '<unknown>'}'."
         )
 
     @_convert_type.register(String)
@@ -208,40 +200,36 @@ class PyArrowConverter(BaseConverter):
     @_convert_type.register(Integer)
     def _(self, yads_type: Integer) -> pa.DataType:
         bits = yads_type.bits or 32
-        if yads_type.signed:
-            if bits == 8:
-                return pa.int8()
-            elif bits == 16:
-                return pa.int16()
-            elif bits == 32:
-                return pa.int32()
-            elif bits == 64:
-                return pa.int64()
-        else:
-            if bits == 8:
-                return pa.uint8()
-            elif bits == 16:
-                return pa.uint16()
-            elif bits == 32:
-                return pa.uint32()
-            elif bits == 64:
-                return pa.uint64()
-        raise UnsupportedFeatureError(
-            f"Unsupported Integer bits: {bits}. Expected 8/16/32/64."
-        )
+        signed_map = {
+            8: pa.int8(),
+            16: pa.int16(),
+            32: pa.int32(),
+            64: pa.int64(),
+        }
+        unsigned_map = {
+            8: pa.uint8(),
+            16: pa.uint16(),
+            32: pa.uint32(),
+            64: pa.uint64(),
+        }
+        mapping = signed_map if yads_type.signed else unsigned_map
+        try:
+            return mapping[bits]
+        except KeyError as e:
+            raise UnsupportedFeatureError(
+                f"Unsupported Integer bits: {bits}. Expected 8/16/32/64."
+            ) from e
 
     @_convert_type.register(Float)
     def _(self, yads_type: Float) -> pa.DataType:
         bits = yads_type.bits or 32
-        if bits == 16:
-            return pa.float16()
-        elif bits == 32:
-            return pa.float32()
-        elif bits == 64:
-            return pa.float64()
-        raise UnsupportedFeatureError(
-            f"Unsupported Float bits: {bits}. Expected 16/32/64."
-        )
+        mapping = {16: pa.float16(), 32: pa.float32(), 64: pa.float64()}
+        try:
+            return mapping[bits]
+        except KeyError as e:
+            raise UnsupportedFeatureError(
+                f"Unsupported Float bits: {bits}. Expected 16/32/64."
+            ) from e
 
     @_convert_type.register(Decimal)
     def _(self, yads_type: Decimal) -> pa.DataType:
@@ -293,11 +281,13 @@ class PyArrowConverter(BaseConverter):
     @_convert_type.register(Date)
     def _(self, yads_type: Date) -> pa.DataType:
         bits = yads_type.bits or 32
-        if bits == 32:
-            return pa.date32()
-        elif bits == 64:
-            return pa.date64()
-        raise UnsupportedFeatureError(f"Unsupported Date bits: {bits}. Expected 32/64.")
+        mapping = {32: pa.date32(), 64: pa.date64()}
+        try:
+            return mapping[bits]
+        except KeyError as e:
+            raise UnsupportedFeatureError(
+                f"Unsupported Date bits: {bits}. Expected 32/64."
+            ) from e
 
     @_convert_type.register(Time)
     def _(self, yads_type: Time) -> pa.DataType:
@@ -306,12 +296,12 @@ class PyArrowConverter(BaseConverter):
 
         if bits is None:
             # Infer from unit
-            if unit in {"s", "ms"}:
+            if unit in self._TIME32_UNITS:
                 return pa.time32(unit)
             return pa.time64(unit)
 
         if bits == 32:
-            if unit not in {"s", "ms"}:
+            if unit not in self._TIME32_UNITS:
                 if self.config.mode == "coerce":
                     validation_warning(
                         message=(
@@ -324,11 +314,11 @@ class PyArrowConverter(BaseConverter):
                     )
                     return pa.time64(unit)
                 raise UnsupportedFeatureError(
-                    "time32 supports only 's' or 'ms' units (got '" + unit + "')."
+                    f"time32 supports only 's' or 'ms' units (got '{unit}')."
                 )
             return pa.time32(unit)
         elif bits == 64:
-            if unit not in {"us", "ns"}:
+            if unit not in self._TIME64_UNITS:
                 if self.config.mode == "coerce":
                     # Promote coarse units to 32 if asked for 64 but unit is s/ms
                     validation_warning(
@@ -342,30 +332,26 @@ class PyArrowConverter(BaseConverter):
                     )
                     return pa.time32(unit)
                 raise UnsupportedFeatureError(
-                    "time64 supports only 'us' or 'ns' units (got '" + unit + "')."
+                    f"time64 supports only 'us' or 'ns' units (got '{unit}')."
                 )
             return pa.time64(unit)
         raise UnsupportedFeatureError(f"Unsupported Time bits: {bits}. Expected 32/64.")
 
     @_convert_type.register(Timestamp)
     def _(self, yads_type: Timestamp) -> pa.DataType:
-        unit = self._to_pa_time_unit(yads_type.unit)
-        return pa.timestamp(unit)
+        return self._build_timestamp(yads_type.unit, tz=None)
 
     @_convert_type.register(TimestampTZ)
     def _(self, yads_type: TimestampTZ) -> pa.DataType:
-        unit = self._to_pa_time_unit(yads_type.unit)
-        return pa.timestamp(unit, tz=yads_type.tz)
+        return self._build_timestamp(yads_type.unit, tz=yads_type.tz)
 
     @_convert_type.register(TimestampLTZ)
     def _(self, yads_type: TimestampLTZ) -> pa.DataType:
-        unit = self._to_pa_time_unit(yads_type.unit)
-        return pa.timestamp(unit, tz=None)
+        return self._build_timestamp(yads_type.unit, tz=None)
 
     @_convert_type.register(TimestampNTZ)
     def _(self, yads_type: TimestampNTZ) -> pa.DataType:
-        unit = self._to_pa_time_unit(yads_type.unit)
-        return pa.timestamp(unit, tz=None)
+        return self._build_timestamp(yads_type.unit, tz=None)
 
     @_convert_type.register(Duration)
     def _(self, yads_type: Duration) -> pa.DataType:
@@ -389,7 +375,11 @@ class PyArrowConverter(BaseConverter):
 
     @_convert_type.register(Struct)
     def _(self, yads_type: Struct) -> pa.DataType:
-        fields = [self._convert_field(f) for f in yads_type.fields]
+        fields = []
+        for yads_field in yads_type.fields:
+            with self.conversion_context(field=yads_field.name):
+                field_result = self._convert_field(yads_field)
+                fields.append(field_result)
         return pa.struct(fields)
 
     @_convert_type.register(Map)
@@ -402,18 +392,6 @@ class PyArrowConverter(BaseConverter):
     def _(self, yads_type: JSON) -> pa.DataType:
         return pa.json_(storage_type=pa.utf8())
 
-    @_convert_type.register(Geometry)
-    def _(self, yads_type: Geometry) -> pa.DataType:
-        raise UnsupportedFeatureError(
-            f"PyArrowConverter does not support type: {type(yads_type).__name__}."
-        )
-
-    @_convert_type.register(Geography)
-    def _(self, yads_type: Geography) -> pa.DataType:
-        raise UnsupportedFeatureError(
-            f"PyArrowConverter does not support type: {type(yads_type).__name__}."
-        )
-
     @_convert_type.register(UUID)
     def _(self, yads_type: UUID) -> pa.DataType:
         return pa.uuid()
@@ -422,21 +400,7 @@ class PyArrowConverter(BaseConverter):
     def _(self, yads_type: Void) -> pa.DataType:
         return pa.null()
 
-    @_convert_type.register(Variant)
-    def _(self, yads_type: Variant) -> pa.DataType:
-        raise UnsupportedFeatureError(
-            f"PyArrowConverter does not support type: {type(yads_type).__name__}."
-        )
-
     def _convert_field(self, field: Field) -> pa.Field:
-        """Convert a yads `Field` into a `pyarrow.Field`.
-
-        Args:
-            field: The yads field to convert.
-
-        Returns:
-            A `pyarrow.Field` with mapped type, nullability and metadata.
-        """
         pa_type = self._convert_type(field.type)
         metadata = self._build_field_metadata(field)
         return pa.field(
@@ -452,21 +416,14 @@ class PyArrowConverter(BaseConverter):
     # %% ---- Helpers -----------------------------------------------------------------
     @staticmethod
     def _to_pa_time_unit(unit: TimeUnit | None) -> str:
-        """Map yads `TimeUnit` to a PyArrow unit string.
-
-        Args:
-            unit: The yads time unit value.
-
-        Returns:
-            One of `"s"`, `"ms"`, `"us"`, or `"ns"`.
-        """
-        # Default semantics per yads types: see definitions in `types.py`
         if unit is None:
-            # Fallback to the most common Arrow default for timestamp/time conversions
             return "ms"
         return unit.value
 
-    # Metadata helpers
+    def _build_timestamp(self, unit: TimeUnit | None, tz: str | None) -> pa.DataType:
+        pa_unit = self._to_pa_time_unit(unit)
+        return pa.timestamp(pa_unit, tz=tz)
+
     def _build_field_metadata(self, field: Field) -> dict[str, str] | None:
         metadata: dict[str, Any] = {}
         if field.description is not None:

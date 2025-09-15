@@ -49,6 +49,7 @@ from ...types import (
 )
 
 
+# %% ---- Protocols ------------------------------------------------------------------
 class ConstraintParser(Protocol):
     def __call__(self, value: Any) -> ColumnConstraint: ...
 
@@ -57,6 +58,7 @@ class TableConstraintParser(Protocol):
     def __call__(self, const_def: dict[str, Any]) -> TableConstraint: ...
 
 
+# %% ---- Spec builder ---------------------------------------------------------------
 class SpecBuilder:
     """Builds and validates a `YadsSpec` from a dictionary.
 
@@ -131,6 +133,7 @@ class SpecBuilder:
         required_keys: set[str] | None = None,
         context: str,
     ) -> None:
+        """Validate keys of an object against allowed/required sets."""
         unknown = set(obj.keys()) - allowed_keys
         if unknown:
             unknown_sorted = ", ".join(sorted(unknown))
@@ -143,10 +146,11 @@ class SpecBuilder:
                     f"Missing required key(s) in {context}: {missing_sorted}."
                 )
 
-    # Type parsing
+    # %% ---- Type parsing ------------------------------------------------------------
     def _get_processed_type_params(
         self, type_name: str, type_def: dict[str, Any]
     ) -> dict[str, Any]:
+        """Merge provided params with TYPE_ALIASES defaults for a type name."""
         type_params = type_def.get("params", {})
         default_params = TYPE_ALIASES[type_name.lower()][1]
         return {**default_params, **type_params}
@@ -159,7 +163,8 @@ class SpecBuilder:
 
         base_type_class = alias[0]
 
-        # Handle complex types with special parsing requirements using class-level mapping
+        # Handle complex types with special parsing requirements using class-level
+        # mapping
         if parser_method_name := self._TYPE_PARSERS.get(base_type_class):
             parser_method = getattr(self, parser_method_name)
             return parser_method(type_def)
@@ -201,7 +206,11 @@ class SpecBuilder:
             )
 
         element_type_name = element_def["type"]
-        return Array(element=self._parse_type(element_type_name, element_def))
+        final_params = self._get_processed_type_params(type_def.get("type", ""), type_def)
+        return Array(
+            element=self._parse_type(element_type_name, element_def),
+            **final_params,
+        )
 
     def _parse_struct_type(self, type_def: dict[str, Any]) -> Struct:
         if "fields" not in type_def:
@@ -217,12 +226,15 @@ class SpecBuilder:
 
         key_def = type_def["key"]
         value_def = type_def["value"]
+        final_params = self._get_processed_type_params(type_def.get("type", ""), type_def)
+
         return Map(
             key=self._parse_type(key_def["type"], key_def),
             value=self._parse_type(value_def["type"], value_def),
+            **final_params,
         )
 
-    # Field/Column parsing
+    # %% ---- Field/Column parsing ----------------------------------------------------
     def _parse_field(self, field_def: dict[str, Any]) -> Field:
         self._validate_field_definition(field_def, context="field")
         return Field(
@@ -279,7 +291,7 @@ class SpecBuilder:
             context=f"{context} definition",
         )
 
-    # Column constraint parsing
+    # %% ---- Column constraint parsing ----------------------------------------------
     def _parse_not_null_constraint(self, value: Any) -> NotNullConstraint:
         if not isinstance(value, bool):
             raise InvalidConstraintError(
@@ -350,7 +362,7 @@ class SpecBuilder:
 
         return constraints
 
-    # Generation clauses & partitions
+    # %% ---- Generation clauses & partitions ----------------------------------------
     def _parse_generation_clause(
         self, gen_clause_def: dict[str, Any] | None
     ) -> TransformedColumnReference | None:
@@ -397,7 +409,7 @@ class SpecBuilder:
             )
         return transformed_columns
 
-    # Table constraint parsing
+    # %% ---- Table constraint parsing -----------------------------------------------
     def _parse_primary_key_table_constraint(
         self, const_def: dict[str, Any]
     ) -> PrimaryKeyTableConstraint:
@@ -457,7 +469,7 @@ class SpecBuilder:
                 )
         return constraints
 
-    # Storage
+    # %% ---- Storage -----------------------------------------------------------------
     def _parse_storage(self, storage_def: dict[str, Any] | None) -> Storage | None:
         if not storage_def:
             return None
@@ -469,7 +481,7 @@ class SpecBuilder:
         )
         return Storage(**storage_def)
 
-    # Post-build validations
+    # %% ---- Post-build validations --------------------------------------------------
     def _validate_spec(self) -> None:
         if not self._spec:
             return

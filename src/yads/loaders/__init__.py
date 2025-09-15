@@ -16,18 +16,29 @@ All functions return a validated immutable `YadsSpec` instance.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import IO, Any, cast
+from typing import IO, Any, cast, Literal
 
 from ..spec import YadsSpec
-from .base import DictLoader
+from .base import BaseLoader, BaseLoaderConfig, ConfigurableLoader, DictLoader
 from .yaml_loader import YamlLoader
+from .pyarrow_loader import PyArrowLoader, PyArrowLoaderConfig
 
 __all__ = [
+    # Loader classes
+    "BaseLoader",
+    "BaseLoaderConfig",
+    "ConfigurableLoader",
+    "DictLoader",
+    "YamlLoader",
+    "PyArrowLoader",
+    "PyArrowLoaderConfig",
+    # Convenience functions
     "from_dict",
     "from_yaml_string",
     "from_yaml_path",
     "from_yaml_stream",
     "from_yaml",
+    "from_pyarrow",
 ]
 
 
@@ -59,7 +70,7 @@ def from_dict(data: dict[str, Any]) -> YadsSpec:
         >>> print(f"Loaded spec: {spec.name} v{spec.version}")
         Loaded spec: users v1.0.0
     """
-    return DictLoader(data).load()
+    return DictLoader().load(data)
 
 
 def from_yaml_string(content: str) -> YadsSpec:
@@ -85,7 +96,7 @@ def from_yaml_string(content: str) -> YadsSpec:
         >>> print(f"Loaded spec: {spec.name} v{spec.version}")
         Loaded spec: users v1.0.0
     """
-    return YamlLoader(content).load()
+    return YamlLoader().load(content)
 
 
 def from_yaml_path(path: str | Path, *, encoding: str = "utf-8") -> YadsSpec:
@@ -107,7 +118,7 @@ def from_yaml_path(path: str | Path, *, encoding: str = "utf-8") -> YadsSpec:
         Loaded spec: users v1.0.0
     """
     text = Path(path).read_text(encoding=encoding)
-    return YamlLoader(text).load()
+    return YamlLoader().load(text)
 
 
 def from_yaml_stream(stream: IO[str] | IO[bytes], *, encoding: str = "utf-8") -> YadsSpec:
@@ -130,7 +141,7 @@ def from_yaml_stream(stream: IO[str] | IO[bytes], *, encoding: str = "utf-8") ->
     """
     raw = stream.read()
     text = raw.decode(encoding) if isinstance(raw, (bytes, bytearray)) else raw
-    return YamlLoader(text).load()
+    return YamlLoader().load(text)
 
 
 def from_yaml(
@@ -158,3 +169,28 @@ def from_yaml(
     if hasattr(source, "read"):
         return from_yaml_stream(cast(IO[str] | IO[bytes], source), encoding=encoding)
     return from_yaml_path(cast(str | Path, source), encoding=encoding)
+
+
+def from_pyarrow(
+    schema: Any,
+    *,
+    mode: Literal["raise", "coerce"] = "coerce",
+    name: str,
+    version: str,
+    description: str | None = None,
+) -> YadsSpec:
+    """Load a spec from a `pyarrow.Schema`.
+
+    Args:
+        schema: An instance of `pyarrow.Schema`.
+        name: Fully-qualified spec name to assign.
+        version: Spec version string.
+        description: Optional human-readable description.
+
+    Returns:
+        A validated immutable `YadsSpec` instance.
+    """
+    config = PyArrowLoaderConfig(mode=mode)
+    return PyArrowLoader(config).load(
+        schema, name=name, version=version, description=description
+    )
