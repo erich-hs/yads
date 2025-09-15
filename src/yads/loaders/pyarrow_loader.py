@@ -105,25 +105,10 @@ class PyArrowLoader(ConfigurableLoader):
         with self.load_context(mode=mode):
             columns: list[dict[str, Any]] = []
             for field in schema:
-                try:
-                    # Set field context during conversion
-                    with self.load_context(field=field.name):
-                        column_def = self._convert_field(field)
-                        columns.append(column_def)
-                except UnsupportedFeatureError:
-                    if self.config.mode == "coerce":
-                        validation_warning(
-                            message=(
-                                f"Arrow field '{field.name}' has unsupported type '{field.type}'. "
-                                f"The data type will be coerced to {self.config.fallback_type}."
-                            ),
-                            filename="yads.loaders.pyarrow_loader",
-                            module=__name__,
-                        )
-                        fallback_col = self._create_fallback_column(field)
-                        columns.append(fallback_col)
-                        continue
-                    raise
+                # Set field context during conversion
+                with self.load_context(field=field.name):
+                    column_def = self._convert_field(field)
+                    columns.append(column_def)
 
             data: dict[str, Any] = {
                 "name": name,
@@ -281,21 +266,29 @@ class PyArrowLoader(ConfigurableLoader):
             or getattr(types, "is_list_view", lambda _t: False)(t)
             or getattr(types, "is_large_list_view", lambda _t: False)(t)
         ):
-            elem_def = self._convert_type(t.value_type)
+            with self.load_context(field="<array_element>"):
+                elem_def = self._convert_type(t.value_type)
             return {"type": "array", "element": elem_def}
 
         if getattr(types, "is_fixed_size_list", lambda _t: False)(t):
-            elem_def = self._convert_type(t.value_type)
+            with self.load_context(field="<array_element>"):
+                elem_def = self._convert_type(t.value_type)
             return {"type": "array", "element": elem_def, "params": {"size": t.list_size}}
 
         if types.is_struct(t):
             # t is a StructType; iterate contained pa.Field entries
-            fields: list[dict[str, Any]] = [self._convert_field(f) for f in t]
+            fields: list[dict[str, Any]] = []
+            for f in t:
+                with self.load_context(field=f.name):
+                    field_def = self._convert_field(f)
+                    fields.append(field_def)
             return {"type": "struct", "fields": fields}
 
         if types.is_map(t):
-            key_def = self._convert_type(t.key_type)
-            val_def = self._convert_type(t.item_type)
+            with self.load_context(field="<map_key>"):
+                key_def = self._convert_type(t.key_type)
+            with self.load_context(field="<map_value>"):
+                val_def = self._convert_type(t.item_type)
             if t.keys_sorted:
                 return {
                     "type": "map",
@@ -314,40 +307,23 @@ class PyArrowLoader(ConfigurableLoader):
         if isinstance(t, pa.Bool8Type):
             return {"type": "boolean"}
 
-        raise UnsupportedFeatureError(
-            self._format_error_with_field_context(
-                f"Unsupported or unknown Arrow type: {t} ({type(t).__name__})"
+        # Apply fallback for unsupported types in coerce mode
+        if self.config.mode == "coerce":
+            validation_warning(
+                message=(
+                    f"PyArrowLoader does not support PyArrow type: '{t}' ({type(t).__name__})"
+                    f" for '{self._current_field_name or '<unknown>'}'."
+                    f" The data type will be coerced to {self.config.fallback_type}."
+                ),
+                filename="yads.loaders.pyarrow_loader",
+                module=__name__,
             )
+            return self._get_fallback_type_definition()
+
+        raise UnsupportedFeatureError(
+            f"PyArrowLoader does not support PyArrow type: '{t}' ({type(t).__name__})"
+            f" for '{self._current_field_name or '<unknown>'}'."
         )
-
-    def _create_fallback_column(self, field: pa.Field) -> dict[str, Any]:
-        """Create a fallback column definition preserving metadata,
-        nullability, and field description.
-        """
-        field_meta = self._decode_key_value_metadata(field.metadata)
-        description = field_meta.pop("description", None)
-
-        fallback_col: dict[str, Any] = {
-            "name": field.name,
-        }
-
-        type_def = self._get_fallback_type_definition()
-        fallback_col.update(type_def)
-
-        if description is not None:
-            fallback_col["description"] = description
-        if field_meta:
-            fallback_col["metadata"] = field_meta
-
-        if not field.nullable:
-            fallback_col["constraints"] = {"not_null": True}
-
-        return fallback_col
-
-    def _format_error_with_field_context(self, message: str) -> str:
-        if self._current_field_name:
-            return f"{message} for field '{self._current_field_name}'."
-        return f"{message}."
 
     def _get_fallback_type_definition(self) -> dict[str, Any]:
         if isinstance(self.config.fallback_type, ytypes.Binary):
@@ -362,6 +338,7 @@ class PyArrowLoader(ConfigurableLoader):
                 return {"type": "string", "params": {"length": string_type.length}}
             return {"type": "string"}
 
+    # %% ---- Helpers -----------------------------------------------------------------
     @staticmethod
     def _decode_key_value_metadata(
         metadata: Mapping[bytes | str, bytes | str] | None,

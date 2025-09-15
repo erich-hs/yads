@@ -5,7 +5,7 @@ import pyarrow as pa  # type: ignore[import-untyped]
 import pytest
 
 from yads.constraints import NotNullConstraint
-from yads.exceptions import LoaderConfigError, UnsupportedFeatureError
+from yads.exceptions import LoaderConfigError, UnsupportedFeatureError, ValidationWarning
 from yads.loaders import PyArrowLoader, PyArrowLoaderConfig
 from yads.types import (
     YadsType,
@@ -498,7 +498,7 @@ class TestPyArrowLoaderUnsupportedTypes:
 
         with pytest.raises(
             UnsupportedFeatureError,
-            match="Unsupported or unknown Arrow type.*for field 'dict_col'",
+            match="PyArrowLoader does not support PyArrow type.*for 'dict_col'",
         ):
             loader.load(schema, name="test", version="1.0.0")
 
@@ -512,7 +512,7 @@ class TestPyArrowLoaderUnsupportedTypes:
 
             with pytest.raises(
                 UnsupportedFeatureError,
-                match="Unsupported or unknown Arrow type.*for field 'run_col'",
+                match="PyArrowLoader does not support PyArrow type.*for 'run_col'",
             ):
                 loader.load(schema, name="test", version="1.0.0")
 
@@ -536,7 +536,7 @@ class TestPyArrowLoaderUnsupportedTypes:
 
             with pytest.raises(
                 UnsupportedFeatureError,
-                match="Unsupported or unknown Arrow type.*for field 'union_col'",
+                match="PyArrowLoader does not support PyArrow type.*for 'union_col'",
             ):
                 loader.load(schema, name="test", version="1.0.0")
 
@@ -602,7 +602,8 @@ class TestPyArrowLoaderWithConfig:
             spec = loader.load(schema, name="test", version="1.0.0")
 
             assert len(w) == 1
-            assert "Arrow field 'dict_col' has unsupported type" in str(w[0].message)
+            assert "PyArrowLoader does not support PyArrow type" in str(w[0].message)
+            assert "for 'dict_col'" in str(w[0].message)
             assert "The data type will be coerced to string" in str(w[0].message)
 
         column = spec.columns[0]
@@ -619,7 +620,8 @@ class TestPyArrowLoaderWithConfig:
             spec = loader.load(schema, name="test", version="1.0.0")
 
             assert len(w) == 1
-            assert "Arrow field 'dict_col' has unsupported type" in str(w[0].message)
+            assert "PyArrowLoader does not support PyArrow type" in str(w[0].message)
+            assert "for 'dict_col'" in str(w[0].message)
             assert "The data type will be coerced to binary(length=10)" in str(
                 w[0].message
             )
@@ -634,7 +636,7 @@ class TestPyArrowLoaderWithConfig:
 
         schema = pa.schema([pa.field("dict_col", pa.dictionary(pa.int32(), pa.string()))])
         with pytest.raises(
-            UnsupportedFeatureError, match="Unsupported or unknown Arrow type"
+            UnsupportedFeatureError, match="PyArrowLoader does not support PyArrow type"
         ):
             loader.load(schema, name="test", version="1.0.0")
 
@@ -656,8 +658,8 @@ class TestPyArrowLoaderWithConfig:
 
             assert len(w) == 2
             assert all(
-                "Arrow field" in str(warning.message)
-                and "has unsupported type" in str(warning.message)
+                "PyArrowLoader does not support PyArrow type" in str(warning.message)
+                and "for '" in str(warning.message)
                 for warning in w
             )
 
@@ -678,7 +680,7 @@ class TestPyArrowLoaderWithConfig:
         with pytest.raises(UnsupportedFeatureError) as exc_info:
             loader.load(schema, name="test", version="1.0.0")
 
-        assert "for field 'my_field'" in str(exc_info.value)
+        assert "for 'my_field'" in str(exc_info.value)
 
     def test_nested_unsupported_types_coercion(self):
         config = PyArrowLoaderConfig(mode="coerce", fallback_type=String())
@@ -698,12 +700,21 @@ class TestPyArrowLoaderWithConfig:
             spec = loader.load(schema, name="test", version="1.0.0")
 
             assert len(w) == 1
-            assert "Arrow field 'nested' has unsupported type" in str(w[0].message)
+            assert "PyArrowLoader does not support PyArrow type" in str(w[0].message)
+            assert "for 'dict_field'" in str(w[0].message)
 
-        # Check that the entire struct was coerced to fallback type
+        # Check that only the unsupported field within the struct was coerced
         column = spec.columns[0]
         assert column.name == "nested"
-        assert column.type == String()  # entire struct coerced
+        assert isinstance(column.type, Struct)  # struct preserved
+        assert len(column.type.fields) == 2
+
+        # Check individual fields
+        id_field = next(f for f in column.type.fields if f.name == "id")
+        assert isinstance(id_field.type, Integer)  # normal field preserved
+
+        dict_field = next(f for f in column.type.fields if f.name == "dict_field")
+        assert isinstance(dict_field.type, String)  # unsupported field coerced
 
     def test_fallback_preserves_field_metadata(self):
         """Test that field metadata and description are preserved during fallback."""
@@ -730,7 +741,8 @@ class TestPyArrowLoaderWithConfig:
             spec = loader.load(schema, name="test", version="1.0.0")
 
             assert len(w) == 1
-            assert "Arrow field 'dict_col' has unsupported type" in str(w[0].message)
+            assert "PyArrowLoader does not support PyArrow type" in str(w[0].message)
+            assert "for 'dict_col'" in str(w[0].message)
 
         column = spec.columns[0]
         assert column.name == "dict_col"
@@ -768,7 +780,8 @@ class TestPyArrowLoaderWithConfig:
             spec = loader.load(schema, name="test", version="1.0.0")
 
             assert len(w) == 1
-            assert "Arrow field 'union_col' has unsupported type" in str(w[0].message)
+            assert "PyArrowLoader does not support PyArrow type" in str(w[0].message)
+            assert "for 'union_col'" in str(w[0].message)
 
         column = spec.columns[0]
         assert column.name == "union_col"
@@ -805,7 +818,8 @@ class TestPyArrowLoaderWithConfig:
             spec = loader.load(schema, name="test", version="1.0.0")
 
             assert len(w) == 1
-            assert "Arrow field 'dict_col' has unsupported type" in str(w[0].message)
+            assert "PyArrowLoader does not support PyArrow type" in str(w[0].message)
+            assert "for 'dict_col'" in str(w[0].message)
 
         # Check schema metadata is preserved
         assert spec.metadata["owner"] == "data-eng"
@@ -815,3 +829,84 @@ class TestPyArrowLoaderWithConfig:
         column = spec.columns[0]
         assert column.description == "Field description"
         assert column.type == String()  # coerced
+
+    def test_complex_nested_fallback_behavior(self):
+        inner_struct = pa.struct(
+            [
+                pa.field("id", pa.int32()),
+                pa.field("unsupported_field", pa.dictionary(pa.int32(), pa.string())),
+                pa.field("normal_string", pa.string()),
+            ]
+        )
+
+        array_of_structs = pa.list_(inner_struct)
+
+        map_with_unsupported = pa.map_(
+            pa.dictionary(pa.int32(), pa.string()),  # unsupported key
+            array_of_structs,
+        )
+
+        schema = pa.schema(
+            [
+                pa.field("id", pa.int32()),
+                pa.field("complex_data", map_with_unsupported),
+            ]
+        )
+
+        config = PyArrowLoaderConfig(mode="coerce", fallback_type=String())
+        loader = PyArrowLoader(config)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            spec = loader.load(schema, name="test_complex", version="1.0.0")
+
+        # Should have warnings for all unsupported types
+        assert len(w) == 2
+        assert all(issubclass(warning.category, ValidationWarning) for warning in w)
+
+        warning_messages = [str(warning.message) for warning in w]
+        assert any(
+            "PyArrowLoader does not support PyArrow type" in msg and "<map_key>" in msg
+            for msg in warning_messages
+        )
+        assert any(
+            "PyArrowLoader does not support PyArrow type" in msg
+            and "unsupported_field" in msg
+            for msg in warning_messages
+        )
+
+        # Check that the structure is preserved
+        assert len(spec.columns) == 2
+
+        # Normal field should be preserved
+        id_col = spec.columns[0]
+        assert id_col.name == "id"
+        assert isinstance(id_col.type, Integer)
+
+        # Complex field should still be a map
+        complex_col = spec.columns[1]
+        assert complex_col.name == "complex_data"
+        assert isinstance(complex_col.type, Map)
+
+        # Map key should be coerced to fallback
+        assert isinstance(complex_col.type.key, String)
+
+        # Map value should still be an array
+        assert isinstance(complex_col.type.value, Array)
+
+        # Array element should still be a struct
+        assert isinstance(complex_col.type.value.element, Struct)
+        assert len(complex_col.type.value.element.fields) == 3
+
+        # Check struct fields
+        struct_fields = complex_col.type.value.element.fields
+        id_field = next(f for f in struct_fields if f.name == "id")
+        assert isinstance(id_field.type, Integer)  # preserved
+
+        unsupported_field = next(
+            f for f in struct_fields if f.name == "unsupported_field"
+        )
+        assert isinstance(unsupported_field.type, String)  # coerced
+
+        normal_string_field = next(f for f in struct_fields if f.name == "normal_string")
+        assert isinstance(normal_string_field.type, String)  # preserved
