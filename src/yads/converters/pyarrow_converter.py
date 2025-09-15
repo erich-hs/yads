@@ -177,20 +177,19 @@ class PyArrowConverter(BaseConverter):
         # - Geography
         # - Variant
         if self.config.mode == "coerce":
-            type_name = type(yads_type).__name__.upper()
             validation_warning(
                 message=(
-                    f"Data type '{type_name}' is not supported"
-                    f" for field '{self._current_field_name or '<unknown>'}'."
-                    f" The data type will be replaced with {str(self.config.fallback_type)}."
+                    f"PyArrowConverter does not support type: {yads_type}"
+                    f" for '{self._current_field_name or '<unknown>'}'."
+                    f" The data type will be coerced to {self.config.fallback_type}."
                 ),
                 filename="yads.converters.pyarrow_converter",
                 module=__name__,
             )
             return self.config.fallback_type
         raise UnsupportedFeatureError(
-            f"PyArrowConverter does not support type: {type(yads_type).__name__}"
-            f" for column '{self._current_field_name or '<unknown>'}'."
+            f"PyArrowConverter does not support type: {yads_type}"
+            f" for '{self._current_field_name or '<unknown>'}'."
         )
 
     @_convert_type.register(String)

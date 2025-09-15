@@ -1,3 +1,4 @@
+import re
 import warnings
 
 import pyarrow as pa  # type: ignore[import-untyped]
@@ -104,13 +105,13 @@ class TestPyArrowConverterTypes:
             ),
             (Map(key=String(), value=Integer()), pa.map_(pa.string(), pa.int32()), None),
             (JSON(), pa.json_(storage_type=pa.utf8()), None),
-            (Geometry(), pa.string(), "Data type 'GEOMETRY' is not supported for field 'col1'."),
-            (Geometry(srid=4326), pa.string(), "Data type 'GEOMETRY' is not supported for field 'col1'."),
-            (Geography(), pa.string(), "Data type 'GEOGRAPHY' is not supported for field 'col1'."),
-            (Geography(srid=4326), pa.string(), "Data type 'GEOGRAPHY' is not supported for field 'col1'."),
+            (Geometry(), pa.string(), "PyArrowConverter does not support type: geometry for 'col1'."),
+            (Geometry(srid=4326), pa.string(), "PyArrowConverter does not support type: geometry(srid=4326) for 'col1'."),
+            (Geography(), pa.string(), "PyArrowConverter does not support type: geography for 'col1'."),
+            (Geography(srid=4326), pa.string(), "PyArrowConverter does not support type: geography(srid=4326) for 'col1'."),
             (UUID(), pa.uuid(), None),
             (Void(), pa.null(), None),
-            (Variant(), pa.string(), "Data type 'VARIANT' is not supported for field 'col1'."),
+            (Variant(), pa.string(), "PyArrowConverter does not support type: variant for 'col1'."),
         ],
     )
     def test_convert_type(
@@ -287,11 +288,11 @@ class TestPyArrowConverterTypes:
     @pytest.mark.parametrize(
         "yads_type, type_name",
         [
-            (Geometry(), "Geometry"),
-            (Geometry(srid=4326), "Geometry"),
-            (Geography(), "Geography"),
-            (Geography(srid=4326), "Geography"),
-            (Variant(), "Variant"),
+            (Geometry(), "geometry"),
+            (Geometry(srid=4326), "geometry(srid=4326)"),
+            (Geography(), "geography"),
+            (Geography(srid=4326), "geography(srid=4326)"),
+            (Variant(), "variant"),
         ],
     )
     def test_raise_mode_for_unsupported_types(self, yads_type: YadsType, type_name: str):
@@ -302,7 +303,7 @@ class TestPyArrowConverterTypes:
             columns=[Column(name="col1", type=yads_type)],
         )
 
-        with pytest.raises(UnsupportedFeatureError, match=f"PyArrowConverter does not support type: {type_name}"):
+        with pytest.raises(UnsupportedFeatureError, match=f"PyArrowConverter does not support type: {re.escape(type_name)} for 'col1'."):
             PyArrowConverter(PyArrowConverterConfig(mode="raise")).convert(spec)
 
     def test_raise_mode_for_incompatible_decimal_precision(self):
@@ -481,7 +482,7 @@ class TestPyArrowConverterCustomization:
 
         # Check warning was emitted
         assert len(w) == 1
-        assert "GEOMETRY" in str(w[0].message)
+        assert "geometry" in str(w[0].message)
         assert str(fallback_type) in str(w[0].message)
 
     def test_invalid_fallback_type_raises_error(self):
@@ -858,7 +859,7 @@ class TestPyArrowConverterFieldLevelFallback:
         # Should have warnings for the unsupported field within the struct
         assert len(w) == 1
         assert issubclass(w[0].category, ValidationWarning)
-        assert "GEOGRAPHY" in str(w[0].message)
+        assert "geography" in str(w[0].message)
         assert "unsupported_field" in str(w[0].message)
 
         # The struct field should still be a struct, not a fallback
@@ -917,8 +918,8 @@ class TestPyArrowConverterFieldLevelFallback:
         assert all(issubclass(warning.category, ValidationWarning) for warning in w)
 
         warning_messages = [str(warning.message) for warning in w]
-        assert any("GEOGRAPHY" in msg and "outer_geog" in msg for msg in warning_messages)
-        assert any("GEOMETRY" in msg and "inner_geom" in msg for msg in warning_messages)
+        assert any("geography" in msg and "outer_geog" in msg for msg in warning_messages)
+        assert any("geometry" in msg and "inner_geom" in msg for msg in warning_messages)
 
         # The outer struct should still be a struct
         complex_field = schema.field("complex_data")
@@ -969,7 +970,7 @@ class TestPyArrowConverterFieldLevelFallback:
         # Should have warning for the unsupported element type
         assert len(w) == 1
         assert issubclass(w[0].category, ValidationWarning)
-        assert "GEOGRAPHY" in str(w[0].message)
+        assert "geography" in str(w[0].message)
 
         # The array field should still be an array, not a fallback
         locations_field = schema.field("locations")
@@ -1008,8 +1009,8 @@ class TestPyArrowConverterFieldLevelFallback:
         assert all(issubclass(warning.category, ValidationWarning) for warning in w)
 
         warning_messages = [str(warning.message) for warning in w]
-        assert any("GEOMETRY" in msg for msg in warning_messages)
-        assert any("GEOGRAPHY" in msg for msg in warning_messages)
+        assert any("geometry" in msg for msg in warning_messages)
+        assert any("geography" in msg for msg in warning_messages)
 
         # Both map fields should still be maps
         geom_keys_field = schema.field("geom_keys")
@@ -1056,7 +1057,7 @@ class TestPyArrowConverterFieldLevelFallback:
         # Should have warning for the unsupported field within the struct
         assert len(w) == 1
         assert issubclass(w[0].category, ValidationWarning)
-        assert "GEOGRAPHY" in str(w[0].message)
+        assert "geography" in str(w[0].message)
         assert "location" in str(w[0].message)
 
         # The array field should still be an array
@@ -1117,9 +1118,9 @@ class TestPyArrowConverterFieldLevelFallback:
         assert all(issubclass(warning.category, ValidationWarning) for warning in w)
 
         warning_messages = [str(warning.message) for warning in w]
-        assert any("GEOGRAPHY" in msg for msg in warning_messages)
-        assert any("GEOMETRY" in msg for msg in warning_messages)
-        assert any("VARIANT" in msg for msg in warning_messages)
+        assert any("geography" in msg for msg in warning_messages)
+        assert any("geometry" in msg for msg in warning_messages)
+        assert any("variant" in msg for msg in warning_messages)
 
         # The map field should still be a map
         complex_map_field = schema.field("complex_map")
@@ -1279,6 +1280,6 @@ class TestPyArrowConverterFieldLevelFallback:
 
         with pytest.raises(
             UnsupportedFeatureError,
-            match="PyArrowConverter does not support type: Geometry",
+            match="PyArrowConverter does not support type: geometry for 'geom'.",
         ):
             converter.convert(spec)
