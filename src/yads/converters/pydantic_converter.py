@@ -133,36 +133,13 @@ class PydanticConverter(BaseConverter):
         with self.conversion_context(mode=mode):
             self._validate_column_filters(spec)
             for col in self._filter_columns(spec):
-                try:
-                    # Set field context during conversion
-                    with self.conversion_context(field=col.name):
-                        # Use centralized override resolution
-                        field_type, field_info = self._convert_field_with_overrides(col)
+                # Set field context during conversion
+                with self.conversion_context(field=col.name):
+                    # Use centralized override resolution - fallback is handled by decorator
+                    field_type, field_info = self._convert_field_with_overrides(col)
 
-                        # Pydantic expects (annotation, FieldInfo) for dynamic models
-                        fields[col.name] = (field_type, field_info)
-                except UnsupportedFeatureError:
-                    if self.config.mode == "coerce":
-                        fallback_name = self.config.fallback_type.__name__.upper()
-                        validation_warning(
-                            message=(
-                                f"Data type '{type(col.type).__name__.upper()}' is not supported"
-                                f" for column '{col.name}'. The field will be represented as"
-                                f" {fallback_name} in the model."
-                            ),
-                            filename="yads.converters.pydantic_converter",
-                            module=__name__,
-                        )
-                        fallback_type: Any = self.config.fallback_type
-                        if col.is_nullable:
-                            fallback_type = Optional[fallback_type]
-
-                        fields[col.name] = (
-                            fallback_type,
-                            self._create_fallback_field_info(col),
-                        )
-                        continue
-                    raise
+                    # Pydantic expects (annotation, FieldInfo) for dynamic models
+                    fields[col.name] = (field_type, field_info)
 
         model = create_model(
             model_name,
@@ -179,9 +156,25 @@ class PydanticConverter(BaseConverter):
     # %% ---- Type conversion ---------------------------------------------------------
     @singledispatchmethod
     def _convert_type(self, yads_type: ytypes.YadsType) -> tuple[Any, FieldInfo]:
-        # Unsupported logical types will be handled by the caller depending on mode.
+        # Fallback for currently unsupported:
+        # - Geometry
+        # - Geography
+        if self.config.mode == "coerce":
+            type_name = type(yads_type).__name__.upper()
+            validation_warning(
+                message=(
+                    f"Data type '{type_name}' is not supported"
+                    f" for column '{self._current_field_name or '<unknown>'}'."
+                    f" The data type will be replaced with {self.config.fallback_type.__name__.upper()}."
+                ),
+                filename="yads.converters.pydantic_converter",
+                module=__name__,
+            )
+            fallback_type: Any = self.config.fallback_type
+            return fallback_type, self.required()
         raise UnsupportedFeatureError(
-            f"PydanticConverter does not support type: {type(yads_type).__name__}."
+            f"PydanticConverter does not support type: {type(yads_type).__name__}"
+            f" for column '{self._current_field_name or '<unknown>'}'."
         )
 
     @_convert_type.register(ytypes.String)
@@ -196,23 +189,12 @@ class PydanticConverter(BaseConverter):
     def _(self, yads_type: ytypes.Integer) -> tuple[Any, FieldInfo]:
         if yads_type.bits:
             if yads_type.signed:
-                if yads_type.bits == 8:
-                    field_info = self.required(ge=-(2 ** (8 - 1)), le=2 ** (8 - 1) - 1)
-                elif yads_type.bits == 16:
-                    field_info = self.required(ge=-(2 ** (16 - 1)), le=2 ** (16 - 1) - 1)
-                elif yads_type.bits == 32:
-                    field_info = self.required(ge=-(2 ** (32 - 1)), le=2 ** (32 - 1) - 1)
-                elif yads_type.bits == 64:
-                    field_info = self.required(ge=-(2 ** (64 - 1)), le=2 ** (64 - 1) - 1)
+                min_val = -(2 ** (yads_type.bits - 1))
+                max_val = 2 ** (yads_type.bits - 1) - 1
             else:  # unsigned
-                if yads_type.bits == 8:
-                    field_info = self.required(ge=0, le=2**8 - 1)
-                elif yads_type.bits == 16:
-                    field_info = self.required(ge=0, le=2**16 - 1)
-                elif yads_type.bits == 32:
-                    field_info = self.required(ge=0, le=2**32 - 1)
-                elif yads_type.bits == 64:
-                    field_info = self.required(ge=0, le=2**64 - 1)
+                min_val = 0
+                max_val = 2**yads_type.bits - 1
+            field_info = self.required(ge=min_val, le=max_val)
         else:
             # Unsigned without bit width: enforce non-negative only.
             if not yads_type.signed:
@@ -383,18 +365,6 @@ class PydanticConverter(BaseConverter):
         # Map to dict for JSON data
         field_info = self.required()
         return dict, field_info
-
-    @_convert_type.register(ytypes.Geometry)
-    def _(self, yads_type: ytypes.Geometry) -> tuple[Any, FieldInfo]:
-        raise UnsupportedFeatureError(
-            f"PydanticConverter does not support type: {type(yads_type).__name__}."
-        )
-
-    @_convert_type.register(ytypes.Geography)
-    def _(self, yads_type: ytypes.Geography) -> tuple[Any, FieldInfo]:
-        raise UnsupportedFeatureError(
-            f"PydanticConverter does not support type: {type(yads_type).__name__}."
-        )
 
     @_convert_type.register(ytypes.UUID)
     def _(self, yads_type: ytypes.UUID) -> tuple[Any, FieldInfo]:
