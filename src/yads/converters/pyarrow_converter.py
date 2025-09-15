@@ -22,7 +22,7 @@ Example:
 
 from __future__ import annotations
 
-from functools import singledispatchmethod, wraps
+from functools import singledispatchmethod
 import json
 from typing import Any, Callable, Literal, Mapping
 from dataclasses import dataclass, field
@@ -52,11 +52,8 @@ from ..types import (
     Struct,
     Map,
     JSON,
-    Geometry,
-    Geography,
     UUID,
     Void,
-    Variant,
 )
 from .base import BaseConverter, BaseConverterConfig
 
@@ -175,9 +172,25 @@ class PyArrowConverter(BaseConverter):
 
     @singledispatchmethod
     def _convert_type(self, yads_type: YadsType) -> pa.DataType:
-        # Unsupported logical types will be handled by the caller depending on mode.
+        # Fallback for currently unsupported:
+        # - Geometry
+        # - Geography
+        # - Variant
+        if self.config.mode == "coerce":
+            type_name = type(yads_type).__name__.upper()
+            validation_warning(
+                message=(
+                    f"Data type '{type_name}' is not supported"
+                    f" for field '{self._current_field_name or '<unknown>'}'."
+                    f" The data type will be replaced with {str(self.config.fallback_type)}."
+                ),
+                filename="yads.converters.pyarrow_converter",
+                module=__name__,
+            )
+            return self.config.fallback_type
         raise UnsupportedFeatureError(
-            f"PyArrowConverter does not support type: {type(yads_type).__name__}."
+            f"PyArrowConverter does not support type: {type(yads_type).__name__}"
+            f" for column '{self._current_field_name or '<unknown>'}'."
         )
 
     @_convert_type.register(String)
@@ -352,7 +365,7 @@ class PyArrowConverter(BaseConverter):
 
     @_convert_type.register(Array)
     def _(self, yads_type: Array) -> pa.DataType:
-        value_type = self._convert_type_with_fallback(yads_type.element)
+        value_type = self._convert_type(yads_type.element)
         if yads_type.size is not None:
             return pa.list_(value_type, list_size=yads_type.size)
         return (
@@ -363,30 +376,22 @@ class PyArrowConverter(BaseConverter):
 
     @_convert_type.register(Struct)
     def _(self, yads_type: Struct) -> pa.DataType:
-        fields = [self._convert_field_default(f) for f in yads_type.fields]
+        fields = []
+        for yads_field in yads_type.fields:
+            with self.conversion_context(field=yads_field.name):
+                field_result = self._convert_field(yads_field)
+                fields.append(field_result)
         return pa.struct(fields)
 
     @_convert_type.register(Map)
     def _(self, yads_type: Map) -> pa.DataType:
-        key_type = self._convert_type_with_fallback(yads_type.key)
-        item_type = self._convert_type_with_fallback(yads_type.value)
+        key_type = self._convert_type(yads_type.key)
+        item_type = self._convert_type(yads_type.value)
         return pa.map_(key_type, item_type, keys_sorted=yads_type.keys_sorted)
 
     @_convert_type.register(JSON)
     def _(self, yads_type: JSON) -> pa.DataType:
         return pa.json_(storage_type=pa.utf8())
-
-    @_convert_type.register(Geometry)
-    def _(self, yads_type: Geometry) -> pa.DataType:
-        raise UnsupportedFeatureError(
-            f"PyArrowConverter does not support type: {type(yads_type).__name__}."
-        )
-
-    @_convert_type.register(Geography)
-    def _(self, yads_type: Geography) -> pa.DataType:
-        raise UnsupportedFeatureError(
-            f"PyArrowConverter does not support type: {type(yads_type).__name__}."
-        )
 
     @_convert_type.register(UUID)
     def _(self, yads_type: UUID) -> pa.DataType:
@@ -395,12 +400,6 @@ class PyArrowConverter(BaseConverter):
     @_convert_type.register(Void)
     def _(self, yads_type: Void) -> pa.DataType:
         return pa.null()
-
-    @_convert_type.register(Variant)
-    def _(self, yads_type: Variant) -> pa.DataType:
-        raise UnsupportedFeatureError(
-            f"PyArrowConverter does not support type: {type(yads_type).__name__}."
-        )
 
     def _convert_field(self, field: Field) -> pa.Field:
         pa_type = self._convert_type(field.type)
@@ -412,70 +411,10 @@ class PyArrowConverter(BaseConverter):
             metadata=metadata,
         )
 
-    def _apply_type_fallback(self, yads_type: YadsType) -> pa.DataType:
-        name = self._current_field_name or "<unknown>"
-        self._emit_fallback_warning(yads_type, f"element '{name}'")
-        return self.config.fallback_type
-
-    def _apply_field_fallback(self, field: Field) -> pa.Field:
-        self._emit_fallback_warning(field.type, f"field '{field.name}'")
-
-        return pa.field(
-            field.name,
-            self.config.fallback_type,
-            nullable=field.is_nullable,
-            metadata=self._build_field_metadata(field),
-        )
-
-    @staticmethod
-    def _with_fallback(
-        fallback_method: Literal["_apply_type_fallback", "_apply_field_fallback"],
-    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-        """Generic decorator for fallback handling.
-
-        Args:
-            fallback_method: Name of the fallback method to call. One of:
-                - '_apply_type_fallback'
-                - '_apply_field_fallback'
-        """
-
-        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-            @wraps(func)
-            def wrapper(self: PyArrowConverter, *args: Any, **kwargs: Any) -> Any:
-                try:
-                    return func(self, *args, **kwargs)
-                except UnsupportedFeatureError:
-                    if self.config.mode != "coerce":
-                        raise
-                    fallback_func = getattr(self, fallback_method)
-                    return fallback_func(*args, **kwargs)
-
-            return wrapper
-
-        return decorator
-
-    @_with_fallback("_apply_type_fallback")
-    def _convert_type_with_fallback(self, yads_type: YadsType) -> pa.DataType:
-        return self._convert_type(yads_type)
-
-    @_with_fallback("_apply_field_fallback")
     def _convert_field_default(self, field: Field) -> pa.Field:
         return self._convert_field(field)
 
     # %% ---- Helpers -----------------------------------------------------------------
-    def _emit_fallback_warning(self, yads_type: YadsType, context_name: str) -> None:
-        type_name = type(yads_type).__name__
-        fallback_name = str(self.config.fallback_type)
-
-        validation_warning(
-            message=(
-                f"Data type '{type_name.upper()}' is not supported for {context_name}."
-                f" The data type will be replaced with {fallback_name}."
-            ),
-            filename="yads.converters.pyarrow_converter",
-            module=__name__,
-        )
-
     @staticmethod
     def _to_pa_time_unit(unit: TimeUnit | None) -> str:
         if unit is None:
