@@ -235,8 +235,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
                 validation_warning(
                     message=(
                         f"SQLGlotConverter does not support type: {yads_type}"
-                        f" for column '{self._current_field_name or '<unknown>'}'."
-                        f" The data type will be replaced with {self.config.fallback_type.name}."
+                        f" for '{self._current_field_name or '<unknown>'}'."
+                        f" The data type will be coerced to {self.config.fallback_type.name}."
                     ),
                     filename="yads.converters.sql.ast_converter",
                     module=__name__,
@@ -244,7 +244,7 @@ class SQLGlotConverter(BaseConverter, AstConverter):
                 return exp.DataType(this=self.config.fallback_type)
             raise UnsupportedFeatureError(
                 f"SQLGlotConverter does not support type: {yads_type}"
-                f" for column '{self._current_field_name or '<unknown>'}'."
+                f" for '{self._current_field_name or '<unknown>'}'."
             )
 
     @_convert_type.register(String)
@@ -260,27 +260,25 @@ class SQLGlotConverter(BaseConverter, AstConverter):
     @_convert_type.register(Integer)
     def _(self, yads_type: Integer) -> exp.DataType:
         bits = yads_type.bits or 32
-        if yads_type.signed:
-            if bits == 8:
-                return exp.DataType(this=exp.DataType.Type.TINYINT)
-            elif bits == 16:
-                return exp.DataType(this=exp.DataType.Type.SMALLINT)
-            elif bits == 32:
-                return exp.DataType(this=exp.DataType.Type.INT)
-            elif bits == 64:
-                return exp.DataType(this=exp.DataType.Type.BIGINT)
-        else:
-            if bits == 8:
-                return exp.DataType(this=exp.DataType.Type.UTINYINT)
-            elif bits == 16:
-                return exp.DataType(this=exp.DataType.Type.USMALLINT)
-            elif bits == 32:
-                return exp.DataType(this=exp.DataType.Type.UINT)
-            elif bits == 64:
-                return exp.DataType(this=exp.DataType.Type.UBIGINT)
-        raise UnsupportedFeatureError(
-            f"Unsupported Integer bits: {bits}. Expected 8/16/32/64."
-        )
+        signed_map = {
+            8: exp.DataType.Type.TINYINT,
+            16: exp.DataType.Type.SMALLINT,
+            32: exp.DataType.Type.INT,
+            64: exp.DataType.Type.BIGINT,
+        }
+        unsigned_map = {
+            8: exp.DataType.Type.UTINYINT,
+            16: exp.DataType.Type.USMALLINT,
+            32: exp.DataType.Type.UINT,
+            64: exp.DataType.Type.UBIGINT,
+        }
+        mapping = signed_map if yads_type.signed else unsigned_map
+        try:
+            return exp.DataType(this=mapping[bits])
+        except KeyError as e:
+            raise UnsupportedFeatureError(
+                f"Unsupported Integer bits: {bits}. Expected 8/16/32/64."
+            ) from e
 
     @_convert_type.register(Float)
     def _(self, yads_type: Float) -> exp.DataType:
