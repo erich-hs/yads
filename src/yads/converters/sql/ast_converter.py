@@ -231,6 +231,7 @@ class SQLGlotConverter(BaseConverter, AstConverter):
         except ParseError:
             # Currently unsupported in sqlglot:
             # - Duration
+            # - Tensor
             if self.config.mode == "coerce":
                 validation_warning(
                     message=(

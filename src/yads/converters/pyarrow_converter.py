@@ -54,6 +54,7 @@ from ..types import (
     JSON,
     UUID,
     Void,
+    Tensor,
 )
 from .base import BaseConverter, BaseConverterConfig
 
@@ -399,6 +400,11 @@ class PyArrowConverter(BaseConverter):
     @_convert_type.register(Void)
     def _(self, yads_type: Void) -> pa.DataType:
         return pa.null()
+
+    @_convert_type.register(Tensor)
+    def _(self, yads_type: Tensor) -> pa.DataType:
+        element_type = self._convert_type(yads_type.element)
+        return pa.fixed_shape_tensor(element_type, yads_type.shape)
 
     def _convert_field(self, field: Field) -> pa.Field:
         pa_type = self._convert_type(field.type)

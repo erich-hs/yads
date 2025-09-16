@@ -40,6 +40,7 @@ from yads.types import (
     UUID,
     Void,
     Variant,
+    Tensor,
 )
 
 # Define paths to the fixture directories
@@ -1258,3 +1259,97 @@ class TestTypeLoading:
         assert len(nested_field.type.fields) == 1
         assert nested_field.type.fields[0].name == "inner_field"
         assert nested_field.type.fields[0].type == Integer(bits=32)
+
+    def test_tensor_type_loading(self):
+        """Test tensor type loading with element and shape."""
+        type_def = {
+            "type": "tensor",
+            "element": {"type": "int32"},
+            "params": {"shape": [10, 20]},
+        }
+        spec_dict = self._create_minimal_spec_with_type(type_def)
+        spec = from_dict(spec_dict)
+
+        column = spec.columns[0]
+        assert isinstance(column.type, Tensor)
+        assert column.type.element == Integer(bits=32)
+        assert column.type.shape == (10, 20)
+        assert str(column.type) == "tensor<integer(bits=32), shape=[10, 20]>"
+
+    def test_tensor_type_loading_float_elements(self):
+        """Test tensor type loading with float elements."""
+        type_def = {
+            "type": "tensor",
+            "element": {"type": "float64"},
+            "params": {"shape": [5, 10, 15]},
+        }
+        spec_dict = self._create_minimal_spec_with_type(type_def)
+        spec = from_dict(spec_dict)
+
+        column = spec.columns[0]
+        assert isinstance(column.type, Tensor)
+        assert column.type.element == Float(bits=64)
+        assert column.type.shape == (5, 10, 15)
+        assert str(column.type) == "tensor<float(bits=64), shape=[5, 10, 15]>"
+
+    def test_tensor_type_loading_complex_element(self):
+        """Test tensor type loading with complex element type."""
+        type_def = {
+            "type": "tensor",
+            "element": {
+                "type": "struct",
+                "fields": [{"name": "value", "type": "string"}],
+            },
+            "params": {"shape": [2, 3]},
+        }
+        spec_dict = self._create_minimal_spec_with_type(type_def)
+        spec = from_dict(spec_dict)
+
+        column = spec.columns[0]
+        assert isinstance(column.type, Tensor)
+        assert isinstance(column.type.element, Struct)
+        assert column.type.shape == (2, 3)
+        assert len(column.type.element.fields) == 1
+        assert column.type.element.fields[0].name == "value"
+        assert column.type.element.fields[0].type == String()
+
+    def test_tensor_type_missing_element_raises_error(self):
+        """Test that tensor type without element raises error."""
+        type_def = {
+            "type": "tensor",
+            "params": {"shape": [10, 20]},
+        }
+        spec_dict = self._create_minimal_spec_with_type(type_def)
+
+        with pytest.raises(
+            TypeDefinitionError, match="Tensor type definition must include 'element'"
+        ):
+            from_dict(spec_dict)
+
+    def test_tensor_type_missing_shape_raises_error(self):
+        """Test that tensor type without shape raises error."""
+        type_def = {
+            "type": "tensor",
+            "element": {"type": "int32"},
+        }
+        spec_dict = self._create_minimal_spec_with_type(type_def)
+
+        with pytest.raises(
+            TypeDefinitionError, match="Tensor type definition must include 'shape'"
+        ):
+            from_dict(spec_dict)
+
+    def test_tensor_type_invalid_shape_raises_error(self):
+        """Test that tensor type with invalid shape raises error."""
+        type_def = {
+            "type": "tensor",
+            "element": {"type": "int32"},
+            "params": {"shape": [10, 0, 20]},  # Invalid: contains 0
+        }
+        spec_dict = self._create_minimal_spec_with_type(type_def)
+
+        with pytest.raises(
+            TypeDefinitionError,
+            match="Tensor 'shape' must contain only positive integers",
+        ):
+            from_dict(spec_dict)

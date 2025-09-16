@@ -29,6 +29,7 @@ from yads.types import (
     JSON,
     UUID,
     Void,
+    Tensor,
 )
 
 
@@ -100,6 +101,9 @@ class TestPyArrowLoaderTypeConversion:
             # Extension types
             (pa.uuid(), UUID()),
             (pa.json_(), JSON()),
+            (pa.fixed_shape_tensor(pa.int32(), [10, 20]), Tensor(element=Integer(bits=32, signed=True), shape=(10, 20))),
+            (pa.fixed_shape_tensor(pa.float64(), [5, 10, 15]), Tensor(element=Float(bits=64), shape=(5, 10, 15))),
+            (pa.fixed_shape_tensor(pa.string(), [100]), Tensor(element=String(), shape=(100,))),
         ],
     )
     def test_convert_primitive_types(

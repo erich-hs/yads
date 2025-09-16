@@ -34,6 +34,7 @@ from yads.types import (
     UUID,
     Void,
     Variant,
+    Tensor,
 )
 from yads.exceptions import (
     UnsupportedFeatureError,
@@ -112,6 +113,9 @@ class TestPyArrowConverterTypes:
             (UUID(), pa.uuid(), None),
             (Void(), pa.null(), None),
             (Variant(), pa.string(), "PyArrowConverter does not support type: variant for 'col1'."),
+            (Tensor(element=Integer(bits=32), shape=(10, 20)), pa.fixed_shape_tensor(pa.int32(), [10, 20]), None),
+            (Tensor(element=Float(bits=64), shape=(5, 10, 15)), pa.fixed_shape_tensor(pa.float64(), [5, 10, 15]), None),
+            (Tensor(element=String(), shape=(100,)), pa.fixed_shape_tensor(pa.string(), [100]), None),
         ],
     )
     def test_convert_type(

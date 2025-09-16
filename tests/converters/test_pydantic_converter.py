@@ -50,6 +50,7 @@ from yads.types import (
     UUID,
     Void,
     Variant,
+    Tensor,
 )
 
 
@@ -204,6 +205,11 @@ class TestPydanticConverterTypes:
             (UUID(), PyUUID, None, lambda f: None),
             (Void(), type(None), None, lambda f: None),
             (Variant(), Any, None, lambda f: None),
+            (
+                Tensor(element=Integer(bits=32), shape=(10, 20)),
+                str, # Coerced to str with warning
+                "PydanticConverter does not support type: tensor<integer(bits=32), shape=[10, 20]>", lambda f: None
+            ),
         ],
     )
     def test_convert_type(

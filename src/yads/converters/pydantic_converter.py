@@ -159,6 +159,7 @@ class PydanticConverter(BaseConverter):
         # Fallback for currently unsupported:
         # - Geometry
         # - Geography
+        # - Tensor
         if self.config.mode == "coerce":
             validation_warning(
                 message=(

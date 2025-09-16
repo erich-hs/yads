@@ -45,6 +45,7 @@ from ...types import (
     TimeUnit,
     Map,
     Struct,
+    Tensor,
     YadsType,
 )
 
@@ -72,6 +73,7 @@ class SpecBuilder:
         Array: "_parse_array_type",
         Struct: "_parse_struct_type",
         Map: "_parse_map_type",
+        Tensor: "_parse_tensor_type",
     }
 
     _COLUMN_CONSTRAINT_PARSERS: dict[str, str] = {
@@ -232,6 +234,33 @@ class SpecBuilder:
             key=self._parse_type(key_def["type"], key_def),
             value=self._parse_type(value_def["type"], value_def),
             **final_params,
+        )
+
+    def _parse_tensor_type(self, type_def: dict[str, Any]) -> Tensor:
+        if "element" not in type_def:
+            raise TypeDefinitionError("Tensor type definition must include 'element'.")
+
+        element_def = type_def["element"]
+        if not isinstance(element_def, dict) or "type" not in element_def:
+            raise TypeDefinitionError(
+                "The 'element' of a tensor must be a dictionary with a 'type' key."
+            )
+
+        element_type_name = element_def["type"]
+        final_params = self._get_processed_type_params(type_def.get("type", ""), type_def)
+
+        if "shape" not in final_params:
+            raise TypeDefinitionError("Tensor type definition must include 'shape'.")
+
+        shape = final_params["shape"]
+        if not isinstance(shape, (list, tuple)):
+            raise TypeDefinitionError(
+                f"Tensor 'shape' must be a list or tuple, got {type(shape).__name__}."
+            )
+
+        return Tensor(
+            element=self._parse_type(element_type_name, element_def),
+            shape=tuple(shape),
         )
 
     # %% ---- Field/Column parsing ----------------------------------------------------

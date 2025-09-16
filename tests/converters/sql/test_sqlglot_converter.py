@@ -30,6 +30,7 @@ from yads.types import (
     UUID,
     Void,
     Variant,
+    Tensor,
 )
 from yads.spec import Column, Field, YadsSpec, TransformedColumnReference
 from yads.constraints import (
@@ -191,6 +192,12 @@ class TestSQLGlotConverterTypes:
             # Other types - fallback to build
             (UUID(), exp.DataType(this=exp.DataType.Type.UUID), None),
             (Variant(), exp.DataType(this=exp.DataType.Type.VARIANT), None),
+            # Unsupported types
+            (
+                Tensor(element=Integer(bits=32), shape=(10, 20)),
+                exp.DataType(this=exp.DataType.Type.TEXT),
+                "SQLGlotConverter does not support type: tensor<integer(bits=32), shape=[10, 20]>"
+            ),
         ],
     )
     def test_convert_type(self, yads_type, expected_datatype, expected_warning):

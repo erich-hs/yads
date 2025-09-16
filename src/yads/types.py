@@ -66,6 +66,7 @@ __all__ = [
     "UUID",
     "Void",
     "Variant",
+    "Tensor",
 ]
 
 
@@ -954,6 +955,44 @@ class Variant(YadsType):
     """
 
 
+@dataclass(frozen=True)
+class Tensor(YadsType):
+    """Multi-dimensional tensors with fixed shape and a canonical element base type.
+
+    Args:
+        element: The type of elements in the tensor.
+        shape: Tuple of positive integers defining tensor dimensions.
+
+    Raises:
+        TypeDefinitionError: If shape is empty or contains non-positive integers.
+
+    Example:
+        >>> # 2D tensor of integers
+        >>> Tensor(element=Integer(), shape=[10, 20])
+
+        >>> # 3D tensor of floats
+        >>> Tensor(element=Float(bits=32), shape=[5, 10, 15])
+
+        >>> # Use in field definition
+        >>> Field(name="image_data", type=Tensor(element=Float(bits=32), shape=[224, 224, 3]))
+    """
+
+    element: YadsType
+    shape: tuple[int, ...]
+
+    def __post_init__(self):
+        if not self.shape:
+            raise TypeDefinitionError("Tensor 'shape' cannot be empty.")
+        if not all(isinstance(dim, int) and dim > 0 for dim in self.shape):
+            raise TypeDefinitionError(
+                f"Tensor 'shape' must contain only positive integers, got {self.shape}."
+            )
+
+    def __str__(self) -> str:
+        shape_str = "[" + ", ".join(map(str, self.shape)) + "]"
+        return f"tensor<{self.element}, shape={shape_str}>"
+
+
 TYPE_ALIASES: dict[str, tuple[type[YadsType], dict[str, Any]]] = {
     # String Types
     "str": (String, {}),
@@ -1025,4 +1064,5 @@ TYPE_ALIASES: dict[str, tuple[type[YadsType], dict[str, Any]]] = {
     "void": (Void, {}),
     "null": (Void, {}),
     "variant": (Variant, {}),
+    "tensor": (Tensor, {}),
 }

@@ -306,6 +306,14 @@ class PyArrowLoader(ConfigurableLoader):
             return {"type": "json"}
         if isinstance(t, pa.Bool8Type):
             return {"type": "boolean"}
+        if isinstance(t, pa.FixedShapeTensorType):
+            with self.load_context(field="<tensor_element>"):
+                element_def = self._convert_type(t.value_type)
+            return {
+                "type": "tensor",
+                "element": element_def,
+                "params": {"shape": list(t.shape)},
+            }
 
         # Apply fallback for unsupported types in coerce mode
         if self.config.mode == "coerce":
