@@ -303,9 +303,6 @@ class Decimal(YadsType):
 class Boolean(YadsType):
     """Boolean type representing true/false values.
 
-    Maps to BOOLEAN types in SQL dialects or equivalent binary representations
-    in data processing frameworks.
-
     Example:
         >>> Boolean()
         >>>
@@ -317,10 +314,6 @@ class Boolean(YadsType):
 @dataclass(frozen=True)
 class Binary(YadsType):
     """Binary data type for storing byte sequences.
-
-    Used for storing arbitrary binary data such as images, documents,
-    or serialized objects. Maps to BLOB, BINARY, or VARBINARY types
-    in SQL dialects.
 
     Args:
         length: Optional maximum number of bytes. If None, represents
@@ -353,9 +346,6 @@ class Binary(YadsType):
 @dataclass(frozen=True)
 class Date(YadsType):
     """Calendar date type representing year, month, and day.
-
-    Maps to DATE-like types in SQL dialects or data-processing frameworks.
-    Does not include time information.
 
     Args:
         bits: Storage width for logical date. One of `32` or `64`. Defaults
@@ -448,9 +438,7 @@ class Time(YadsType):
 class Timestamp(YadsType):
     """Date and time type without timezone information.
 
-    Represents a specific point in time including date and time components,
-    with implicit timezone awareness (dependant on the target SQL dialect).
-    Maps to TIMESTAMP or DATETIME types in SQL dialects.
+    Represents a Timestamp type with implicit timezone awareness.
 
     Args:
         unit: Smallest time unit for values. One of `"s"`, `"ms"`, `"us"`,
@@ -484,8 +472,7 @@ class Timestamp(YadsType):
 class TimestampTZ(YadsType):
     """Date and time type with explicit timezone information.
 
-    Represents an absolute point in time with a defined timezone. Maps to
-    TIMESTAMP WITH TIME ZONE (or equivalent) in SQL dialects.
+    Represents a timezone-aware Timestamp type with an explicit timezone identifier.
 
     Args:
         unit: Smallest time unit for values. One of `"s"`, `"ms"`, `"us"`,
@@ -536,11 +523,8 @@ class TimestampTZ(YadsType):
 class TimestampLTZ(YadsType):
     """Date and time type with session-local timezone semantics.
 
-    Represents a timestamp whose timezone interpretation is delegated to the
-    client or query engine session settings. The spec does not carry a
-    timezone identifier for this type.
-
-    Maps to TIMESTAMP WITH LOCAL TIME ZONE (or equivalent) where supported.
+    Represents a timezone-aware Timestamp type whose timezone interpretation
+    is delegated to the client or query engine session settings.
 
     Args:
         unit: Smallest time unit for values. One of `"s"`, `"ms"`, `"us"`,
@@ -574,8 +558,7 @@ class TimestampLTZ(YadsType):
 class TimestampNTZ(YadsType):
     """Date and time type without timezone information.
 
-    Similar to Timestamp but without timezone awareness. Maps to
-    TIMESTAMP or DATETIME types in SQL dialects.
+    Represents a Timestamp with explicit timezone unawareness.
 
     Args:
         unit: Smallest time unit for values. One of `"s"`, `"ms"`, `"us"`,
@@ -753,8 +736,6 @@ class Array(YadsType):
     """Array type containing elements of a homogeneous type.
 
     Represents ordered collections where all elements share the same type.
-    Maps to ARRAY types in SQL dialects or list/array structures in data
-    processing frameworks.
 
     Args:
         element: The type of elements contained in the array.
@@ -785,8 +766,7 @@ class Array(YadsType):
 class Struct(YadsType):
     """Structured type containing named fields of potentially different types.
 
-    Represents complex objects with named fields. Maps to STRUCT/ROW types in
-    SQL dialects or nested objects in data-processing frameworks.
+    Represents complex objects with named fields.
 
     Args:
         fields: List of Field objects defining the structure's schema.
@@ -822,8 +802,7 @@ class Map(YadsType):
     """Key-value mapping type with homogeneous key and value types.
 
     Represents associative arrays or dictionaries where all keys share one type
-    and all values share another type. Maps to MAP types in SQL dialects or
-    dictionary structures in data processing frameworks.
+    and all values share another type.
 
     Args:
         key: The type of all keys in the map.
@@ -947,11 +926,13 @@ class Void(YadsType):
 class Variant(YadsType):
     """Variant type representing a union of potentially different types.
 
-    Represents a value that can be one of several types. Maps to VARIANT types in SQL dialects.
+    Represents a value that can be one of several types.
 
     Example:
-        >>> Variant(types=[String(), Integer()])
-        >>> Variant(types=[String(), Integer(), Float()])
+        >>> Variant()
+        >>>
+        >>> # Use in field definition
+        >>> Field(name="value", type=Variant())
     """
 
 
