@@ -186,7 +186,9 @@
         "null",
         "NULL",
         "variant",
-        "VARIANT"
+        "VARIANT",
+        "tensor",
+        "TENSOR"
       ]
     },
     "type_spec": {
@@ -276,11 +278,20 @@
                 "SECOND"
               ]
             },
+            "shape": {
+              "type": "array",
+              "description": "Fixed dimensions for tensor type.",
+              "items": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "minItems": 1
+            },
             "additionalProperties": false
           }
         },
         "element": {
-          "description": "The type of the elements in an array.",
+          "description": "The type of the elements in an array or tensor.",
           "$ref": "#/definitions/type_spec"
         },
         "fields": {
