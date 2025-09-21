@@ -468,21 +468,21 @@ class TestTensorType:
         """Test basic tensor creation with integer elements."""
         t = Tensor(element=Integer(bits=32), shape=[10, 20])
         assert t.element == Integer(bits=32)
-        assert t.shape == (10, 20)
+        assert t.shape == [10, 20]
         assert str(t) == "tensor<integer(bits=32), shape=[10, 20]>"
 
     def test_tensor_float_elements(self):
         """Test tensor with float elements."""
         t = Tensor(element=Float(bits=64), shape=[5, 10, 15])
         assert t.element == Float(bits=64)
-        assert t.shape == (5, 10, 15)
+        assert t.shape == [5, 10, 15]
         assert str(t) == "tensor<float(bits=64), shape=[5, 10, 15]>"
 
     def test_tensor_single_dimension(self):
         """Test tensor with single dimension."""
         t = Tensor(element=String(), shape=[100])
         assert t.element == String()
-        assert t.shape == (100,)
+        assert t.shape == [100]
         assert str(t) == "tensor<string, shape=[100]>"
 
     def test_tensor_complex_element(self):
@@ -490,7 +490,7 @@ class TestTensorType:
         struct_type = Struct(fields=[])
         t = Tensor(element=struct_type, shape=[2, 3])
         assert t.element == struct_type
-        assert t.shape == (2, 3)
+        assert t.shape == [2, 3]
         assert str(t) == "tensor<struct<\n\n>, shape=[2, 3]>"
 
     @pytest.mark.parametrize(
