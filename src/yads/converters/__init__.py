@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Callable, Literal, Type, TYPE_CHECKING
+from typing import Any, Callable, Literal, Mapping, Type, TYPE_CHECKING
 
 from .base import BaseConverter, BaseConverterConfig
 from .sql.sql_converter import (
@@ -12,10 +12,12 @@ from .sql.sql_converter import (
 from .sql.ast_converter import AstConverter, SQLGlotConverter, SQLGlotConverterConfig
 from .pyarrow_converter import PyArrowConverter, PyArrowConverterConfig
 from .pydantic_converter import PydanticConverter, PydanticConverterConfig
+from .pyspark_converter import PySparkConverter, PySparkConverterConfig
 
 __all__ = [
     "to_pyarrow",
     "to_pydantic",
+    "to_pyspark",
     "to_sql",
     "BaseConverter",
     "BaseConverterConfig",
@@ -30,13 +32,30 @@ __all__ = [
     "PyArrowConverterConfig",
     "PydanticConverter",
     "PydanticConverterConfig",
+    "PySparkConverter",
+    "PySparkConverterConfig",
 ]
 
 if TYPE_CHECKING:
     import pyarrow as pa  # type: ignore[import-untyped]
     from pydantic import BaseModel  # type: ignore[import-untyped]
+    from pydantic.fields import FieldInfo  # type: ignore[import-untyped]
+    from pyspark.sql.types import (
+        StructType,
+        StructField,
+        DataType,
+    )  # type: ignore[import-untyped]
     from sqlglot.expressions import DataType as SQLGlotDataType
-    from ..spec import YadsSpec
+    from sqlglot import expressions as exp  # type: ignore[import-untyped]
+    from ..spec import YadsSpec, Field as SpecField
+
+    # Column override type aliases (for static typing only)
+    PyArrowColumnOverride = Callable[[SpecField, PyArrowConverter], pa.Field]
+    PydanticColumnOverride = Callable[
+        [SpecField, PydanticConverter], tuple[Any, FieldInfo]
+    ]
+    PySparkColumnOverride = Callable[[SpecField, PySparkConverter], StructField]
+    SQLGlotColumnOverride = Callable[[SpecField, SQLGlotConverter], exp.ColumnDef]
 
 
 def to_pyarrow(
@@ -46,13 +65,13 @@ def to_pyarrow(
     mode: Literal["raise", "coerce"] = "coerce",
     ignore_columns: set[str] | None = None,
     include_columns: set[str] | None = None,
-    column_overrides: dict[str, Callable[[Any, Any], Any]] | None = None,
+    column_overrides: Mapping[str, PyArrowColumnOverride] | None = None,
     # PyArrowConverterConfig options
     use_large_string: bool = False,
     use_large_binary: bool = False,
     use_large_list: bool = False,
-    fallback_type: Any | None = None,
-) -> "pa.Schema":
+    fallback_type: pa.DataType | None = None,
+) -> pa.Schema:
     """Convert a `YadsSpec` to a `pyarrow.Schema`.
 
     Args:
@@ -94,12 +113,12 @@ def to_pydantic(
     mode: Literal["raise", "coerce"] = "coerce",
     ignore_columns: set[str] | None = None,
     include_columns: set[str] | None = None,
-    column_overrides: dict[str, Callable[[Any, Any], Any]] | None = None,
+    column_overrides: Mapping[str, PydanticColumnOverride] | None = None,
     # PydanticConverterConfig options
     model_name: str | None = None,
     model_config: dict[str, Any] | None = None,
-    fallback_type: type | None = None,
-) -> "Type[BaseModel]":
+    fallback_type: type[str] | type[dict] | type[bytes] | None = None,
+) -> Type[BaseModel]:
     """Convert a `YadsSpec` to a Pydantic `BaseModel` subclass.
 
     Args:
@@ -131,6 +150,55 @@ def to_pydantic(
     return PydanticConverter(config).convert(spec)
 
 
+def to_pyspark(
+    spec: YadsSpec,
+    *,
+    # BaseConverterConfig options
+    mode: Literal["raise", "coerce"] = "coerce",
+    ignore_columns: set[str] | None = None,
+    include_columns: set[str] | None = None,
+    column_overrides: Mapping[str, PySparkColumnOverride] | None = None,
+    # PySparkConverterConfig options
+    fallback_type: DataType | None = None,
+) -> StructType:
+    """Convert a `YadsSpec` to a PySpark `StructType`.
+
+    Args:
+        spec: The validated yads specification to convert.
+        mode: Conversion mode. "raise" raises on unsupported features;
+            "coerce" adjusts with warnings. Defaults to "coerce".
+        ignore_columns: Columns to exclude from conversion.
+        include_columns: If provided, only these columns are included.
+        column_overrides: Per-column custom conversion callables.
+        fallback_type: Fallback PySpark data type used in coerce mode for unsupported types.
+            When set, overrides the default built-in `StringType()`. Defaults to None.
+
+    Returns:
+        A PySpark `StructType` instance.
+
+    Raises:
+        UnsupportedFeatureError: If PySpark is not available.
+    """
+    # Import lazily to avoid importing heavy deps at module import time
+    try:
+        from pyspark.sql.types import StringType  # type: ignore[import-untyped]
+    except ImportError as e:
+        from ..exceptions import UnsupportedFeatureError
+
+        raise UnsupportedFeatureError(
+            "PySpark is required for to_pyspark(). Install with: pip install pyspark"
+        ) from e
+
+    config = PySparkConverterConfig(
+        mode=mode,
+        ignore_columns=frozenset(ignore_columns) if ignore_columns else frozenset[str](),
+        include_columns=frozenset(include_columns) if include_columns else None,
+        column_overrides=column_overrides or {},
+        fallback_type=fallback_type or StringType(),
+    )
+    return PySparkConverter(config).convert(spec)
+
+
 def to_sql(
     spec: YadsSpec,
     *,
@@ -140,13 +208,13 @@ def to_sql(
     mode: Literal["raise", "coerce"] = "coerce",
     ignore_columns: set[str] | None = None,
     include_columns: set[str] | None = None,
-    column_overrides: dict[str, Callable[[Any, Any], Any]] | None = None,
+    column_overrides: Mapping[str, SQLGlotColumnOverride] | None = None,
     # SQLGlotConverterConfig options
     if_not_exists: bool = False,
     or_replace: bool = False,
     ignore_catalog: bool = False,
     ignore_database: bool = False,
-    fallback_type: "SQLGlotDataType.Type" | None = None,
+    fallback_type: SQLGlotDataType.Type | None = None,
     # SQL serialization options to forward to sqlglot (e.g., pretty=True)
     **sql_options: Any,
 ) -> str:
@@ -177,7 +245,6 @@ def to_sql(
     """
     from sqlglot import expressions as exp  # type: ignore[import-untyped]
 
-    glot_fallback = fallback_type if fallback_type is not None else exp.DataType.Type.TEXT
     ast_config = SQLGlotConverterConfig(
         mode=mode,
         ignore_columns=frozenset(ignore_columns) if ignore_columns else frozenset[str](),
@@ -187,7 +254,7 @@ def to_sql(
         or_replace=or_replace,
         ignore_catalog=ignore_catalog,
         ignore_database=ignore_database,
-        fallback_type=glot_fallback,
+        fallback_type=fallback_type or exp.DataType.Type.TEXT,
     )
 
     converter: SQLConverter
