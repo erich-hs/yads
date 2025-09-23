@@ -27,7 +27,7 @@ from __future__ import annotations
 from functools import singledispatchmethod
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal as PythonDecimal
-from typing import Any, Callable, Literal, Optional, Type, cast, Mapping
+from typing import Any, Callable, Literal, Optional, Type, Mapping, cast
 from uuid import UUID as PythonUUID
 from dataclasses import dataclass, field
 from types import MappingProxyType
@@ -141,15 +141,15 @@ class PydanticConverter(BaseConverter):
                     # Pydantic expects (annotation, FieldInfo) for dynamic models
                     fields[col.name] = (field_type, field_info)
 
+        config_dict: ConfigDict | None = None
+        if model_config:
+            config_dict = cast(ConfigDict, model_config)
+
         model = create_model(
             model_name,
+            __config__=config_dict,
             **fields,
         )
-
-        if model_config:
-            # In Pydantic v2, set BaseModel.model_config (ConfigDict) for dynamic models.
-            # We cast here to avoid over-constraining keys at type-check time.
-            setattr(model, "model_config", cast(ConfigDict, model_config))
 
         return model
 

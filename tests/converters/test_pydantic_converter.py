@@ -698,6 +698,244 @@ class TestPydanticConverterModelOptions:
         model = PydanticConverter().convert(spec)
         assert model.__name__ == "prod_sales_orders"
 
+    def test_model_config_with_string_length_validation(self):
+        """Test that model_config with str_max_length actually enforces validation."""
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[Column(name="field", type=String())],
+        )
+
+        config = PydanticConverterConfig(model_config={"str_max_length": 10})
+        converter = PydanticConverter(config)
+        model = converter.convert(spec)
+
+        # Test that the configuration is actually applied
+        from pydantic import ValidationError
+
+        # Short string should work
+        instance = model(field="short")
+        assert instance.field == "short"
+
+        # Long string should fail validation
+        with pytest.raises(ValidationError) as exc_info:
+            model(field="this_is_a_very_long_string_that_exceeds_ten_characters")
+
+        assert "String should have at most 10 characters" in str(exc_info.value)
+
+    def test_model_config_with_frozen_model(self):
+        """Test that model_config with frozen=True creates immutable models."""
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[Column(name="field", type=String())],
+        )
+
+        config = PydanticConverterConfig(model_config={"frozen": True})
+        converter = PydanticConverter(config)
+        model = converter.convert(spec)
+
+        # Test that the model is frozen
+        instance = model(field="test")
+        assert instance.field == "test"
+
+        # Attempting to modify should raise ValidationError
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError) as exc_info:
+            instance.field = "modified"
+
+        assert "Instance is frozen" in str(exc_info.value)
+
+    def test_model_config_with_title_and_description(self):
+        """Test that model_config with title and description works."""
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[Column(name="field", type=String())],
+        )
+
+        config = PydanticConverterConfig(
+            model_config={"title": "Test Model", "description": "A test model"}
+        )
+        converter = PydanticConverter(config)
+        model = converter.convert(spec)
+
+        # Test that the configuration is applied
+        model_config = getattr(model, "model_config")
+        assert model_config["title"] == "Test Model"
+        assert model_config["description"] == "A test model"
+
+    def test_model_config_with_multiple_options(self):
+        """Test that model_config with multiple options works together."""
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[Column(name="field", type=String())],
+        )
+
+        config = PydanticConverterConfig(
+            model_config={
+                "frozen": True,
+                "title": "Multi Config Model",
+                "str_max_length": 5,
+                "validate_assignment": True,
+            }
+        )
+        converter = PydanticConverter(config)
+        model = converter.convert(spec)
+
+        # Test that all configurations are applied
+        model_config = getattr(model, "model_config")
+        assert model_config["frozen"] is True
+        assert model_config["title"] == "Multi Config Model"
+        assert model_config["str_max_length"] == 5
+        assert model_config["validate_assignment"] is True
+
+        # Test that validation works
+        from pydantic import ValidationError
+
+        # Short string should work
+        instance = model(field="hi")
+        assert instance.field == "hi"
+
+        # Long string should fail
+        with pytest.raises(ValidationError):
+            model(field="too_long")
+
+    def test_model_config_with_dict_vs_configdict(self):
+        """Test that both dict and ConfigDict work for model_config."""
+        from pydantic import ConfigDict
+
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[Column(name="field", type=String())],
+        )
+
+        # Test with regular dict
+        config_dict = PydanticConverterConfig(model_config={"str_max_length": 10})
+        converter_dict = PydanticConverter(config_dict)
+        model_dict = converter_dict.convert(spec)
+
+        # Test with ConfigDict
+        config_configdict = PydanticConverterConfig(
+            model_config=ConfigDict(str_max_length=10)
+        )
+        converter_configdict = PydanticConverter(config_configdict)
+        model_configdict = converter_configdict.convert(spec)
+
+        # Both should work the same way
+        from pydantic import ValidationError
+
+        # Both should accept short strings
+        instance_dict = model_dict(field="short")
+        instance_configdict = model_configdict(field="short")
+        assert instance_dict.field == "short"
+        assert instance_configdict.field == "short"
+
+        # Both should reject long strings
+        with pytest.raises(ValidationError):
+            model_dict(field="this_is_too_long")
+
+        with pytest.raises(ValidationError):
+            model_configdict(field="this_is_too_long")
+
+    def test_model_config_none_does_not_break(self):
+        """Test that model_config=None doesn't break the converter."""
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[Column(name="field", type=String())],
+        )
+
+        config = PydanticConverterConfig(model_config=None)
+        converter = PydanticConverter(config)
+        model = converter.convert(spec)
+
+        # Should work normally without any special config
+        instance = model(field="test")
+        assert instance.field == "test"
+
+    def test_model_config_empty_dict_works(self):
+        """Test that model_config={} works without issues."""
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[Column(name="field", type=String())],
+        )
+
+        config = PydanticConverterConfig(model_config={})
+        converter = PydanticConverter(config)
+        model = converter.convert(spec)
+
+        # Should work normally
+        instance = model(field="test")
+        assert instance.field == "test"
+
+    def test_model_config_with_complex_types(self):
+        """Test that model_config works with complex nested types."""
+        nested_struct = Struct(
+            fields=[
+                Field(name="inner_field", type=String()),
+            ]
+        )
+
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer()),
+                Column(name="data", type=nested_struct),
+            ],
+        )
+
+        config = PydanticConverterConfig(
+            model_config={"frozen": True, "title": "Complex Model"}
+        )
+        converter = PydanticConverter(config)
+        model = converter.convert(spec)
+
+        # Test that the configuration is applied to the main model
+        model_config = getattr(model, "model_config")
+        assert model_config["frozen"] is True
+        assert model_config["title"] == "Complex Model"
+
+        # Test that the model works with complex types
+        instance = model(id=1, data={"inner_field": "test"})
+        assert instance.id == 1
+        assert instance.data.inner_field == "test"
+
+    def test_model_config_preserves_field_validation(self):
+        """Test that model_config doesn't interfere with field-level validation."""
+        spec = YadsSpec(
+            name="test",
+            version="1.0.0",
+            columns=[
+                Column(name="short_field", type=String(length=5)),
+                Column(name="long_field", type=String()),
+            ],
+        )
+
+        config = PydanticConverterConfig(model_config={"str_max_length": 10})
+        converter = PydanticConverter(config)
+        model = converter.convert(spec)
+
+        from pydantic import ValidationError
+
+        # Field-level constraint (length=5) should still work
+        instance = model(short_field="hi", long_field="hello")
+        assert instance.short_field == "hi"
+        assert instance.long_field == "hello"
+
+        # Field-level constraint should be enforced
+        with pytest.raises(ValidationError):
+            model(short_field="too_long_for_field", long_field="hello")
+
+        # Model-level constraint should also be enforced
+        with pytest.raises(ValidationError):
+            model(short_field="hi", long_field="this_is_too_long_for_model")
+
 
 # %% Mode hierarchy
 class TestPydanticConverterModeHierarchy:
