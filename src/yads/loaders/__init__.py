@@ -22,6 +22,7 @@ from ..spec import YadsSpec
 from .base import BaseLoader, BaseLoaderConfig, ConfigurableLoader, DictLoader
 from .yaml_loader import YamlLoader
 from .pyarrow_loader import PyArrowLoader, PyArrowLoaderConfig
+from .pyspark_loader import PySparkLoader, PySparkLoaderConfig
 
 __all__ = [
     # Loader classes
@@ -32,6 +33,8 @@ __all__ = [
     "YamlLoader",
     "PyArrowLoader",
     "PyArrowLoaderConfig",
+    "PySparkLoader",
+    "PySparkLoaderConfig",
     # Convenience functions
     "from_dict",
     "from_yaml_string",
@@ -39,6 +42,7 @@ __all__ = [
     "from_yaml_stream",
     "from_yaml",
     "from_pyarrow",
+    "from_pyspark",
 ]
 
 
@@ -192,5 +196,30 @@ def from_pyarrow(
     """
     config = PyArrowLoaderConfig(mode=mode)
     return PyArrowLoader(config).load(
+        schema, name=name, version=version, description=description
+    )
+
+
+def from_pyspark(
+    schema: Any,
+    *,
+    mode: Literal["raise", "coerce"] = "coerce",
+    name: str,
+    version: str,
+    description: str | None = None,
+) -> YadsSpec:
+    """Load a spec from a `pyspark.sql.types.StructType`.
+
+    Args:
+        schema: An instance of `pyspark.sql.types.StructType`.
+        name: Fully-qualified spec name to assign.
+        version: Spec version string.
+        description: Optional human-readable description.
+
+    Returns:
+        A validated immutable `YadsSpec` instance.
+    """
+    config = PySparkLoaderConfig(mode=mode)
+    return PySparkLoader(config).load(
         schema, name=name, version=version, description=description
     )
