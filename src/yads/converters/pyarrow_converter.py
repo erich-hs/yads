@@ -236,7 +236,7 @@ class PyArrowConverter(BaseConverter):
     def _(self, yads_type: Decimal) -> pa.DataType:
         # Determine width function first, considering precision constraints.
         precision = yads_type.precision or 38
-        scale = yads_type.scale or 0
+        scale = yads_type.scale or 18
         bits = yads_type.bits
 
         def build_decimal(width_bits: int) -> pa.DataType:

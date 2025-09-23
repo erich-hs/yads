@@ -62,7 +62,7 @@ class TestPyArrowConverterTypes:
             (Float(bits=16), pa.float16(), None),
             (Float(bits=32), pa.float32(), None),
             (Float(bits=64), pa.float64(), None),
-            (Decimal(), pa.decimal128(38, 0), None),
+            (Decimal(), pa.decimal128(38, 18), None),
             (Decimal(precision=10, scale=2), pa.decimal128(10, 2), None),
             (Decimal(precision=10, scale=2, bits=128), pa.decimal128(10, 2), None),
             (Boolean(), pa.bool_(), None),
