@@ -24,40 +24,42 @@ from dataclasses import dataclass
 from functools import singledispatchmethod
 from typing import TYPE_CHECKING, Any, Literal
 
-from pyspark.sql.types import (  # type: ignore[import-untyped]
-    ArrayType,
-    BinaryType,
-    BooleanType,
-    ByteType,
-    CharType,
-    DataType,
-    DateType,
-    DayTimeIntervalType,
-    DecimalType,
-    DoubleType,
-    FloatType,
-    IntegerType,
-    LongType,
-    MapType,
-    NullType,
-    ShortType,
-    StringType,
-    StructField,
-    StructType,
-    TimestampNTZType,
-    TimestampType,
-    VarcharType,
-    VariantType,
-    YearMonthIntervalType,
-)
+import importlib
 
 from .. import types as ytypes
 from ..exceptions import LoaderConfigError, UnsupportedFeatureError, validation_warning
 from .base import BaseLoaderConfig, ConfigurableLoader
 from .common import SpecBuilder
 
+T = importlib.import_module("pyspark.sql.types")
+
 if TYPE_CHECKING:
     from ..spec import YadsSpec
+    from pyspark.sql.types import (  # type: ignore[import-untyped]
+        ArrayType,
+        BinaryType,
+        BooleanType,
+        ByteType,
+        CharType,
+        DataType,
+        DateType,
+        DayTimeIntervalType,
+        DecimalType,
+        DoubleType,
+        FloatType,
+        IntegerType,
+        LongType,
+        MapType,
+        NullType,
+        ShortType,
+        StringType,
+        StructField,
+        StructType,
+        TimestampNTZType,
+        TimestampType,
+        VarcharType,
+        YearMonthIntervalType,
+    )
 
 
 @dataclass(frozen=True)
@@ -194,39 +196,39 @@ class PySparkLoader(ConfigurableLoader):
             f" for '{self._current_field_name or '<unknown>'}'."
         )
 
-    @_convert_type.register(NullType)
+    @_convert_type.register(T.NullType)
     def _(self, dtype: NullType) -> dict[str, Any]:
         return {"type": "void"}
 
-    @_convert_type.register(BooleanType)
+    @_convert_type.register(T.BooleanType)
     def _(self, dtype: BooleanType) -> dict[str, Any]:
         return {"type": "boolean"}
 
-    @_convert_type.register(ByteType)
+    @_convert_type.register(T.ByteType)
     def _(self, dtype: ByteType) -> dict[str, Any]:
         return {"type": "integer", "params": {"bits": 8, "signed": True}}
 
-    @_convert_type.register(ShortType)
+    @_convert_type.register(T.ShortType)
     def _(self, dtype: ShortType) -> dict[str, Any]:
         return {"type": "integer", "params": {"bits": 16, "signed": True}}
 
-    @_convert_type.register(IntegerType)
+    @_convert_type.register(T.IntegerType)
     def _(self, dtype: IntegerType) -> dict[str, Any]:
         return {"type": "integer", "params": {"bits": 32, "signed": True}}
 
-    @_convert_type.register(LongType)
+    @_convert_type.register(T.LongType)
     def _(self, dtype: LongType) -> dict[str, Any]:
         return {"type": "integer", "params": {"bits": 64, "signed": True}}
 
-    @_convert_type.register(FloatType)
+    @_convert_type.register(T.FloatType)
     def _(self, dtype: FloatType) -> dict[str, Any]:
         return {"type": "float", "params": {"bits": 32}}
 
-    @_convert_type.register(DoubleType)
+    @_convert_type.register(T.DoubleType)
     def _(self, dtype: DoubleType) -> dict[str, Any]:
         return {"type": "float", "params": {"bits": 64}}
 
-    @_convert_type.register(DecimalType)
+    @_convert_type.register(T.DecimalType)
     def _(self, dtype: DecimalType) -> dict[str, Any]:
         return {
             "type": "decimal",
@@ -236,35 +238,35 @@ class PySparkLoader(ConfigurableLoader):
             },
         }
 
-    @_convert_type.register(StringType)
+    @_convert_type.register(T.StringType)
     def _(self, dtype: StringType) -> dict[str, Any]:
         return {"type": "string"}
 
-    @_convert_type.register(CharType)
+    @_convert_type.register(T.CharType)
     def _(self, dtype: CharType) -> dict[str, Any]:
         return {"type": "string", "params": {"length": dtype.length}}
 
-    @_convert_type.register(VarcharType)
+    @_convert_type.register(T.VarcharType)
     def _(self, dtype: VarcharType) -> dict[str, Any]:
         return {"type": "string", "params": {"length": dtype.length}}
 
-    @_convert_type.register(BinaryType)
+    @_convert_type.register(T.BinaryType)
     def _(self, dtype: BinaryType) -> dict[str, Any]:
         return {"type": "binary"}
 
-    @_convert_type.register(DateType)
+    @_convert_type.register(T.DateType)
     def _(self, dtype: DateType) -> dict[str, Any]:
         return {"type": "date", "params": {"bits": 32}}
 
-    @_convert_type.register(TimestampType)
+    @_convert_type.register(T.TimestampType)
     def _(self, dtype: TimestampType) -> dict[str, Any]:
         return {"type": "timestampltz", "params": {"unit": "ns"}}
 
-    @_convert_type.register(TimestampNTZType)
+    @_convert_type.register(T.TimestampNTZType)
     def _(self, dtype: TimestampNTZType) -> dict[str, Any]:
         return {"type": "timestampntz", "params": {"unit": "ns"}}
 
-    @_convert_type.register(YearMonthIntervalType)
+    @_convert_type.register(T.YearMonthIntervalType)
     def _(self, dtype: YearMonthIntervalType) -> dict[str, Any]:
         start_field = dtype.startField
         end_field = dtype.endField
@@ -285,7 +287,7 @@ class PySparkLoader(ConfigurableLoader):
             },
         }
 
-    @_convert_type.register(DayTimeIntervalType)
+    @_convert_type.register(T.DayTimeIntervalType)
     def _(self, dtype: DayTimeIntervalType) -> dict[str, Any]:
         start_field = dtype.startField
         end_field = dtype.endField
@@ -306,13 +308,13 @@ class PySparkLoader(ConfigurableLoader):
             },
         }
 
-    @_convert_type.register(ArrayType)
+    @_convert_type.register(T.ArrayType)
     def _(self, dtype: ArrayType) -> dict[str, Any]:
         with self.load_context(field="<array_element>"):
             elem_def = self._convert_type(dtype.elementType)
         return {"type": "array", "element": elem_def}
 
-    @_convert_type.register(MapType)
+    @_convert_type.register(T.MapType)
     def _(self, dtype: MapType) -> dict[str, Any]:
         with self.load_context(field="<map_key>"):
             key_def = self._convert_type(dtype.keyType)
@@ -320,7 +322,7 @@ class PySparkLoader(ConfigurableLoader):
             val_def = self._convert_type(dtype.valueType)
         return {"type": "map", "key": key_def, "value": val_def}
 
-    @_convert_type.register(StructType)
+    @_convert_type.register(T.StructType)
     def _(self, dtype: StructType) -> dict[str, Any]:
         fields: list[dict[str, Any]] = []
         for field in dtype.fields:
@@ -329,9 +331,11 @@ class PySparkLoader(ConfigurableLoader):
                 fields.append(field_def)
         return {"type": "struct", "fields": fields}
 
-    @_convert_type.register(VariantType)
-    def _(self, dtype: VariantType) -> dict[str, Any]:
-        return {"type": "variant"}
+    if hasattr(T, "VariantType"):
+
+        @_convert_type.register(T.VariantType)
+        def _(self, dtype: object) -> dict[str, Any]:
+            return {"type": "variant"}
 
     def _get_fallback_type_definition(self) -> dict[str, Any]:
         if isinstance(self.config.fallback_type, ytypes.Binary):
