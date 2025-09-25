@@ -145,6 +145,23 @@ class UnsupportedFeatureError(YadsError):
     """
 
 
+# Dependency Exceptions
+class DependencyError(YadsError):
+    """Base for optional dependency errors.
+
+    Raised when an optional runtime dependency is missing or does not meet
+    the required version constraints for a specific feature.
+    """
+
+
+class MissingDependencyError(DependencyError):
+    """Required optional dependency is not installed."""
+
+
+class DependencyVersionError(DependencyError):
+    """Installed dependency version does not meet requirements."""
+
+
 # Converter Exceptions
 class ConverterError(YadsError):
     """Base for converter-related errors.
