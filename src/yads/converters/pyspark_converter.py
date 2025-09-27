@@ -28,7 +28,7 @@ from typing import Any, Callable, Literal, Mapping, TYPE_CHECKING
 
 from .base import BaseConverter, BaseConverterConfig
 from ..exceptions import UnsupportedFeatureError, validation_warning
-from .._dependencies import requires_dependency
+from .._dependencies import requires_dependency, try_import_optional
 import yads.spec as yspec
 import yads.types as ytypes
 
@@ -37,8 +37,9 @@ if TYPE_CHECKING:
     from yads.spec import Field
 
 
+@requires_dependency("pyspark", import_name="pyspark.sql.types")
 def _default_fallback_type() -> DataType:
-    from pyspark.sql.types import StringType  # type: ignore[import-untyped]
+    from pyspark.sql.types import StringType
 
     return StringType()
 
@@ -61,7 +62,7 @@ class PySparkConverterConfig(BaseConverterConfig):
     def __post_init__(self) -> None:
         super().__post_init__()
         # Validate fallback_type
-        from pyspark.sql.types import (  # type: ignore[import-untyped]
+        from pyspark.sql.types import (
             StringType,
             BinaryType,
         )
@@ -125,7 +126,7 @@ class PySparkConverter(BaseConverter):
         Returns:
             A PySpark `StructType` with fields mapped from the spec columns.
         """
-        from pyspark.sql.types import StructType  # type: ignore[import-untyped]
+        from pyspark.sql.types import StructType
 
         fields: list[StructField] = []
         # Set mode for this conversion call
@@ -168,7 +169,7 @@ class PySparkConverter(BaseConverter):
 
     @_convert_type.register(ytypes.String)
     def _(self, yads_type: ytypes.String) -> DataType:
-        from pyspark.sql.types import (  # type: ignore[import-untyped]
+        from pyspark.sql.types import (
             VarcharType,
             StringType,
         )
@@ -179,7 +180,7 @@ class PySparkConverter(BaseConverter):
 
     @_convert_type.register(ytypes.Integer)
     def _(self, yads_type: ytypes.Integer) -> DataType:
-        from pyspark.sql.types import (  # type: ignore[import-untyped]
+        from pyspark.sql.types import (
             ByteType,
             ShortType,
             IntegerType,
@@ -257,14 +258,14 @@ class PySparkConverter(BaseConverter):
             else:
                 raise UnsupportedFeatureError(
                     (
-                        f"Unsigned Integer(bits={bits}) is not supported by PySpark."
+                        f"Unsigned Integer(bits={bits}) is not supported by PySpark"
                         f" for '{self._current_field_name or '<unknown>'}'."
                     )
                 )
 
     @_convert_type.register(ytypes.Float)
     def _(self, yads_type: ytypes.Float) -> DataType:
-        from pyspark.sql.types import (  # type: ignore[import-untyped]
+        from pyspark.sql.types import (
             FloatType,
             DoubleType,
         )
@@ -286,7 +287,7 @@ class PySparkConverter(BaseConverter):
             else:
                 raise UnsupportedFeatureError(
                     (
-                        f"Float(bits=16) is not supported by PySpark."
+                        f"Float(bits=16) is not supported by PySpark"
                         f" for '{self._current_field_name or '<unknown>'}'."
                     )
                 )
@@ -301,7 +302,7 @@ class PySparkConverter(BaseConverter):
 
     @_convert_type.register(ytypes.Decimal)
     def _(self, yads_type: ytypes.Decimal) -> DataType:
-        from pyspark.sql.types import DecimalType  # type: ignore[import-untyped]
+        from pyspark.sql.types import DecimalType
 
         precision = yads_type.precision or 38
         scale = yads_type.scale or 18
@@ -309,34 +310,34 @@ class PySparkConverter(BaseConverter):
 
     @_convert_type.register(ytypes.Boolean)
     def _(self, yads_type: ytypes.Boolean) -> DataType:
-        from pyspark.sql.types import BooleanType  # type: ignore[import-untyped]
+        from pyspark.sql.types import BooleanType
 
         return BooleanType()
 
     @_convert_type.register(ytypes.Binary)
     def _(self, yads_type: ytypes.Binary) -> DataType:
-        from pyspark.sql.types import BinaryType  # type: ignore[import-untyped]
+        from pyspark.sql.types import BinaryType
 
         # Ignore length parameter
         return BinaryType()
 
     @_convert_type.register(ytypes.Date)
     def _(self, yads_type: ytypes.Date) -> DataType:
-        from pyspark.sql.types import DateType  # type: ignore[import-untyped]
+        from pyspark.sql.types import DateType
 
         # Ignore bit-width parameter
         return DateType()
 
     @_convert_type.register(ytypes.Timestamp)
     def _(self, yads_type: ytypes.Timestamp) -> DataType:
-        from pyspark.sql.types import TimestampType  # type: ignore[import-untyped]
+        from pyspark.sql.types import TimestampType
 
         # Ignore unit parameter
         return TimestampType()
 
     @_convert_type.register(ytypes.TimestampTZ)
     def _(self, yads_type: ytypes.TimestampTZ) -> DataType:
-        from pyspark.sql.types import TimestampType  # type: ignore[import-untyped]
+        from pyspark.sql.types import TimestampType
 
         # Ignore unit parameter
         # Ignore tz parameter
@@ -344,21 +345,21 @@ class PySparkConverter(BaseConverter):
 
     @_convert_type.register(ytypes.TimestampLTZ)
     def _(self, yads_type: ytypes.TimestampLTZ) -> DataType:
-        from pyspark.sql.types import TimestampType  # type: ignore[import-untyped]
+        from pyspark.sql.types import TimestampType
 
         # Ignore unit parameter
         return TimestampType()
 
     @_convert_type.register(ytypes.TimestampNTZ)
     def _(self, yads_type: ytypes.TimestampNTZ) -> DataType:
-        from pyspark.sql.types import TimestampNTZType  # type: ignore[import-untyped]
+        from pyspark.sql.types import TimestampNTZType
 
         # Ignore unit parameter
         return TimestampNTZType()
 
     @_convert_type.register(ytypes.Interval)
     def _(self, yads_type: ytypes.Interval) -> DataType:
-        from pyspark.sql.types import (  # type: ignore[import-untyped]
+        from pyspark.sql.types import (
             YearMonthIntervalType,
             DayTimeIntervalType,
         )
@@ -425,7 +426,7 @@ class PySparkConverter(BaseConverter):
 
     @_convert_type.register(ytypes.Array)
     def _(self, yads_type: ytypes.Array) -> DataType:
-        from pyspark.sql.types import ArrayType  # type: ignore[import-untyped]
+        from pyspark.sql.types import ArrayType
 
         # Ignore size parameter
         element_type = self._convert_type(yads_type.element)
@@ -433,7 +434,7 @@ class PySparkConverter(BaseConverter):
 
     @_convert_type.register(ytypes.Struct)
     def _(self, yads_type: ytypes.Struct) -> DataType:
-        from pyspark.sql.types import StructType  # type: ignore[import-untyped]
+        from pyspark.sql.types import StructType
 
         fields = []
         for yads_field in yads_type.fields:
@@ -444,7 +445,7 @@ class PySparkConverter(BaseConverter):
 
     @_convert_type.register(ytypes.Map)
     def _(self, yads_type: ytypes.Map) -> DataType:
-        from pyspark.sql.types import MapType  # type: ignore[import-untyped]
+        from pyspark.sql.types import MapType
 
         key_type = self._convert_type(yads_type.key)
         value_type = self._convert_type(yads_type.value)
@@ -452,19 +453,35 @@ class PySparkConverter(BaseConverter):
 
     @_convert_type.register(ytypes.Void)
     def _(self, yads_type: ytypes.Void) -> DataType:
-        from pyspark.sql.types import NullType  # type: ignore[import-untyped]
+        from pyspark.sql.types import NullType
 
         return NullType()
 
     @_convert_type.register(ytypes.Variant)
-    @requires_dependency("pyspark", min_version="4.0.0", import_name="pyspark.sql.types")
     def _(self, yads_type: ytypes.Variant) -> DataType:
-        from pyspark.sql.types import VariantType  # type: ignore[import-untyped]
-
+        VariantType, msg = try_import_optional(
+            "pyspark.sql.types",
+            required_import="VariantType",
+            package_name="pyspark",
+            min_version="4.0.0",
+            context=f"Variant type for '{self._current_field_name or '<unknown>'}'",
+        )
+        if VariantType is None:
+            if self.config.mode == "coerce":
+                validation_warning(
+                    message=f"{msg}\nThe data type will be coerced to {self.config.fallback_type}.",
+                    filename="yads.converters.pyspark_converter",
+                    module=__name__,
+                )
+                return self.config.fallback_type
+            raise UnsupportedFeatureError(
+                "Variant type requires PySpark with VariantType support (>= 4.0)"
+                f" for '{self._current_field_name or '<unknown>'}'."
+            )
         return VariantType()
 
     def _convert_field(self, field: yspec.Field) -> StructField:
-        from pyspark.sql.types import StructField  # type: ignore[import-untyped]
+        from pyspark.sql.types import StructField
 
         spark_type = self._convert_type(field.type)
         metadata: dict[str, Any] = {}
