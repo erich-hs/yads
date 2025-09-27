@@ -16,6 +16,7 @@ from yads._dependencies import (
     _format_install_hint,
     ensure_dependency,
     requires_dependency,
+    try_import_optional,
 )
 from yads.exceptions import MissingDependencyError, DependencyVersionError
 
@@ -129,15 +130,15 @@ class TestFormatInstallHint:
     def test_format_install_hint_without_version(self):
         """Test formatting hint without minimum version."""
         hint = _format_install_hint("pyspark", None)
-        assert "pip install pyspark" in hint
+        assert 'pip install "pyspark"' in hint
         assert "uv add pyspark" in hint
         assert ">=" not in hint
 
     def test_format_install_hint_with_version(self):
         """Test formatting hint with minimum version."""
         hint = _format_install_hint("pyspark", "4.0.0")
-        assert "pip install pyspark>= 4.0.0" in hint
-        assert "uv add pyspark>= 4.0.0" in hint
+        assert 'pip install "pyspark>=4.0.0"' in hint
+        assert "uv add pyspark>=4.0.0" in hint
 
 
 class TestEnsureDependency:
@@ -161,7 +162,7 @@ class TestEnsureDependency:
 
             error_msg = str(exc_info.value)
             assert "nonexistent-package" in error_msg
-            assert "pip install nonexistent-package" in error_msg
+            assert 'pip install "nonexistent-package"' in error_msg
             assert "uv add nonexistent-package" in error_msg
 
     def test_ensure_dependency_package_missing_with_version(self):
@@ -177,7 +178,7 @@ class TestEnsureDependency:
                 "Dependency 'pyspark' (>= 4.0.0) is required but not installed"
                 in error_msg
             )
-            assert "pip install pyspark>= 4.0.0" in error_msg
+            assert 'pip install "pyspark>=4.0.0"' in error_msg
 
     def test_ensure_dependency_version_too_old(self):
         """Test ensuring dependency when version is too old."""
@@ -189,7 +190,7 @@ class TestEnsureDependency:
 
             error_msg = str(exc_info.value)
             assert "Dependency 'pyspark' must be >= 4.0.0, found 3.0.0" in error_msg
-            assert "pip install pyspark>= 4.0.0" in error_msg
+            assert 'pip install "pyspark>=4.0.0"' in error_msg
 
     def test_ensure_dependency_version_satisfied(self):
         """Test ensuring dependency when version requirement is satisfied."""
@@ -441,3 +442,108 @@ class TestRequiresDependencyWithMethods:
             result = TestClass.test_static_method()
             assert result == "static success"
             mock_ensure.assert_called_once_with("pytest", None)
+
+
+class TestTryImportOptional:
+    """Tests for try_import_optional helper."""
+
+    def test_try_import_optional_success(self):
+        """Returns object and None message when dependency and attribute exist."""
+
+        class DummyModule:
+            Feature = object()
+
+        with patch("yads._dependencies.ensure_dependency") as mock_ensure:
+            with patch("importlib.import_module") as mock_import:
+                mock_ensure.return_value = None
+                mock_import.return_value = DummyModule()
+
+                obj, msg = try_import_optional(
+                    "dummy.module",
+                    required_import="Feature",
+                    package_name="dummy",
+                    min_version="1.0.0",
+                    context="Feature X for 'field'",
+                )
+
+                assert msg is None
+                assert obj is DummyModule.Feature
+                mock_ensure.assert_called_once_with("dummy", "1.0.0")
+                mock_import.assert_called_once_with("dummy.module")
+
+    def test_try_import_optional_missing_dependency(self):
+        """Returns (None, message) when dependency check fails, includes context."""
+
+        with patch("yads._dependencies.ensure_dependency") as mock_ensure:
+            mock_ensure.side_effect = MissingDependencyError(
+                "Dependency 'pkg' is required but not installed.\n"
+                "Install with: 'pip install \"pkg\"'. Or using uv: 'uv add pkg'."
+            )
+
+            obj, msg = try_import_optional(
+                "pkg.module",
+                required_import="Feat",
+                package_name="pkg",
+                min_version=None,
+                context="Using Feat for 'col'",
+            )
+
+            assert obj is None
+            assert msg is not None
+            assert "Dependency 'pkg'" in msg
+            assert 'pip install "pkg"' in msg
+            assert "Context: Using Feat for 'col'" in msg
+
+    def test_try_import_optional_module_import_error(self):
+        """Returns (None, message) when module import fails."""
+
+        with patch("yads._dependencies.ensure_dependency") as mock_ensure:
+            with patch("importlib.import_module") as mock_import:
+                mock_ensure.return_value = None
+                mock_import.side_effect = ImportError("No module named 'x'")
+
+                obj, msg = try_import_optional(
+                    "pkg.missing",
+                    required_import="Feat",
+                    package_name="pkg",
+                    min_version="2.0.0",
+                    context="Using Feat",
+                )
+
+                assert obj is None
+                assert msg is not None
+                assert (
+                    "Failed to import module 'pkg.missing' for optional feature 'Feat'."
+                    in msg
+                )
+                assert 'pip install "pkg>=2.0.0"' in msg
+                assert "Context: Using Feat" in msg
+
+    def test_try_import_optional_missing_attribute(self):
+        """Returns (None, message) when attribute is missing, includes version hint."""
+
+        class DummyModule:
+            pass
+
+        with patch("yads._dependencies.ensure_dependency") as mock_ensure:
+            with patch("importlib.import_module") as mock_import:
+                mock_ensure.return_value = None
+                mock_import.return_value = DummyModule()
+
+                obj, msg = try_import_optional(
+                    "pkg.module",
+                    required_import="MissingFeature",
+                    package_name="pkg",
+                    min_version="3.4.5",
+                    context="Need MissingFeature",
+                )
+
+                assert obj is None
+                assert msg is not None
+                assert (
+                    "Optional feature 'MissingFeature' is unavailable in module 'pkg.module'."
+                    in msg
+                )
+                assert "pkg >= 3.4.5" in msg
+                assert 'pip install "pkg>=3.4.5"' in msg
+                assert "Context: Need MissingFeature" in msg
