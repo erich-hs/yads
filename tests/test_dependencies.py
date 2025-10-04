@@ -492,7 +492,10 @@ class TestTryImportOptional:
             assert msg is not None
             assert "Dependency 'pkg'" in msg
             assert 'pip install "pkg"' in msg
-            assert "Context: Using Feat for 'col'" in msg
+            assert (
+                "While handling Using Feat for 'col', the following error occurred:"
+                in msg
+            )
 
     def test_try_import_optional_module_import_error(self):
         """Returns (None, message) when module import fails."""
@@ -517,7 +520,7 @@ class TestTryImportOptional:
                     in msg
                 )
                 assert 'pip install "pkg>=2.0.0"' in msg
-                assert "Context: Using Feat" in msg
+                assert "While handling Using Feat, the following error occurred:" in msg
 
     def test_try_import_optional_missing_attribute(self):
         """Returns (None, message) when attribute is missing, includes version hint."""
@@ -546,4 +549,7 @@ class TestTryImportOptional:
                 )
                 assert "pkg >= 3.4.5" in msg
                 assert 'pip install "pkg>=3.4.5"' in msg
-                assert "Context: Need MissingFeature" in msg
+                assert (
+                    "While handling Need MissingFeature, the following error occurred:"
+                    in msg
+                )
