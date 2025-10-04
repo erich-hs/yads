@@ -508,7 +508,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
                     this=exp.Column(this=exp.Identifier(this=c)), nulls_first=True
                 )
                 for c in constraint.columns
-            ]
+            ],
+            include=exp.IndexParameters(),
         )
         if constraint.name:
             return exp.Constraint(

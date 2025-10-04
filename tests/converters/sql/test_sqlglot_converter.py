@@ -440,7 +440,20 @@ def test_convert_matches_expected_ast_from_fixtures(spec_path, expected_sql_path
         expected_sql = f.read()
     expected_ast = parse_one(expected_sql)
 
-    assert generated_ast == expected_ast, (
+    # Normalize both ASTs to be version-agnostic by removing IndexParameters from PrimaryKey
+    # Added to support sqlglot 27.0.0, after IndexParameters was added as a required `include` argument in 27.2.0
+    def normalize_ast(ast):
+        """Remove IndexParameters from PrimaryKey expressions to make comparison version-agnostic."""
+        if hasattr(ast, "find_all"):
+            for pk in ast.find_all(exp.PrimaryKey):
+                if hasattr(pk, "args") and "include" in pk.args:
+                    pk.set("include", None)
+        return ast
+
+    normalized_generated = normalize_ast(generated_ast)
+    normalized_expected = normalize_ast(expected_ast)
+
+    assert normalized_generated == normalized_expected, (
         "Generated AST does not match expected AST.\n\n"
         f"YAML AST: {repr(generated_ast)}\n\n"
         f"SQL AST:  {repr(expected_ast)}"
@@ -575,7 +588,8 @@ class TestConstraintConversion:
                             this=exp.Column(this=exp.Identifier(this="col2")),
                             nulls_first=True,
                         ),
-                    ]
+                    ],
+                    include=exp.IndexParameters(),
                 )
             ],
         )
