@@ -11,25 +11,14 @@ from __future__ import annotations
 from typing import Any, Literal, TYPE_CHECKING
 from dataclasses import dataclass, replace
 
-from sqlglot import ErrorLevel
-from sqlglot.expressions import DataType
-
 from ..base import BaseConverter, BaseConverterConfig
-from .ast_converter import AstConverter, SQLGlotConverter, SQLGlotConverterConfig
-from .validators.ast_validator import AstValidator
-from .validators.ast_validation_rules import (
-    AstValidationRule,
-    DisallowType,
-    DisallowUserDefinedType,
-    DisallowFixedLengthBinary,
-    DisallowNegativeScaleDecimal,
-    DisallowParameterizedGeometry,
-    DisallowColumnConstraintGeneratedIdentity,
-    DisallowTableConstraintPrimaryKeyNullsFirst,
-)
+from ..._dependencies import requires_dependency, ensure_dependency
 
 if TYPE_CHECKING:
     from ...spec import YadsSpec
+    from .ast_converter import AstConverter, SQLGlotConverterConfig
+    from .validators.ast_validator import AstValidator
+    from .validators.ast_validation_rules import AstValidationRule
 
 
 # %% ---- Configuration --------------------------------------------------------------
@@ -84,6 +73,8 @@ class SQLConverter(BaseConverter):
         Args:
             config: Configuration object. If None, uses default SQLConverterConfig.
         """
+        from .ast_converter import SQLGlotConverter, SQLGlotConverterConfig
+
         self.config: SQLConverterConfig = config or SQLConverterConfig()
         super().__init__(self.config)
 
@@ -134,6 +125,8 @@ class SQLConverter(BaseConverter):
             >>> converter = SQLConverter(config)
             >>> ddl = converter.convert(spec, pretty=True)
         """
+        from .ast_converter import SQLGlotConverter
+
         # Determine effective mode for this conversion call
         effective_mode: Literal["raise", "coerce"] = (
             mode if mode is not None else self.config.mode
@@ -150,6 +143,10 @@ class SQLConverter(BaseConverter):
         # Configure SQL generation options based on mode and AST converter type
         sql_options = dict(kwargs)
         if isinstance(self._ast_converter, SQLGlotConverter):
+            ensure_dependency("sqlglot")
+
+            from sqlglot import ErrorLevel
+
             match effective_mode:
                 case "raise":
                     sql_options["unsupported_level"] = ErrorLevel.RAISE
@@ -174,6 +171,7 @@ class SparkSQLConverter(SQLConverter):
       - Disallow fixed length binary → replace with BINARY
     """
 
+    @requires_dependency("sqlglot", import_name="sqlglot.expressions")
     def __init__(
         self,
         *,
@@ -187,6 +185,14 @@ class SparkSQLConverter(SQLConverter):
                   "coerce" will attempt to coerce unsupported features to supported ones
                   with warnings. Defaults to "coerce".
         """
+        from sqlglot.expressions import DataType
+        from .validators.ast_validator import AstValidator
+        from .validators.ast_validation_rules import (
+            DisallowType,
+            DisallowNegativeScaleDecimal,
+            DisallowFixedLengthBinary,
+        )
+
         # Define Spark-specific validation rules
         rules: list[AstValidationRule] = [
             DisallowType(
@@ -243,6 +249,7 @@ class DuckdbSQLConverter(SQLConverter):
       - Disallow fixed length binary → replace with BLOB
     """
 
+    @requires_dependency("sqlglot", import_name="sqlglot.expressions")
     def __init__(
         self,
         *,
@@ -256,6 +263,18 @@ class DuckdbSQLConverter(SQLConverter):
                   "coerce" will attempt to coerce unsupported features to supported ones
                   with warnings. Defaults to "coerce".
         """
+        from sqlglot.expressions import DataType
+        from .validators.ast_validator import AstValidator
+        from .validators.ast_validation_rules import (
+            DisallowType,
+            DisallowUserDefinedType,
+            DisallowParameterizedGeometry,
+            DisallowColumnConstraintGeneratedIdentity,
+            DisallowTableConstraintPrimaryKeyNullsFirst,
+            DisallowNegativeScaleDecimal,
+            DisallowFixedLengthBinary,
+        )
+
         # Define DuckDB-specific validation rules
         rules: list[AstValidationRule] = [
             DisallowType(

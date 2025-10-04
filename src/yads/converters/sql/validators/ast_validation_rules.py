@@ -9,7 +9,11 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, TypeGuard
 
-from sqlglot.expressions import (
+from ...._dependencies import ensure_dependency
+
+ensure_dependency("sqlglot")
+
+from sqlglot.expressions import (  # noqa: E402
     DataType,
     ColumnDef,
     ColumnConstraint,

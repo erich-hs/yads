@@ -10,13 +10,9 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from functools import singledispatchmethod
-from typing import Any, Literal, Generator, Callable, Mapping
+from typing import Any, Literal, Generator, Callable, Mapping, TYPE_CHECKING
 from dataclasses import dataclass, field
 from types import MappingProxyType
-
-from sqlglot import exp
-from sqlglot.expressions import convert
-from sqlglot.errors import ParseError
 
 from ...constraints import (
     DefaultConstraint,
@@ -32,9 +28,20 @@ from ...exceptions import (
     UnsupportedFeatureError,
     validation_warning,
 )
+from ..._dependencies import requires_dependency
 from ... import spec as yspec
 from ... import types as ytypes
 from ..base import BaseConverter, BaseConverterConfig
+
+if TYPE_CHECKING:
+    from sqlglot import exp
+
+
+@requires_dependency("sqlglot", import_name="sqlglot")
+def _default_fallback_type() -> exp.DataType.Type:
+    from sqlglot import exp
+
+    return exp.DataType.Type.TEXT
 
 
 class AstConverter(ABC):
@@ -59,7 +66,7 @@ class AstConverter(ABC):
 
 @dataclass(frozen=True)
 # %% ---- Configuration --------------------------------------------------------------
-class SQLGlotConverterConfig(BaseConverterConfig[exp.ColumnDef]):
+class SQLGlotConverterConfig(BaseConverterConfig):
     """Configuration for SQLGlotConverter.
 
     Args:
@@ -78,16 +85,18 @@ class SQLGlotConverterConfig(BaseConverterConfig[exp.ColumnDef]):
     or_replace: bool = False
     ignore_catalog: bool = False
     ignore_database: bool = False
-    fallback_type: exp.DataType.Type = exp.DataType.Type.TEXT
+    fallback_type: exp.DataType.Type = field(default_factory=_default_fallback_type)
     column_overrides: Mapping[
         str, Callable[[yspec.Field, SQLGlotConverter], exp.ColumnDef]
-    ] = field(default_factory=lambda: MappingProxyType({}))  # type: ignore[assignment]
+    ] = field(default_factory=lambda: MappingProxyType({}))
 
     def __post_init__(self) -> None:
         """Validate configuration parameters."""
         super().__post_init__()
 
         # Validate fallback_type
+        from sqlglot import exp
+
         valid_fallback_types = {
             exp.DataType.Type.TEXT,
             exp.DataType.Type.BINARY,
@@ -144,6 +153,7 @@ class SQLGlotConverter(BaseConverter, AstConverter):
         "trunc": "_handle_date_trunc_transform",
     }
 
+    @requires_dependency("sqlglot", import_name="sqlglot")
     def convert(
         self,
         spec: yspec.YadsSpec,
@@ -177,6 +187,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
             >>> print(ast.sql(dialect="spark"))
             CREATE TABLE IF NOT EXISTS ...
         """
+        from sqlglot import exp
+
         # Set mode for this conversion call
         with self.conversion_context(mode=mode):
             self._validate_column_filters(spec)
@@ -199,6 +211,9 @@ class SQLGlotConverter(BaseConverter, AstConverter):
     # %% ---- Type conversion ---------------------------------------------------------
     @singledispatchmethod
     def _convert_type(self, yads_type: ytypes.YadsType) -> exp.DataType:
+        from sqlglot import exp
+        from sqlglot.errors import ParseError
+
         # Fallback to default sqlglot DataType.build method.
         # The following non-parametrized yads types are handled via the fallback:
         # - Boolean
@@ -230,6 +245,9 @@ class SQLGlotConverter(BaseConverter, AstConverter):
 
     @_convert_type.register(ytypes.String)
     def _(self, yads_type: ytypes.String) -> exp.DataType:
+        from sqlglot import exp
+        from sqlglot.expressions import convert
+
         expressions = []
         if yads_type.length:
             expressions.append(exp.DataTypeParam(this=convert(yads_type.length)))
@@ -240,6 +258,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
 
     @_convert_type.register(ytypes.Integer)
     def _(self, yads_type: ytypes.Integer) -> exp.DataType:
+        from sqlglot import exp
+
         bits = yads_type.bits or 32
         signed_map = {
             8: exp.DataType.Type.TINYINT,
@@ -263,6 +283,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
 
     @_convert_type.register(ytypes.Float)
     def _(self, yads_type: ytypes.Float) -> exp.DataType:
+        from sqlglot import exp
+
         bits = yads_type.bits or 32
         if bits == 16:
             if self.config.mode == "coerce":
@@ -288,6 +310,9 @@ class SQLGlotConverter(BaseConverter, AstConverter):
 
     @_convert_type.register(ytypes.Decimal)
     def _(self, yads_type: ytypes.Decimal) -> exp.DataType:
+        from sqlglot import exp
+        from sqlglot.expressions import convert
+
         expressions = []
         if yads_type.precision is not None:
             expressions.append(exp.DataTypeParam(this=convert(yads_type.precision)))
@@ -301,38 +326,53 @@ class SQLGlotConverter(BaseConverter, AstConverter):
     # Explicit mappings for parametrized temporal types
     @_convert_type.register(ytypes.Timestamp)
     def _(self, yads_type: ytypes.Timestamp) -> exp.DataType:
+        from sqlglot import exp
+
         # Ignore unit parameter
         return exp.DataType(this=exp.DataType.Type.TIMESTAMP)
 
     @_convert_type.register(ytypes.TimestampTZ)
     def _(self, yads_type: ytypes.TimestampTZ) -> exp.DataType:
+        from sqlglot import exp
+
         # Ignore unit parameter
         # Ignore tz parameter
         return exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ)
 
     @_convert_type.register(ytypes.TimestampLTZ)
     def _(self, yads_type: ytypes.TimestampLTZ) -> exp.DataType:
+        from sqlglot import exp
+
         # Ignore unit parameter
         return exp.DataType(this=exp.DataType.Type.TIMESTAMPLTZ)
 
     @_convert_type.register(ytypes.TimestampNTZ)
     def _(self, yads_type: ytypes.TimestampNTZ) -> exp.DataType:
+        from sqlglot import exp
+
         # Ignore unit parameter
         return exp.DataType(this=exp.DataType.Type.TIMESTAMPNTZ)
 
     @_convert_type.register(ytypes.Time)
     def _(self, yads_type: ytypes.Time) -> exp.DataType:
+        from sqlglot import exp
+
         # Ignore bit-width parameter
         # Ignore unit parameter
         return exp.DataType(this=exp.DataType.Type.TIME)
 
     @_convert_type.register(ytypes.Date)
     def _(self, yads_type: ytypes.Date) -> exp.DataType:
+        from sqlglot import exp
+
         # Ignore bit-width parameter
         return exp.DataType(this=exp.DataType.Type.DATE)
 
     @_convert_type.register(ytypes.Binary)
     def _(self, yads_type: ytypes.Binary) -> exp.DataType:
+        from sqlglot import exp
+        from sqlglot.expressions import convert
+
         expressions = []
         if yads_type.length is not None:
             expressions.append(exp.DataTypeParam(this=convert(yads_type.length)))
@@ -342,6 +382,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
 
     @_convert_type.register(ytypes.Void)
     def _(self, yads_type: ytypes.Void) -> exp.DataType:
+        from sqlglot import exp
+
         # VOID is not a valid sqlglot type, but can be defined as a Spark type.
         # https://docs.databricks.com/aws/en/sql/language-manual/data-types/null-type
         return exp.DataType(
@@ -351,6 +393,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
 
     @_convert_type.register(ytypes.Interval)
     def _(self, yads_type: ytypes.Interval) -> exp.DataType:
+        from sqlglot import exp
+
         if yads_type.interval_end and yads_type.interval_start != yads_type.interval_end:
             return exp.DataType(
                 this=exp.Interval(
@@ -366,6 +410,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
 
     @_convert_type.register(ytypes.Array)
     def _(self, yads_type: ytypes.Array) -> exp.DataType:
+        from sqlglot import exp
+
         element_type = self._convert_type(yads_type.element)
         # Ignore size parameter
         return exp.DataType(
@@ -376,6 +422,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
 
     @_convert_type.register(ytypes.Struct)
     def _(self, yads_type: ytypes.Struct) -> exp.DataType:
+        from sqlglot import exp
+
         return exp.DataType(
             this=exp.DataType.Type.STRUCT,
             expressions=[self._convert_field(field) for field in yads_type.fields],
@@ -384,6 +432,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
 
     @_convert_type.register(ytypes.Map)
     def _(self, yads_type: ytypes.Map) -> exp.DataType:
+        from sqlglot import exp
+
         key_type = self._convert_type(yads_type.key)
         value_type = self._convert_type(yads_type.value)
         # Ignore keys_sorted parameter
@@ -395,6 +445,9 @@ class SQLGlotConverter(BaseConverter, AstConverter):
 
     @_convert_type.register(ytypes.Geometry)
     def _(self, yads_type: ytypes.Geometry) -> exp.DataType:
+        from sqlglot import exp
+        from sqlglot.expressions import convert
+
         expressions = (
             [exp.DataTypeParam(this=convert(yads_type.srid))]
             if yads_type.srid is not None
@@ -404,6 +457,9 @@ class SQLGlotConverter(BaseConverter, AstConverter):
 
     @_convert_type.register(ytypes.Geography)
     def _(self, yads_type: ytypes.Geography) -> exp.DataType:
+        from sqlglot import exp
+        from sqlglot.expressions import convert
+
         expressions = (
             [exp.DataTypeParam(this=convert(yads_type.srid))]
             if yads_type.srid is not None
@@ -432,20 +488,30 @@ class SQLGlotConverter(BaseConverter, AstConverter):
 
     @_convert_column_constraint.register(NotNullConstraint)
     def _(self, constraint: NotNullConstraint) -> exp.ColumnConstraint:
+        from sqlglot import exp
+
         return exp.ColumnConstraint(kind=exp.NotNullColumnConstraint())
 
     @_convert_column_constraint.register(PrimaryKeyConstraint)
     def _(self, constraint: PrimaryKeyConstraint) -> exp.ColumnConstraint:
+        from sqlglot import exp
+
         return exp.ColumnConstraint(kind=exp.PrimaryKeyColumnConstraint())
 
     @_convert_column_constraint.register(DefaultConstraint)
     def _(self, constraint: DefaultConstraint) -> exp.ColumnConstraint:
+        from sqlglot import exp
+        from sqlglot.expressions import convert
+
         return exp.ColumnConstraint(
             kind=exp.DefaultColumnConstraint(this=convert(constraint.value))
         )
 
     @_convert_column_constraint.register(IdentityConstraint)
     def _(self, constraint: IdentityConstraint) -> exp.ColumnConstraint:
+        from sqlglot import exp
+        from sqlglot.expressions import convert
+
         start_expr: exp.Expression | None = None
         if constraint.start is not None:
             start_expr = (
@@ -472,6 +538,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
 
     @_convert_column_constraint.register(ForeignKeyConstraint)
     def _(self, constraint: ForeignKeyConstraint) -> exp.ColumnConstraint:
+        from sqlglot import exp
+
         reference_expression = exp.Reference(
             this=self._parse_full_table_name(
                 constraint.references.table, constraint.references.columns
@@ -502,6 +570,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
 
     @_convert_table_constraint.register(PrimaryKeyTableConstraint)
     def _(self, constraint: PrimaryKeyTableConstraint) -> exp.Expression:
+        from sqlglot import exp
+
         pk_expression = exp.PrimaryKey(
             expressions=[
                 exp.Ordered(
@@ -519,6 +589,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
 
     @_convert_table_constraint.register(ForeignKeyTableConstraint)
     def _(self, constraint: ForeignKeyTableConstraint) -> exp.Expression:
+        from sqlglot import exp
+
         reference_expression = exp.Reference(
             this=self._parse_full_table_name(
                 constraint.references.table, constraint.references.columns
@@ -553,6 +625,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
     def _handle_partitioned_by_property(
         self, value: list[yspec.TransformedColumnReference]
     ) -> exp.PartitionedByProperty:
+        from sqlglot import exp
+
         schema_expressions = []
         for col in value:
             with self.conversion_context(field=col.column):
@@ -566,15 +640,25 @@ class SQLGlotConverter(BaseConverter, AstConverter):
         return exp.PartitionedByProperty(this=exp.Schema(expressions=schema_expressions))
 
     def _handle_location_property(self, value: str) -> exp.LocationProperty:
+        from sqlglot import exp
+        from sqlglot.expressions import convert
+
         return exp.LocationProperty(this=convert(value))
 
     def _handle_file_format_property(self, value: str) -> exp.FileFormatProperty:
+        from sqlglot import exp
+
         return exp.FileFormatProperty(this=exp.Var(this=value))
 
     def _handle_external_property(self) -> exp.ExternalProperty:
+        from sqlglot import exp
+
         return exp.ExternalProperty()
 
     def _handle_generic_property(self, key: str, value: Any) -> exp.Property:
+        from sqlglot import exp
+        from sqlglot.expressions import convert
+
         return exp.Property(this=convert(key), value=convert(value))
 
     def _collect_properties(self, spec: yspec.YadsSpec) -> list[exp.Property]:
@@ -590,6 +674,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
     def _handle_transformation(
         self, column: str, transform: str, transform_args: list
     ) -> exp.Expression:
+        from sqlglot import exp
+
         if handler_method_name := self._TRANSFORM_HANDLERS.get(transform):
             handler_method = getattr(self, handler_method_name)
             return handler_method(column, transform_args)
@@ -607,6 +693,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
         )
 
     def _handle_cast_transform(self, column: str, transform_args: list) -> exp.Expression:
+        from sqlglot import exp
+
         self._validate_transform_args("cast", len(transform_args), 1)
         cast_to_type = transform_args[0].upper()
         if cast_to_type not in exp.DataType.Type:
@@ -636,6 +724,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
     def _handle_bucket_transform(
         self, column: str, transform_args: list
     ) -> exp.Expression:
+        from sqlglot import exp
+
         self._validate_transform_args("bucket", len(transform_args), 1)
         return exp.PartitionedByBucket(
             this=exp.column(column), expression=exp.convert(transform_args[0])
@@ -644,6 +734,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
     def _handle_truncate_transform(
         self, column: str, transform_args: list
     ) -> exp.Expression:
+        from sqlglot import exp
+
         self._validate_transform_args("truncate", len(transform_args), 1)
         return exp.PartitionByTruncate(
             this=exp.column(column), expression=exp.convert(transform_args[0])
@@ -652,6 +744,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
     def _handle_date_trunc_transform(
         self, column: str, transform_args: list
     ) -> exp.Expression:
+        from sqlglot import exp
+
         self._validate_transform_args("date_trunc", len(transform_args), 1)
         return exp.DateTrunc(unit=exp.convert(transform_args[0]), this=exp.column(column))
 
@@ -666,6 +760,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
 
     # %% ---- Helpers -----------------------------------------------------------------
     def _convert_field(self, field: yspec.Field) -> exp.ColumnDef:
+        from sqlglot import exp
+
         return exp.ColumnDef(
             this=exp.Identifier(this=field.name),
             kind=self._convert_type(field.type),
@@ -673,6 +769,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
         )
 
     def _convert_column(self, column: yspec.Column) -> exp.ColumnDef:
+        from sqlglot import exp
+
         constraints = []
         with self.conversion_context(field=column.name):
             if column.generated_as and column.generated_as.transform:
@@ -725,6 +823,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
         ignore_catalog: bool = False,
         ignore_database: bool = False,
     ) -> exp.Table | exp.Schema:
+        from sqlglot import exp
+
         parts = full_name.split(".")
         table_name = parts[-1]
         db_name = None

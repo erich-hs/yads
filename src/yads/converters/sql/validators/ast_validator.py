@@ -9,10 +9,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal, cast
 
-from sqlglot.expressions import Create
-
+from ...._dependencies import ensure_dependency
 from ....exceptions import AstValidationError, validation_warning
 from .ast_validation_rules import AstValidationRule
+
+ensure_dependency("sqlglot")
+
+from sqlglot.expressions import Create  # noqa: E402
 
 if TYPE_CHECKING:
     from sqlglot import exp

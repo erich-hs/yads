@@ -4,13 +4,6 @@ from typing import Any, Callable, Literal, Mapping, Type, TYPE_CHECKING
 
 from .._dependencies import requires_dependency
 from .base import BaseConverter, BaseConverterConfig
-from .sql.sql_converter import (
-    SQLConverter,
-    SQLConverterConfig,
-    SparkSQLConverter,
-    DuckdbSQLConverter,
-)
-from .sql.ast_converter import AstConverter, SQLGlotConverter, SQLGlotConverterConfig
 from .pydantic_converter import PydanticConverter, PydanticConverterConfig
 
 
@@ -23,6 +16,18 @@ def __getattr__(name: str):
         from . import pyspark_converter
 
         return getattr(pyspark_converter, name)
+    if name in (
+        "AstConverter",
+        "SQLGlotConverter",
+        "SQLGlotConverterConfig",
+        "SQLConverter",
+        "SQLConverterConfig",
+        "SparkSQLConverter",
+        "DuckdbSQLConverter",
+    ):
+        from . import sql
+
+        return getattr(sql, name)
     raise AttributeError(name)
 
 
@@ -57,10 +62,16 @@ if TYPE_CHECKING:
         StructField,
         DataType,
     )  # type: ignore[import-untyped]
-    from sqlglot.expressions import DataType as SQLGlotDataType
     from sqlglot import expressions as exp  # type: ignore[import-untyped]
     from .pyarrow_converter import PyArrowConverter
     from .pyspark_converter import PySparkConverter
+    from .sql.ast_converter import AstConverter, SQLGlotConverter, SQLGlotConverterConfig
+    from .sql.sql_converter import (
+        SQLConverter,
+        SQLConverterConfig,
+        SparkSQLConverter,
+        DuckdbSQLConverter,
+    )
     from ..spec import YadsSpec, Field as SpecField
 
     # Column override type aliases (for static typing only)
@@ -206,6 +217,7 @@ def to_pyspark(
     return pyspark_converter.PySparkConverter(config).convert(spec)
 
 
+@requires_dependency("sqlglot", import_name="sqlglot")
 def to_sql(
     spec: YadsSpec,
     *,
@@ -221,7 +233,7 @@ def to_sql(
     or_replace: bool = False,
     ignore_catalog: bool = False,
     ignore_database: bool = False,
-    fallback_type: SQLGlotDataType.Type | None = None,
+    fallback_type: Any = None,
     # SQL serialization options to forward to sqlglot (e.g., pretty=True)
     **sql_options: Any,
 ) -> str:
@@ -250,7 +262,9 @@ def to_sql(
     Raises:
         ValueError: If an unsupported dialect is provided.
     """
-    from sqlglot import expressions as exp  # type: ignore[import-untyped]
+    from sqlglot import expressions as exp
+    from .sql.ast_converter import SQLGlotConverterConfig
+    from .sql.sql_converter import SparkSQLConverter, DuckdbSQLConverter
 
     ast_config = SQLGlotConverterConfig(
         mode=mode,
