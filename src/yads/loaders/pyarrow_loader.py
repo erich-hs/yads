@@ -23,12 +23,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, Mapping
 
-import pyarrow as pa  # type: ignore[import-untyped]
-
 from .. import types as ytypes
 from ..exceptions import LoaderConfigError, UnsupportedFeatureError, validation_warning
+from .._dependencies import ensure_dependency
 from .base import BaseLoaderConfig, ConfigurableLoader
 from .common import SpecBuilder
+
+ensure_dependency("pyarrow", min_version="21.0.0")
+
+import pyarrow as pa  # type: ignore[import-untyped] # noqa: E402
 
 if TYPE_CHECKING:
     from ..spec import YadsSpec

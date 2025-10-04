@@ -27,13 +27,10 @@ from __future__ import annotations
 from functools import singledispatchmethod
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal as PythonDecimal
-from typing import Any, Callable, Literal, Optional, Type, Mapping, cast
+from typing import Any, Callable, Literal, Optional, Type, Mapping, cast, TYPE_CHECKING
 from uuid import UUID as PythonUUID
 from dataclasses import dataclass, field
 from types import MappingProxyType
-
-from pydantic import BaseModel, Field, create_model, ConfigDict  # type: ignore[import-untyped]
-from pydantic.fields import FieldInfo  # type: ignore[import-untyped]
 
 from ..constraints import (
     ColumnConstraint,
@@ -44,15 +41,20 @@ from ..constraints import (
     PrimaryKeyConstraint,
 )
 from ..exceptions import UnsupportedFeatureError, validation_warning
+from .._dependencies import requires_dependency
 from .base import BaseConverter, BaseConverterConfig
 
 from .. import spec
 from .. import types as ytypes
 
+if TYPE_CHECKING:
+    from pydantic import BaseModel  # type: ignore[import-untyped]
+    from pydantic.fields import FieldInfo  # type: ignore[import-untyped]
+
 
 # %% ---- Configuration --------------------------------------------------------------
 @dataclass(frozen=True)
-class PydanticConverterConfig(BaseConverterConfig[tuple[Any, FieldInfo]]):
+class PydanticConverterConfig(BaseConverterConfig):
     """Configuration for PydanticConverter.
 
     Args:
@@ -107,6 +109,7 @@ class PydanticConverter(BaseConverter):
         self.config: PydanticConverterConfig = config or PydanticConverterConfig()
         super().__init__(self.config)
 
+    @requires_dependency("pydantic", min_version="2.0.0", import_name="pydantic")
     def convert(
         self,
         spec: spec.YadsSpec,
@@ -125,6 +128,8 @@ class PydanticConverter(BaseConverter):
         Returns:
             A Pydantic `BaseModel` class with fields mapped from the spec columns.
         """
+        from pydantic import create_model, ConfigDict  # type: ignore[import-untyped]
+
         model_name: str = self.config.model_name or spec.name.replace(".", "_")
         model_config: dict[str, Any] = self.config.model_config or {}
 
@@ -299,6 +304,8 @@ class PydanticConverter(BaseConverter):
 
     @_convert_type.register(ytypes.Interval)
     def _(self, yads_type: ytypes.Interval) -> tuple[Any, FieldInfo]:
+        from pydantic import Field, create_model  # type: ignore[import-untyped]
+
         # Represent as a structured Month-Day-Nano interval, matching PyArrow's
         # month_day_nano_interval layout: (months, days, nanoseconds)
         interval_model_name = self._nested_model_name("MonthDayNanoInterval")
@@ -331,6 +338,8 @@ class PydanticConverter(BaseConverter):
 
     @_convert_type.register(ytypes.Struct)
     def _(self, yads_type: ytypes.Struct) -> tuple[Any, FieldInfo]:
+        from pydantic import create_model  # type: ignore[import-untyped]
+
         # Create nested model for struct
         nested_fields = {}
         for yads_field in yads_type.fields:
@@ -373,8 +382,10 @@ class PydanticConverter(BaseConverter):
 
     @_convert_type.register(ytypes.Void)
     def _(self, yads_type: ytypes.Void) -> tuple[Any, FieldInfo]:
+        from pydantic import Field  # type: ignore[import-untyped]
+
         # Represent a NULL/VOID value
-        field_info = cast(FieldInfo, Field(default=None))
+        field_info: FieldInfo = Field(default=None)  # type: ignore[assignment]
         return type(None), field_info
 
     @_convert_type.register(ytypes.Variant)
@@ -405,6 +416,8 @@ class PydanticConverter(BaseConverter):
         return self._convert_field(field)
 
     def _apply_column_override(self, field: spec.Field) -> tuple[Any, FieldInfo]:
+        from pydantic.fields import FieldInfo  # type: ignore[import-untyped]
+
         result = self.config.column_overrides[field.name](field, self)
         if not (isinstance(result, tuple) and len(result) == 2):
             raise UnsupportedFeatureError(
@@ -465,9 +478,13 @@ class PydanticConverter(BaseConverter):
     # %% ---- Helpers -----------------------------------------------------------------
     @staticmethod
     def required(**kwargs: Any) -> FieldInfo:
+        from pydantic import Field  # type: ignore[import-untyped]
+
         return Field(default=..., **kwargs)
 
     def _create_fallback_field_info(self, field: spec.Field) -> FieldInfo:
+        from pydantic import Field  # type: ignore[import-untyped]
+
         field_info = Field(default=...)
         if field.description:
             field_info.description = field.description

@@ -28,14 +28,17 @@ import importlib
 
 from .. import types as ytypes
 from ..exceptions import LoaderConfigError, UnsupportedFeatureError, validation_warning
+from .._dependencies import ensure_dependency
 from .base import BaseLoaderConfig, ConfigurableLoader
 from .common import SpecBuilder
+
+ensure_dependency("pyspark", min_version="3.1.1")
 
 T = importlib.import_module("pyspark.sql.types")
 
 if TYPE_CHECKING:
     from ..spec import YadsSpec
-    from pyspark.sql.types import (  # type: ignore[import-untyped]
+    from pyspark.sql.types import (
         ArrayType,
         BinaryType,
         BooleanType,

@@ -21,11 +21,28 @@ from typing import IO, Any, cast, Literal
 from ..spec import YadsSpec
 from .base import BaseLoader, BaseLoaderConfig, ConfigurableLoader, DictLoader
 from .yaml_loader import YamlLoader
-from .pyarrow_loader import PyArrowLoader, PyArrowLoaderConfig
-from .pyspark_loader import PySparkLoader, PySparkLoaderConfig
+
+
+def __getattr__(name: str):
+    if name in ("PyArrowLoader", "PyArrowLoaderConfig"):
+        from . import pyarrow_loader
+
+        return getattr(pyarrow_loader, name)
+    if name in ("PySparkLoader", "PySparkLoaderConfig"):
+        from . import pyspark_loader
+
+        return getattr(pyspark_loader, name)
+    raise AttributeError(name)
+
 
 __all__ = [
-    # Loader classes
+    "from_dict",
+    "from_yaml_string",
+    "from_yaml_path",
+    "from_yaml_stream",
+    "from_yaml",
+    "from_pyarrow",
+    "from_pyspark",
     "BaseLoader",
     "BaseLoaderConfig",
     "ConfigurableLoader",
@@ -35,14 +52,6 @@ __all__ = [
     "PyArrowLoaderConfig",
     "PySparkLoader",
     "PySparkLoaderConfig",
-    # Convenience functions
-    "from_dict",
-    "from_yaml_string",
-    "from_yaml_path",
-    "from_yaml_stream",
-    "from_yaml",
-    "from_pyarrow",
-    "from_pyspark",
 ]
 
 
@@ -194,8 +203,10 @@ def from_pyarrow(
     Returns:
         A validated immutable `YadsSpec` instance.
     """
-    config = PyArrowLoaderConfig(mode=mode)
-    return PyArrowLoader(config).load(
+    from . import pyarrow_loader  # type: ignore
+
+    config = pyarrow_loader.PyArrowLoaderConfig(mode=mode)
+    return pyarrow_loader.PyArrowLoader(config).load(
         schema, name=name, version=version, description=description
     )
 
@@ -219,7 +230,9 @@ def from_pyspark(
     Returns:
         A validated immutable `YadsSpec` instance.
     """
-    config = PySparkLoaderConfig(mode=mode)
-    return PySparkLoader(config).load(
+    from . import pyspark_loader  # type: ignore
+
+    config = pyspark_loader.PySparkLoaderConfig(mode=mode)
+    return pyspark_loader.PySparkLoader(config).load(
         schema, name=name, version=version, description=description
     )

@@ -24,12 +24,12 @@ from __future__ import annotations
 
 from functools import singledispatchmethod
 import json
-from typing import Any, Callable, Literal, Mapping
+from typing import Any, Callable, Literal, Mapping, TYPE_CHECKING
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
-import pyarrow as pa  # type: ignore[import-untyped]
 from ..exceptions import UnsupportedFeatureError, validation_warning
+from .._dependencies import requires_dependency
 from ..spec import Field, YadsSpec
 from ..types import (
     YadsType,
@@ -58,10 +58,20 @@ from ..types import (
 )
 from .base import BaseConverter, BaseConverterConfig
 
+if TYPE_CHECKING:
+    import pyarrow as pa  # type: ignore[import-untyped]
+
+
+@requires_dependency("pyarrow", import_name="pyarrow")
+def _default_pyarrow_fallback_type() -> pa.DataType:
+    import pyarrow as pa  # type: ignore[import-untyped]
+
+    return pa.string()
+
 
 # %% ---- Configuration --------------------------------------------------------------
 @dataclass(frozen=True)
-class PyArrowConverterConfig(BaseConverterConfig[pa.Field]):
+class PyArrowConverterConfig(BaseConverterConfig):
     """Configuration for PyArrowConverter.
 
     Args:
@@ -81,16 +91,18 @@ class PyArrowConverterConfig(BaseConverterConfig[pa.Field]):
     use_large_string: bool = False
     use_large_binary: bool = False
     use_large_list: bool = False
-    fallback_type: pa.DataType = pa.string()
+    fallback_type: pa.DataType = field(default_factory=_default_pyarrow_fallback_type)
     column_overrides: Mapping[str, Callable[[Field, PyArrowConverter], pa.Field]] = field(
         default_factory=lambda: MappingProxyType({})
-    )  # type: ignore[assignment]
+    )
 
     def __post_init__(self) -> None:
         """Validate configuration parameters."""
         super().__post_init__()
 
         # Validate fallback_type
+        import pyarrow as pa  # type: ignore[import-untyped]
+
         valid_fallback_types = {
             pa.binary(),
             pa.large_binary(),
@@ -134,6 +146,7 @@ class PyArrowConverter(BaseConverter):
         self.config: PyArrowConverterConfig = config or PyArrowConverterConfig()
         super().__init__(self.config)
 
+    @requires_dependency("pyarrow", import_name="pyarrow")
     def convert(
         self,
         spec: YadsSpec,
@@ -152,6 +165,8 @@ class PyArrowConverter(BaseConverter):
         Returns:
             A `pyarrow.Schema` with fields mapped from the spec columns.
         """
+        import pyarrow as pa  # type: ignore[import-untyped]
+
         fields: list[pa.Field] = []
         # Set mode for this conversion call
         with self.conversion_context(mode=mode):
@@ -195,11 +210,15 @@ class PyArrowConverter(BaseConverter):
 
     @_convert_type.register(String)
     def _(self, yads_type: String) -> pa.DataType:
+        import pyarrow as pa  # type: ignore[import-untyped]
+
         # Arrow strings are variable-length. Optionally use large_string.
         return pa.large_string() if self.config.use_large_string else pa.string()
 
     @_convert_type.register(Integer)
     def _(self, yads_type: Integer) -> pa.DataType:
+        import pyarrow as pa  # type: ignore[import-untyped]
+
         bits = yads_type.bits or 32
         signed_map = {
             8: pa.int8(),
@@ -223,6 +242,8 @@ class PyArrowConverter(BaseConverter):
 
     @_convert_type.register(Float)
     def _(self, yads_type: Float) -> pa.DataType:
+        import pyarrow as pa  # type: ignore[import-untyped]
+
         bits = yads_type.bits or 32
         mapping = {16: pa.float16(), 32: pa.float32(), 64: pa.float64()}
         try:
@@ -234,6 +255,8 @@ class PyArrowConverter(BaseConverter):
 
     @_convert_type.register(Decimal)
     def _(self, yads_type: Decimal) -> pa.DataType:
+        import pyarrow as pa  # type: ignore[import-untyped]
+
         # Determine width function first, considering precision constraints.
         precision = yads_type.precision or 38
         scale = yads_type.scale or 18
@@ -271,16 +294,22 @@ class PyArrowConverter(BaseConverter):
 
     @_convert_type.register(Boolean)
     def _(self, yads_type: Boolean) -> pa.DataType:
+        import pyarrow as pa  # type: ignore[import-untyped]
+
         return pa.bool_()
 
     @_convert_type.register(Binary)
     def _(self, yads_type: Binary) -> pa.DataType:
+        import pyarrow as pa  # type: ignore[import-untyped]
+
         if yads_type.length is not None:
             return pa.binary(yads_type.length)
         return pa.large_binary() if self.config.use_large_binary else pa.binary()
 
     @_convert_type.register(Date)
     def _(self, yads_type: Date) -> pa.DataType:
+        import pyarrow as pa  # type: ignore[import-untyped]
+
         bits = yads_type.bits or 32
         mapping = {32: pa.date32(), 64: pa.date64()}
         try:
@@ -292,6 +321,8 @@ class PyArrowConverter(BaseConverter):
 
     @_convert_type.register(Time)
     def _(self, yads_type: Time) -> pa.DataType:
+        import pyarrow as pa  # type: ignore[import-untyped]
+
         unit = self._to_pa_time_unit(yads_type.unit)
         bits = yads_type.bits
 
@@ -356,15 +387,21 @@ class PyArrowConverter(BaseConverter):
 
     @_convert_type.register(Duration)
     def _(self, yads_type: Duration) -> pa.DataType:
+        import pyarrow as pa  # type: ignore[import-untyped]
+
         unit = self._to_pa_time_unit(yads_type.unit)
         return pa.duration(unit)
 
     @_convert_type.register(Interval)
     def _(self, yads_type: Interval) -> pa.DataType:
+        import pyarrow as pa  # type: ignore[import-untyped]
+
         return pa.month_day_nano_interval()
 
     @_convert_type.register(Array)
     def _(self, yads_type: Array) -> pa.DataType:
+        import pyarrow as pa  # type: ignore[import-untyped]
+
         value_type = self._convert_type(yads_type.element)
         if yads_type.size is not None:
             return pa.list_(value_type, list_size=yads_type.size)
@@ -376,6 +413,8 @@ class PyArrowConverter(BaseConverter):
 
     @_convert_type.register(Struct)
     def _(self, yads_type: Struct) -> pa.DataType:
+        import pyarrow as pa  # type: ignore[import-untyped]
+
         fields = []
         for yads_field in yads_type.fields:
             with self.conversion_context(field=yads_field.name):
@@ -385,28 +424,40 @@ class PyArrowConverter(BaseConverter):
 
     @_convert_type.register(Map)
     def _(self, yads_type: Map) -> pa.DataType:
+        import pyarrow as pa  # type: ignore[import-untyped]
+
         key_type = self._convert_type(yads_type.key)
         item_type = self._convert_type(yads_type.value)
         return pa.map_(key_type, item_type, keys_sorted=yads_type.keys_sorted)
 
     @_convert_type.register(JSON)
     def _(self, yads_type: JSON) -> pa.DataType:
+        import pyarrow as pa  # type: ignore[import-untyped]
+
         return pa.json_(storage_type=pa.utf8())
 
     @_convert_type.register(UUID)
     def _(self, yads_type: UUID) -> pa.DataType:
+        import pyarrow as pa  # type: ignore[import-untyped]
+
         return pa.uuid()
 
     @_convert_type.register(Void)
     def _(self, yads_type: Void) -> pa.DataType:
+        import pyarrow as pa  # type: ignore[import-untyped]
+
         return pa.null()
 
     @_convert_type.register(Tensor)
     def _(self, yads_type: Tensor) -> pa.DataType:
+        import pyarrow as pa  # type: ignore[import-untyped]
+
         element_type = self._convert_type(yads_type.element)
         return pa.fixed_shape_tensor(element_type, yads_type.shape)
 
     def _convert_field(self, field: Field) -> pa.Field:
+        import pyarrow as pa  # type: ignore[import-untyped]
+
         pa_type = self._convert_type(field.type)
         metadata = self._build_field_metadata(field)
         return pa.field(
@@ -427,6 +478,8 @@ class PyArrowConverter(BaseConverter):
         return unit.value
 
     def _build_timestamp(self, unit: TimeUnit | None, tz: str | None) -> pa.DataType:
+        import pyarrow as pa  # type: ignore[import-untyped]
+
         pa_unit = self._to_pa_time_unit(unit)
         return pa.timestamp(pa_unit, tz=tz)
 

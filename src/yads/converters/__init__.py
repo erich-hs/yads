@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Literal, Mapping, Type, TYPE_CHECKING
 
+from .._dependencies import requires_dependency
 from .base import BaseConverter, BaseConverterConfig
 from .sql.sql_converter import (
     SQLConverter,
@@ -10,9 +11,20 @@ from .sql.sql_converter import (
     DuckdbSQLConverter,
 )
 from .sql.ast_converter import AstConverter, SQLGlotConverter, SQLGlotConverterConfig
-from .pyarrow_converter import PyArrowConverter, PyArrowConverterConfig
 from .pydantic_converter import PydanticConverter, PydanticConverterConfig
-from .pyspark_converter import PySparkConverter, PySparkConverterConfig
+
+
+def __getattr__(name: str):
+    if name in ("PyArrowConverter", "PyArrowConverterConfig"):
+        from . import pyarrow_converter
+
+        return getattr(pyarrow_converter, name)
+    if name in ("PySparkConverter", "PySparkConverterConfig"):
+        from . import pyspark_converter
+
+        return getattr(pyspark_converter, name)
+    raise AttributeError(name)
+
 
 __all__ = [
     "to_pyarrow",
@@ -47,6 +59,8 @@ if TYPE_CHECKING:
     )  # type: ignore[import-untyped]
     from sqlglot.expressions import DataType as SQLGlotDataType
     from sqlglot import expressions as exp  # type: ignore[import-untyped]
+    from .pyarrow_converter import PyArrowConverter
+    from .pyspark_converter import PySparkConverter
     from ..spec import YadsSpec, Field as SpecField
 
     # Column override type aliases (for static typing only)
@@ -58,6 +72,7 @@ if TYPE_CHECKING:
     SQLGlotColumnOverride = Callable[[SpecField, SQLGlotConverter], exp.ColumnDef]
 
 
+@requires_dependency("pyarrow", import_name="pyarrow")
 def to_pyarrow(
     spec: YadsSpec,
     *,
@@ -90,10 +105,10 @@ def to_pyarrow(
     Returns:
         A `pyarrow.Schema` instance.
     """
-    # Import lazily to avoid importing heavy deps at module import time
     import pyarrow as pa  # type: ignore[import-untyped]
+    from . import pyarrow_converter
 
-    config = PyArrowConverterConfig(
+    config = pyarrow_converter.PyArrowConverterConfig(
         mode=mode,
         ignore_columns=frozenset(ignore_columns) if ignore_columns else frozenset[str](),
         include_columns=frozenset(include_columns) if include_columns else None,
@@ -103,9 +118,10 @@ def to_pyarrow(
         use_large_list=use_large_list,
         fallback_type=fallback_type or pa.string(),
     )
-    return PyArrowConverter(config).convert(spec)
+    return pyarrow_converter.PyArrowConverter(config).convert(spec)
 
 
+@requires_dependency("pydantic", min_version="2.0.0", import_name="pydantic")
 def to_pydantic(
     spec: YadsSpec,
     *,
@@ -150,6 +166,7 @@ def to_pydantic(
     return PydanticConverter(config).convert(spec)
 
 
+@requires_dependency("pyspark", import_name="pyspark.sql.types")
 def to_pyspark(
     spec: YadsSpec,
     *,
@@ -175,28 +192,18 @@ def to_pyspark(
 
     Returns:
         A PySpark `StructType` instance.
-
-    Raises:
-        UnsupportedFeatureError: If PySpark is not available.
     """
-    # Import lazily to avoid importing heavy deps at module import time
-    try:
-        from pyspark.sql.types import StringType  # type: ignore[import-untyped]
-    except ImportError as e:
-        from ..exceptions import UnsupportedFeatureError
+    from pyspark.sql.types import StringType  # type: ignore[import-untyped]
+    from . import pyspark_converter
 
-        raise UnsupportedFeatureError(
-            "PySpark is required for to_pyspark(). Install with: pip install pyspark"
-        ) from e
-
-    config = PySparkConverterConfig(
+    config = pyspark_converter.PySparkConverterConfig(
         mode=mode,
         ignore_columns=frozenset(ignore_columns) if ignore_columns else frozenset[str](),
         include_columns=frozenset(include_columns) if include_columns else None,
         column_overrides=column_overrides or {},
         fallback_type=fallback_type or StringType(),
     )
-    return PySparkConverter(config).convert(spec)
+    return pyspark_converter.PySparkConverter(config).convert(spec)
 
 
 def to_sql(
