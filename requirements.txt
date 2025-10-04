@@ -3,5 +3,3 @@
 -e .
 pyyaml==6.0.2
     # via yads
-sqlglot==27.0.0
-    # via yads
