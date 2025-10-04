@@ -8,13 +8,12 @@ This module contains high-level SQL converters that:
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, TYPE_CHECKING
 from dataclasses import dataclass, replace
 
 from sqlglot import ErrorLevel
 from sqlglot.expressions import DataType
 
-from ...spec import YadsSpec
 from ..base import BaseConverter, BaseConverterConfig
 from .ast_converter import AstConverter, SQLGlotConverter, SQLGlotConverterConfig
 from .validators.ast_validator import AstValidator
@@ -28,6 +27,9 @@ from .validators.ast_validation_rules import (
     DisallowColumnConstraintGeneratedIdentity,
     DisallowTableConstraintPrimaryKeyNullsFirst,
 )
+
+if TYPE_CHECKING:
+    from ...spec import YadsSpec
 
 
 # %% ---- Configuration --------------------------------------------------------------
