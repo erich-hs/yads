@@ -44,7 +44,7 @@ from ..exceptions import UnsupportedFeatureError, validation_warning
 from .._dependencies import requires_dependency
 from .base import BaseConverter, BaseConverterConfig
 
-from .. import spec
+from .. import spec as yspec
 from .. import types as ytypes
 
 if TYPE_CHECKING:
@@ -70,7 +70,7 @@ class PydanticConverterConfig(BaseConverterConfig):
     model_config: dict[str, Any] | None = None
     fallback_type: type = str
     column_overrides: Mapping[
-        str, Callable[[spec.Field, PydanticConverter], tuple[Any, FieldInfo]]
+        str, Callable[[yspec.Field, PydanticConverter], tuple[Any, FieldInfo]]
     ] = field(default_factory=lambda: MappingProxyType({}))  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
@@ -112,7 +112,7 @@ class PydanticConverter(BaseConverter):
     @requires_dependency("pydantic", min_version="2.0.0", import_name="pydantic")
     def convert(
         self,
-        spec: spec.YadsSpec,
+        spec: yspec.YadsSpec,
         *,
         mode: Literal["raise", "coerce"] | None = None,
     ) -> Type[BaseModel]:
@@ -393,7 +393,7 @@ class PydanticConverter(BaseConverter):
         field_info = self.required()
         return Any, field_info
 
-    def _convert_field(self, field: spec.Field) -> tuple[Any, FieldInfo]:
+    def _convert_field(self, field: yspec.Field) -> tuple[Any, FieldInfo]:
         field_type, field_info = self._convert_type(field.type)
 
         if field.is_nullable:
@@ -412,10 +412,10 @@ class PydanticConverter(BaseConverter):
 
         return field_type, field_info
 
-    def _convert_field_default(self, field: spec.Field) -> tuple[Any, FieldInfo]:
+    def _convert_field_default(self, field: yspec.Field) -> tuple[Any, FieldInfo]:
         return self._convert_field(field)
 
-    def _apply_column_override(self, field: spec.Field) -> tuple[Any, FieldInfo]:
+    def _apply_column_override(self, field: yspec.Field) -> tuple[Any, FieldInfo]:
         from pydantic.fields import FieldInfo  # type: ignore[import-untyped]
 
         result = self.config.column_overrides[field.name](field, self)
@@ -482,7 +482,7 @@ class PydanticConverter(BaseConverter):
 
         return Field(default=..., **kwargs)
 
-    def _create_fallback_field_info(self, field: spec.Field) -> FieldInfo:
+    def _create_fallback_field_info(self, field: yspec.Field) -> FieldInfo:
         from pydantic import Field  # type: ignore[import-untyped]
 
         field_info = Field(default=...)

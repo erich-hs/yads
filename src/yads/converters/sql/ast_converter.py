@@ -32,28 +32,8 @@ from ...exceptions import (
     UnsupportedFeatureError,
     validation_warning,
 )
-from ...spec import Column, Field, YadsSpec, Storage, TransformedColumnReference
-from ...types import (
-    YadsType,
-    String,
-    Integer,
-    Float,
-    Decimal,
-    Binary,
-    Date,
-    Time,
-    Timestamp,
-    TimestampTZ,
-    TimestampLTZ,
-    TimestampNTZ,
-    Interval,
-    Array,
-    Struct,
-    Map,
-    Geometry,
-    Geography,
-    Void,
-)
+from ... import spec as yspec
+from ... import types as ytypes
 from ..base import BaseConverter, BaseConverterConfig
 
 
@@ -65,7 +45,7 @@ class AstConverter(ABC):
     """
 
     @abstractmethod
-    def convert(self, spec: YadsSpec) -> Any: ...
+    def convert(self, spec: yspec.YadsSpec) -> Any: ...
 
     @abstractmethod
     @contextmanager
@@ -99,9 +79,9 @@ class SQLGlotConverterConfig(BaseConverterConfig[exp.ColumnDef]):
     ignore_catalog: bool = False
     ignore_database: bool = False
     fallback_type: exp.DataType.Type = exp.DataType.Type.TEXT
-    column_overrides: Mapping[str, Callable[[Field, SQLGlotConverter], exp.ColumnDef]] = (
-        field(default_factory=lambda: MappingProxyType({}))
-    )  # type: ignore[assignment]
+    column_overrides: Mapping[
+        str, Callable[[yspec.Field, SQLGlotConverter], exp.ColumnDef]
+    ] = field(default_factory=lambda: MappingProxyType({}))  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
         """Validate configuration parameters."""
@@ -166,7 +146,7 @@ class SQLGlotConverter(BaseConverter, AstConverter):
 
     def convert(
         self,
-        spec: YadsSpec,
+        spec: yspec.YadsSpec,
         *,
         mode: Literal["raise", "coerce"] | None = None,
     ) -> exp.Create:
@@ -218,7 +198,7 @@ class SQLGlotConverter(BaseConverter, AstConverter):
 
     # %% ---- Type conversion ---------------------------------------------------------
     @singledispatchmethod
-    def _convert_type(self, yads_type: YadsType) -> exp.DataType:
+    def _convert_type(self, yads_type: ytypes.YadsType) -> exp.DataType:
         # Fallback to default sqlglot DataType.build method.
         # The following non-parametrized yads types are handled via the fallback:
         # - Boolean
@@ -248,8 +228,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
                 f" for '{self._current_field_name or '<unknown>'}'."
             )
 
-    @_convert_type.register(String)
-    def _(self, yads_type: String) -> exp.DataType:
+    @_convert_type.register(ytypes.String)
+    def _(self, yads_type: ytypes.String) -> exp.DataType:
         expressions = []
         if yads_type.length:
             expressions.append(exp.DataTypeParam(this=convert(yads_type.length)))
@@ -258,8 +238,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
             expressions=expressions if expressions else None,
         )
 
-    @_convert_type.register(Integer)
-    def _(self, yads_type: Integer) -> exp.DataType:
+    @_convert_type.register(ytypes.Integer)
+    def _(self, yads_type: ytypes.Integer) -> exp.DataType:
         bits = yads_type.bits or 32
         signed_map = {
             8: exp.DataType.Type.TINYINT,
@@ -281,8 +261,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
                 f"Unsupported Integer bits: {bits}. Expected 8/16/32/64."
             ) from e
 
-    @_convert_type.register(Float)
-    def _(self, yads_type: Float) -> exp.DataType:
+    @_convert_type.register(ytypes.Float)
+    def _(self, yads_type: ytypes.Float) -> exp.DataType:
         bits = yads_type.bits or 32
         if bits == 16:
             if self.config.mode == "coerce":
@@ -306,8 +286,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
             f"Unsupported Float bits: {bits}. Expected 16/32/64."
         )
 
-    @_convert_type.register(Decimal)
-    def _(self, yads_type: Decimal) -> exp.DataType:
+    @_convert_type.register(ytypes.Decimal)
+    def _(self, yads_type: ytypes.Decimal) -> exp.DataType:
         expressions = []
         if yads_type.precision is not None:
             expressions.append(exp.DataTypeParam(this=convert(yads_type.precision)))
@@ -319,40 +299,40 @@ class SQLGlotConverter(BaseConverter, AstConverter):
         )
 
     # Explicit mappings for parametrized temporal types
-    @_convert_type.register(Timestamp)
-    def _(self, yads_type: Timestamp) -> exp.DataType:
+    @_convert_type.register(ytypes.Timestamp)
+    def _(self, yads_type: ytypes.Timestamp) -> exp.DataType:
         # Ignore unit parameter
         return exp.DataType(this=exp.DataType.Type.TIMESTAMP)
 
-    @_convert_type.register(TimestampTZ)
-    def _(self, yads_type: TimestampTZ) -> exp.DataType:
+    @_convert_type.register(ytypes.TimestampTZ)
+    def _(self, yads_type: ytypes.TimestampTZ) -> exp.DataType:
         # Ignore unit parameter
         # Ignore tz parameter
         return exp.DataType(this=exp.DataType.Type.TIMESTAMPTZ)
 
-    @_convert_type.register(TimestampLTZ)
-    def _(self, yads_type: TimestampLTZ) -> exp.DataType:
+    @_convert_type.register(ytypes.TimestampLTZ)
+    def _(self, yads_type: ytypes.TimestampLTZ) -> exp.DataType:
         # Ignore unit parameter
         return exp.DataType(this=exp.DataType.Type.TIMESTAMPLTZ)
 
-    @_convert_type.register(TimestampNTZ)
-    def _(self, yads_type: TimestampNTZ) -> exp.DataType:
+    @_convert_type.register(ytypes.TimestampNTZ)
+    def _(self, yads_type: ytypes.TimestampNTZ) -> exp.DataType:
         # Ignore unit parameter
         return exp.DataType(this=exp.DataType.Type.TIMESTAMPNTZ)
 
-    @_convert_type.register(Time)
-    def _(self, yads_type: Time) -> exp.DataType:
+    @_convert_type.register(ytypes.Time)
+    def _(self, yads_type: ytypes.Time) -> exp.DataType:
         # Ignore bit-width parameter
         # Ignore unit parameter
         return exp.DataType(this=exp.DataType.Type.TIME)
 
-    @_convert_type.register(Date)
-    def _(self, yads_type: Date) -> exp.DataType:
+    @_convert_type.register(ytypes.Date)
+    def _(self, yads_type: ytypes.Date) -> exp.DataType:
         # Ignore bit-width parameter
         return exp.DataType(this=exp.DataType.Type.DATE)
 
-    @_convert_type.register(Binary)
-    def _(self, yads_type: Binary) -> exp.DataType:
+    @_convert_type.register(ytypes.Binary)
+    def _(self, yads_type: ytypes.Binary) -> exp.DataType:
         expressions = []
         if yads_type.length is not None:
             expressions.append(exp.DataTypeParam(this=convert(yads_type.length)))
@@ -360,8 +340,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
             this=exp.DataType.Type.BINARY, expressions=expressions or None
         )
 
-    @_convert_type.register(Void)
-    def _(self, yads_type: Void) -> exp.DataType:
+    @_convert_type.register(ytypes.Void)
+    def _(self, yads_type: ytypes.Void) -> exp.DataType:
         # VOID is not a valid sqlglot type, but can be defined as a Spark type.
         # https://docs.databricks.com/aws/en/sql/language-manual/data-types/null-type
         return exp.DataType(
@@ -369,8 +349,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
             kind="VOID",
         )
 
-    @_convert_type.register(Interval)
-    def _(self, yads_type: Interval) -> exp.DataType:
+    @_convert_type.register(ytypes.Interval)
+    def _(self, yads_type: ytypes.Interval) -> exp.DataType:
         if yads_type.interval_end and yads_type.interval_start != yads_type.interval_end:
             return exp.DataType(
                 this=exp.Interval(
@@ -384,8 +364,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
             this=exp.Interval(unit=exp.Var(this=yads_type.interval_start.value))
         )
 
-    @_convert_type.register(Array)
-    def _(self, yads_type: Array) -> exp.DataType:
+    @_convert_type.register(ytypes.Array)
+    def _(self, yads_type: ytypes.Array) -> exp.DataType:
         element_type = self._convert_type(yads_type.element)
         # Ignore size parameter
         return exp.DataType(
@@ -394,16 +374,16 @@ class SQLGlotConverter(BaseConverter, AstConverter):
             nested=exp.DataType.Type.ARRAY in exp.DataType.NESTED_TYPES,
         )
 
-    @_convert_type.register(Struct)
-    def _(self, yads_type: Struct) -> exp.DataType:
+    @_convert_type.register(ytypes.Struct)
+    def _(self, yads_type: ytypes.Struct) -> exp.DataType:
         return exp.DataType(
             this=exp.DataType.Type.STRUCT,
             expressions=[self._convert_field(field) for field in yads_type.fields],
             nested=exp.DataType.Type.STRUCT in exp.DataType.NESTED_TYPES,
         )
 
-    @_convert_type.register(Map)
-    def _(self, yads_type: Map) -> exp.DataType:
+    @_convert_type.register(ytypes.Map)
+    def _(self, yads_type: ytypes.Map) -> exp.DataType:
         key_type = self._convert_type(yads_type.key)
         value_type = self._convert_type(yads_type.value)
         # Ignore keys_sorted parameter
@@ -413,8 +393,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
             nested=exp.DataType.Type.MAP in exp.DataType.NESTED_TYPES,
         )
 
-    @_convert_type.register(Geometry)
-    def _(self, yads_type: Geometry) -> exp.DataType:
+    @_convert_type.register(ytypes.Geometry)
+    def _(self, yads_type: ytypes.Geometry) -> exp.DataType:
         expressions = (
             [exp.DataTypeParam(this=convert(yads_type.srid))]
             if yads_type.srid is not None
@@ -422,8 +402,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
         )
         return exp.DataType(this=exp.DataType.Type.GEOMETRY, expressions=expressions)
 
-    @_convert_type.register(Geography)
-    def _(self, yads_type: Geography) -> exp.DataType:
+    @_convert_type.register(ytypes.Geography)
+    def _(self, yads_type: ytypes.Geography) -> exp.DataType:
         expressions = (
             [exp.DataTypeParam(this=convert(yads_type.srid))]
             if yads_type.srid is not None
@@ -554,7 +534,9 @@ class SQLGlotConverter(BaseConverter, AstConverter):
         raise ConversionError("Foreign key constraint must have a name.")
 
     # %% ---- Properties --------------------------------------------------------------
-    def _handle_storage_properties(self, storage: Storage | None) -> list[exp.Property]:
+    def _handle_storage_properties(
+        self, storage: yspec.Storage | None
+    ) -> list[exp.Property]:
         if not storage:
             return []
         properties: list[exp.Property] = []
@@ -568,7 +550,7 @@ class SQLGlotConverter(BaseConverter, AstConverter):
         return properties
 
     def _handle_partitioned_by_property(
-        self, value: list[TransformedColumnReference]
+        self, value: list[yspec.TransformedColumnReference]
     ) -> exp.PartitionedByProperty:
         schema_expressions = []
         for col in value:
@@ -594,7 +576,7 @@ class SQLGlotConverter(BaseConverter, AstConverter):
     def _handle_generic_property(self, key: str, value: Any) -> exp.Property:
         return exp.Property(this=convert(key), value=convert(value))
 
-    def _collect_properties(self, spec: YadsSpec) -> list[exp.Property]:
+    def _collect_properties(self, spec: yspec.YadsSpec) -> list[exp.Property]:
         properties: list[exp.Property] = []
         if spec.external:
             properties.append(self._handle_external_property())
@@ -682,14 +664,14 @@ class SQLGlotConverter(BaseConverter, AstConverter):
             )
 
     # %% ---- Helpers -----------------------------------------------------------------
-    def _convert_field(self, field: Field) -> exp.ColumnDef:
+    def _convert_field(self, field: yspec.Field) -> exp.ColumnDef:
         return exp.ColumnDef(
             this=exp.Identifier(this=field.name),
             kind=self._convert_type(field.type),
             constraints=None,
         )
 
-    def _convert_column(self, column: Column) -> exp.ColumnDef:
+    def _convert_column(self, column: yspec.Column) -> exp.ColumnDef:
         constraints = []
         with self.conversion_context(field=column.name):
             if column.generated_as and column.generated_as.transform:
@@ -715,12 +697,12 @@ class SQLGlotConverter(BaseConverter, AstConverter):
                 constraints=constraints if constraints else None,
             )
 
-    def _convert_field_default(self, field: Field) -> exp.ColumnDef:
-        if not isinstance(field, Column):  # Overrides happen on column level
+    def _convert_field_default(self, field: yspec.Field) -> exp.ColumnDef:
+        if not isinstance(field, yspec.Column):  # Overrides happen on column level
             raise TypeError(f"Expected Column, got {type(field)}")
         return self._convert_column(field)
 
-    def _collect_expressions(self, spec: YadsSpec) -> list[exp.Expression]:
+    def _collect_expressions(self, spec: yspec.YadsSpec) -> list[exp.Expression]:
         expressions: list[exp.Expression] = []
         for col in self._filter_columns(spec):
             # Set field context during conversion

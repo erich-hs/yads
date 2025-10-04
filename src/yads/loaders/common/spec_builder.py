@@ -30,24 +30,8 @@ from ...exceptions import (
     UnknownConstraintError,
     UnknownTypeError,
 )
-from ...spec import (
-    Column,
-    Field,
-    YadsSpec,
-    Storage,
-    TransformedColumnReference,
-)
-from ...types import (
-    TYPE_ALIASES,
-    Array,
-    Interval,
-    IntervalTimeUnit,
-    TimeUnit,
-    Map,
-    Struct,
-    Tensor,
-    YadsType,
-)
+from ... import spec as yspec
+from ... import types as ytypes
 
 
 # %% ---- Protocols ------------------------------------------------------------------
@@ -69,11 +53,11 @@ class SpecBuilder:
     """
 
     _TYPE_PARSERS: dict[type, str] = {
-        Interval: "_parse_interval_type",
-        Array: "_parse_array_type",
-        Struct: "_parse_struct_type",
-        Map: "_parse_map_type",
-        Tensor: "_parse_tensor_type",
+        ytypes.Interval: "_parse_interval_type",
+        ytypes.Array: "_parse_array_type",
+        ytypes.Struct: "_parse_struct_type",
+        ytypes.Map: "_parse_map_type",
+        ytypes.Tensor: "_parse_tensor_type",
     }
 
     _COLUMN_CONSTRAINT_PARSERS: dict[str, str] = {
@@ -91,9 +75,9 @@ class SpecBuilder:
 
     def __init__(self, data: dict[str, Any]):
         self.data = data
-        self._spec: YadsSpec | None = None
+        self._spec: yspec.YadsSpec | None = None
 
-    def build(self) -> YadsSpec:
+    def build(self) -> yspec.YadsSpec:
         """Build and validate the `YadsSpec` from provided data."""
         self._validate_keys(
             self.data,
@@ -111,7 +95,7 @@ class SpecBuilder:
             required_keys={"name", "version", "columns"},
             context="spec definition",
         )
-        self._spec = YadsSpec(
+        self._spec = yspec.YadsSpec(
             name=self.data["name"],
             version=self.data["version"],
             description=self.data.get("description"),
@@ -154,13 +138,13 @@ class SpecBuilder:
     ) -> dict[str, Any]:
         """Merge provided params with TYPE_ALIASES defaults for a type name."""
         type_params = type_def.get("params", {})
-        default_params = TYPE_ALIASES[type_name.lower()][1]
+        default_params = ytypes.TYPE_ALIASES[type_name.lower()][1]
         return {**default_params, **type_params}
 
-    def _parse_type(self, type_name: str, type_def: dict[str, Any]) -> YadsType:
+    def _parse_type(self, type_name: str, type_def: dict[str, Any]) -> ytypes.YadsType:
         type_name_lower = type_name.lower()
 
-        if (alias := TYPE_ALIASES.get(type_name_lower)) is None:
+        if (alias := ytypes.TYPE_ALIASES.get(type_name_lower)) is None:
             raise UnknownTypeError(f"Unknown type: '{type_name}'.")
 
         base_type_class = alias[0]
@@ -176,11 +160,11 @@ class SpecBuilder:
 
         # Normalize temporal units to TimeUnit enum when present and applicable
         if "unit" in final_params and isinstance(final_params["unit"], str):
-            final_params["unit"] = TimeUnit(final_params["unit"])
+            final_params["unit"] = ytypes.TimeUnit(final_params["unit"])
 
         return base_type_class(**final_params)
 
-    def _parse_interval_type(self, type_def: dict[str, Any]) -> Interval:
+    def _parse_interval_type(self, type_def: dict[str, Any]) -> ytypes.Interval:
         type_name = type_def.get("type", "")
         final_params = self._get_processed_type_params(type_name, type_def)
 
@@ -189,15 +173,15 @@ class SpecBuilder:
                 "Interval type definition must include 'interval_start'."
             )
 
-        final_params["interval_start"] = IntervalTimeUnit(
+        final_params["interval_start"] = ytypes.IntervalTimeUnit(
             final_params["interval_start"].upper()
         )
         if end_field_val := final_params.get("interval_end"):
-            final_params["interval_end"] = IntervalTimeUnit(end_field_val.upper())
+            final_params["interval_end"] = ytypes.IntervalTimeUnit(end_field_val.upper())
 
-        return Interval(**final_params)
+        return ytypes.Interval(**final_params)
 
-    def _parse_array_type(self, type_def: dict[str, Any]) -> Array:
+    def _parse_array_type(self, type_def: dict[str, Any]) -> ytypes.Array:
         if "element" not in type_def:
             raise TypeDefinitionError("Array type definition must include 'element'.")
 
@@ -209,18 +193,18 @@ class SpecBuilder:
 
         element_type_name = element_def["type"]
         final_params = self._get_processed_type_params(type_def.get("type", ""), type_def)
-        return Array(
+        return ytypes.Array(
             element=self._parse_type(element_type_name, element_def),
             **final_params,
         )
 
-    def _parse_struct_type(self, type_def: dict[str, Any]) -> Struct:
+    def _parse_struct_type(self, type_def: dict[str, Any]) -> ytypes.Struct:
         if "fields" not in type_def:
             raise TypeDefinitionError("Struct type definition must include 'fields'")
 
-        return Struct(fields=[self._parse_field(f) for f in type_def["fields"]])
+        return ytypes.Struct(fields=[self._parse_field(f) for f in type_def["fields"]])
 
-    def _parse_map_type(self, type_def: dict[str, Any]) -> Map:
+    def _parse_map_type(self, type_def: dict[str, Any]) -> ytypes.Map:
         if "key" not in type_def or "value" not in type_def:
             raise TypeDefinitionError(
                 "Map type definition must include 'key' and 'value'."
@@ -230,13 +214,13 @@ class SpecBuilder:
         value_def = type_def["value"]
         final_params = self._get_processed_type_params(type_def.get("type", ""), type_def)
 
-        return Map(
+        return ytypes.Map(
             key=self._parse_type(key_def["type"], key_def),
             value=self._parse_type(value_def["type"], value_def),
             **final_params,
         )
 
-    def _parse_tensor_type(self, type_def: dict[str, Any]) -> Tensor:
+    def _parse_tensor_type(self, type_def: dict[str, Any]) -> ytypes.Tensor:
         if "element" not in type_def:
             raise TypeDefinitionError("Tensor type definition must include 'element'.")
 
@@ -258,15 +242,15 @@ class SpecBuilder:
                 f"Tensor 'shape' must be a list or tuple, got {type(shape).__name__}."
             )
 
-        return Tensor(
+        return ytypes.Tensor(
             element=self._parse_type(element_type_name, element_def),
             shape=tuple(shape),
         )
 
     # %% ---- Field/Column parsing ----------------------------------------------------
-    def _parse_field(self, field_def: dict[str, Any]) -> Field:
+    def _parse_field(self, field_def: dict[str, Any]) -> yspec.Field:
         self._validate_field_definition(field_def, context="field")
-        return Field(
+        return yspec.Field(
             name=field_def["name"],
             type=self._parse_type(field_def["type"], field_def),
             description=field_def.get("description"),
@@ -274,9 +258,9 @@ class SpecBuilder:
             constraints=self._parse_column_constraints(field_def.get("constraints")),
         )
 
-    def _parse_column(self, col_def: dict[str, Any]) -> Column:
+    def _parse_column(self, col_def: dict[str, Any]) -> yspec.Column:
         self._validate_field_definition(col_def, context="column")
-        return Column(
+        return yspec.Column(
             name=col_def["name"],
             type=self._parse_type(col_def["type"], col_def),
             description=col_def.get("description"),
@@ -394,7 +378,7 @@ class SpecBuilder:
     # %% ---- Generation clauses & partitions ----------------------------------------
     def _parse_generation_clause(
         self, gen_clause_def: dict[str, Any] | None
-    ) -> TransformedColumnReference | None:
+    ) -> yspec.TransformedColumnReference | None:
         if not gen_clause_def:
             return None
 
@@ -409,7 +393,7 @@ class SpecBuilder:
         if not gen_clause_def["transform"]:
             raise SpecParsingError("'transform' cannot be empty in a generation clause.")
 
-        return TransformedColumnReference(
+        return yspec.TransformedColumnReference(
             column=gen_clause_def["column"],
             transform=gen_clause_def["transform"],
             transform_args=gen_clause_def.get("transform_args", []),
@@ -417,7 +401,7 @@ class SpecBuilder:
 
     def _parse_partitioned_by(
         self, partitioned_by_def: list[dict[str, Any]] | None
-    ) -> list[TransformedColumnReference]:
+    ) -> list[yspec.TransformedColumnReference]:
         if not partitioned_by_def:
             return []
 
@@ -430,7 +414,7 @@ class SpecBuilder:
                 context="partitioned_by item",
             )
             transformed_columns.append(
-                TransformedColumnReference(
+                yspec.TransformedColumnReference(
                     column=pc["column"],
                     transform=pc.get("transform"),
                     transform_args=pc.get("transform_args", []),
@@ -499,7 +483,7 @@ class SpecBuilder:
         return constraints
 
     # %% ---- Storage -----------------------------------------------------------------
-    def _parse_storage(self, storage_def: dict[str, Any] | None) -> Storage | None:
+    def _parse_storage(self, storage_def: dict[str, Any] | None) -> yspec.Storage | None:
         if not storage_def:
             return None
         self._validate_keys(
@@ -508,7 +492,7 @@ class SpecBuilder:
             required_keys=set(),
             context="storage definition",
         )
-        return Storage(**storage_def)
+        return yspec.Storage(**storage_def)
 
     # %% ---- Post-build validations --------------------------------------------------
     def _validate_spec(self) -> None:
@@ -519,7 +503,7 @@ class SpecBuilder:
         self._check_for_undefined_columns_in_partitioned_by(self._spec)
         self._check_for_undefined_columns_in_generated_as(self._spec)
 
-    def _check_for_duplicate_constraint_definitions(self, spec: YadsSpec) -> None:
+    def _check_for_duplicate_constraint_definitions(self, spec: yspec.YadsSpec) -> None:
         for col_const_type, tbl_const_type in CONSTRAINT_EQUIVALENTS.items():
             constrained_cols = {
                 c.name
@@ -539,7 +523,9 @@ class SpecBuilder:
                     stacklevel=2,
                 )
 
-    def _check_for_undefined_columns_in_table_constraints(self, spec: YadsSpec) -> None:
+    def _check_for_undefined_columns_in_table_constraints(
+        self, spec: yspec.YadsSpec
+    ) -> None:
         for constraint in spec.table_constraints:
             constrained_columns = set(constraint.constrained_columns)
             if not_defined := constrained_columns - spec.column_names:
@@ -554,13 +540,15 @@ class SpecBuilder:
                     stacklevel=2,
                 )
 
-    def _check_for_undefined_columns_in_partitioned_by(self, spec: YadsSpec) -> None:
+    def _check_for_undefined_columns_in_partitioned_by(
+        self, spec: yspec.YadsSpec
+    ) -> None:
         if not_defined := spec.partition_column_names - spec.column_names:
             raise SpecParsingError(
                 f"Partition spec references undefined columns: {sorted(list(not_defined))}."
             )
 
-    def _check_for_undefined_columns_in_generated_as(self, spec: YadsSpec) -> None:
+    def _check_for_undefined_columns_in_generated_as(self, spec: yspec.YadsSpec) -> None:
         for gen_col, source_col in spec.generated_columns.items():
             if source_col not in spec.column_names:
                 raise SpecParsingError(
