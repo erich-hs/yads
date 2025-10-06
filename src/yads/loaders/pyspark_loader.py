@@ -61,6 +61,7 @@ if TYPE_CHECKING:
         TimestampNTZType,
         TimestampType,
         VarcharType,
+        VariantType,
         YearMonthIntervalType,
     )
 
@@ -337,7 +338,7 @@ class PySparkLoader(ConfigurableLoader):
     if hasattr(T, "VariantType"):
 
         @_convert_type.register(T.VariantType)
-        def _(self, dtype: object) -> dict[str, Any]:
+        def _(self, dtype: VariantType) -> dict[str, Any]:
             return {"type": "variant"}
 
     def _get_fallback_type_definition(self) -> dict[str, Any]:
