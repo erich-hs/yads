@@ -8,11 +8,8 @@ from pyspark.sql.types import (  # type: ignore[import-untyped]
     BinaryType,
     BooleanType,
     ByteType,
-    CalendarIntervalType,
-    CharType,
     DataType,
     DateType,
-    DayTimeIntervalType,
     DecimalType,
     DoubleType,
     FloatType,
@@ -24,12 +21,65 @@ from pyspark.sql.types import (  # type: ignore[import-untyped]
     StringType,
     StructField,
     StructType,
-    TimestampNTZType,
     TimestampType,
-    VarcharType,
-    VariantType,
-    YearMonthIntervalType,
 )
+
+# Optional types that may not be available in older PySpark versions
+try:
+    from pyspark.sql.types import CalendarIntervalType  # type: ignore[attr-defined]
+
+    HAS_CALENDAR_INTERVAL_TYPE = True
+except ImportError:
+    CalendarIntervalType = None  # type: ignore[assignment, misc]
+    HAS_CALENDAR_INTERVAL_TYPE = False
+
+try:
+    from pyspark.sql.types import DayTimeIntervalType  # type: ignore[attr-defined]
+
+    HAS_DAY_TIME_INTERVAL_TYPE = True
+except ImportError:
+    DayTimeIntervalType = None  # type: ignore[assignment, misc]
+    HAS_DAY_TIME_INTERVAL_TYPE = False
+
+try:
+    from pyspark.sql.types import CharType  # type: ignore[attr-defined]
+
+    HAS_CHAR_TYPE = True
+except ImportError:
+    CharType = None  # type: ignore[assignment, misc]
+    HAS_CHAR_TYPE = False
+
+try:
+    from pyspark.sql.types import VarcharType  # type: ignore[attr-defined]
+
+    HAS_VARCHAR_TYPE = True
+except ImportError:
+    VarcharType = None  # type: ignore[assignment, misc]
+    HAS_VARCHAR_TYPE = False
+
+try:
+    from pyspark.sql.types import TimestampNTZType  # type: ignore[attr-defined]
+
+    HAS_TIMESTAMP_NTZ_TYPE = True
+except ImportError:
+    TimestampNTZType = None  # type: ignore[assignment, misc]
+    HAS_TIMESTAMP_NTZ_TYPE = False
+
+try:
+    from pyspark.sql.types import YearMonthIntervalType  # type: ignore[attr-defined]
+
+    HAS_YEAR_MONTH_INTERVAL_TYPE = True
+except ImportError:
+    YearMonthIntervalType = None  # type: ignore[assignment, misc]
+    HAS_YEAR_MONTH_INTERVAL_TYPE = False
+
+try:
+    from pyspark.sql.types import VariantType  # type: ignore[attr-defined]
+
+    HAS_VARIANT_TYPE = True
+except ImportError:
+    VariantType = None  # type: ignore[assignment, misc]
+    HAS_VARIANT_TYPE = False
 
 from yads.constraints import NotNullConstraint
 from yads.exceptions import LoaderConfigError, UnsupportedFeatureError, ValidationWarning
@@ -77,8 +127,18 @@ class TestPySparkLoaderTypeConversion:
             
             # Strings / Binary
             (StringType(), String()),
-            (CharType(10), String(length=10)),
-            (VarcharType(255), String(length=255)),
+            pytest.param(
+                CharType(10) if HAS_CHAR_TYPE else None,
+                String(length=10),
+                marks=pytest.mark.skipif(not HAS_CHAR_TYPE, reason="CharType not available"),
+                id="char_type"
+            ),
+            pytest.param(
+                VarcharType(255) if HAS_VARCHAR_TYPE else None,
+                String(length=255),
+                marks=pytest.mark.skipif(not HAS_VARCHAR_TYPE, reason="VarcharType not available"),
+                id="varchar_type"
+            ),
             (BinaryType(), Binary()),
             
             # Decimal
@@ -89,10 +149,20 @@ class TestPySparkLoaderTypeConversion:
             # Temporal types
             (DateType(), Date(bits=32)),
             (TimestampType(), TimestampLTZ(unit=TimeUnit.NS)),
-            (TimestampNTZType(), TimestampNTZ(unit=TimeUnit.NS)),
+            pytest.param(
+                TimestampNTZType() if HAS_TIMESTAMP_NTZ_TYPE else None,
+                TimestampNTZ(unit=TimeUnit.NS),
+                marks=pytest.mark.skipif(not HAS_TIMESTAMP_NTZ_TYPE, reason="TimestampNTZType not available"),
+                id="timestamp_ntz"
+            ),
             
             # Special types
-            (VariantType(), Variant()),
+            pytest.param(
+                VariantType() if HAS_VARIANT_TYPE else None,
+                Variant(),
+                marks=pytest.mark.skipif(not HAS_VARIANT_TYPE, reason="VariantType not available"),
+                id="variant_type"
+            ),
         ],
     )
     def test_convert_primitive_types(
@@ -111,6 +181,10 @@ class TestPySparkLoaderTypeConversion:
         assert column.type == expected_yads_type
         assert column.is_nullable is True  # Default nullability
 
+    @pytest.mark.skipif(
+        not HAS_YEAR_MONTH_INTERVAL_TYPE,
+        reason="YearMonthIntervalType not available"
+    )
     @pytest.mark.parametrize(
         "pyspark_type, expected_interval_start, expected_interval_end",
         [
@@ -118,7 +192,31 @@ class TestPySparkLoaderTypeConversion:
             (YearMonthIntervalType(0, 0), "YEAR", None),  # YEAR to YEAR
             (YearMonthIntervalType(0, 1), "YEAR", "MONTH"),  # YEAR to MONTH
             (YearMonthIntervalType(1, 1), "MONTH", None),  # MONTH to MONTH
-            
+        ] if HAS_YEAR_MONTH_INTERVAL_TYPE else [],
+    )
+    def test_convert_year_month_interval_types(
+        self, pyspark_type: DataType, expected_interval_start: str, expected_interval_end: str | None
+    ):
+        schema = StructType([StructField("col1", pyspark_type, nullable=True)])
+        loader = PySparkLoader()
+        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        
+        column = spec.columns[0]
+        assert isinstance(column.type, Interval)
+        assert column.type.interval_start.value == expected_interval_start
+        if expected_interval_end:
+            assert column.type.interval_end is not None
+            assert column.type.interval_end.value == expected_interval_end
+        else:
+            assert column.type.interval_end is None
+
+    @pytest.mark.skipif(
+        not HAS_DAY_TIME_INTERVAL_TYPE,
+        reason="DayTimeIntervalType not available"
+    )
+    @pytest.mark.parametrize(
+        "pyspark_type, expected_interval_start, expected_interval_end",
+        [
             # Day-Time intervals
             (DayTimeIntervalType(0, 0), "DAY", None),  # DAY to DAY
             (DayTimeIntervalType(0, 1), "DAY", "HOUR"),  # DAY to HOUR
@@ -130,9 +228,9 @@ class TestPySparkLoaderTypeConversion:
             (DayTimeIntervalType(2, 2), "MINUTE", None),  # MINUTE to MINUTE
             (DayTimeIntervalType(2, 3), "MINUTE", "SECOND"),  # MINUTE to SECOND
             (DayTimeIntervalType(3, 3), "SECOND", None),  # SECOND to SECOND
-        ],
+        ] if HAS_DAY_TIME_INTERVAL_TYPE else [],
     )
-    def test_convert_interval_types(
+    def test_convert_day_time_interval_types(
         self, pyspark_type: DataType, expected_interval_start: str, expected_interval_end: str | None
     ):
         schema = StructType([StructField("col1", pyspark_type, nullable=True)])
@@ -526,6 +624,9 @@ class TestPySparkLoaderMetadata:
             "json_string": '{"parsed": true}',  # Remains as string
         }
 
+    @pytest.mark.skipif(
+        not HAS_CALENDAR_INTERVAL_TYPE, reason="CalendarIntervalType not available"
+    )
     def test_metadata_preserved_with_fallback_types(self):
         """Test that metadata is preserved when using fallback types."""
         field_metadata = {
@@ -625,6 +726,9 @@ class TestPySparkLoaderSchema:
 
 # %% Unsupported types and error handling
 class TestPySparkLoaderUnsupportedTypes:
+    @pytest.mark.skipif(
+        not HAS_CALENDAR_INTERVAL_TYPE, reason="CalendarIntervalType not available"
+    )
     def test_calendar_interval_type_raises_error(self):
         schema = StructType(
             [StructField("interval_col", CalendarIntervalType(), nullable=True)]
@@ -682,6 +786,9 @@ class TestPySparkLoaderWithConfig:
         assert loader.config.mode == "raise"
         assert loader.config.fallback_type == Binary()
 
+    @pytest.mark.skipif(
+        not HAS_CALENDAR_INTERVAL_TYPE, reason="CalendarIntervalType not available"
+    )
     def test_mode_override_in_load_method(self):
         config = PySparkLoaderConfig(mode="coerce")
         loader = PySparkLoader(config)
@@ -692,6 +799,9 @@ class TestPySparkLoaderWithConfig:
         with pytest.raises(UnsupportedFeatureError):
             loader.load(schema, name="test", version="1.0.0", mode="raise")
 
+    @pytest.mark.skipif(
+        not HAS_CALENDAR_INTERVAL_TYPE, reason="CalendarIntervalType not available"
+    )
     def test_coercion_mode_with_default_fallback(self):
         config = PySparkLoaderConfig(mode="coerce")
         loader = PySparkLoader(config)
@@ -712,6 +822,9 @@ class TestPySparkLoaderWithConfig:
         assert column.name == "interval_col"
         assert column.type == String()
 
+    @pytest.mark.skipif(
+        not HAS_CALENDAR_INTERVAL_TYPE, reason="CalendarIntervalType not available"
+    )
     def test_coercion_mode_with_custom_fallback(self):
         config = PySparkLoaderConfig(mode="coerce", fallback_type=Binary(length=10))
         loader = PySparkLoader(config)
@@ -734,6 +847,9 @@ class TestPySparkLoaderWithConfig:
         assert column.name == "interval_col"
         assert column.type == Binary(length=10)
 
+    @pytest.mark.skipif(
+        not HAS_CALENDAR_INTERVAL_TYPE, reason="CalendarIntervalType not available"
+    )
     def test_raise_mode_with_unsupported_types(self):
         config = PySparkLoaderConfig(mode="raise")
         loader = PySparkLoader(config)
@@ -746,6 +862,9 @@ class TestPySparkLoaderWithConfig:
         ):
             loader.load(schema, name="test", version="1.0.0")
 
+    @pytest.mark.skipif(
+        not HAS_CALENDAR_INTERVAL_TYPE, reason="CalendarIntervalType not available"
+    )
     def test_multiple_unsupported_types_coercion(self):
         config = PySparkLoaderConfig(mode="coerce", fallback_type=String())
         loader = PySparkLoader(config)
@@ -771,6 +890,9 @@ class TestPySparkLoaderWithConfig:
         assert spec.columns[1].name == "normal_col"
         assert spec.columns[1].type == String()  # normal conversion
 
+    @pytest.mark.skipif(
+        not HAS_CALENDAR_INTERVAL_TYPE, reason="CalendarIntervalType not available"
+    )
     def test_field_context_in_error_messages(self):
         config = PySparkLoaderConfig(mode="raise")
         loader = PySparkLoader(config)
@@ -784,6 +906,9 @@ class TestPySparkLoaderWithConfig:
 
         assert "for 'my_field'" in str(exc_info.value)
 
+    @pytest.mark.skipif(
+        not HAS_CALENDAR_INTERVAL_TYPE, reason="CalendarIntervalType not available"
+    )
     def test_nested_unsupported_types_coercion(self):
         config = PySparkLoaderConfig(mode="coerce", fallback_type=String())
         loader = PySparkLoader(config)
@@ -818,6 +943,9 @@ class TestPySparkLoaderWithConfig:
         interval_field = next(f for f in column.type.fields if f.name == "interval_field")
         assert isinstance(interval_field.type, String)  # unsupported field coerced
 
+    @pytest.mark.skipif(
+        not HAS_CALENDAR_INTERVAL_TYPE, reason="CalendarIntervalType not available"
+    )
     def test_fallback_preserves_field_nullability(self):
         """Test that field nullability is preserved during fallback."""
         schema = StructType(
@@ -841,6 +969,9 @@ class TestPySparkLoaderWithConfig:
         assert len(column.constraints) == 1
         assert isinstance(column.constraints[0], NotNullConstraint)
 
+    @pytest.mark.skipif(
+        not HAS_CALENDAR_INTERVAL_TYPE, reason="CalendarIntervalType not available"
+    )
     def test_fallback_preserves_field_nullability_with_binary_fallback(self):
         """Test that field nullability is preserved with binary fallback."""
         schema = StructType(
@@ -863,6 +994,9 @@ class TestPySparkLoaderWithConfig:
         assert column.is_nullable is True  # preserved
         assert len(column.constraints) == 0
 
+    @pytest.mark.skipif(
+        not HAS_CALENDAR_INTERVAL_TYPE, reason="CalendarIntervalType not available"
+    )
     def test_complex_nested_fallback_behavior(self):
         inner_struct = StructType(
             [
