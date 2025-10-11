@@ -43,7 +43,6 @@ from pyspark.sql.types import (
     StructType,
     StructField,
     StringType,
-    VarcharType,
     ByteType,
     ShortType,
     IntegerType,
@@ -55,14 +54,51 @@ from pyspark.sql.types import (
     BinaryType,
     DateType,
     TimestampType,
-    TimestampNTZType,
-    YearMonthIntervalType,
-    DayTimeIntervalType,
     ArrayType,
     MapType,
     NullType,
-    VariantType,
 )
+
+# Optional types that may not be available in older PySpark versions
+try:
+    from pyspark.sql.types import VarcharType  # type: ignore[attr-defined]
+
+    HAS_VARCHAR_TYPE = True
+except ImportError:
+    VarcharType = None  # type: ignore[assignment, misc]
+    HAS_VARCHAR_TYPE = False
+
+try:
+    from pyspark.sql.types import TimestampNTZType  # type: ignore[attr-defined]
+
+    HAS_TIMESTAMP_NTZ_TYPE = True
+except ImportError:
+    TimestampNTZType = None  # type: ignore[assignment, misc]
+    HAS_TIMESTAMP_NTZ_TYPE = False
+
+try:
+    from pyspark.sql.types import YearMonthIntervalType  # type: ignore[attr-defined]
+
+    HAS_YEAR_MONTH_INTERVAL_TYPE = True
+except ImportError:
+    YearMonthIntervalType = None  # type: ignore[assignment, misc]
+    HAS_YEAR_MONTH_INTERVAL_TYPE = False
+
+try:
+    from pyspark.sql.types import DayTimeIntervalType  # type: ignore[attr-defined]
+
+    HAS_DAY_TIME_INTERVAL_TYPE = True
+except ImportError:
+    DayTimeIntervalType = None  # type: ignore[assignment, misc]
+    HAS_DAY_TIME_INTERVAL_TYPE = False
+
+try:
+    from pyspark.sql.types import VariantType  # type: ignore[attr-defined]
+
+    HAS_VARIANT_TYPE = True
+except ImportError:
+    VariantType = None  # type: ignore[assignment, misc]
+    HAS_VARIANT_TYPE = False
 
 
 # fmt: off
@@ -73,7 +109,12 @@ class TestPySparkConverterTypes:
         [
             # String types
             (String(), StringType(), None),
-            (String(length=255), VarcharType(255), None),
+            pytest.param(
+                String(length=255), 
+                VarcharType(255) if HAS_VARCHAR_TYPE else StringType(), 
+                None if HAS_VARCHAR_TYPE else "Fixed length String type",
+                id="string_with_length"
+            ),
             
             # Integer types - signed
             (Integer(bits=8), ByteType(), None),
@@ -114,7 +155,12 @@ class TestPySparkConverterTypes:
             (Timestamp(unit=TimeUnit.S), TimestampType(), None),  # unit ignored
             (TimestampTZ(tz="UTC"), TimestampType(), None),  # tz ignored
             (TimestampLTZ(), TimestampType(), None),
-            (TimestampNTZ(), TimestampNTZType(), None),
+            pytest.param(
+                TimestampNTZ(), 
+                TimestampNTZType() if HAS_TIMESTAMP_NTZ_TYPE else StringType(), 
+                None if HAS_TIMESTAMP_NTZ_TYPE else "TimestampNTZ type",
+                id="timestamp_ntz"
+            ),
             
             # Void type
             (Void(), NullType(), None),
@@ -193,8 +239,12 @@ class TestPySparkConverterTypes:
             assert len(w) == 1
             assert issubclass(w[0].category, ValidationWarning)
 
-    def test_interval_types(self):
-        """Test interval type conversions."""
+    @pytest.mark.skipif(
+        not HAS_YEAR_MONTH_INTERVAL_TYPE, 
+        reason="YearMonthIntervalType not available"
+    )
+    def test_year_month_interval_type(self):
+        """Test year-month interval type conversions."""
         converter = PySparkConverter()
         
         # Year-Month intervals
@@ -204,6 +254,14 @@ class TestPySparkConverterTypes:
         )
         result = converter._convert_type(year_month_interval)
         assert result == YearMonthIntervalType(0, 1)  # YEAR to MONTH
+
+    @pytest.mark.skipif(
+        not HAS_DAY_TIME_INTERVAL_TYPE, 
+        reason="DayTimeIntervalType not available"
+    )
+    def test_day_time_interval_type(self):
+        """Test day-time interval type conversions."""
+        converter = PySparkConverter()
         
         # Day-Time intervals
         day_second_interval = Interval(
@@ -212,6 +270,50 @@ class TestPySparkConverterTypes:
         )
         result = converter._convert_type(day_second_interval)
         assert result == DayTimeIntervalType(0, 3)  # DAY to SECOND
+
+    @pytest.mark.skipif(
+        HAS_YEAR_MONTH_INTERVAL_TYPE, 
+        reason="Only test fallback when YearMonthIntervalType unavailable"
+    )
+    def test_year_month_interval_fallback_coerce_mode(self):
+        """Test year-month interval fallback when type not available."""
+        converter = PySparkConverter(PySparkConverterConfig(mode="coerce"))
+        
+        year_month_interval = Interval(
+            interval_start=IntervalTimeUnit.YEAR, 
+            interval_end=IntervalTimeUnit.MONTH
+        )
+        
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = converter._convert_type(year_month_interval)
+            
+            assert result == StringType()
+            assert len(w) == 1
+            assert issubclass(w[0].category, ValidationWarning)
+            assert "year-month" in str(w[0].message).lower()
+
+    @pytest.mark.skipif(
+        HAS_DAY_TIME_INTERVAL_TYPE, 
+        reason="Only test fallback when DayTimeIntervalType unavailable"
+    )
+    def test_day_time_interval_fallback_coerce_mode(self):
+        """Test day-time interval fallback when type not available."""
+        converter = PySparkConverter(PySparkConverterConfig(mode="coerce"))
+        
+        day_second_interval = Interval(
+            interval_start=IntervalTimeUnit.DAY, 
+            interval_end=IntervalTimeUnit.SECOND
+        )
+        
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = converter._convert_type(day_second_interval)
+            
+            assert result == StringType()
+            assert len(w) == 1
+            assert issubclass(w[0].category, ValidationWarning)
+            assert "day-time" in str(w[0].message).lower()
 
     def test_array_types(self):
         """Test array type conversions."""
@@ -263,11 +365,32 @@ class TestPySparkConverterTypes:
         expected = MapType(StringType(), FloatType(), True)
         assert result == expected
 
+    @pytest.mark.skipif(
+        not HAS_VARIANT_TYPE, 
+        reason="VariantType not available"
+    )
     def test_variant_type_available(self):
         """Test variant type when VariantType is available."""
         converter = PySparkConverter()
         result = converter._convert_type(Variant())
         assert result == VariantType()
+
+    @pytest.mark.skipif(
+        HAS_VARIANT_TYPE, 
+        reason="Only test fallback when VariantType unavailable"
+    )
+    def test_variant_type_fallback_coerce_mode(self):
+        """Test variant type fallback when type not available."""
+        converter = PySparkConverter(PySparkConverterConfig(mode="coerce"))
+        
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = converter._convert_type(Variant())
+            
+            assert result == StringType()
+            assert len(w) == 1
+            assert issubclass(w[0].category, ValidationWarning)
+            assert "variant" in str(w[0].message).lower()
 # fmt: on
 
 
@@ -275,7 +398,7 @@ class TestPySparkConverterTypes:
 class TestPySparkConverterFields:
     def test_field_conversion(self):
         """Test complete field conversion with metadata."""
-        converter = PySparkConverter()
+        converter = PySparkConverter(PySparkConverterConfig(mode="coerce"))
 
         field = Field(
             name="test_field",
@@ -285,14 +408,23 @@ class TestPySparkConverterFields:
             constraints=[NotNullConstraint()],
         )
 
-        result = converter._convert_field(field)
-        expected = StructField(
-            "test_field",
-            VarcharType(100),
-            nullable=False,
-            metadata={"description": "Test field description", "custom": "value"},
-        )
-        assert result == expected
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = converter._convert_field(field)
+
+            expected_type = VarcharType(100) if HAS_VARCHAR_TYPE else StringType()
+            expected = StructField(
+                "test_field",
+                expected_type,
+                nullable=False,
+                metadata={"description": "Test field description", "custom": "value"},
+            )
+            assert result == expected
+
+            # Check for warning if VarcharType not available
+            if not HAS_VARCHAR_TYPE:
+                assert len(w) == 1
+                assert issubclass(w[0].category, ValidationWarning)
 
     def test_field_conversion_no_metadata(self):
         """Test field conversion without metadata."""
@@ -371,28 +503,34 @@ class TestPySparkConverterSchema:
             ],
         )
 
-        converter = PySparkConverter()
-        result = converter.convert(spec)
+        converter = PySparkConverter(PySparkConverterConfig(mode="coerce"))
 
-        expected = StructType(
-            [
-                StructField("id", LongType(), True),
-                StructField(
-                    "address",
-                    StructType(
-                        [
-                            StructField("street", StringType(), True),
-                            StructField("city", StringType(), True),
-                            StructField("zip", VarcharType(10), True),
-                        ]
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            result = converter.convert(spec)
+
+            expected_zip_type = VarcharType(10) if HAS_VARCHAR_TYPE else StringType()
+            expected = StructType(
+                [
+                    StructField("id", LongType(), True),
+                    StructField(
+                        "address",
+                        StructType(
+                            [
+                                StructField("street", StringType(), True),
+                                StructField("city", StringType(), True),
+                                StructField("zip", expected_zip_type, True),
+                            ]
+                        ),
+                        True,
                     ),
-                    True,
-                ),
-                StructField("tags", ArrayType(StringType(), True), True),
-                StructField("metadata", MapType(StringType(), StringType(), True), True),
-            ]
-        )
-        assert result == expected
+                    StructField("tags", ArrayType(StringType(), True), True),
+                    StructField(
+                        "metadata", MapType(StringType(), StringType(), True), True
+                    ),
+                ]
+            )
+            assert result == expected
 
 
 # %% Configuration
@@ -509,9 +647,11 @@ class TestPySparkConverterConfig:
         """column_overrides takes precedence over default conversion."""
 
         def integer_as_string_override(field, converter):
+            # Use StringType if VarcharType not available
+            override_type = VarcharType(255) if HAS_VARCHAR_TYPE else StringType()
             return StructField(
                 field.name,
-                VarcharType(255),
+                override_type,
                 nullable=field.is_nullable,
                 metadata={"converted_from": "integer"},
             )
@@ -535,7 +675,8 @@ class TestPySparkConverterConfig:
         assert normal_field.dataType == IntegerType()
 
         string_field = next(f for f in result.fields if f.name == "varchar_int")
-        assert string_field.dataType == VarcharType(255)
+        expected_type = VarcharType(255) if HAS_VARCHAR_TYPE else StringType()
+        assert string_field.dataType == expected_type
         assert string_field.metadata == {"converted_from": "integer"}
 
     def test_precedence_override_over_fallback(self):
@@ -583,9 +724,10 @@ class TestPySparkConverterConfig:
         """Column overrides should preserve original field nullability."""
 
         def nullable_override(field, converter):
+            override_type = VarcharType(255) if HAS_VARCHAR_TYPE else StringType()
             return StructField(
                 field.name,
-                VarcharType(255),
+                override_type,
                 nullable=field.is_nullable,
                 metadata={"nullable_preserved": str(field.is_nullable)},
             )
@@ -889,7 +1031,8 @@ class TestPySparkConverterIntegration:
             assert field_dict["id"].dataType == LongType()
             assert field_dict["id"].nullable is False
 
-            assert field_dict["name"].dataType == VarcharType(100)
+            expected_name_type = VarcharType(100) if HAS_VARCHAR_TYPE else StringType()
+            assert field_dict["name"].dataType == expected_name_type
             assert field_dict["score"].dataType == DoubleType()
             assert field_dict["amount"].dataType == DecimalType(10, 2)
             assert field_dict["active"].dataType == BooleanType()
@@ -908,7 +1051,11 @@ class TestPySparkConverterIntegration:
             assert field_dict["properties"].dataType.keyType == StringType()
             assert field_dict["properties"].dataType.valueType == StringType()
 
-            assert isinstance(field_dict["duration"].dataType, DayTimeIntervalType)
+            # Check interval type - either DayTimeIntervalType or fallback
+            if HAS_DAY_TIME_INTERVAL_TYPE:
+                assert isinstance(field_dict["duration"].dataType, DayTimeIntervalType)
+            else:
+                assert field_dict["duration"].dataType == StringType()
 
 
 # %% Field-level fallback in complex types
