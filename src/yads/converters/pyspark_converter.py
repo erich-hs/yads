@@ -155,7 +155,7 @@ class PySparkConverter(BaseConverter):
             validation_warning(
                 message=(
                     f"PySparkConverter does not support type: {yads_type}"
-                    f" for '{self._current_field_name or '<unknown>'}'."
+                    f" for '{self._field_context}'."
                     f" The data type will be coerced to {self.config.fallback_type}."
                 ),
                 filename="yads.converters.pyspark_converter",
@@ -164,18 +164,23 @@ class PySparkConverter(BaseConverter):
             return self.config.fallback_type
         raise UnsupportedFeatureError(
             f"PySparkConverter does not support type: {yads_type}"
-            f" for '{self._current_field_name or '<unknown>'}'."
+            f" for '{self._field_context}'."
         )
 
     @_convert_type.register(ytypes.String)
     def _(self, yads_type: ytypes.String) -> DataType:
+        if yads_type.length is not None:
+            VarcharType = self._try_import_pyspark_type(
+                type_name="VarcharType",
+                min_version="3.4.0",
+                feature_description="Fixed length String type",
+            )
+            return VarcharType(yads_type.length)
+
         from pyspark.sql.types import (
-            VarcharType,
             StringType,
         )
 
-        if yads_type.length is not None:
-            return VarcharType(yads_type.length)
         return StringType()
 
     @_convert_type.register(ytypes.Integer)
@@ -211,7 +216,7 @@ class PySparkConverter(BaseConverter):
                     validation_warning(
                         message=(
                             f"Unsigned Integer(bits=8) is not supported by PySpark"
-                            f" for '{self._current_field_name or '<unknown>'}'."
+                            f" for '{self._field_context}'."
                             f" The data type will be coerced to ShortType()."
                         ),
                         filename="yads.converters.pyspark_converter",
@@ -222,7 +227,7 @@ class PySparkConverter(BaseConverter):
                     validation_warning(
                         message=(
                             f"Unsigned Integer(bits=16) is not supported by PySpark"
-                            f" for '{self._current_field_name or '<unknown>'}'."
+                            f" for '{self._field_context}'."
                             f" The data type will be coerced to IntegerType()."
                         ),
                         filename="yads.converters.pyspark_converter",
@@ -233,7 +238,7 @@ class PySparkConverter(BaseConverter):
                     validation_warning(
                         message=(
                             f"Unsigned Integer(bits=32) is not supported by PySpark"
-                            f" for '{self._current_field_name or '<unknown>'}'."
+                            f" for '{self._field_context}'."
                             f" The data type will be coerced to LongType()."
                         ),
                         filename="yads.converters.pyspark_converter",
@@ -244,7 +249,7 @@ class PySparkConverter(BaseConverter):
                     validation_warning(
                         message=(
                             f"Unsigned Integer(bits=64) is not supported by PySpark"
-                            f" for '{self._current_field_name or '<unknown>'}'."
+                            f" for '{self._field_context}'."
                             f" The data type will be coerced to DecimalType(20, 0)."
                         ),
                         filename="yads.converters.pyspark_converter",
@@ -259,7 +264,7 @@ class PySparkConverter(BaseConverter):
                 raise UnsupportedFeatureError(
                     (
                         f"Unsigned Integer(bits={bits}) is not supported by PySpark"
-                        f" for '{self._current_field_name or '<unknown>'}'."
+                        f" for '{self._field_context}'."
                     )
                 )
 
@@ -277,7 +282,7 @@ class PySparkConverter(BaseConverter):
                 validation_warning(
                     message=(
                         f"Float(bits=16) is not supported by PySpark"
-                        f" for '{self._current_field_name or '<unknown>'}'."
+                        f" for '{self._field_context}'."
                         f" The data type will be coerced to FloatType()."
                     ),
                     filename="yads.converters.pyspark_converter",
@@ -288,7 +293,7 @@ class PySparkConverter(BaseConverter):
                 raise UnsupportedFeatureError(
                     (
                         f"Float(bits=16) is not supported by PySpark"
-                        f" for '{self._current_field_name or '<unknown>'}'."
+                        f" for '{self._field_context}'."
                     )
                 )
         elif bits == 32:
@@ -352,18 +357,16 @@ class PySparkConverter(BaseConverter):
 
     @_convert_type.register(ytypes.TimestampNTZ)
     def _(self, yads_type: ytypes.TimestampNTZ) -> DataType:
-        from pyspark.sql.types import TimestampNTZType
-
+        TimestampNTZType = self._try_import_pyspark_type(
+            type_name="TimestampNTZType",
+            min_version="3.4.0",
+            feature_description="TimestampNTZ type",
+        )
         # Ignore unit parameter
         return TimestampNTZType()
 
     @_convert_type.register(ytypes.Interval)
     def _(self, yads_type: ytypes.Interval) -> DataType:
-        from pyspark.sql.types import (
-            YearMonthIntervalType,
-            DayTimeIntervalType,
-        )
-
         start_field = yads_type.interval_start
         end_field = yads_type.interval_end or start_field
 
@@ -395,6 +398,12 @@ class PySparkConverter(BaseConverter):
                     "Year-Month intervals must use YEAR or MONTH units only."
                 )
 
+            YearMonthIntervalType = self._try_import_pyspark_type(
+                type_name="YearMonthIntervalType",
+                min_version="3.5.0",
+                feature_description="Interval type with year-month units",
+            )
+
             start_val = YEAR if start_field == ytypes.IntervalTimeUnit.YEAR else MONTH
             end_val = YEAR if end_field == ytypes.IntervalTimeUnit.YEAR else MONTH
             return YearMonthIntervalType(start_val, end_val)
@@ -405,6 +414,12 @@ class PySparkConverter(BaseConverter):
                     f"Invalid interval combination: {start_field} to {end_field}. "
                     "Day-Time intervals must use DAY, HOUR, MINUTE, or SECOND units only."
                 )
+
+            DayTimeIntervalType = self._try_import_pyspark_type(
+                type_name="DayTimeIntervalType",
+                min_version="3.2.0",
+                feature_description="Interval type with day-time units",
+            )
 
             start_val = {
                 ytypes.IntervalTimeUnit.DAY: DAY,
@@ -459,25 +474,11 @@ class PySparkConverter(BaseConverter):
 
     @_convert_type.register(ytypes.Variant)
     def _(self, yads_type: ytypes.Variant) -> DataType:
-        VariantType, msg = try_import_optional(
-            "pyspark.sql.types",
-            required_import="VariantType",
-            package_name="pyspark",
+        VariantType = self._try_import_pyspark_type(
+            type_name="VariantType",
             min_version="4.0.0",
-            context=f"Variant type for '{self._current_field_name or '<unknown>'}'",
+            feature_description="Variant type",
         )
-        if VariantType is None:
-            if self.config.mode == "coerce":
-                validation_warning(
-                    message=f"{msg}\nThe data type will be coerced to {self.config.fallback_type}.",
-                    filename="yads.converters.pyspark_converter",
-                    module=__name__,
-                )
-                return self.config.fallback_type
-            raise UnsupportedFeatureError(
-                "Variant type requires PySpark with VariantType support (>= 4.0)"
-                f" for '{self._current_field_name or '<unknown>'}'."
-            )
         return VariantType()
 
     def _convert_field(self, field: yspec.Field) -> StructField:
@@ -499,3 +500,40 @@ class PySparkConverter(BaseConverter):
 
     def _convert_field_default(self, field: Field) -> StructField:
         return self._convert_field(field)
+
+    # %% ---- Helpers -----------------------------------------------------------------
+    def _try_import_pyspark_type(
+        self,
+        *,
+        type_name: str,
+        min_version: str,
+        feature_description: str,
+    ) -> Any:
+        """Import version-gated PySpark type with mode-aware fallback."""
+        context = f"{feature_description} for '{self._field_context}'"
+
+        imported_type, msg = try_import_optional(
+            "pyspark.sql.types",
+            required_import=type_name,
+            package_name="pyspark",
+            min_version=min_version,
+            context=context,
+        )
+
+        if imported_type is None:
+            if self.config.mode == "coerce":
+                validation_warning(
+                    message=(
+                        f"{msg}\n"
+                        f"The data type will be coerced to {self.config.fallback_type}."
+                    ),
+                    filename="yads.converters.pyspark_converter",
+                    module=__name__,
+                )
+                return self.config.fallback_type
+            raise UnsupportedFeatureError(
+                f"{feature_description} requires PySpark >= {min_version} "
+                f"for '{self._field_context}'."
+            )
+
+        return imported_type
