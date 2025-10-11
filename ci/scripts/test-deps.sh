@@ -40,7 +40,7 @@ fi
 get_test_path() {
     case "$1" in
         pyspark)
-            echo "tests/converters/test_pyspark_converter.py"
+            echo "tests/converters/test_pyspark_converter.py tests/loaders/test_pyspark_loader.py"
             ;;
         pyarrow)
             echo "tests/converters/test_pyarrow_converter.py tests/loaders/test_pyarrow_loader.py"
