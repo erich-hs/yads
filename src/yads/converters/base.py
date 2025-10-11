@@ -109,6 +109,11 @@ class BaseConverter(Generic[T], ABC):
         """Convert a YadsSpec to the target format."""
         ...
 
+    @property
+    def _field_context(self) -> str:
+        """Current field name or '<unknown>' for error messages."""
+        return self._current_field_name or "<unknown>"
+
     def _filter_columns(self, spec: YadsSpec) -> Generator[Field, None, None]:
         for column in spec.columns:
             name = column.name
