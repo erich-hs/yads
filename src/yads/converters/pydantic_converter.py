@@ -169,7 +169,7 @@ class PydanticConverter(BaseConverter):
             validation_warning(
                 message=(
                     f"PydanticConverter does not support type: {yads_type}"
-                    f" for '{self._current_field_name or '<unknown>'}'."
+                    f" for '{self._field_context}'."
                     f" The data type will be coerced to {self.config.fallback_type.__name__}."
                 ),
                 filename="yads.converters.pydantic_converter",
@@ -179,7 +179,7 @@ class PydanticConverter(BaseConverter):
             return fallback_type, self.required()
         raise UnsupportedFeatureError(
             f"PydanticConverter does not support type: {yads_type}"
-            f" for '{self._current_field_name or '<unknown>'}'."
+            f" for '{self._field_context}'."
         )
 
     @_convert_type.register(ytypes.String)
@@ -226,7 +226,8 @@ class PydanticConverter(BaseConverter):
             else:
                 raise UnsupportedFeatureError(
                     f"Float(bits={yads_type.bits}) cannot be represented exactly"
-                    f" in Pydantic; Python float is 64-bit."
+                    f" in Pydantic; Python float is 64-bit"
+                    f" for '{self._field_context}'."
                 )
         field_info = self.required()
         return float, field_info

@@ -207,7 +207,8 @@ class PySparkConverter(BaseConverter):
                 return mapping[bits]
             except KeyError as e:
                 raise UnsupportedFeatureError(
-                    f"Unsupported Integer bits: {bits}. Expected 8/16/32/64."
+                    f"Unsupported Integer bits: {bits}. Expected 8/16/32/64"
+                    f" for '{self._field_context}'."
                 ) from e
         else:
             # Handle unsigned integers
@@ -258,7 +259,8 @@ class PySparkConverter(BaseConverter):
                     return DecimalType(20, 0)
                 else:
                     raise UnsupportedFeatureError(
-                        f"Unsupported Integer bits: {bits}. Expected 8/16/32/64."
+                        f"Unsupported Integer bits: {bits}. Expected 8/16/32/64"
+                        f" for '{self._field_context}'."
                     )
             else:
                 raise UnsupportedFeatureError(
@@ -302,7 +304,8 @@ class PySparkConverter(BaseConverter):
             return DoubleType()
         else:
             raise UnsupportedFeatureError(
-                f"Unsupported Float bits: {bits}. Expected 16/32/64."
+                f"Unsupported Float bits: {bits}. Expected 16/32/64"
+                f" for '{self._field_context}'."
             )
 
     @_convert_type.register(ytypes.Decimal)
@@ -395,7 +398,8 @@ class PySparkConverter(BaseConverter):
             if end_field not in year_month_units:
                 raise UnsupportedFeatureError(
                     f"Invalid interval combination: {start_field} to {end_field}. "
-                    "Year-Month intervals must use YEAR or MONTH units only."
+                    f"Year-Month intervals must use YEAR or MONTH units only"
+                    f" for '{self._field_context}'."
                 )
 
             YearMonthIntervalType = self._try_import_pyspark_type(
@@ -412,7 +416,8 @@ class PySparkConverter(BaseConverter):
             if end_field not in day_time_units:
                 raise UnsupportedFeatureError(
                     f"Invalid interval combination: {start_field} to {end_field}. "
-                    "Day-Time intervals must use DAY, HOUR, MINUTE, or SECOND units only."
+                    f"Day-Time intervals must use DAY, HOUR, MINUTE, or SECOND units only"
+                    f" for '{self._field_context}'."
                 )
 
             DayTimeIntervalType = self._try_import_pyspark_type(
@@ -437,6 +442,7 @@ class PySparkConverter(BaseConverter):
         else:
             raise UnsupportedFeatureError(
                 f"Unsupported interval start field: {start_field}"
+                f" for '{self._field_context}'."
             )
 
     @_convert_type.register(ytypes.Array)

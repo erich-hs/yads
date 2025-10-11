@@ -172,7 +172,7 @@ class PyArrowConverter(BaseConverter):
             validation_warning(
                 message=(
                     f"PyArrowConverter does not support type: {yads_type}"
-                    f" for '{self._current_field_name or '<unknown>'}'."
+                    f" for '{self._field_context}'."
                     f" The data type will be coerced to {self.config.fallback_type}."
                 ),
                 filename="yads.converters.pyarrow_converter",
@@ -181,7 +181,7 @@ class PyArrowConverter(BaseConverter):
             return self.config.fallback_type
         raise UnsupportedFeatureError(
             f"PyArrowConverter does not support type: {yads_type}"
-            f" for '{self._current_field_name or '<unknown>'}'."
+            f" for '{self._field_context}'."
         )
 
     @_convert_type.register(ytypes.String)
@@ -213,7 +213,8 @@ class PyArrowConverter(BaseConverter):
             return mapping[bits]
         except KeyError as e:
             raise UnsupportedFeatureError(
-                f"Unsupported Integer bits: {bits}. Expected 8/16/32/64."
+                f"Unsupported Integer bits: {bits}. Expected 8/16/32/64"
+                f" for '{self._field_context}'."
             ) from e
 
     @_convert_type.register(ytypes.Float)
@@ -226,7 +227,8 @@ class PyArrowConverter(BaseConverter):
             return mapping[bits]
         except KeyError as e:
             raise UnsupportedFeatureError(
-                f"Unsupported Float bits: {bits}. Expected 16/32/64."
+                f"Unsupported Float bits: {bits}. Expected 16/32/64"
+                f" for '{self._field_context}'."
             ) from e
 
     @_convert_type.register(ytypes.Decimal)
@@ -244,7 +246,8 @@ class PyArrowConverter(BaseConverter):
             if width_bits == 256:
                 return pa.decimal256(precision, scale)
             raise UnsupportedFeatureError(
-                f"Unsupported Decimal bits: {width_bits}. Expected 128/256."
+                f"Unsupported Decimal bits: {width_bits}. Expected 128/256"
+                f" for '{self._field_context}'."
             )
 
         if bits is None:
@@ -256,7 +259,7 @@ class PyArrowConverter(BaseConverter):
                 validation_warning(
                     message=(
                         "Precision greater than 38 is incompatible with Decimal(bits=128)"
-                        f" for column '{self._current_field_name or '<unknown>'}'."
+                        f" for '{self._field_context}'."
                         f" The data type will be replaced with pyarrow.decimal256({precision=}, {scale=})."
                     ),
                     filename="yads.converters.pyarrow_converter",
@@ -264,7 +267,8 @@ class PyArrowConverter(BaseConverter):
                 )
                 return build_decimal(256)
             raise UnsupportedFeatureError(
-                "precision > 38 is incompatible with Decimal(bits=128)."
+                f"precision > 38 is incompatible with Decimal(bits=128)"
+                f" for '{self._field_context}'."
             )
         return build_decimal(bits)
 
@@ -292,7 +296,8 @@ class PyArrowConverter(BaseConverter):
             return mapping[bits]
         except KeyError as e:
             raise UnsupportedFeatureError(
-                f"Unsupported Date bits: {bits}. Expected 32/64."
+                f"Unsupported Date bits: {bits}. Expected 32/64"
+                f" for '{self._field_context}'."
             ) from e
 
     @_convert_type.register(ytypes.Time)
@@ -314,7 +319,7 @@ class PyArrowConverter(BaseConverter):
                     validation_warning(
                         message=(
                             "time32 supports only 's' or 'ms' units"
-                            f" (got '{unit}') for column '{self._current_field_name or '<unknown>'}'."
+                            f" (got '{unit}') for '{self._field_context}'."
                             f" The data type will be replaced with pyarrow.time64({unit=})."
                         ),
                         filename="yads.converters.pyarrow_converter",
@@ -322,7 +327,8 @@ class PyArrowConverter(BaseConverter):
                     )
                     return pa.time64(unit)
                 raise UnsupportedFeatureError(
-                    f"time32 supports only 's' or 'ms' units (got '{unit}')."
+                    f"time32 supports only 's' or 'ms' units (got '{unit}')"
+                    f" for '{self._field_context}'."
                 )
             return pa.time32(unit)
         elif bits == 64:
@@ -332,7 +338,7 @@ class PyArrowConverter(BaseConverter):
                     validation_warning(
                         message=(
                             "time64 supports only 'us' or 'ns' units"
-                            f" (got '{unit}') for column '{self._current_field_name or '<unknown>'}'."
+                            f" (got '{unit}') for '{self._field_context}'."
                             f" The data type will be replaced with pyarrow.time32({unit=})."
                         ),
                         filename="yads.converters.pyarrow_converter",
@@ -340,10 +346,13 @@ class PyArrowConverter(BaseConverter):
                     )
                     return pa.time32(unit)
                 raise UnsupportedFeatureError(
-                    f"time64 supports only 'us' or 'ns' units (got '{unit}')."
+                    f"time64 supports only 'us' or 'ns' units (got '{unit}')"
+                    f" for '{self._field_context}'."
                 )
             return pa.time64(unit)
-        raise UnsupportedFeatureError(f"Unsupported Time bits: {bits}. Expected 32/64.")
+        raise UnsupportedFeatureError(
+            f"Unsupported Time bits: {bits}. Expected 32/64 for '{self._field_context}'."
+        )
 
     @_convert_type.register(ytypes.Timestamp)
     def _(self, yads_type: ytypes.Timestamp) -> pa.DataType:

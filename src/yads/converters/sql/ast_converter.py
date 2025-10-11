@@ -231,7 +231,7 @@ class SQLGlotConverter(BaseConverter, AstConverter):
                 validation_warning(
                     message=(
                         f"SQLGlotConverter does not support type: {yads_type}"
-                        f" for '{self._current_field_name or '<unknown>'}'."
+                        f" for '{self._field_context}'."
                         f" The data type will be coerced to {self.config.fallback_type.name}."
                     ),
                     filename="yads.converters.sql.ast_converter",
@@ -240,7 +240,7 @@ class SQLGlotConverter(BaseConverter, AstConverter):
                 return exp.DataType(this=self.config.fallback_type)
             raise UnsupportedFeatureError(
                 f"SQLGlotConverter does not support type: {yads_type}"
-                f" for '{self._current_field_name or '<unknown>'}'."
+                f" for '{self._field_context}'."
             )
 
     @_convert_type.register(ytypes.String)
@@ -278,7 +278,8 @@ class SQLGlotConverter(BaseConverter, AstConverter):
             return exp.DataType(this=mapping[bits])
         except KeyError as e:
             raise UnsupportedFeatureError(
-                f"Unsupported Integer bits: {bits}. Expected 8/16/32/64."
+                f"Unsupported Integer bits: {bits}. Expected 8/16/32/64"
+                f" for '{self._field_context}'."
             ) from e
 
     @_convert_type.register(ytypes.Float)
@@ -298,14 +299,16 @@ class SQLGlotConverter(BaseConverter, AstConverter):
                 )
                 return exp.DataType(this=exp.DataType.Type.FLOAT)
             raise UnsupportedFeatureError(
-                f"SQLGlotConverter does not support half-precision Float (bits={bits})."
+                f"SQLGlotConverter does not support half-precision Float (bits={bits})"
+                f" for '{self._field_context}'."
             )
         elif bits == 32:
             return exp.DataType(this=exp.DataType.Type.FLOAT)
         elif bits == 64:
             return exp.DataType(this=exp.DataType.Type.DOUBLE)
         raise UnsupportedFeatureError(
-            f"Unsupported Float bits: {bits}. Expected 16/32/64."
+            f"Unsupported Float bits: {bits}. Expected 16/32/64"
+            f" for '{self._field_context}'."
         )
 
     @_convert_type.register(ytypes.Decimal)
@@ -474,7 +477,7 @@ class SQLGlotConverter(BaseConverter, AstConverter):
             validation_warning(
                 message=(
                     f"SQLGlotConverter does not support constraint: {type(constraint)}"
-                    f" for column '{self._current_field_name or '<unknown>'}'."
+                    f" for '{self._field_context}'."
                     f" The constraint will be omitted."
                 ),
                 filename="yads.converters.sql.ast_converter",
@@ -483,7 +486,7 @@ class SQLGlotConverter(BaseConverter, AstConverter):
             return None
         raise UnsupportedFeatureError(
             f"SQLGlotConverter does not support constraint: {type(constraint)}"
-            f" for column '{self._current_field_name or '<unknown>'}'."
+            f" for '{self._field_context}'."
         )
 
     @_convert_column_constraint.register(NotNullConstraint)
@@ -702,7 +705,7 @@ class SQLGlotConverter(BaseConverter, AstConverter):
                 validation_warning(
                     message=(
                         f"Transform type '{cast_to_type}' is not a valid sqlglot Type"
-                        f" for column '{self._current_field_name or '<unknown>'}'."
+                        f" for '{self._field_context}'."
                         f" The expression will be coerced to CAST(... AS {self.config.fallback_type.name})."
                     ),
                     filename="yads.converters.sqlglot",
@@ -714,7 +717,7 @@ class SQLGlotConverter(BaseConverter, AstConverter):
                 )
             raise UnsupportedFeatureError(
                 f"Transform type '{cast_to_type}' is not a valid sqlglot Type"
-                f" for column '{self._current_field_name or '<unknown>'}'."
+                f" for '{self._field_context}'."
             )
         return exp.Cast(
             this=exp.column(column),
