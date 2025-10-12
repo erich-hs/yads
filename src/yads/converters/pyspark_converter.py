@@ -170,16 +170,16 @@ class PySparkConverter(BaseConverter):
     @_convert_type.register(ytypes.String)
     def _(self, yads_type: ytypes.String) -> DataType:
         if yads_type.length is not None:
-            VarcharType = self._try_import_pyspark_type(
+            VarcharType = self._get_version_gated_type(
                 type_name="VarcharType",
                 min_version="3.4.0",
                 feature_description="Fixed length String type",
             )
+            if VarcharType is None:
+                return self.config.fallback_type
             return VarcharType(yads_type.length)
 
-        from pyspark.sql.types import (
-            StringType,
-        )
+        from pyspark.sql.types import StringType
 
         return StringType()
 
@@ -360,11 +360,13 @@ class PySparkConverter(BaseConverter):
 
     @_convert_type.register(ytypes.TimestampNTZ)
     def _(self, yads_type: ytypes.TimestampNTZ) -> DataType:
-        TimestampNTZType = self._try_import_pyspark_type(
+        TimestampNTZType = self._get_version_gated_type(
             type_name="TimestampNTZType",
             min_version="3.4.0",
             feature_description="TimestampNTZ type",
         )
+        if TimestampNTZType is None:
+            return self.config.fallback_type
         # Ignore unit parameter
         return TimestampNTZType()
 
@@ -402,11 +404,13 @@ class PySparkConverter(BaseConverter):
                     f" for '{self._field_context}'."
                 )
 
-            YearMonthIntervalType = self._try_import_pyspark_type(
+            YearMonthIntervalType = self._get_version_gated_type(
                 type_name="YearMonthIntervalType",
                 min_version="3.5.0",
                 feature_description="Interval type with year-month units",
             )
+            if YearMonthIntervalType is None:
+                return self.config.fallback_type
 
             start_val = YEAR if start_field == ytypes.IntervalTimeUnit.YEAR else MONTH
             end_val = YEAR if end_field == ytypes.IntervalTimeUnit.YEAR else MONTH
@@ -420,11 +424,13 @@ class PySparkConverter(BaseConverter):
                     f" for '{self._field_context}'."
                 )
 
-            DayTimeIntervalType = self._try_import_pyspark_type(
+            DayTimeIntervalType = self._get_version_gated_type(
                 type_name="DayTimeIntervalType",
                 min_version="3.2.0",
                 feature_description="Interval type with day-time units",
             )
+            if DayTimeIntervalType is None:
+                return self.config.fallback_type
 
             start_val = {
                 ytypes.IntervalTimeUnit.DAY: DAY,
@@ -480,11 +486,13 @@ class PySparkConverter(BaseConverter):
 
     @_convert_type.register(ytypes.Variant)
     def _(self, yads_type: ytypes.Variant) -> DataType:
-        VariantType = self._try_import_pyspark_type(
+        VariantType = self._get_version_gated_type(
             type_name="VariantType",
             min_version="4.0.0",
             feature_description="Variant type",
         )
+        if VariantType is None:
+            return self.config.fallback_type
         return VariantType()
 
     def _convert_field(self, field: yspec.Field) -> StructField:
@@ -508,17 +516,17 @@ class PySparkConverter(BaseConverter):
         return self._convert_field(field)
 
     # %% ---- Helpers -----------------------------------------------------------------
-    def _try_import_pyspark_type(
+    def _get_version_gated_type(
         self,
         *,
         type_name: str,
         min_version: str,
         feature_description: str,
-    ) -> Any:
-        """Import version-gated PySpark type with mode-aware fallback."""
+    ) -> type | None:
+        """Attempt to import a version-gated PySpark type with mode-aware fallback."""
         context = f"{feature_description} for '{self._field_context}'"
 
-        imported_type, msg = try_import_optional(
+        imported_type, error_msg = try_import_optional(
             "pyspark.sql.types",
             required_import=type_name,
             package_name="pyspark",
@@ -526,20 +534,19 @@ class PySparkConverter(BaseConverter):
             context=context,
         )
 
-        if imported_type is None:
-            if self.config.mode == "coerce":
-                validation_warning(
-                    message=(
-                        f"{msg}\n"
-                        f"The data type will be coerced to {self.config.fallback_type}."
-                    ),
-                    filename="yads.converters.pyspark_converter",
-                    module=__name__,
-                )
-                return self.config.fallback_type
-            raise UnsupportedFeatureError(
-                f"{feature_description} requires PySpark >= {min_version} "
-                f"for '{self._field_context}'."
-            )
+        if imported_type is not None:
+            return imported_type
 
-        return imported_type
+        # Type is unavailable - handle based on mode
+        if self.config.mode == "coerce":
+            validation_warning(
+                message=(
+                    f"{error_msg}\n"
+                    f"The data type will be coerced to {self.config.fallback_type}."
+                ),
+                filename="yads.converters.pyspark_converter",
+                module=__name__,
+            )
+            return None
+
+        raise UnsupportedFeatureError(f"{error_msg}")
