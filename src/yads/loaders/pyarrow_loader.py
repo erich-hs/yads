@@ -29,7 +29,7 @@ from .._dependencies import ensure_dependency
 from .base import BaseLoaderConfig, ConfigurableLoader
 from .common import SpecBuilder
 
-ensure_dependency("pyarrow", min_version="21.0.0")
+ensure_dependency("pyarrow", min_version="15.0.0")
 
 import pyarrow as pa  # type: ignore[import-untyped] # noqa: E402
 
@@ -203,7 +203,9 @@ class PyArrowLoader(ConfigurableLoader):
             return {"type": "string"}
         if getattr(types, "is_large_string", lambda _t: False)(t):
             return {"type": "string"}
-        if types.is_string_view(t):
+        if hasattr(types, "is_string_view") and types.is_string_view(
+            t
+        ):  # Added in pyarrow 16.0.0
             return {"type": "string"}
         if types.is_fixed_size_binary(t):
             # pyarrow.FixedSizeBinaryType exposes byte_width
@@ -215,7 +217,9 @@ class PyArrowLoader(ConfigurableLoader):
             return {"type": "binary"}
         if getattr(types, "is_large_binary", lambda _t: False)(t):
             return {"type": "binary"}
-        if getattr(types, "is_binary_view", lambda _t: False)(t):
+        if hasattr(types, "is_binary_view") and types.is_binary_view(
+            t
+        ):  # Added in pyarrow 16.0.0
             return {"type": "binary"}
 
         # Decimal
@@ -266,8 +270,12 @@ class PyArrowLoader(ConfigurableLoader):
         if (
             types.is_list(t)
             or getattr(types, "is_large_list", lambda _t: False)(t)
-            or getattr(types, "is_list_view", lambda _t: False)(t)
-            or getattr(types, "is_large_list_view", lambda _t: False)(t)
+            or (
+                hasattr(types, "is_list_view") and types.is_list_view(t)
+            )  # Added in pyarrow 16.0.0
+            or (
+                hasattr(types, "is_large_list_view") and types.is_large_list_view(t)
+            )  # Added in pyarrow 16.0.0
         ):
             with self.load_context(field="<array_element>"):
                 elem_def = self._convert_type(t.value_type)
@@ -303,11 +311,17 @@ class PyArrowLoader(ConfigurableLoader):
 
         # Canonical extension types supported by checking the typeclass
         # https://arrow.apache.org/docs/format/CanonicalExtensions.html
-        if isinstance(t, pa.UuidType):
+        if hasattr(pa, "UuidType") and isinstance(
+            t, pa.UuidType
+        ):  # Added in pyarrow 18.0.0
             return {"type": "uuid"}
-        if isinstance(t, pa.JsonType):
+        if hasattr(pa, "JsonType") and isinstance(
+            t, pa.JsonType
+        ):  # Added in pyarrow 19.0.0
             return {"type": "json"}
-        if isinstance(t, pa.Bool8Type):
+        if hasattr(pa, "Bool8Type") and isinstance(
+            t, pa.Bool8Type
+        ):  # Added in pyarrow 18.0.0
             return {"type": "boolean"}
         if isinstance(t, pa.FixedShapeTensorType):
             with self.load_context(field="<tensor_element>"):

@@ -66,9 +66,10 @@ class TestPyArrowLoaderTypeConversion:
             (pa.binary(8), Binary(length=8)),
             (pa.large_string(), String()),
             (pa.large_binary(), Binary()),
-            (pa.string_view(), String()),
-            (pa.binary_view(), Binary()),
-            
+        ] + (
+            # Version-gated view types (added in PyArrow 16.0.0)
+            [(pa.string_view(), String()), (pa.binary_view(), Binary())] if hasattr(pa, 'string_view') else []
+        ) + [
             # Decimal
             (pa.decimal128(10, 2), Decimal(precision=10, scale=2, bits=128)),
             (pa.decimal256(20, 3), Decimal(precision=20, scale=3, bits=256)),
@@ -97,10 +98,13 @@ class TestPyArrowLoaderTypeConversion:
             
             # Interval
             (pa.month_day_nano_interval(), Interval(interval_start=IntervalTimeUnit.DAY)),
-            
-            # Extension types
-            (pa.uuid(), UUID()),
-            (pa.json_(), JSON()),
+        ] + (
+            # Extension types (UUID added in PyArrow 18.0.0)
+            [(pa.uuid(), UUID())] if hasattr(pa, 'uuid') else []
+        ) + (
+            # Extension types (JSON added in PyArrow 19.0.0)
+            [(pa.json_(), JSON())] if hasattr(pa, 'json_') else []
+        ) + [
             (pa.fixed_shape_tensor(pa.int32(), [10, 20]), Tensor(element=Integer(bits=32, signed=True), shape=(10, 20))),
             (pa.fixed_shape_tensor(pa.float64(), [5, 10, 15]), Tensor(element=Float(bits=64), shape=(5, 10, 15))),
             (pa.fixed_shape_tensor(pa.string(), [100]), Tensor(element=String(), shape=(100,))),
@@ -134,16 +138,21 @@ class TestPyArrowLoaderTypeConversion:
             (pa.large_list(pa.int32()), Integer(bits=32, signed=True), None),
             (pa.large_list(pa.string()), String(), None),
             (pa.large_list(pa.bool_()), Boolean(), None),
-            
-            # List view types
-            (pa.list_view(pa.float64()), Float(bits=64), None),
-            (pa.list_view(pa.string()), String(), None),
-            (pa.list_view(pa.int64()), Integer(bits=64, signed=True), None),
-            
-            # Large list view types
-            (pa.large_list_view(pa.bool_()), Boolean(), None),
-            (pa.large_list_view(pa.string()), String(), None),
-            (pa.large_list_view(pa.int32()), Integer(bits=32, signed=True), None),
+        ] + (
+            # List view types (added in PyArrow 16.0.0)
+            [
+                (pa.list_view(pa.float64()), Float(bits=64), None),
+                (pa.list_view(pa.string()), String(), None),
+                (pa.list_view(pa.int64()), Integer(bits=64, signed=True), None),
+            ] if hasattr(pa, 'list_view') else []
+        ) + (
+            # Large list view types (added in PyArrow 16.0.0)
+            [
+                (pa.large_list_view(pa.bool_()), Boolean(), None),
+                (pa.large_list_view(pa.string()), String(), None),
+                (pa.large_list_view(pa.int32()), Integer(bits=32, signed=True), None),
+            ] if hasattr(pa, 'large_list_view') else []
+        ) + [
         ],
     )
     def test_convert_list_types(

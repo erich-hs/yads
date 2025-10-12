@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 
 from ..exceptions import UnsupportedFeatureError, validation_warning
-from .._dependencies import requires_dependency
+from .._dependencies import requires_dependency, try_import_optional
 from .. import spec as yspec
 from .. import types as ytypes
 from .base import BaseConverter, BaseConverterConfig
@@ -419,13 +419,25 @@ class PyArrowConverter(BaseConverter):
     def _(self, yads_type: ytypes.JSON) -> pa.DataType:
         import pyarrow as pa  # type: ignore[import-untyped]
 
-        return pa.json_(storage_type=pa.utf8())
+        json_constructor = self._get_version_gated_constructor(
+            constructor_name="json_",
+            min_version="19.0.0",
+            feature_description="JSON type",
+        )
+        if json_constructor is None:
+            return self.config.fallback_type
+        return json_constructor(storage_type=pa.utf8())
 
     @_convert_type.register(ytypes.UUID)
     def _(self, yads_type: ytypes.UUID) -> pa.DataType:
-        import pyarrow as pa  # type: ignore[import-untyped]
-
-        return pa.uuid()
+        uuid_constructor = self._get_version_gated_constructor(
+            constructor_name="uuid",
+            min_version="18.0.0",
+            feature_description="UUID type",
+        )
+        if uuid_constructor is None:
+            return self.config.fallback_type
+        return uuid_constructor()
 
     @_convert_type.register(ytypes.Void)
     def _(self, yads_type: ytypes.Void) -> pa.DataType:
@@ -503,3 +515,38 @@ class PyArrowConverter(BaseConverter):
             else:
                 coerced[sk] = json.dumps(v, separators=(",", ":"))
         return coerced
+
+    def _get_version_gated_constructor(
+        self,
+        *,
+        constructor_name: str,
+        min_version: str,
+        feature_description: str,
+    ) -> Any | None:
+        """Attempt to import a version-gated PyArrow type constructor with mode-aware fallback."""
+        context = f"{feature_description} for '{self._field_context}'"
+
+        imported_constructor, error_msg = try_import_optional(
+            "pyarrow",
+            required_import=constructor_name,
+            package_name="pyarrow",
+            min_version=min_version,
+            context=context,
+        )
+
+        if imported_constructor is not None:
+            return imported_constructor
+
+        # Constructor is unavailable - handle based on mode
+        if self.config.mode == "coerce":
+            validation_warning(
+                message=(
+                    f"{error_msg}\n"
+                    f"The data type will be coerced to {self.config.fallback_type}."
+                ),
+                filename="yads.converters.pyarrow_converter",
+                module=__name__,
+            )
+            return None
+
+        raise UnsupportedFeatureError(f"{error_msg}")
