@@ -246,14 +246,6 @@ class PySparkLoader(ConfigurableLoader):
     def _(self, dtype: StringType) -> dict[str, Any]:
         return {"type": "string"}
 
-    @_convert_type.register(T.CharType)
-    def _(self, dtype: CharType) -> dict[str, Any]:
-        return {"type": "string", "params": {"length": dtype.length}}
-
-    @_convert_type.register(T.VarcharType)
-    def _(self, dtype: VarcharType) -> dict[str, Any]:
-        return {"type": "string", "params": {"length": dtype.length}}
-
     @_convert_type.register(T.BinaryType)
     def _(self, dtype: BinaryType) -> dict[str, Any]:
         return {"type": "binary"}
@@ -265,52 +257,6 @@ class PySparkLoader(ConfigurableLoader):
     @_convert_type.register(T.TimestampType)
     def _(self, dtype: TimestampType) -> dict[str, Any]:
         return {"type": "timestampltz", "params": {"unit": "ns"}}
-
-    @_convert_type.register(T.TimestampNTZType)
-    def _(self, dtype: TimestampNTZType) -> dict[str, Any]:
-        return {"type": "timestampntz", "params": {"unit": "ns"}}
-
-    @_convert_type.register(T.YearMonthIntervalType)
-    def _(self, dtype: YearMonthIntervalType) -> dict[str, Any]:
-        start_field = dtype.startField
-        end_field = dtype.endField
-        # Map integer field values to names
-        field_names = {0: "YEAR", 1: "MONTH"}
-        start_name = field_names.get(start_field, "YEAR")
-        if end_field is None or start_field == end_field:
-            return {
-                "type": "interval",
-                "params": {"interval_start": start_name},
-            }
-        end_name = field_names.get(end_field, "MONTH")
-        return {
-            "type": "interval",
-            "params": {
-                "interval_start": start_name,
-                "interval_end": end_name,
-            },
-        }
-
-    @_convert_type.register(T.DayTimeIntervalType)
-    def _(self, dtype: DayTimeIntervalType) -> dict[str, Any]:
-        start_field = dtype.startField
-        end_field = dtype.endField
-        # Map integer field values to names
-        field_names = {0: "DAY", 1: "HOUR", 2: "MINUTE", 3: "SECOND"}
-        start_name = field_names.get(start_field, "DAY")
-        if end_field is None or start_field == end_field:
-            return {
-                "type": "interval",
-                "params": {"interval_start": start_name},
-            }
-        end_name = field_names.get(end_field, "SECOND")
-        return {
-            "type": "interval",
-            "params": {
-                "interval_start": start_name,
-                "interval_end": end_name,
-            },
-        }
 
     @_convert_type.register(T.ArrayType)
     def _(self, dtype: ArrayType) -> dict[str, Any]:
@@ -335,10 +281,78 @@ class PySparkLoader(ConfigurableLoader):
                 fields.append(field_def)
         return {"type": "struct", "fields": fields}
 
-    if hasattr(T, "VariantType"):
+    # Version-gated type registrations for types not available in earlier PySpark versions
 
-        @_convert_type.register(T.VariantType)
-        def _(self, dtype: VariantType) -> dict[str, Any]:
+    if hasattr(T, "DayTimeIntervalType"):  # Added in pyspark 3.2.0
+
+        @_convert_type.register(T.DayTimeIntervalType)  # type: ignore[misc]
+        def _convert_daytime_interval(self, dtype: DayTimeIntervalType) -> dict[str, Any]:
+            start_field = dtype.startField
+            end_field = dtype.endField
+            # Map integer field values to names
+            field_names = {0: "DAY", 1: "HOUR", 2: "MINUTE", 3: "SECOND"}
+            start_name = field_names.get(start_field, "DAY")
+            if end_field is None or start_field == end_field:
+                return {
+                    "type": "interval",
+                    "params": {"interval_start": start_name},
+                }
+            end_name = field_names.get(end_field, "SECOND")
+            return {
+                "type": "interval",
+                "params": {
+                    "interval_start": start_name,
+                    "interval_end": end_name,
+                },
+            }
+
+    if hasattr(T, "CharType"):  # Added in pyspark 3.4.0
+
+        @_convert_type.register(T.CharType)  # type: ignore[misc]
+        def _convert_char(self, dtype: CharType) -> dict[str, Any]:
+            return {"type": "string", "params": {"length": dtype.length}}
+
+    if hasattr(T, "VarcharType"):  # Added in pyspark 3.4.0
+
+        @_convert_type.register(T.VarcharType)  # type: ignore[misc]
+        def _convert_varchar(self, dtype: VarcharType) -> dict[str, Any]:
+            return {"type": "string", "params": {"length": dtype.length}}
+
+    if hasattr(T, "TimestampNTZType"):  # Added in pyspark 3.4.0
+
+        @_convert_type.register(T.TimestampNTZType)  # type: ignore[misc]
+        def _convert_timestamp_ntz(self, dtype: TimestampNTZType) -> dict[str, Any]:
+            return {"type": "timestampntz", "params": {"unit": "ns"}}
+
+    if hasattr(T, "YearMonthIntervalType"):  # Added in pyspark 3.5.0
+
+        @_convert_type.register(T.YearMonthIntervalType)  # type: ignore[misc]
+        def _convert_yearmonth_interval(
+            self, dtype: YearMonthIntervalType
+        ) -> dict[str, Any]:
+            start_field = dtype.startField
+            end_field = dtype.endField
+            # Map integer field values to names
+            field_names = {0: "YEAR", 1: "MONTH"}
+            start_name = field_names.get(start_field, "YEAR")
+            if end_field is None or start_field == end_field:
+                return {
+                    "type": "interval",
+                    "params": {"interval_start": start_name},
+                }
+            end_name = field_names.get(end_field, "MONTH")
+            return {
+                "type": "interval",
+                "params": {
+                    "interval_start": start_name,
+                    "interval_end": end_name,
+                },
+            }
+
+    if hasattr(T, "VariantType"):  # Added in pyspark 4.0.0
+
+        @_convert_type.register(T.VariantType)  # type: ignore[misc]
+        def _convert_variant(self, dtype: VariantType) -> dict[str, Any]:
             return {"type": "variant"}
 
     def _get_fallback_type_definition(self) -> dict[str, Any]:
