@@ -60,9 +60,13 @@ TEST_PATH=$(get_test_path "$DEPENDENCY")
 info "Testing ${DEPENDENCY} ${VERSION}"
 echo "==========================================="
 
-# Sync dev dependencies (frozen to avoid lock file changes)
+# Create a fresh virtual environment for this test
+info "Creating virtual environment..."
+uv venv --python python3
+
+# Install dev dependencies
 info "Installing dev dependencies..."
-uv sync --frozen --group dev --no-install-project
+uv pip install --group dev
 
 # Install the project in editable mode
 info "Installing project..."
@@ -75,7 +79,7 @@ uv pip install "${DEPENDENCY}==${VERSION}"
 # Run tests
 info "Running tests..."
 # shellcheck disable=SC2086
-uv run --group dev pytest $TEST_PATH -v
+source .venv/bin/activate && pytest $TEST_PATH -v
 
 echo "==========================================="
 info "Tests passed for ${DEPENDENCY} ${VERSION}"
