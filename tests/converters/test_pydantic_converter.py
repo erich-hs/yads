@@ -8,6 +8,7 @@ import pytest
 from pydantic import BaseModel, create_model
 from pydantic import Field as PydanticField
 
+from yads._dependencies import _get_installed_version, _meets_min_version
 from yads.converters import PydanticConverter, PydanticConverterConfig
 from yads.constraints import (
     DefaultConstraint,
@@ -81,9 +82,19 @@ def check_attrs(**attrs: Any):
     def _fn(field_info):
         # The returned function takes the Pydantic FieldInfo object to be inspected.
         found = extract_constraints(field_info)
+
+        # Handle version-specific constraints
         for k, v in attrs.items():
-            # Assert that the found attribute matches the expected value.
-            assert found.get(k) == v
+            # Skip decimal constraints if Pydantic doesn't support them
+            if (
+                k in ("max_digits", "decimal_places")
+                and not supports_decimal_constraints()
+            ):
+                # In older Pydantic versions, these constraints should not be present
+                assert found.get(k) is None
+            else:
+                # Assert that the found attribute matches the expected value.
+                assert found.get(k) == v
 
     # Return the configured assertion function.
     return _fn
@@ -110,6 +121,14 @@ def unwrap_optional(annotation: Any) -> Any:
     non_none = [arg for arg in args if arg is not type(None)]
     # Return the first non-None type, or the original annotation if none are found.
     return non_none[0] if non_none else annotation
+
+
+def supports_decimal_constraints() -> bool:
+    """Check if the installed Pydantic version supports Decimal constraints."""
+    pydantic_version = _get_installed_version("pydantic")
+    if pydantic_version is None:
+        return False
+    return _meets_min_version(pydantic_version, "2.8.0")
 
 
 # fmt: off
@@ -250,7 +269,14 @@ class TestPydanticConverterTypes:
             assert issubclass(w[0].category, ValidationWarning)
             assert expected_warning in str(w[0].message)
         else:
-            assert len(w) == 0
+            # Special case: Decimal with precision/scale in Pydantic < 2.8.0
+            # will emit a warning even though expected_warning is None
+            if isinstance(yads_type, Decimal) and yads_type.precision is not None and not supports_decimal_constraints():
+                assert len(w) == 1
+                assert issubclass(w[0].category, ValidationWarning)
+                assert "Decimal precision and scale constraints" in str(w[0].message)
+            else:
+                assert len(w) == 0
 
         # Type-specific FieldInfo checks
         if extra_asserts:
@@ -346,11 +372,28 @@ class TestPydanticConverterTypes:
             version="1.0.0",
             columns=[Column(name="d", type=Decimal(precision=12, scale=3))],
         )
-        model = PydanticConverter().convert(spec)
-        f = model.model_fields["d"]
-        assert unwrap_optional(f.annotation) == PyDecimal
-        dec = extract_constraints(f)
-        assert dec.get("max_digits") == 12 and dec.get("decimal_places") == 3
+        
+        if supports_decimal_constraints():
+            # Pydantic >= 2.8.0: Constraints should be present
+            model = PydanticConverter().convert(spec)
+            f = model.model_fields["d"]
+            assert unwrap_optional(f.annotation) == PyDecimal
+            dec = extract_constraints(f)
+            assert dec.get("max_digits") == 12 and dec.get("decimal_places") == 3
+        else:
+            # Pydantic < 2.8.0: Constraints not supported, warning expected in coerce mode
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                model = PydanticConverter().convert(spec, mode="coerce")
+            assert len(w) == 1
+            assert issubclass(w[0].category, ValidationWarning)
+            assert "Decimal precision and scale constraints" in str(w[0].message)
+            f = model.model_fields["d"]
+            assert unwrap_optional(f.annotation) == PyDecimal
+            # Constraints should not be present
+            dec = extract_constraints(f)
+            assert dec.get("max_digits") is None
+            assert dec.get("decimal_places") is None
 
     def test_float_bits_warning_and_raise(self):
         spec = YadsSpec(

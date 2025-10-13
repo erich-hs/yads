@@ -24,7 +24,7 @@ Example:
 
 from __future__ import annotations
 
-from functools import singledispatchmethod
+from functools import singledispatchmethod, lru_cache
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal as PythonDecimal
 from typing import Any, Callable, Literal, Optional, Type, Mapping, cast, TYPE_CHECKING
@@ -41,7 +41,11 @@ from ..constraints import (
     PrimaryKeyConstraint,
 )
 from ..exceptions import UnsupportedFeatureError, validation_warning
-from .._dependencies import requires_dependency
+from .._dependencies import (
+    requires_dependency,
+    _get_installed_version,
+    _meets_min_version,
+)
 from .base import BaseConverter, BaseConverterConfig
 
 from .. import spec as yspec
@@ -234,11 +238,32 @@ class PydanticConverter(BaseConverter):
 
     @_convert_type.register(ytypes.Decimal)
     def _(self, yads_type: ytypes.Decimal) -> tuple[Any, FieldInfo]:
-        if yads_type.precision is not None:
+        if yads_type.precision is not None and self._supports_decimal_constraints():
             field_info = self.required(
                 max_digits=yads_type.precision,
                 decimal_places=yads_type.scale,
             )
+        elif yads_type.precision is not None and not self._supports_decimal_constraints():
+            # Decimal constraints not supported in this Pydantic version
+            if self.config.mode == "coerce":
+                validation_warning(
+                    message=(
+                        f"Decimal precision and scale constraints are not supported "
+                        f"in Pydantic {_get_installed_version('pydantic') or 'unknown'}. "
+                        f"Requires Pydantic >= 2.8.0. "
+                        f"The Decimal type will be used without precision/scale validation "
+                        f"for '{self._field_context}'."
+                    ),
+                    filename="yads.converters.pydantic_converter",
+                    module=__name__,
+                )
+                field_info = self.required()
+            else:
+                raise UnsupportedFeatureError(
+                    f"Decimal precision and scale constraints require Pydantic >= 2.8.0. "
+                    f"Found version {_get_installed_version('pydantic') or 'unknown'} "
+                    f"for '{self._field_context}'."
+                )
         else:
             field_info = self.required()
         return PythonDecimal, field_info
@@ -477,6 +502,19 @@ class PydanticConverter(BaseConverter):
         return self._merge_schema_extra(field_info, {"identity": identity_metadata})
 
     # %% ---- Helpers -----------------------------------------------------------------
+    @staticmethod
+    @lru_cache(maxsize=1)
+    def _supports_decimal_constraints() -> bool:
+        """Check if the installed Pydantic version supports Decimal constraints.
+
+        Decimal max_digits and decimal_places constraints were introduced in
+        Pydantic 2.8.0.
+        """
+        pydantic_version = _get_installed_version("pydantic")
+        if pydantic_version is None:
+            return False
+        return _meets_min_version(pydantic_version, "2.8.0")
+
     @staticmethod
     def required(**kwargs: Any) -> FieldInfo:
         from pydantic import Field  # type: ignore[import-untyped]
