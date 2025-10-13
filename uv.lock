@@ -1575,6 +1575,6 @@ dev = [
     { name = "types-pyyaml", specifier = ">=6.0.12.20250516" },
 ]
 pyarrow = [{ name = "pyarrow", specifier = ">=15.0.0,<22.0.0" }]
-pydantic = [{ name = "pydantic", specifier = ">=2.0.0,<3.0.0" }]
+pydantic = [{ name = "pydantic", specifier = ">=2.0.0,<2.13.0" }]
 pyspark = [{ name = "pyspark", specifier = ">=3.1.1,<4.1.0" }]
 sql = [{ name = "sqlglot", specifier = ">=27.0.0" }]
