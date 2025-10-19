@@ -700,7 +700,9 @@ class SQLGlotConverter(BaseConverter, AstConverter):
 
         self._validate_transform_args("cast", len(transform_args), 1)
         cast_to_type = transform_args[0].upper()
-        if cast_to_type not in exp.DataType.Type:
+        try:
+            target_type = exp.DataType.Type[cast_to_type]
+        except KeyError:
             if self.config.mode == "coerce":
                 validation_warning(
                     message=(
@@ -721,7 +723,7 @@ class SQLGlotConverter(BaseConverter, AstConverter):
             )
         return exp.Cast(
             this=exp.column(column),
-            to=exp.DataType(this=exp.DataType.Type[cast_to_type]),
+            to=exp.DataType(this=target_type),
         )
 
     def _handle_bucket_transform(
