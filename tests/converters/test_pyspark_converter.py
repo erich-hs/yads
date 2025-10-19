@@ -60,13 +60,6 @@ from pyspark.sql.types import (
 )
 
 # Optional types that may not be available in older PySpark versions
-try:
-    from pyspark.sql.types import VarcharType  # type: ignore[attr-defined]
-
-    HAS_VARCHAR_TYPE = True
-except ImportError:
-    VarcharType = None  # type: ignore[assignment, misc]
-    HAS_VARCHAR_TYPE = False
 
 try:
     from pyspark.sql.types import TimestampNTZType  # type: ignore[attr-defined]
@@ -110,9 +103,9 @@ class TestPySparkConverterTypes:
             # String types
             (String(), StringType(), None),
             pytest.param(
-                String(length=255), 
-                VarcharType(255) if HAS_VARCHAR_TYPE else StringType(), 
-                None if HAS_VARCHAR_TYPE else "Fixed length String type",
+                String(length=255),
+                StringType(),
+                "String with fixed length is not supported in PySpark DataFrame schemas",
                 id="string_with_length"
             ),
             
@@ -412,19 +405,17 @@ class TestPySparkConverterFields:
             warnings.simplefilter("always")
             result = converter._convert_field(field)
 
-            expected_type = VarcharType(100) if HAS_VARCHAR_TYPE else StringType()
             expected = StructField(
                 "test_field",
-                expected_type,
+                StringType(),
                 nullable=False,
                 metadata={"description": "Test field description", "custom": "value"},
             )
             assert result == expected
 
-            # Check for warning if VarcharType not available
-            if not HAS_VARCHAR_TYPE:
-                assert len(w) == 1
-                assert issubclass(w[0].category, ValidationWarning)
+            # Check for warning about fixed length string
+            assert len(w) == 1
+            assert issubclass(w[0].category, ValidationWarning)
 
     def test_field_conversion_no_metadata(self):
         """Test field conversion without metadata."""
@@ -509,7 +500,7 @@ class TestPySparkConverterSchema:
             warnings.simplefilter("always")
             result = converter.convert(spec)
 
-            expected_zip_type = VarcharType(10) if HAS_VARCHAR_TYPE else StringType()
+            expected_zip_type = StringType()
             expected = StructType(
                 [
                     StructField("id", LongType(), True),
@@ -647,8 +638,8 @@ class TestPySparkConverterConfig:
         """column_overrides takes precedence over default conversion."""
 
         def integer_as_string_override(field, converter):
-            # Use StringType if VarcharType not available
-            override_type = VarcharType(255) if HAS_VARCHAR_TYPE else StringType()
+            # Use StringType for string overrides
+            override_type = StringType()
             return StructField(
                 field.name,
                 override_type,
@@ -675,7 +666,7 @@ class TestPySparkConverterConfig:
         assert normal_field.dataType == IntegerType()
 
         string_field = next(f for f in result.fields if f.name == "varchar_int")
-        expected_type = VarcharType(255) if HAS_VARCHAR_TYPE else StringType()
+        expected_type = StringType()
         assert string_field.dataType == expected_type
         assert string_field.metadata == {"converted_from": "integer"}
 
@@ -724,7 +715,7 @@ class TestPySparkConverterConfig:
         """Column overrides should preserve original field nullability."""
 
         def nullable_override(field, converter):
-            override_type = VarcharType(255) if HAS_VARCHAR_TYPE else StringType()
+            override_type = StringType()
             return StructField(
                 field.name,
                 override_type,
@@ -1031,7 +1022,7 @@ class TestPySparkConverterIntegration:
             assert field_dict["id"].dataType == LongType()
             assert field_dict["id"].nullable is False
 
-            expected_name_type = VarcharType(100) if HAS_VARCHAR_TYPE else StringType()
+            expected_name_type = StringType()
             assert field_dict["name"].dataType == expected_name_type
             assert field_dict["score"].dataType == DoubleType()
             assert field_dict["amount"].dataType == DecimalType(10, 2)
