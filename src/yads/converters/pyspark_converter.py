@@ -169,17 +169,26 @@ class PySparkConverter(BaseConverter):
 
     @_convert_type.register(ytypes.String)
     def _(self, yads_type: ytypes.String) -> DataType:
-        if yads_type.length is not None:
-            VarcharType = self._get_version_gated_type(
-                type_name="VarcharType",
-                min_version="3.4.0",
-                feature_description="Fixed length String type",
-            )
-            if VarcharType is None:
-                return self.config.fallback_type
-            return VarcharType(yads_type.length)
-
         from pyspark.sql.types import StringType
+
+        if yads_type.length is not None:
+            # VarcharType/CharType types are not supported in PySpark DataFrame schemas
+            if self.config.mode == "coerce":
+                validation_warning(
+                    message=(
+                        f"String with fixed length is not supported in PySpark "
+                        f"DataFrame schemas for '{self._field_context}'. "
+                        f"The data type will be coerced to StringType()."
+                    ),
+                    filename="yads.converters.pyspark_converter",
+                    module=__name__,
+                )
+                return StringType()
+            else:
+                raise UnsupportedFeatureError(
+                    f"String with fixed length is not supported in PySpark "
+                    f"DataFrame schemas for '{self._field_context}'."
+                )
 
         return StringType()
 
