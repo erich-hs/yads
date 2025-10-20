@@ -83,6 +83,7 @@ jobs:
           context: .
           file: ./ci/dependency-tests/docker/Dockerfile
           tags: yads-test:latest
+          load: true
           pull: true
           build-args: |
             UV_LINK_MODE=copy

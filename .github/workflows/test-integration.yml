@@ -73,6 +73,7 @@ jobs:
           context: .
           file: ./ci/integration-tests/docker/${{ matrix.dialect }}/Dockerfile
           tags: yads-integration-${{ matrix.dialect }}:latest
+          load: true
           pull: true
           build-args: |
             UV_LINK_MODE=copy
