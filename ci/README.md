@@ -1,92 +1,99 @@
 # CI Infrastructure
 
-This directory contains all CI/CD infrastructure for testing yads across multiple dependency versions.
-
-## Structure
-
-```
-ci/
-├── docker/
-│   └── Dockerfile.deps      # Docker image for dependency testing
-├── scripts/
-│   └── test-deps.sh         # Test script (runs in Docker and CI)
-├── deps-versions.json       # Version matrix for all dependencies
-└── README.md                # This file
-```
+Testing infrastructure for yads across dependency versions and database environments.
 
 ## Quick Start
 
 ```bash
-# Test specific version
+# Dependency version tests
 make test-deps DEP=pyspark VER=3.5.3
-
-# Test all versions of a dependency
 make test-deps-all DEP=pyspark
+
+# Integration tests
+make integration-test-spark
+make integration-test-duckdb
+make integration-test-all
 ```
 
-## Files
+## Dependency Tests
 
-### `docker/Dockerfile.deps`
-Docker image for isolated dependency version testing. Includes:
-- Python 3.10 base
-- uv package manager
-- Project files (via COPY, respects .dockerignore)
+Tests compatibility across multiple versions of optional dependencies (pyspark, pyarrow, pydantic). Each dependency is tested in isolation to ensure true compatibility.
 
-### `scripts/test-deps.sh`
-Main test script that:
-1. Installs dev dependencies (frozen)
-2. Installs project in editable mode
-3. Installs specific dependency version
-4. Runs relevant tests
+### Files
 
-Works both in Docker and directly in CI environments.
+- `dependency-tests/versions.json` - Version matrix
+- `dependency-tests/docker/Dockerfile` - Test environment
+- `dependency-tests/scripts/test-deps.sh` - Test runner
 
-### `deps-versions.json`
-Version matrix defining which versions to test for each optional dependency.
-
-## Usage
-
-### Local Testing
+### Usage
 
 ```bash
-# Via Makefile (recommended - uses Docker)
+# Local testing (via Makefile)
 make test-deps DEP=pyspark VER=3.5.3
-make test-deps-all DEP=pyspark
 
-# Direct script (modifies local environment - not recommended)
-./ci/scripts/test-deps.sh pyspark 3.5.3
+# Direct script
+cd ci/dependency-tests
+./scripts/test-deps.sh pyspark 3.5.3
 ```
 
-### CI Testing
+### Adding Versions
 
-GitHub Actions workflow (`.github/workflows/test-deps.yml`) automatically:
-- Loads version matrix from `deps-versions.json`
-- Creates test jobs for all dependency/version combinations
-- Runs tests in Docker using the same script
-
-### Manual Workflow Dispatch
-
-Trigger tests manually from GitHub:
-1. Go to Actions → Dependency Tests
-2. Click "Run workflow"
-3. Select dependency and optionally version
-
-## Adding New Versions
-
-Edit `deps-versions.json`:
+Edit `dependency-tests/versions.json`:
 
 ```json
 {
-  "pyspark": ["3.1.3", "3.2.4", "new-version-here"]
+  "pyspark": ["3.1.1", "4.0.1", "new-version"]
 }
 ```
 
-CI will automatically test the new version on the next push.
+## Integration Tests
 
-## Design Goals
+End-to-end tests that validate SQL converters by executing generated DDL in actual database environments.
 
-- **Simple**: Single script, single config file
-- **Isolated**: Docker prevents local pollution
-- **Extensible**: Adding dependencies/versions is trivial
-- **Reproducible**: Same behavior locally and in CI
+### Supported Dialects
 
+- **Spark**: Apache Spark 3.5+ with Iceberg extension
+- **DuckDB**: DuckDB with Python API
+
+### Files
+
+- `integration-tests/config.json` - Test configuration
+- `integration-tests/docker/<dialect>/Dockerfile` - Database environments
+- `integration-tests/scripts/test-<dialect>.py` - Test scripts
+- `integration-tests/scripts/run-integration.sh` - Orchestration
+
+### Usage
+
+```bash
+# Local testing
+make integration-test-spark
+make integration-test-duckdb
+
+# Direct script
+cd ci/integration-tests
+./scripts/run-integration.sh spark
+```
+
+### Adding Dialects
+
+1. Update `integration-tests/config.json` with new dialect and Docker image name
+2. Create Dockerfile in `integration-tests/docker/<dialect>/`
+3. Create test script in `integration-tests/scripts/test-<dialect>.py`
+4. Add Make target (optional)
+
+## Troubleshooting
+
+### Docker Build Failures
+- Check `uv.lock` is up to date: `uv lock`
+- Build from project root: `docker build -f ci/<path>/Dockerfile .`
+- Clear build cache: `docker builder prune`
+
+### Test Failures
+- Use verbose output: `pytest -v`
+- Test locally first: `make integration-test-<dialect>`
+- Check target logs in containers
+
+### Environment Issues
+- Always use Make targets (they use Docker)
+- Never run scripts directly
+- Clean up: `docker system prune`
