@@ -55,7 +55,6 @@ class TestPolarsConverterTypes:
             (Integer(bits=16), pl.Int16, None),
             (Integer(bits=32), pl.Int32, None),
             (Integer(bits=64), pl.Int64, None),
-            (Integer(bits=128), pl.Int128, None),  # Polars supports Int128!
             (Integer(bits=8, signed=False), pl.UInt8, None),
             (Integer(bits=16, signed=False), pl.UInt16, None),
             (Integer(bits=32, signed=False), pl.UInt32, None),
@@ -344,22 +343,6 @@ class TestPolarsConverterTypes:
 
         with pytest.raises(UnsupportedFeatureError, match=f"PolarsConverter does not support type: {re.escape(type_name)} for 'col1'."):
             PolarsConverter(PolarsConverterConfig(mode="raise")).convert(spec)
-
-    def test_int128_support(self):
-        """Test that Polars supports Int128, unlike PyArrow/PySpark."""
-        spec = YadsSpec(
-            name="t",
-            version="1.0.0",
-            columns=[Column(name="big_int", type=Integer(bits=128))],
-        )
-
-        # Should convert without warnings
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            schema = PolarsConverter().convert(spec)
-
-        assert schema["big_int"] == pl.Int128
-        assert len(w) == 0
 
     def test_decimal_precision_handling(self):
         spec = YadsSpec(

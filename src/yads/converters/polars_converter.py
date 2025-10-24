@@ -186,7 +186,6 @@ class PolarsConverter(BaseConverter):
             16: pl.Int16,
             32: pl.Int32,
             64: pl.Int64,
-            128: pl.Int128,
         }
         unsigned_map = {
             8: pl.UInt8,
