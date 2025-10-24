@@ -25,6 +25,9 @@ dev = [
     "ruff>=0.12.3",
     "types-pyyaml>=6.0.12.20250516",
 ]
+polars = [
+    "polars>=1.0.0,<1.35.0",
+]
 pyarrow = [
     "pyarrow>=15.0.0,<22.0.0",
 ]

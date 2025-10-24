@@ -16,6 +16,10 @@ def __getattr__(name: str):
         from . import pyspark_converter
 
         return getattr(pyspark_converter, name)
+    if name in ("PolarsConverter", "PolarsConverterConfig"):
+        from . import polars_converter
+
+        return getattr(polars_converter, name)
     if name in (
         "AstConverter",
         "SQLGlotConverter",
@@ -35,6 +39,7 @@ __all__ = [
     "to_pyarrow",
     "to_pydantic",
     "to_pyspark",
+    "to_polars",
     "to_sql",
     "BaseConverter",
     "BaseConverterConfig",
@@ -51,10 +56,13 @@ __all__ = [
     "PydanticConverterConfig",
     "PySparkConverter",
     "PySparkConverterConfig",
+    "PolarsConverter",
+    "PolarsConverterConfig",
 ]
 
 if TYPE_CHECKING:
     import pyarrow as pa  # type: ignore[import-untyped]
+    import polars as pl  # type: ignore[import-untyped]
     from pydantic import BaseModel  # type: ignore[import-untyped]
     from pydantic.fields import FieldInfo  # type: ignore[import-untyped]
     from pyspark.sql.types import (
@@ -65,6 +73,7 @@ if TYPE_CHECKING:
     from sqlglot import expressions as exp  # type: ignore[import-untyped]
     from .pyarrow_converter import PyArrowConverter
     from .pyspark_converter import PySparkConverter
+    from .polars_converter import PolarsConverter
     from .sql.ast_converter import AstConverter, SQLGlotConverter, SQLGlotConverterConfig
     from .sql.sql_converter import (
         SQLConverter,
@@ -80,6 +89,7 @@ if TYPE_CHECKING:
         [SpecField, PydanticConverter], tuple[Any, FieldInfo]
     ]
     PySparkColumnOverride = Callable[[SpecField, PySparkConverter], StructField]
+    PolarsColumnOverride = Callable[[SpecField, PolarsConverter], pl.Field]
     SQLGlotColumnOverride = Callable[[SpecField, SQLGlotConverter], exp.ColumnDef]
 
 
@@ -215,6 +225,46 @@ def to_pyspark(
         fallback_type=fallback_type or StringType(),
     )
     return pyspark_converter.PySparkConverter(config).convert(spec)
+
+
+@requires_dependency("polars", min_version="1.0.0", import_name="polars")
+def to_polars(
+    spec: YadsSpec,
+    *,
+    # BaseConverterConfig options
+    mode: Literal["raise", "coerce"] = "coerce",
+    ignore_columns: set[str] | None = None,
+    include_columns: set[str] | None = None,
+    column_overrides: Mapping[str, PolarsColumnOverride] | None = None,
+    # PolarsConverterConfig options
+    fallback_type: pl.DataType | None = None,
+) -> pl.Schema:
+    """Convert a `YadsSpec` to a `polars.Schema`.
+
+    Args:
+        spec: The validated yads specification to convert.
+        mode: Conversion mode. "raise" raises on unsupported features;
+            "coerce" adjusts with warnings. Defaults to "coerce".
+        ignore_columns: Columns to exclude from conversion.
+        include_columns: If provided, only these columns are included.
+        column_overrides: Per-column custom conversion callables.
+        fallback_type: Fallback Polars data type used in coerce mode for unsupported types.
+            When set, overrides the default built-in `pl.String`. Defaults to None.
+
+    Returns:
+        A `polars.Schema` instance.
+    """
+    import polars as pl  # type: ignore[import-untyped]
+    from . import polars_converter
+
+    config = polars_converter.PolarsConverterConfig(
+        mode=mode,
+        ignore_columns=frozenset(ignore_columns) if ignore_columns else frozenset[str](),
+        include_columns=frozenset(include_columns) if include_columns else None,
+        column_overrides=column_overrides or {},
+        fallback_type=fallback_type or pl.String,
+    )
+    return polars_converter.PolarsConverter(config).convert(spec)
 
 
 @requires_dependency("sqlglot", import_name="sqlglot")
