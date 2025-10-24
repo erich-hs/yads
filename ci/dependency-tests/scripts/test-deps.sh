@@ -40,6 +40,9 @@ get_test_path() {
         pydantic)
             echo "tests/converters/test_pydantic_converter.py"
             ;;
+        polars)
+            echo "tests/converters/test_polars_converter.py"
+            ;;
         *)
             error "Unknown dependency: $1"
             ;;
