@@ -40,7 +40,7 @@ from ..constraints import (
     NotNullConstraint,
     PrimaryKeyConstraint,
 )
-from ..exceptions import UnsupportedFeatureError, validation_warning
+from ..exceptions import UnsupportedFeatureError
 from .._dependencies import (
     requires_dependency,
     _get_installed_version,
@@ -169,22 +169,8 @@ class PydanticConverter(BaseConverter):
         # - Geometry
         # - Geography
         # - Tensor
-        if self.config.mode == "coerce":
-            validation_warning(
-                message=(
-                    f"PydanticConverter does not support type: {yads_type}"
-                    f" for '{self._field_context}'."
-                    f" The data type will be coerced to {self.config.fallback_type.__name__}."
-                ),
-                filename="yads.converters.pydantic_converter",
-                module=__name__,
-            )
-            fallback_type: Any = self.config.fallback_type
-            return fallback_type, {}
-        raise UnsupportedFeatureError(
-            f"PydanticConverter does not support type: {yads_type}"
-            f" for '{self._field_context}'."
-        )
+        fallback_type: Any = self.raise_or_coerce(yads_type)
+        return fallback_type, {}
 
     @_convert_type.register(ytypes.String)
     def _(self, yads_type: ytypes.String) -> tuple[Any, dict[str, Any]]:
@@ -216,22 +202,15 @@ class PydanticConverter(BaseConverter):
         # Python's float is typically 64-bit; emit warning when a narrower
         # bit-width is requested, since precision cannot be enforced.
         if yads_type.bits is not None and yads_type.bits != 64:
-            if self.config.mode == "coerce":
-                validation_warning(
-                    message=(
-                        f"Float(bits={yads_type.bits}) cannot be represented exactly"
-                        f" in Pydantic; Python float is 64-bit. The data type will be"
-                        f" represented as 64-bit float."
-                    ),
-                    filename="yads.converters.pydantic_converter",
-                    module=__name__,
-                )
-            else:
-                raise UnsupportedFeatureError(
+            # Use raise_or_coerce for consistent warning/error handling
+            self.raise_or_coerce(
+                yads_type,
+                coerce_type=float,
+                error_msg=(
                     f"Float(bits={yads_type.bits}) cannot be represented exactly"
-                    f" in Pydantic; Python float is 64-bit"
-                    f" for '{self._field_context}'."
-                )
+                    f" in Pydantic; Python float is 64-bit for '{self._field_context}'."
+                ),
+            )
         return float, {}
 
     @_convert_type.register(ytypes.Decimal)
@@ -242,24 +221,16 @@ class PydanticConverter(BaseConverter):
             params["decimal_places"] = yads_type.scale
         elif yads_type.precision is not None and not self._supports_decimal_constraints():
             # Decimal constraints not supported in this Pydantic version
-            if self.config.mode == "coerce":
-                validation_warning(
-                    message=(
-                        f"Decimal precision and scale constraints are not supported "
-                        f"in Pydantic {_get_installed_version('pydantic') or 'unknown'}. "
-                        f"Requires Pydantic >= 2.8.0. "
-                        f"The Decimal type will be used without precision/scale validation "
-                        f"for '{self._field_context}'."
-                    ),
-                    filename="yads.converters.pydantic_converter",
-                    module=__name__,
-                )
-            else:
-                raise UnsupportedFeatureError(
-                    f"Decimal precision and scale constraints require Pydantic >= 2.8.0. "
-                    f"Found version {_get_installed_version('pydantic') or 'unknown'} "
-                    f"for '{self._field_context}'."
-                )
+            # Use raise_or_coerce to emit warning, but continue with PythonDecimal
+            self.raise_or_coerce(
+                yads_type,
+                coerce_type=PythonDecimal,
+                error_msg=(
+                    f"Decimal precision and scale constraints require Pydantic >= 2.8.0"
+                    f" for '{self._field_context}'. "
+                    f"Found version {_get_installed_version('pydantic') or 'unknown'}."
+                ),
+            )
         return PythonDecimal, params
 
     @_convert_type.register(ytypes.Boolean)

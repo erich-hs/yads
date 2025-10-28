@@ -230,7 +230,7 @@ class TestPyArrowConverterTypes:
         assert schema.field("d").type == pa.decimal256(39, 2)
         assert len(w) == 1
         assert issubclass(w[0].category, ValidationWarning)
-        assert "Precision greater than 38 is incompatible" in str(w[0].message)
+        assert "precision > 38 is incompatible" in str(w[0].message)
 
         with pytest.raises(UnsupportedFeatureError):
             PyArrowConverter(PyArrowConverterConfig(mode="raise")).convert(spec)

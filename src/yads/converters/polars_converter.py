@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Any, Callable, Literal, Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
-from ..exceptions import UnsupportedFeatureError, validation_warning
+from ..exceptions import UnsupportedFeatureError
 from .._dependencies import requires_dependency
 from .. import spec as yspec
 from .. import types as ytypes
@@ -153,21 +153,7 @@ class PolarsConverter(BaseConverter):
         # - Interval
         # - JSON
         # - UUID
-        if self.config.mode == "coerce":
-            validation_warning(
-                message=(
-                    f"PolarsConverter does not support type: {yads_type}"
-                    f" for '{self._field_context}'."
-                    f" The data type will be coerced to {self.config.fallback_type}."
-                ),
-                filename="yads.converters.polars_converter",
-                module=__name__,
-            )
-            return self.config.fallback_type
-        raise UnsupportedFeatureError(
-            f"PolarsConverter does not support type: {yads_type}"
-            f" for '{self._field_context}'."
-        )
+        return self.raise_or_coerce(yads_type)
 
     @_convert_type.register(ytypes.String)
     def _(self, yads_type: ytypes.String) -> Any:
@@ -211,19 +197,13 @@ class PolarsConverter(BaseConverter):
         mapping = {32: pl.Float32, 64: pl.Float64}
 
         if bits == 16:
-            if self.config.mode == "coerce":
-                validation_warning(
-                    message=(
-                        f"Float(bits=16) is not supported by Polars"
-                        f" for '{self._field_context}'."
-                        f" The data type will be coerced to pl.Float32."
-                    ),
-                    filename="yads.converters.polars_converter",
-                    module=__name__,
-                )
-                return pl.Float32
-            raise UnsupportedFeatureError(
-                f"Float(bits=16) is not supported by Polars for '{self._field_context}'."
+            return self.raise_or_coerce(
+                yads_type,
+                coerce_type=pl.Float32,
+                error_msg=(
+                    f"Float(bits=16) is not supported by Polars"
+                    f" for '{self._field_context}'."
+                ),
             )
 
         try:
@@ -271,20 +251,12 @@ class PolarsConverter(BaseConverter):
         time_unit = self._to_pl_time_unit(yads_type.unit)
 
         if time_unit != "ns":
-            if self.config.mode == "coerce":
-                validation_warning(
-                    message=(
-                        f"Polars Time only supports nanosecond precision (unit='ns')"
-                        f" for '{self._field_context}'."
-                        f" The data type will be coerced to {self.config.fallback_type}."
-                    ),
-                    filename="yads.converters.polars_converter",
-                    module=__name__,
-                )
-                return self.config.fallback_type
-            raise UnsupportedFeatureError(
-                f"Polars Time only supports nanosecond precision (unit='ns')"
-                f" for '{self._field_context}'."
+            return self.raise_or_coerce(
+                yads_type,
+                error_msg=(
+                    f"Polars Time only supports nanosecond precision (unit='ns')"
+                    f" for '{self._field_context}'."
+                ),
             )
 
         return pl.Time
@@ -314,20 +286,12 @@ class PolarsConverter(BaseConverter):
 
         # Polars Duration only supports ms, us, ns
         if time_unit == "s":
-            if self.config.mode == "coerce":
-                validation_warning(
-                    message=(
-                        f"Polars Duration does not support 's' (second) time unit"
-                        f" for '{self._field_context}'."
-                        f" The data type will be coerced to {self.config.fallback_type}."
-                    ),
-                    filename="yads.converters.polars_converter",
-                    module=__name__,
-                )
-                return self.config.fallback_type
-            raise UnsupportedFeatureError(
-                f"Polars Duration does not support 's' (second) time unit"
-                f" for '{self._field_context}'."
+            return self.raise_or_coerce(
+                yads_type,
+                error_msg=(
+                    f"Polars Duration does not support 's' (second) time unit"
+                    f" for '{self._field_context}'."
+                ),
             )
 
         # Cast to Any to avoid type checker issues with Polars types
@@ -361,21 +325,18 @@ class PolarsConverter(BaseConverter):
 
         # Polars doesn't have a native Map type
         # Coerce to Struct with key/value fields to preserve structure
-        if self.config.mode == "coerce":
-            validation_warning(
-                message=(
-                    f"Map type is not supported by Polars"
-                    f" for '{self._field_context}'."
-                    f" The data type will be coerced to pl.Struct with key/value fields."
-                ),
-                filename="yads.converters.polars_converter",
-                module=__name__,
-            )
-            key_type = self._convert_type(yads_type.key)
-            value_type = self._convert_type(yads_type.value)
-            return pl.Struct([pl.Field("key", key_type), pl.Field("value", value_type)])
-        raise UnsupportedFeatureError(
-            f"Map type is not supported by Polars for '{self._field_context}'."
+        key_type = self._convert_type(yads_type.key)
+        value_type = self._convert_type(yads_type.value)
+        struct_type = pl.Struct(
+            [pl.Field("key", key_type), pl.Field("value", value_type)]
+        )
+
+        return self.raise_or_coerce(
+            yads_type,
+            coerce_type=struct_type,
+            error_msg=(
+                f"Map type is not supported by Polars for '{self._field_context}'."
+            ),
         )
 
     @_convert_type.register(ytypes.Void)
@@ -407,20 +368,12 @@ class PolarsConverter(BaseConverter):
 
         # Polars Datetime only supports ms, us, ns (not s)
         if time_unit == "s":
-            if self.config.mode == "coerce":
-                validation_warning(
-                    message=(
-                        f"Polars Datetime does not support 's' (second) time unit"
-                        f" for '{self._field_context}'."
-                        f" The data type will be coerced to {self.config.fallback_type}."
-                    ),
-                    filename="yads.converters.polars_converter",
-                    module=__name__,
-                )
-                return self.config.fallback_type
-            raise UnsupportedFeatureError(
-                f"Polars Datetime does not support 's' (second) time unit"
-                f" for '{self._field_context}'."
+            return self.raise_or_coerce(
+                yads_type=None,
+                error_msg=(
+                    f"Polars Datetime does not support 's' (second) time unit"
+                    f" for '{self._field_context}'."
+                ),
             )
 
         # Cast to Any to avoid type checker issues with Polars types

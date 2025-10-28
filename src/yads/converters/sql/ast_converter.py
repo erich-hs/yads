@@ -145,6 +145,18 @@ class SQLGlotConverter(BaseConverter, AstConverter):
         self.config: SQLGlotConverterConfig = config or SQLGlotConverterConfig()
         super().__init__(self.config)
 
+    def _format_type_for_display(self, type_obj: Any) -> str:
+        """Format sqlglot DataType for display in warnings.
+
+        Extracts the type name from sqlglot's exp.DataType for cleaner
+        display in warning messages.
+        """
+        from sqlglot import exp
+
+        if isinstance(type_obj, exp.DataType) and hasattr(type_obj.this, "name"):
+            return type_obj.this.name
+        return str(type_obj)
+
     _TRANSFORM_HANDLERS: dict[str, str] = {
         "bucket": "_handle_bucket_transform",
         "truncate": "_handle_truncate_transform",
@@ -227,20 +239,9 @@ class SQLGlotConverter(BaseConverter, AstConverter):
             # Currently unsupported in sqlglot:
             # - Duration
             # - Tensor
-            if self.config.mode == "coerce":
-                validation_warning(
-                    message=(
-                        f"SQLGlotConverter does not support type: {yads_type}"
-                        f" for '{self._field_context}'."
-                        f" The data type will be coerced to {self.config.fallback_type.name}."
-                    ),
-                    filename="yads.converters.sql.ast_converter",
-                    module=__name__,
-                )
-                return exp.DataType(this=self.config.fallback_type)
-            raise UnsupportedFeatureError(
-                f"SQLGlotConverter does not support type: {yads_type}"
-                f" for '{self._field_context}'."
+            return self.raise_or_coerce(
+                yads_type,
+                coerce_type=exp.DataType(this=self.config.fallback_type),
             )
 
     @_convert_type.register(ytypes.String)
@@ -288,19 +289,12 @@ class SQLGlotConverter(BaseConverter, AstConverter):
 
         bits = yads_type.bits or 32
         if bits == 16:
-            if self.config.mode == "coerce":
-                validation_warning(
-                    message=(
-                        f"SQLGlotConverter does not support half-precision Float (bits={bits})."
-                        f" The data type will be replaced with Float (bits=32)."
-                    ),
-                    filename="yads.converters.sql.ast_converter",
-                    module=__name__,
-                )
-                return exp.DataType(this=exp.DataType.Type.FLOAT)
-            raise UnsupportedFeatureError(
-                f"SQLGlotConverter does not support half-precision Float (bits={bits})"
-                f" for '{self._field_context}'."
+            return self.raise_or_coerce(
+                yads_type,
+                coerce_type=exp.DataType(this=exp.DataType.Type.FLOAT),
+                error_msg=(
+                    f"SQLGlotConverter does not support half-precision Float (bits={bits})."
+                ),
             )
         elif bits == 32:
             return exp.DataType(this=exp.DataType.Type.FLOAT)
@@ -473,21 +467,20 @@ class SQLGlotConverter(BaseConverter, AstConverter):
     # %% ---- Column constraints ------------------------------------------------------
     @singledispatchmethod
     def _convert_column_constraint(self, constraint: Any) -> exp.ColumnConstraint | None:
+        error_msg = (
+            f"SQLGlotConverter does not support constraint: {type(constraint)}"
+            f" for '{self._field_context}'."
+        )
+
         if self.config.mode == "coerce":
             validation_warning(
-                message=(
-                    f"SQLGlotConverter does not support constraint: {type(constraint)}"
-                    f" for '{self._field_context}'."
-                    f" The constraint will be omitted."
-                ),
+                message=f"{error_msg} The constraint will be omitted.",
                 filename="yads.converters.sql.ast_converter",
                 module=__name__,
             )
             return None
-        raise UnsupportedFeatureError(
-            f"SQLGlotConverter does not support constraint: {type(constraint)}"
-            f" for '{self._field_context}'."
-        )
+        else:
+            raise UnsupportedFeatureError(error_msg)
 
     @_convert_column_constraint.register(NotNullConstraint)
     def _(self, constraint: NotNullConstraint) -> exp.ColumnConstraint:
@@ -557,19 +550,19 @@ class SQLGlotConverter(BaseConverter, AstConverter):
     # %% ---- Table constraints -------------------------------------------------------
     @singledispatchmethod
     def _convert_table_constraint(self, constraint: Any) -> exp.Expression | None:
+        error_msg = (
+            f"SQLGlotConverter does not support table constraint: {type(constraint)}"
+        )
+
         if self.config.mode == "coerce":
             validation_warning(
-                message=(
-                    f"SQLGlotConverter does not support table constraint: {type(constraint)}"
-                    f" The constraint will be omitted."
-                ),
-                filename="yads.converters.sqlglot",
+                message=f"{error_msg} The constraint will be omitted.",
+                filename="yads.converters.sql.ast_converter",
                 module=__name__,
             )
             return None
-        raise UnsupportedFeatureError(
-            f"SQLGlotConverter does not support table constraint: {type(constraint)}."
-        )
+        else:
+            raise UnsupportedFeatureError(error_msg)
 
     @_convert_table_constraint.register(PrimaryKeyTableConstraint)
     def _(self, constraint: PrimaryKeyTableConstraint) -> exp.Expression:
@@ -703,23 +696,16 @@ class SQLGlotConverter(BaseConverter, AstConverter):
         try:
             target_type = exp.DataType.Type[cast_to_type]
         except KeyError:
-            if self.config.mode == "coerce":
-                validation_warning(
-                    message=(
-                        f"Transform type '{cast_to_type}' is not a valid sqlglot Type"
-                        f" for '{self._field_context}'."
-                        f" The expression will be coerced to CAST(... AS {self.config.fallback_type.name})."
-                    ),
-                    filename="yads.converters.sqlglot",
-                    module=__name__,
-                )
-                return exp.Cast(
+            return self.raise_or_coerce(
+                cast_to_type,
+                coerce_type=exp.Cast(
                     this=exp.column(column),
                     to=exp.DataType(this=self.config.fallback_type),
-                )
-            raise UnsupportedFeatureError(
-                f"Transform type '{cast_to_type}' is not a valid sqlglot Type"
-                f" for '{self._field_context}'."
+                ),
+                error_msg=(
+                    f"Transform type '{cast_to_type}' is not a valid sqlglot Type"
+                    f" for '{self._field_context}'."
+                ),
             )
         return exp.Cast(
             this=exp.column(column),

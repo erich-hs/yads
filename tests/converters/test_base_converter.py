@@ -426,3 +426,264 @@ class TestBaseConverterColumnOverrides:
             match="DummyConverter must implement _convert_field_default",
         ):
             converter._convert_field_with_overrides(field)
+
+
+# %% BaseConverter raise_or_coerce method
+class TestBaseConverterRaiseOrCoerce:
+    def test_raise_or_coerce_is_public(self):
+        """Test that raise_or_coerce is a public method."""
+        from dataclasses import dataclass
+
+        @dataclass(frozen=True)
+        class DummyConfig(BaseConverterConfig):
+            fallback_type: str = "fallback_string"
+
+        class DummyConverter(BaseConverter):
+            def convert(self, spec, **kwargs):
+                return None
+
+        converter = DummyConverter(DummyConfig(mode="coerce"))
+
+        # Should be accessible as a public method
+        assert hasattr(converter, "raise_or_coerce")
+        assert callable(converter.raise_or_coerce)
+        # Should not have underscore prefix
+        assert not hasattr(converter, "_raise_or_coerce")
+
+    def test_raise_or_coerce_raises_in_raise_mode(self):
+        """Test raise_or_coerce raises UnsupportedFeatureError in raise mode."""
+        from yads.exceptions import UnsupportedFeatureError
+
+        class DummyConverter(BaseConverter):
+            def convert(self, spec, **kwargs):
+                return None
+
+        config = BaseConverterConfig(mode="raise")
+        converter = DummyConverter(config)
+
+        with pytest.raises(UnsupportedFeatureError) as exc_info:
+            converter.raise_or_coerce(
+                "UnsupportedType",
+                coerce_type="StringType",  # Explicit coerce_type
+                error_msg="Custom error message",
+            )
+
+        assert "Custom error message" in str(exc_info.value)
+
+    def test_raise_or_coerce_raises_with_default_message(self):
+        """Test raise_or_coerce generates default error message."""
+        from yads.exceptions import UnsupportedFeatureError
+
+        class DummyConverter(BaseConverter):
+            def convert(self, spec, **kwargs):
+                return None
+
+        config = BaseConverterConfig(mode="raise")
+        converter = DummyConverter(config)
+        converter._current_field_name = "test_field"
+
+        with pytest.raises(UnsupportedFeatureError) as exc_info:
+            converter.raise_or_coerce("MyType", coerce_type="StringType")
+
+        error_msg = str(exc_info.value)
+        assert "DummyConverter does not support type: MyType" in error_msg
+        assert "for 'test_field'" in error_msg
+
+    def test_raise_or_coerce_returns_fallback_in_coerce_mode(self):
+        """Test raise_or_coerce returns fallback type in coerce mode."""
+        from dataclasses import dataclass
+
+        @dataclass(frozen=True)
+        class DummyConfig(BaseConverterConfig):
+            fallback_type: str = "StringFallback"
+
+        class DummyConverter(BaseConverter):
+            def convert(self, spec, **kwargs):
+                return None
+
+        config = DummyConfig(mode="coerce")
+        converter = DummyConverter(config)
+
+        with pytest.warns(UserWarning) as warning_list:
+            result = converter.raise_or_coerce("UnsupportedType")
+
+        assert result == "StringFallback"
+        assert len(warning_list) == 1
+
+    def test_raise_or_coerce_returns_explicit_coerce_type(self):
+        """Test raise_or_coerce returns explicit coerce_type over fallback."""
+        from dataclasses import dataclass
+
+        @dataclass(frozen=True)
+        class DummyConfig(BaseConverterConfig):
+            fallback_type: str = "StringFallback"
+
+        class DummyConverter(BaseConverter):
+            def convert(self, spec, **kwargs):
+                return None
+
+        config = DummyConfig(mode="coerce")
+        converter = DummyConverter(config)
+
+        with pytest.warns(UserWarning):
+            result = converter.raise_or_coerce(
+                "UnsupportedType", coerce_type="CustomCoerceType"
+            )
+
+        assert result == "CustomCoerceType"
+
+    def test_raise_or_coerce_warning_includes_type_and_coercion(self):
+        """Test warning message includes both error and coercion info."""
+        from dataclasses import dataclass
+
+        @dataclass(frozen=True)
+        class DummyConfig(BaseConverterConfig):
+            fallback_type: str = "StringFallback"
+
+        class DummyConverter(BaseConverter):
+            def convert(self, spec, **kwargs):
+                return None
+
+        config = DummyConfig(mode="coerce")
+        converter = DummyConverter(config)
+
+        with pytest.warns(UserWarning) as warning_list:
+            converter.raise_or_coerce("UnsupportedType", error_msg="Type not supported")
+
+        warning_msg = str(warning_list[0].message)
+        assert "Type not supported" in warning_msg
+        assert "will be coerced to" in warning_msg
+        assert "StringFallback" in warning_msg
+
+    def test_raise_or_coerce_uses_field_context(self):
+        """Test raise_or_coerce includes field context in messages."""
+        from dataclasses import dataclass
+
+        @dataclass(frozen=True)
+        class DummyConfig(BaseConverterConfig):
+            fallback_type: str = "fallback"
+
+        class DummyConverter(BaseConverter):
+            def convert(self, spec, **kwargs):
+                return None
+
+        config = DummyConfig(mode="coerce")
+        converter = DummyConverter(config)
+        converter._current_field_name = "my_column"
+
+        with pytest.warns(UserWarning) as warning_list:
+            converter.raise_or_coerce("UnsupportedType")
+
+        warning_msg = str(warning_list[0].message)
+        assert "my_column" in warning_msg
+
+    def test_raise_or_coerce_missing_fallback_type_error(self):
+        """Test raise_or_coerce raises ValueError when fallback_type missing."""
+
+        class DummyConverter(BaseConverter):
+            def convert(self, spec, **kwargs):
+                return None
+
+        # Config without fallback_type attribute
+        config = BaseConverterConfig(mode="coerce")
+        converter = DummyConverter(config)
+
+        with pytest.raises(ValueError) as exc_info:
+            converter.raise_or_coerce("UnsupportedType")
+
+        assert "must have a fallback_type" in str(exc_info.value)
+
+    def test_raise_or_coerce_format_type_for_display_hook(self):
+        """Test _format_type_for_display hook is used."""
+        from dataclasses import dataclass
+
+        @dataclass(frozen=True)
+        class CustomConfig(BaseConverterConfig):
+            fallback_type: str = "fallback"
+
+        class CustomConverter(BaseConverter):
+            def convert(self, spec, **kwargs):
+                return None
+
+            def _format_type_for_display(self, type_obj):
+                return f"CUSTOM[{type_obj}]"
+
+        config = CustomConfig(mode="coerce")
+        converter = CustomConverter(config)
+
+        with pytest.warns(UserWarning) as warning_list:
+            converter.raise_or_coerce("UnsupportedType", error_msg="Test error")
+
+        warning_msg = str(warning_list[0].message)
+        assert "CUSTOM[fallback]" in warning_msg
+
+    def test_raise_or_coerce_with_none_yads_type_and_error_msg(self):
+        """Test raise_or_coerce accepts None for yads_type when error_msg is provided."""
+        from dataclasses import dataclass
+
+        @dataclass(frozen=True)
+        class DummyConfig(BaseConverterConfig):
+            fallback_type: str = "fallback"
+
+        class DummyConverter(BaseConverter):
+            def convert(self, spec, **kwargs):
+                return None
+
+        config = DummyConfig(mode="coerce")
+        converter = DummyConverter(config)
+
+        # Should work with yads_type=None when error_msg is explicit
+        with pytest.warns(UserWarning) as warning_list:
+            result = converter.raise_or_coerce(
+                yads_type=None, error_msg="Custom error without yads_type"
+            )
+
+        assert result == "fallback"
+        assert "Custom error without yads_type" in str(warning_list[0].message)
+
+    def test_raise_or_coerce_raises_when_both_none(self):
+        """Test raise_or_coerce raises ValueError when both yads_type and error_msg are None."""
+        from dataclasses import dataclass
+
+        @dataclass(frozen=True)
+        class DummyConfig(BaseConverterConfig):
+            fallback_type: str = "fallback"
+
+        class DummyConverter(BaseConverter):
+            def convert(self, spec, **kwargs):
+                return None
+
+        config = DummyConfig(mode="coerce")
+        converter = DummyConverter(config)
+
+        # Should raise ValueError when both are None
+        with pytest.raises(ValueError) as exc_info:
+            converter.raise_or_coerce(yads_type=None, error_msg=None)
+
+        assert "Either yads_type or error_msg must be provided" in str(exc_info.value)
+
+    def test_raise_or_coerce_with_context_mode_override(self):
+        """Test raise_or_coerce respects conversion_context mode override."""
+        from yads.exceptions import UnsupportedFeatureError
+        from dataclasses import dataclass
+
+        @dataclass(frozen=True)
+        class DummyConfig(BaseConverterConfig):
+            fallback_type: str = "fallback"
+
+        class DummyConverter(BaseConverter):
+            def convert(self, spec, **kwargs):
+                return None
+
+        config = DummyConfig(mode="coerce")
+        converter = DummyConverter(config)
+
+        # Override to raise mode
+        with converter.conversion_context(mode="raise"):
+            with pytest.raises(UnsupportedFeatureError):
+                converter.raise_or_coerce("UnsupportedType", error_msg="Should raise")
+
+        # Back to coerce mode
+        with pytest.warns(UserWarning):
+            result = converter.raise_or_coerce("UnsupportedType")
+            assert result == "fallback"

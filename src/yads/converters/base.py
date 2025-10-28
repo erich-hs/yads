@@ -24,7 +24,7 @@ from typing import (
 )
 
 from ..spec import Field
-from ..exceptions import ConverterConfigError
+from ..exceptions import ConverterConfigError, UnsupportedFeatureError, validation_warning
 
 if TYPE_CHECKING:
     from ..spec import YadsSpec
@@ -168,6 +168,85 @@ class BaseConverter(Generic[T], ABC):
         raise NotImplementedError(
             f"{self.__class__.__name__} must implement _convert_field_default "
             "to use the centralized override resolution"
+        )
+
+    def raise_or_coerce(
+        self,
+        yads_type: Any | None = None,
+        *,
+        coerce_type: T | None = None,
+        error_msg: str | None = None,
+    ) -> T:
+        """Handle raise or coerce mode for unsupported type features.
+
+        This public method provides a consistent way to handle unsupported types
+        based on the converter's mode. It can be used within converters and in
+        custom column override functions.
+
+        The method uses the template method pattern with several hook methods
+        that subclasses can override to customize behavior:
+        - `_format_type_for_display`: Customize how types appear in warnings
+        - `_emit_warning`: Customize warning emission
+        - `_get_fallback_type`: Customize fallback type resolution
+        - `_generate_error_message`: Customize error message generation
+
+        Args:
+            yads_type: The yads type that is not supported. Can be None if
+                error_msg is explicitly provided.
+            coerce_type: The type to coerce to in coerce mode. If None, uses
+                the converter's configured fallback type.
+            error_msg: Custom error message. If None, uses a default message
+                based on the converter class name and yads_type. When providing
+                a custom error_msg, yads_type can be None.
+
+        Returns:
+            The coerced type in coerce mode.
+
+        Raises:
+            UnsupportedFeatureError: In raise mode when the feature is not supported.
+            ValueError: If both yads_type and error_msg are None.
+        """
+        if coerce_type is None:
+            coerce_type = self._get_fallback_type()
+
+        if error_msg is None:
+            if yads_type is None:
+                raise ValueError(
+                    "Either yads_type or error_msg must be provided to raise_or_coerce"
+                )
+            error_msg = self._generate_error_message(yads_type)
+
+        if self.config.mode == "coerce":
+            display_type = self._format_type_for_display(coerce_type)
+            warning_msg = f"{error_msg} The data type will be coerced to {display_type}."
+            self._emit_warning(warning_msg)
+            return coerce_type
+        else:
+            raise UnsupportedFeatureError(error_msg)
+
+    def _format_type_for_display(self, type_obj: Any) -> str:
+        return str(type_obj)
+
+    def _emit_warning(self, message: str) -> None:
+        validation_warning(
+            message=message,
+            filename=self.__class__.__module__,
+            module=self.__class__.__module__,
+        )
+
+    def _get_fallback_type(self) -> T:
+        fallback_type = getattr(self.config, "fallback_type", None)
+        if fallback_type is None:
+            raise ValueError(
+                f"{self.__class__.__name__} config must have a fallback_type "
+                "attribute to use raise_or_coerce without explicit coerce_type"
+            )
+        return fallback_type
+
+    def _generate_error_message(self, yads_type: Any) -> str:
+        return (
+            f"{self.__class__.__name__} does not support type: {yads_type}"
+            f" for '{self._field_context}'."
         )
 
     @contextmanager

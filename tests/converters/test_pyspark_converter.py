@@ -1314,3 +1314,161 @@ class TestPySparkConverterFieldLevelFallback:
             UnsupportedFeatureError, match="does not support type: geometry"
         ):
             converter.convert(spec)
+
+
+# %% Column overrides with raise_or_coerce
+class TestColumnOverridesWithRaiseOrCoerce:
+    """Tests for using raise_or_coerce in custom column override functions."""
+
+    def test_column_override_using_raise_or_coerce_coerce_mode(self):
+        """Test custom column override using raise_or_coerce in coerce mode."""
+        from pyspark.sql.types import LongType, StructField
+
+        def custom_timestamp_override(field, converter):
+            # Convert all timestamps to LongType (unix epoch)
+            long_type = converter.raise_or_coerce(
+                field.type,
+                coerce_type=LongType(),
+                error_msg=f"Converting {field.name} to unix epoch (LongType)",
+            )
+            return StructField(field.name, long_type, nullable=field.is_nullable)
+
+        config = PySparkConverterConfig(
+            mode="coerce", column_overrides={"created_at": custom_timestamp_override}
+        )
+        converter = PySparkConverter(config)
+
+        spec = YadsSpec(
+            name="test_table",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer(bits=64)),
+                Column(name="created_at", type=Timestamp()),
+            ],
+        )
+
+        with pytest.warns(UserWarning) as warning_list:
+            schema = converter.convert(spec)
+
+        # Verify override was applied
+        assert schema.fields[1].name == "created_at"
+        assert isinstance(schema.fields[1].dataType, LongType)
+
+        # Verify warning was emitted
+        assert any(
+            "Converting created_at to unix epoch" in str(w.message) for w in warning_list
+        )
+
+    def test_column_override_using_raise_or_coerce_raise_mode(self):
+        """Test custom column override using raise_or_coerce in raise mode."""
+        from pyspark.sql.types import LongType, StructField
+
+        def custom_timestamp_override(field, converter):
+            long_type = converter.raise_or_coerce(
+                field.type,
+                coerce_type=LongType(),
+                error_msg=f"Converting {field.name} requires manual review",
+            )
+            return StructField(field.name, long_type, nullable=field.is_nullable)
+
+        config = PySparkConverterConfig(
+            mode="raise", column_overrides={"created_at": custom_timestamp_override}
+        )
+        converter = PySparkConverter(config)
+
+        spec = YadsSpec(
+            name="test_table",
+            version="1.0.0",
+            columns=[Column(name="created_at", type=Timestamp())],
+        )
+
+        # Should raise because mode is "raise"
+        with pytest.raises(
+            UnsupportedFeatureError, match="Converting created_at requires manual review"
+        ):
+            converter.convert(spec)
+
+    def test_column_override_with_raise_or_coerce_custom_message(self):
+        """Test that custom error messages from overrides appear in warnings."""
+        from pyspark.sql.types import StringType, StructField
+
+        def custom_override(field, converter):
+            string_type = converter.raise_or_coerce(
+                field.type,
+                coerce_type=StringType(),
+                error_msg=f"Custom coercion logic for {field.name}: JSON -> String",
+            )
+            return StructField(field.name, string_type, nullable=field.is_nullable)
+
+        config = PySparkConverterConfig(
+            mode="coerce", column_overrides={"data": custom_override}
+        )
+        converter = PySparkConverter(config)
+
+        spec = YadsSpec(
+            name="test_table",
+            version="1.0.0",
+            columns=[Column(name="data", type=JSON())],
+        )
+
+        with pytest.warns(UserWarning) as warning_list:
+            _ = converter.convert(spec)
+
+        # Verify custom message appears in warnings
+        assert any(
+            "Custom coercion logic for data: JSON -> String" in str(w.message)
+            for w in warning_list
+        )
+
+    def test_column_override_with_raise_or_coerce_multiple_columns(self):
+        """Test using raise_or_coerce with multiple column overrides."""
+        from pyspark.sql.types import LongType, StringType, StructField
+
+        def timestamp_to_long(field, converter):
+            long_type = converter.raise_or_coerce(
+                field.type, coerce_type=LongType(), error_msg=f"Override: {field.name}"
+            )
+            return StructField(field.name, long_type, nullable=field.is_nullable)
+
+        def any_to_string(field, converter):
+            string_type = converter.raise_or_coerce(
+                field.type,
+                coerce_type=StringType(),
+                error_msg=f"Override: {field.name}",
+            )
+            return StructField(field.name, string_type, nullable=field.is_nullable)
+
+        config = PySparkConverterConfig(
+            mode="coerce",
+            column_overrides={
+                "created_at": timestamp_to_long,
+                "updated_at": timestamp_to_long,
+                "metadata": any_to_string,
+            },
+        )
+        converter = PySparkConverter(config)
+
+        spec = YadsSpec(
+            name="test_table",
+            version="1.0.0",
+            columns=[
+                Column(name="id", type=Integer(bits=64)),
+                Column(name="created_at", type=Timestamp()),
+                Column(name="updated_at", type=Timestamp()),
+                Column(name="metadata", type=JSON()),
+            ],
+        )
+
+        with pytest.warns(UserWarning) as warning_list:
+            schema = converter.convert(spec)
+
+        # Verify all overrides were applied
+        assert isinstance(schema.fields[1].dataType, LongType)  # created_at
+        assert isinstance(schema.fields[2].dataType, LongType)  # updated_at
+        assert isinstance(schema.fields[3].dataType, StringType)  # metadata
+
+        # Verify warnings for overridden columns
+        warning_messages = [str(w.message) for w in warning_list]
+        assert any("Override: created_at" in msg for msg in warning_messages)
+        assert any("Override: updated_at" in msg for msg in warning_messages)
+        assert any("Override: metadata" in msg for msg in warning_messages)

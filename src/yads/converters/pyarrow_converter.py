@@ -28,7 +28,7 @@ from typing import Any, Callable, Literal, Mapping, TYPE_CHECKING
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
-from ..exceptions import UnsupportedFeatureError, validation_warning
+from ..exceptions import UnsupportedFeatureError
 from .._dependencies import requires_dependency, try_import_optional
 from .. import spec as yspec
 from .. import types as ytypes
@@ -168,21 +168,7 @@ class PyArrowConverter(BaseConverter):
         # - Geometry
         # - Geography
         # - Variant
-        if self.config.mode == "coerce":
-            validation_warning(
-                message=(
-                    f"PyArrowConverter does not support type: {yads_type}"
-                    f" for '{self._field_context}'."
-                    f" The data type will be coerced to {self.config.fallback_type}."
-                ),
-                filename="yads.converters.pyarrow_converter",
-                module=__name__,
-            )
-            return self.config.fallback_type
-        raise UnsupportedFeatureError(
-            f"PyArrowConverter does not support type: {yads_type}"
-            f" for '{self._field_context}'."
-        )
+        return self.raise_or_coerce(yads_type)
 
     @_convert_type.register(ytypes.String)
     def _(self, yads_type: ytypes.String) -> pa.DataType:
@@ -255,20 +241,13 @@ class PyArrowConverter(BaseConverter):
             return build_decimal(256 if precision > 38 else 128)
 
         if bits == 128 and precision > 38:
-            if self.config.mode == "coerce":
-                validation_warning(
-                    message=(
-                        "Precision greater than 38 is incompatible with Decimal(bits=128)"
-                        f" for '{self._field_context}'."
-                        f" The data type will be replaced with pyarrow.decimal256({precision=}, {scale=})."
-                    ),
-                    filename="yads.converters.pyarrow_converter",
-                    module=__name__,
-                )
-                return build_decimal(256)
-            raise UnsupportedFeatureError(
-                f"precision > 38 is incompatible with Decimal(bits=128)"
-                f" for '{self._field_context}'."
+            return self.raise_or_coerce(
+                yads_type,
+                coerce_type=build_decimal(256),
+                error_msg=(
+                    "precision > 38 is incompatible with Decimal(bits=128)"
+                    f" for '{self._field_context}'."
+                ),
             )
         return build_decimal(bits)
 
@@ -315,39 +294,25 @@ class PyArrowConverter(BaseConverter):
 
         if bits == 32:
             if unit not in self._TIME32_UNITS:
-                if self.config.mode == "coerce":
-                    validation_warning(
-                        message=(
-                            "time32 supports only 's' or 'ms' units"
-                            f" (got '{unit}') for '{self._field_context}'."
-                            f" The data type will be replaced with pyarrow.time64({unit=})."
-                        ),
-                        filename="yads.converters.pyarrow_converter",
-                        module=__name__,
-                    )
-                    return pa.time64(unit)
-                raise UnsupportedFeatureError(
-                    f"time32 supports only 's' or 'ms' units (got '{unit}')"
-                    f" for '{self._field_context}'."
+                return self.raise_or_coerce(
+                    yads_type,
+                    coerce_type=pa.time64(unit),
+                    error_msg=(
+                        "time32 supports only 's' or 'ms' units"
+                        f" (got '{unit}') for '{self._field_context}'."
+                    ),
                 )
             return pa.time32(unit)
         elif bits == 64:
             if unit not in self._TIME64_UNITS:
-                if self.config.mode == "coerce":
-                    # Promote coarse units to 32 if asked for 64 but unit is s/ms
-                    validation_warning(
-                        message=(
-                            "time64 supports only 'us' or 'ns' units"
-                            f" (got '{unit}') for '{self._field_context}'."
-                            f" The data type will be replaced with pyarrow.time32({unit=})."
-                        ),
-                        filename="yads.converters.pyarrow_converter",
-                        module=__name__,
-                    )
-                    return pa.time32(unit)
-                raise UnsupportedFeatureError(
-                    f"time64 supports only 'us' or 'ns' units (got '{unit}')"
-                    f" for '{self._field_context}'."
+                # Promote coarse units to 32 if asked for 64 but unit is s/ms
+                return self.raise_or_coerce(
+                    yads_type,
+                    coerce_type=pa.time32(unit),
+                    error_msg=(
+                        "time64 supports only 'us' or 'ns' units"
+                        f" (got '{unit}') for '{self._field_context}'."
+                    ),
                 )
             return pa.time64(unit)
         raise UnsupportedFeatureError(
@@ -538,15 +503,8 @@ class PyArrowConverter(BaseConverter):
             return imported_constructor
 
         # Constructor is unavailable - handle based on mode
-        if self.config.mode == "coerce":
-            validation_warning(
-                message=(
-                    f"{error_msg}\n"
-                    f"The data type will be coerced to {self.config.fallback_type}."
-                ),
-                filename="yads.converters.pyarrow_converter",
-                module=__name__,
-            )
-            return None
-
-        raise UnsupportedFeatureError(f"{error_msg}")
+        self.raise_or_coerce(
+            constructor_name,
+            error_msg=error_msg,
+        )
+        return None
