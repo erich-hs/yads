@@ -184,8 +184,7 @@ class PolarsConverter(BaseConverter):
             return mapping[bits]
         except KeyError as e:
             raise UnsupportedFeatureError(
-                f"Unsupported Integer bits: {bits}. Expected 8/16/32/64/128 for signed integers"
-                f" or 8/16/32/64 for unsigned integers"
+                f"Unsupported Integer bits: {bits}. Expected 8/16/32/64"
                 f" for '{self._field_context}'."
             ) from e
 
