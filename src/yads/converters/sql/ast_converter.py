@@ -290,7 +290,6 @@ class SQLGlotConverter(BaseConverter, AstConverter):
         bits = yads_type.bits or 32
         if bits == 16:
             return self.raise_or_coerce(
-                yads_type,
                 coerce_type=exp.DataType(this=exp.DataType.Type.FLOAT),
                 error_msg=(
                     f"SQLGlotConverter does not support half-precision Float (bits={bits})."
@@ -697,7 +696,6 @@ class SQLGlotConverter(BaseConverter, AstConverter):
             target_type = exp.DataType.Type[cast_to_type]
         except KeyError:
             return self.raise_or_coerce(
-                cast_to_type,
                 coerce_type=exp.Cast(
                     this=exp.column(column),
                     to=exp.DataType(this=self.config.fallback_type),

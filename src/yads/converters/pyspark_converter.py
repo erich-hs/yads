@@ -160,7 +160,6 @@ class PySparkConverter(BaseConverter):
         if yads_type.length is not None:
             # VarcharType/CharType types are not supported in PySpark DataFrame schemas
             return self.raise_or_coerce(
-                yads_type,
                 coerce_type=StringType(),
                 error_msg=(
                     f"String with fixed length is not supported in PySpark "
@@ -201,7 +200,6 @@ class PySparkConverter(BaseConverter):
             # Handle unsigned integers
             if bits == 8:
                 return self.raise_or_coerce(
-                    yads_type,
                     coerce_type=ShortType(),
                     error_msg=(
                         f"Unsigned Integer(bits=8) is not supported by PySpark"
@@ -210,7 +208,6 @@ class PySparkConverter(BaseConverter):
                 )
             elif bits == 16:
                 return self.raise_or_coerce(
-                    yads_type,
                     coerce_type=IntegerType(),
                     error_msg=(
                         f"Unsigned Integer(bits=16) is not supported by PySpark"
@@ -219,7 +216,6 @@ class PySparkConverter(BaseConverter):
                 )
             elif bits == 32:
                 return self.raise_or_coerce(
-                    yads_type,
                     coerce_type=LongType(),
                     error_msg=(
                         f"Unsigned Integer(bits=32) is not supported by PySpark"
@@ -228,7 +224,6 @@ class PySparkConverter(BaseConverter):
                 )
             elif bits == 64:
                 return self.raise_or_coerce(
-                    yads_type,
                     coerce_type=DecimalType(20, 0),
                     error_msg=(
                         f"Unsigned Integer(bits=64) is not supported by PySpark"
@@ -251,14 +246,7 @@ class PySparkConverter(BaseConverter):
         bits = yads_type.bits or 32
 
         if bits == 16:
-            return self.raise_or_coerce(
-                yads_type,
-                coerce_type=FloatType(),
-                error_msg=(
-                    f"Float(bits=16) is not supported by PySpark"
-                    f" for '{self._field_context}'."
-                ),
-            )
+            return self.raise_or_coerce(yads_type, coerce_type=FloatType())
         elif bits == 32:
             return FloatType()
         elif bits == 64:
@@ -499,8 +487,5 @@ class PySparkConverter(BaseConverter):
             return imported_type
 
         # Type is unavailable - handle based on mode
-        self.raise_or_coerce(
-            type_name,
-            error_msg=error_msg,
-        )
+        self.raise_or_coerce(error_msg=error_msg)
         return None

@@ -59,7 +59,7 @@ class TestPolarsConverterTypes:
             (Integer(bits=16, signed=False), pl.UInt16, None),
             (Integer(bits=32, signed=False), pl.UInt32, None),
             (Integer(bits=64, signed=False), pl.UInt64, None),
-            (Float(bits=16), pl.Float32, "Float(bits=16) is not supported by Polars"),  # coerced
+            (Float(bits=16), pl.Float32, "PolarsConverter does not support type: float(bits=16)"),  # coerced
             (Float(bits=32), pl.Float32, None),
             (Float(bits=64), pl.Float64, None),
             (Decimal(), pl.Decimal(precision=None, scale=0), None),
@@ -105,16 +105,16 @@ class TestPolarsConverterTypes:
                 ]),
                 None,
             ),
-            (Map(key=String(), value=Integer()), pl.Struct([pl.Field("key", pl.String), pl.Field("value", pl.Int32)]), "Map type is not supported by Polars"),
-            (JSON(), pl.String, "PolarsConverter does not support type"),
+            (Map(key=String(), value=Integer()), pl.Struct([pl.Field("key", pl.String), pl.Field("value", pl.Int32)]), "PolarsConverter does not support type: map<string, integer>"),
+            (JSON(), pl.String, "PolarsConverter does not support type: json"),
             (Geometry(), pl.String, "PolarsConverter does not support type: geometry for 'col1'."),
             (Geometry(srid=4326), pl.String, "PolarsConverter does not support type: geometry(srid=4326) for 'col1'."),
             (Geography(), pl.String, "PolarsConverter does not support type: geography for 'col1'."),
             (Geography(srid=4326), pl.String, "PolarsConverter does not support type: geography(srid=4326) for 'col1'."),
-            (UUID(), pl.String, "PolarsConverter does not support type"),
+            (UUID(), pl.String, "PolarsConverter does not support type: uuid"),
             (Void(), pl.Null, None),
             (Variant(), pl.String, "PolarsConverter does not support type: variant for 'col1'."),
-            (Tensor(element=Integer(bits=32), shape=(10, 20)), pl.String, "PolarsConverter does not support type"),
+            (Tensor(element=Integer(bits=32), shape=(10, 20)), pl.String, "PolarsConverter does not support type: tensor"),
         ],
     )
     def test_convert_type(
@@ -214,7 +214,7 @@ class TestPolarsConverterTypes:
         assert schema["f"] == pl.Float32
         assert len(w) == 1
         assert issubclass(w[0].category, ValidationWarning)
-        assert "Float(bits=16) is not supported" in str(w[0].message)
+        assert "PolarsConverter does not support type: float(bits=16)" in str(w[0].message)
 
         with pytest.raises(UnsupportedFeatureError):
             PolarsConverter(PolarsConverterConfig(mode="raise")).convert(spec)
@@ -277,7 +277,7 @@ class TestPolarsConverterTypes:
         ])
         assert len(w) == 1
         assert issubclass(w[0].category, ValidationWarning)
-        assert "Map type is not supported by Polars" in str(w[0].message)
+        assert "PolarsConverter does not support type: map" in str(w[0].message)
 
         with pytest.raises(UnsupportedFeatureError):
             PolarsConverter(PolarsConverterConfig(mode="raise")).convert(spec)
@@ -949,7 +949,7 @@ class TestPolarsConverterFieldLevelFallback:
 
         # Should have warning for Map
         assert len(w) == 1
-        assert "Map type is not supported" in str(w[0].message)
+        assert "PolarsConverter does not support type: map" in str(w[0].message)
 
         # Map should coerce to Struct with key/value fields
         expected = pl.Struct(

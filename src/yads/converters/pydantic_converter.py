@@ -204,7 +204,6 @@ class PydanticConverter(BaseConverter):
         if yads_type.bits is not None and yads_type.bits != 64:
             # Use raise_or_coerce for consistent warning/error handling
             self.raise_or_coerce(
-                yads_type,
                 coerce_type=float,
                 error_msg=(
                     f"Float(bits={yads_type.bits}) cannot be represented exactly"
@@ -223,7 +222,6 @@ class PydanticConverter(BaseConverter):
             # Decimal constraints not supported in this Pydantic version
             # Use raise_or_coerce to emit warning, but continue with PythonDecimal
             self.raise_or_coerce(
-                yads_type,
                 coerce_type=PythonDecimal,
                 error_msg=(
                     f"Decimal precision and scale constraints require Pydantic >= 2.8.0"

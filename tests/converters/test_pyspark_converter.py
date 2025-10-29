@@ -122,7 +122,7 @@ class TestPySparkConverterTypes:
             (Integer(bits=64, signed=False), DecimalType(20, 0), "Unsigned Integer(bits=64)"),
             
             # Float types
-            (Float(bits=16), FloatType(), "Float(bits=16)"),  # coerced
+            (Float(bits=16), FloatType(), "float(bits=16)"),  # coerced
             (Float(bits=32), FloatType(), None),
             (Float(bits=64), DoubleType(), None),
             
@@ -189,7 +189,7 @@ class TestPySparkConverterTypes:
             (Integer(bits=64, signed=False), "Unsigned Integer.*is not supported"),
             
             # Float(bits=16) should raise in raise mode
-            (Float(bits=16), "Float.*is not supported"),
+            (Float(bits=16), "PySparkConverter does not support type: float(bits=16)*"),
             
             # Unsupported types
             (Time(), "does not support type"),

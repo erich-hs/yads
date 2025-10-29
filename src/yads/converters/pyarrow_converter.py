@@ -242,7 +242,6 @@ class PyArrowConverter(BaseConverter):
 
         if bits == 128 and precision > 38:
             return self.raise_or_coerce(
-                yads_type,
                 coerce_type=build_decimal(256),
                 error_msg=(
                     "precision > 38 is incompatible with Decimal(bits=128)"
@@ -295,7 +294,6 @@ class PyArrowConverter(BaseConverter):
         if bits == 32:
             if unit not in self._TIME32_UNITS:
                 return self.raise_or_coerce(
-                    yads_type,
                     coerce_type=pa.time64(unit),
                     error_msg=(
                         "time32 supports only 's' or 'ms' units"
@@ -307,7 +305,6 @@ class PyArrowConverter(BaseConverter):
             if unit not in self._TIME64_UNITS:
                 # Promote coarse units to 32 if asked for 64 but unit is s/ms
                 return self.raise_or_coerce(
-                    yads_type,
                     coerce_type=pa.time32(unit),
                     error_msg=(
                         "time64 supports only 'us' or 'ns' units"
@@ -503,8 +500,5 @@ class PyArrowConverter(BaseConverter):
             return imported_constructor
 
         # Constructor is unavailable - handle based on mode
-        self.raise_or_coerce(
-            constructor_name,
-            error_msg=error_msg,
-        )
+        self.raise_or_coerce(error_msg=error_msg)
         return None

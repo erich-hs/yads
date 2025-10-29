@@ -197,14 +197,7 @@ class PolarsConverter(BaseConverter):
         mapping = {32: pl.Float32, 64: pl.Float64}
 
         if bits == 16:
-            return self.raise_or_coerce(
-                yads_type,
-                coerce_type=pl.Float32,
-                error_msg=(
-                    f"Float(bits=16) is not supported by Polars"
-                    f" for '{self._field_context}'."
-                ),
-            )
+            return self.raise_or_coerce(yads_type, coerce_type=pl.Float32)
 
         try:
             return mapping[bits]
@@ -252,7 +245,6 @@ class PolarsConverter(BaseConverter):
 
         if time_unit != "ns":
             return self.raise_or_coerce(
-                yads_type,
                 error_msg=(
                     f"Polars Time only supports nanosecond precision (unit='ns')"
                     f" for '{self._field_context}'."
@@ -287,7 +279,6 @@ class PolarsConverter(BaseConverter):
         # Polars Duration only supports ms, us, ns
         if time_unit == "s":
             return self.raise_or_coerce(
-                yads_type,
                 error_msg=(
                     f"Polars Duration does not support 's' (second) time unit"
                     f" for '{self._field_context}'."
@@ -331,13 +322,7 @@ class PolarsConverter(BaseConverter):
             [pl.Field("key", key_type), pl.Field("value", value_type)]
         )
 
-        return self.raise_or_coerce(
-            yads_type,
-            coerce_type=struct_type,
-            error_msg=(
-                f"Map type is not supported by Polars for '{self._field_context}'."
-            ),
-        )
+        return self.raise_or_coerce(yads_type, coerce_type=struct_type)
 
     @_convert_type.register(ytypes.Void)
     def _(self, yads_type: ytypes.Void) -> Any:
@@ -369,7 +354,6 @@ class PolarsConverter(BaseConverter):
         # Polars Datetime only supports ms, us, ns (not s)
         if time_unit == "s":
             return self.raise_or_coerce(
-                yads_type=None,
                 error_msg=(
                     f"Polars Datetime does not support 's' (second) time unit"
                     f" for '{self._field_context}'."
