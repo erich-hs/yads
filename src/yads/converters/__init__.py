@@ -93,7 +93,7 @@ if TYPE_CHECKING:
     SQLGlotColumnOverride = Callable[[SpecField, SQLGlotConverter], exp.ColumnDef]
 
 
-@requires_dependency("pyarrow", import_name="pyarrow")
+@requires_dependency("pyarrow", min_version="15.0.0", import_name="pyarrow")
 def to_pyarrow(
     spec: YadsSpec,
     *,
@@ -186,7 +186,7 @@ def to_pydantic(
     return PydanticConverter(config).convert(spec)
 
 
-@requires_dependency("pyspark", import_name="pyspark.sql.types")
+@requires_dependency("pyspark", min_version="3.1.1", import_name="pyspark.sql.types")
 def to_pyspark(
     spec: YadsSpec,
     *,
@@ -264,7 +264,7 @@ def to_polars(
     return polars_converter.PolarsConverter(config).convert(spec)
 
 
-@requires_dependency("sqlglot", import_name="sqlglot")
+@requires_dependency("sqlglot", min_version="27.0.0", import_name="sqlglot")
 def to_sql(
     spec: YadsSpec,
     *,
