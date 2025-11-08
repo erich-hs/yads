@@ -86,7 +86,8 @@ class PolarsConverter(BaseConverter):
         - Polars strings are variable-length; any `String.length` hint is
           ignored in the resulting Polars schema.
         - `Float(bits=16)` is not supported and coerces to Float32.
-        - `Map`, `UUID`, `JSON`, `Geometry`, `Geography`, `Variant`, and `Tensor`
+        - `Tensor` is converted to `pl.Array` with multi-dimensional shape support.
+        - `Map`, `UUID`, `JSON`, `Geometry`, `Geography`, and `Variant`
           are not supported and coerce to the fallback type.
         - `Interval` is not supported and coerces to the fallback type (Polars
           Duration only supports subsecond units).
@@ -143,7 +144,6 @@ class PolarsConverter(BaseConverter):
         # - Geometry
         # - Geography
         # - Variant
-        # - Tensor
         # - Interval
         # - JSON
         # - UUID
@@ -322,6 +322,13 @@ class PolarsConverter(BaseConverter):
             return pl.Array(value_type, shape=yads_type.size)
         # Variable-length list
         return pl.List(value_type)
+
+    @_convert_type.register(ytypes.Tensor)
+    def _(self, yads_type: ytypes.Tensor) -> Any:
+        import polars as pl  # type: ignore[import-untyped]
+
+        element_type = self._convert_type(yads_type.element)
+        return pl.Array(element_type, shape=yads_type.shape)
 
     @_convert_type.register(ytypes.Struct)
     def _(self, yads_type: ytypes.Struct) -> Any:

@@ -116,7 +116,7 @@ class TestPolarsConverterTypes:
             (UUID(), pl.String, "PolarsConverter does not support type: uuid"),
             (Void(), pl.Null, None),
             (Variant(), pl.String, "PolarsConverter does not support type: variant for 'col1'."),
-            (Tensor(element=Integer(bits=32), shape=(10, 20)), pl.String, "PolarsConverter does not support type: tensor"),
+            (Tensor(element=Integer(bits=32), shape=(10, 20)), pl.Array(pl.Int32, shape=(10, 20)), None),
         ],
     )
     def test_convert_type(
@@ -341,7 +341,6 @@ class TestPolarsConverterTypes:
             (Geography(), "geography"),
             (Geography(srid=4326), "geography(srid=4326)"),
             (Variant(), "variant"),
-            (Tensor(element=Integer(), shape=(10,)), "tensor<integer, shape=[10]>"),
         ],
     )
     def test_raise_mode_for_unsupported_types(self, yads_type: YadsType, type_name: str):
@@ -354,6 +353,41 @@ class TestPolarsConverterTypes:
 
         with pytest.raises(UnsupportedFeatureError, match=f"PolarsConverter does not support type: {re.escape(type_name)} for 'col1'."):
             PolarsConverter(PolarsConverterConfig(mode="raise")).convert(spec)
+
+    @pytest.mark.parametrize(
+        "tensor_type, expected_pl_type",
+        [
+            # 1D tensors
+            (Tensor(element=Integer(bits=32), shape=(10,)), pl.Array(pl.Int32, shape=(10,))),
+            (Tensor(element=String(), shape=(5,)), pl.Array(pl.String, shape=(5,))),
+            (Tensor(element=Float(bits=64), shape=(100,)), pl.Array(pl.Float64, shape=(100,))),
+            # 2D tensors
+            (Tensor(element=Integer(bits=32), shape=(10, 20)), pl.Array(pl.Int32, shape=(10, 20))),
+            (Tensor(element=Float(bits=32), shape=(28, 28)), pl.Array(pl.Float32, shape=(28, 28))),
+            (Tensor(element=Boolean(), shape=(3, 4)), pl.Array(pl.Boolean, shape=(3, 4))),
+            # 3D tensors
+            (Tensor(element=Integer(bits=64), shape=(5, 10, 15)), pl.Array(pl.Int64, shape=(5, 10, 15))),
+            (Tensor(element=Float(bits=32), shape=(3, 224, 224)), pl.Array(pl.Float32, shape=(3, 224, 224))),
+            # 4D tensors
+            (Tensor(element=Integer(bits=8), shape=(3, 4, 5, 6)), pl.Array(pl.Int8, shape=(3, 4, 5, 6))),
+            # Nested element types
+            (Tensor(element=Array(element=Integer()), shape=(10, 20)), pl.Array(pl.List(pl.Int32), shape=(10, 20))),
+            (Tensor(element=Struct(fields=[Field(name="x", type=Integer())]), shape=(5, 5)), 
+             pl.Array(pl.Struct([pl.Field("x", pl.Int32)]), shape=(5, 5))),
+        ],
+    )
+    def test_convert_tensor_to_array(self, tensor_type: Tensor, expected_pl_type: pl.DataType):
+        """Test conversion of yads Tensor to polars Array with multi-dimensional shapes."""
+        spec = YadsSpec(
+            name="test_spec",
+            version="1.0.0",
+            columns=[Column(name="tensor_col", type=tensor_type)],
+        )
+        converter = PolarsConverter()
+        schema = converter.convert(spec)
+
+        assert "tensor_col" in schema.names()
+        assert schema["tensor_col"] == expected_pl_type
 
     def test_decimal_precision_handling(self):
         spec = YadsSpec(
