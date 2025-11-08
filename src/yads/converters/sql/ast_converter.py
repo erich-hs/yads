@@ -37,13 +37,6 @@ if TYPE_CHECKING:
     from sqlglot import exp
 
 
-@requires_dependency("sqlglot", import_name="sqlglot")
-def _default_fallback_type() -> exp.DataType.Type:
-    from sqlglot import exp
-
-    return exp.DataType.Type.TEXT
-
-
 class AstConverter(ABC):
     """Abstract base class for AST converters.
 
@@ -77,15 +70,15 @@ class SQLGlotConverterConfig(BaseConverterConfig):
         ignore_catalog: If True, omits the catalog from the table name. Defaults to False.
         ignore_database: If True, omits the database from the table name. Defaults to False.
         fallback_type: SQL data type to use for unsupported types in coerce mode.
-            Must be one of: exp.DataType.Type.TEXT, exp.DataType.Type.BINARY, exp.DataType.Type.BLOB.
-            Defaults to exp.DataType.Type.TEXT.
+            Must be one of: exp.DataType.Type.TEXT, exp.DataType.Type.BINARY, exp.DataType.Type.BLOB, or None.
+            Defaults to None.
     """
 
     if_not_exists: bool = False
     or_replace: bool = False
     ignore_catalog: bool = False
     ignore_database: bool = False
-    fallback_type: exp.DataType.Type = field(default_factory=_default_fallback_type)
+    fallback_type: exp.DataType.Type | None = None
     column_overrides: Mapping[
         str, Callable[[yspec.Field, SQLGlotConverter], exp.ColumnDef]
     ] = field(default_factory=lambda: MappingProxyType({}))
@@ -94,19 +87,20 @@ class SQLGlotConverterConfig(BaseConverterConfig):
         """Validate configuration parameters."""
         super().__post_init__()
 
-        # Validate fallback_type
-        from sqlglot import exp
+        # Validate fallback_type if provided
+        if self.fallback_type is not None:
+            from sqlglot import exp
 
-        valid_fallback_types = {
-            exp.DataType.Type.TEXT,
-            exp.DataType.Type.BINARY,
-            exp.DataType.Type.BLOB,
-        }
-        if self.fallback_type not in valid_fallback_types:
-            raise UnsupportedFeatureError(
-                f"fallback_type must be one of: exp.DataType.Type.TEXT, "
-                f"exp.DataType.Type.BINARY, exp.DataType.Type.BLOB. Got: {self.fallback_type}"
-            )
+            valid_fallback_types = {
+                exp.DataType.Type.TEXT,
+                exp.DataType.Type.BINARY,
+                exp.DataType.Type.BLOB,
+            }
+            if self.fallback_type not in valid_fallback_types:
+                raise UnsupportedFeatureError(
+                    f"fallback_type must be one of: exp.DataType.Type.TEXT, "
+                    f"exp.DataType.Type.BINARY, exp.DataType.Type.BLOB, or None. Got: {self.fallback_type}"
+                )
 
 
 # %% ---- Converter ------------------------------------------------------------------

@@ -1,5 +1,5 @@
 from yads.converters.base import BaseConverter, BaseConverterConfig
-from yads.exceptions import ConverterConfigError
+from yads.exceptions import ConverterConfigError, UnsupportedFeatureError
 from yads.spec import Column, Field, YadsSpec
 from yads.types import Integer, String
 import pytest
@@ -578,7 +578,7 @@ class TestBaseConverterRaiseOrCoerce:
         assert "my_column" in warning_msg
 
     def test_raise_or_coerce_missing_fallback_type_error(self):
-        """Test raise_or_coerce raises ValueError when fallback_type missing."""
+        """Test raise_or_coerce raises UnsupportedFeatureError with hint when fallback_type is None in coerce mode."""
 
         class DummyConverter(BaseConverter):
             def convert(self, spec, **kwargs):
@@ -588,10 +588,10 @@ class TestBaseConverterRaiseOrCoerce:
         config = BaseConverterConfig(mode="coerce")
         converter = DummyConverter(config)
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(UnsupportedFeatureError) as exc_info:
             converter.raise_or_coerce("UnsupportedType")
 
-        assert "must have a fallback_type" in str(exc_info.value)
+        assert "Specify a fallback_type" in str(exc_info.value)
 
     def test_raise_or_coerce_format_type_for_display_hook(self):
         """Test _format_type_for_display hook is used."""

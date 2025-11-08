@@ -38,13 +38,6 @@ if TYPE_CHECKING:
     import pyarrow as pa  # type: ignore[import-untyped]
 
 
-@requires_dependency("pyarrow", import_name="pyarrow")
-def _default_pyarrow_fallback_type() -> pa.DataType:
-    import pyarrow as pa  # type: ignore[import-untyped]
-
-    return pa.string()
-
-
 # %% ---- Configuration --------------------------------------------------------------
 @dataclass(frozen=True)
 class PyArrowConverterConfig(BaseConverterConfig):
@@ -60,14 +53,14 @@ class PyArrowConverterConfig(BaseConverterConfig):
             variable-length `Array` (i.e., `size is None`). For fixed-size arrays
             (`size` set), `pa.list_(element, list_size=size)` is used. Defaults to False.
         fallback_type: PyArrow data type to use for unsupported types in coerce mode.
-            Must be one of: pa.binary(), pa.large_binary(), pa.string(), pa.large_string().
-            Defaults to pa.string().
+            Must be one of: pa.binary(), pa.large_binary(), pa.string(), pa.large_string(), or None.
+            Defaults to None.
     """
 
     use_large_string: bool = False
     use_large_binary: bool = False
     use_large_list: bool = False
-    fallback_type: pa.DataType = field(default_factory=_default_pyarrow_fallback_type)
+    fallback_type: pa.DataType | None = None
     column_overrides: Mapping[
         str, Callable[[yspec.Field, PyArrowConverter], pa.Field]
     ] = field(default_factory=lambda: MappingProxyType({}))
@@ -76,20 +69,21 @@ class PyArrowConverterConfig(BaseConverterConfig):
         """Validate configuration parameters."""
         super().__post_init__()
 
-        # Validate fallback_type
-        import pyarrow as pa  # type: ignore[import-untyped]
+        # Validate fallback_type if provided
+        if self.fallback_type is not None:
+            import pyarrow as pa  # type: ignore[import-untyped]
 
-        valid_fallback_types = {
-            pa.binary(),
-            pa.large_binary(),
-            pa.string(),
-            pa.large_string(),
-        }
-        if self.fallback_type not in valid_fallback_types:
-            raise UnsupportedFeatureError(
-                f"fallback_type must be one of: pa.binary(), pa.large_binary(), "
-                f"pa.string(), pa.large_string(). Got: {self.fallback_type}"
-            )
+            valid_fallback_types = {
+                pa.binary(),
+                pa.large_binary(),
+                pa.string(),
+                pa.large_string(),
+            }
+            if self.fallback_type not in valid_fallback_types:
+                raise UnsupportedFeatureError(
+                    f"fallback_type must be one of: pa.binary(), pa.large_binary(), "
+                    f"pa.string(), pa.large_string(), or None. Got: {self.fallback_type}"
+                )
 
 
 # %% ---- Converter ------------------------------------------------------------------
@@ -175,6 +169,16 @@ class PyArrowConverter(BaseConverter):
         import pyarrow as pa  # type: ignore[import-untyped]
 
         # Arrow strings are variable-length. Optionally use large_string.
+        if yads_type.length is not None:
+            self.raise_or_coerce(
+                coerce_type=pa.large_string()
+                if self.config.use_large_string
+                else pa.string(),
+                error_msg=(
+                    f"{yads_type} cannot be represented in PyArrow; "
+                    f"length constraint will be lost for '{self._field_context}'."
+                ),
+            )
         return pa.large_string() if self.config.use_large_string else pa.string()
 
     @_convert_type.register(ytypes.Integer)

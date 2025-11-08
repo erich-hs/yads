@@ -136,22 +136,22 @@ class TestPySparkConverterTypes:
             
             # Binary types
             (Binary(), BinaryType(), None),
-            (Binary(length=8), BinaryType(), None),  # length ignored
+            (Binary(length=8), BinaryType(), "length constraint will be lost"),  # length ignored - constraint loss
             
             # Date type
             (Date(), DateType(), None),
-            (Date(bits=32), DateType(), None),  # bits ignored
-            (Date(bits=64), DateType(), None),  # bits ignored
+            (Date(bits=32), DateType(), "bits constraint will be lost"),  # bits ignored - constraint loss
+            (Date(bits=64), DateType(), "bits constraint will be lost"),  # bits ignored - constraint loss
             
             # Timestamp types
-            (Timestamp(), TimestampType(), None),
-            (Timestamp(unit=TimeUnit.S), TimestampType(), None),  # unit ignored
-            (TimestampTZ(tz="UTC"), TimestampType(), None),  # tz ignored
-            (TimestampLTZ(), TimestampType(), None),
+            (Timestamp(), TimestampType(), "unit constraint will be lost"),  # default unit=NS, constraint loss
+            (Timestamp(unit=TimeUnit.S), TimestampType(), "unit constraint will be lost"),  # unit ignored - constraint loss
+            (TimestampTZ(tz="UTC"), TimestampType(), "tz constraints will be lost"),  # tz ignored - constraint loss
+            (TimestampLTZ(), TimestampType(), "unit constraint will be lost"),  # default unit=NS, constraint loss
             pytest.param(
-                TimestampNTZ(), 
-                TimestampNTZType() if HAS_TIMESTAMP_NTZ_TYPE else StringType(), 
-                None if HAS_TIMESTAMP_NTZ_TYPE else "TimestampNTZ type",
+                TimestampNTZ(),
+                TimestampNTZType() if HAS_TIMESTAMP_NTZ_TYPE else StringType(),
+                "unit constraint will be lost" if HAS_TIMESTAMP_NTZ_TYPE else "TimestampNTZ type",  # default unit=NS, constraint loss
                 id="timestamp_ntz"
             ),
             
@@ -161,7 +161,9 @@ class TestPySparkConverterTypes:
     )
     def test_primitive_types_coerce_mode(self, yads_type, expected_spark_type, expected_warning):
         """Test primitive type conversions in coerce mode."""
-        converter = PySparkConverter(PySparkConverterConfig(mode="coerce"))
+        converter = PySparkConverter(
+            PySparkConverterConfig(mode="coerce", fallback_type=StringType())
+        )
         
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -222,13 +224,15 @@ class TestPySparkConverterTypes:
     )
     def test_unsupported_types_coerce_mode(self, yads_type):
         """Test that unsupported types are coerced to fallback type in coerce mode."""
-        converter = PySparkConverter(PySparkConverterConfig(mode="coerce"))
+        converter = PySparkConverter(
+            PySparkConverterConfig(mode="coerce", fallback_type=StringType())
+        )
         
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             result = converter._convert_type(yads_type)
             
-            assert result == StringType()  # default fallback
+            assert result == StringType()
             assert len(w) == 1
             assert issubclass(w[0].category, ValidationWarning)
 
@@ -318,11 +322,17 @@ class TestPySparkConverterTypes:
         expected = ArrayType(StringType(), True)  # containsNull=True by default
         assert result == expected
         
-        # Array with size (ignored)
+        # Array with size - constraint loss warning
         sized_array = Array(element=Integer(bits=32), size=5)
-        result = converter._convert_type(sized_array)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = converter._convert_type(sized_array)
+        
         expected = ArrayType(IntegerType(), True)
         assert result == expected
+        assert len(w) == 1
+        assert issubclass(w[0].category, ValidationWarning)
+        assert "size constraint will be lost" in str(w[0].message)
 
     def test_struct_types(self):
         """Test struct type conversions."""
@@ -533,7 +543,7 @@ class TestPySparkConverterConfig:
         assert config.ignore_columns == frozenset()
         assert config.include_columns is None
         assert config.column_overrides == {}
-        assert config.fallback_type == StringType()
+        assert config.fallback_type is None
 
     def test_custom_fallback_type(self):
         """Test custom fallback type."""
@@ -829,7 +839,9 @@ class TestPySparkConverterConfig:
 
     def test_conversion_mode_override(self):
         """Test conversion mode override in convert method."""
-        converter = PySparkConverter(PySparkConverterConfig(mode="raise"))
+        converter = PySparkConverter(
+            PySparkConverterConfig(mode="raise", fallback_type=StringType())
+        )
 
         spec = YadsSpec(
             name="test_table",
@@ -858,7 +870,9 @@ class TestPySparkConverterConfig:
             version="1.0.0",
             columns=[Column(name="c", type=Geometry())],
         )
-        converter = PySparkConverter(PySparkConverterConfig(mode="raise"))
+        converter = PySparkConverter(
+            PySparkConverterConfig(mode="raise", fallback_type=StringType())
+        )
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -937,7 +951,7 @@ class TestPySparkConverterConfig:
                 )
             ],
         )
-        converter = PySparkConverter()
+        converter = PySparkConverter(PySparkConverterConfig(fallback_type=StringType()))
         with warnings.catch_warnings(record=True) as _w:
             warnings.simplefilter("always")
             schema = converter.convert(spec, mode="coerce")
@@ -1069,7 +1083,7 @@ class TestPySparkConverterFieldLevelFallback:
             ],
         )
 
-        converter = PySparkConverter()
+        converter = PySparkConverter(PySparkConverterConfig(fallback_type=StringType()))
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -1113,7 +1127,7 @@ class TestPySparkConverterFieldLevelFallback:
             ],
         )
 
-        converter = PySparkConverter()
+        converter = PySparkConverter(PySparkConverterConfig(fallback_type=StringType()))
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             schema = converter.convert(spec, mode="coerce")
@@ -1147,7 +1161,7 @@ class TestPySparkConverterFieldLevelFallback:
             ],
         )
 
-        converter = PySparkConverter()
+        converter = PySparkConverter(PySparkConverterConfig(fallback_type=StringType()))
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             schema = converter.convert(spec, mode="coerce")
@@ -1171,7 +1185,7 @@ class TestPySparkConverterFieldLevelFallback:
             ],
         )
 
-        converter = PySparkConverter()
+        converter = PySparkConverter(PySparkConverterConfig(fallback_type=StringType()))
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             schema = converter.convert(spec, mode="coerce")
@@ -1207,7 +1221,7 @@ class TestPySparkConverterFieldLevelFallback:
             ],
         )
 
-        converter = PySparkConverter()
+        converter = PySparkConverter(PySparkConverterConfig(fallback_type=StringType()))
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             schema = converter.convert(spec, mode="coerce")
@@ -1273,7 +1287,7 @@ class TestPySparkConverterFieldLevelFallback:
             ],
         )
 
-        converter = PySparkConverter()
+        converter = PySparkConverter(PySparkConverterConfig(fallback_type=StringType()))
         with warnings.catch_warnings(record=True) as _w:
             warnings.simplefilter("always")
             schema = converter.convert(spec, mode="coerce")

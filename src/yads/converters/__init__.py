@@ -126,7 +126,6 @@ def to_pyarrow(
     Returns:
         A `pyarrow.Schema` instance.
     """
-    import pyarrow as pa  # type: ignore[import-untyped]
     from . import pyarrow_converter
 
     config = pyarrow_converter.PyArrowConverterConfig(
@@ -137,7 +136,7 @@ def to_pyarrow(
         use_large_string=use_large_string,
         use_large_binary=use_large_binary,
         use_large_list=use_large_list,
-        fallback_type=fallback_type or pa.string(),
+        fallback_type=fallback_type,
     )
     return pyarrow_converter.PyArrowConverter(config).convert(spec)
 
@@ -182,7 +181,7 @@ def to_pydantic(
         column_overrides=column_overrides or {},
         model_name=model_name,
         model_config=model_config,
-        fallback_type=fallback_type or str,
+        fallback_type=fallback_type,
     )
     return PydanticConverter(config).convert(spec)
 
@@ -214,7 +213,6 @@ def to_pyspark(
     Returns:
         A PySpark `StructType` instance.
     """
-    from pyspark.sql.types import StringType  # type: ignore[import-untyped]
     from . import pyspark_converter
 
     config = pyspark_converter.PySparkConverterConfig(
@@ -222,7 +220,7 @@ def to_pyspark(
         ignore_columns=frozenset(ignore_columns) if ignore_columns else frozenset[str](),
         include_columns=frozenset(include_columns) if include_columns else None,
         column_overrides=column_overrides or {},
-        fallback_type=fallback_type or StringType(),
+        fallback_type=fallback_type,
     )
     return pyspark_converter.PySparkConverter(config).convert(spec)
 
@@ -254,7 +252,6 @@ def to_polars(
     Returns:
         A `polars.Schema` instance.
     """
-    import polars as pl  # type: ignore[import-untyped]
     from . import polars_converter
 
     config = polars_converter.PolarsConverterConfig(
@@ -262,7 +259,7 @@ def to_polars(
         ignore_columns=frozenset(ignore_columns) if ignore_columns else frozenset[str](),
         include_columns=frozenset(include_columns) if include_columns else None,
         column_overrides=column_overrides or {},
-        fallback_type=fallback_type or pl.String,
+        fallback_type=fallback_type,
     )
     return polars_converter.PolarsConverter(config).convert(spec)
 
@@ -304,6 +301,7 @@ def to_sql(
         ignore_catalog: Omit catalog from fully qualified table names.
         ignore_database: Omit database from fully qualified table names.
         fallback_type: Fallback SQL data type used in coerce mode for unsupported types.
+            Defaults to None.
         **sql_options: Additional formatting options forwarded to sqlglot's `sql()`.
 
     Returns:
@@ -312,7 +310,6 @@ def to_sql(
     Raises:
         ValueError: If an unsupported dialect is provided.
     """
-    from sqlglot import expressions as exp
     from .sql.ast_converter import SQLGlotConverterConfig
     from .sql.sql_converter import SparkSQLConverter, DuckdbSQLConverter
 
@@ -325,7 +322,7 @@ def to_sql(
         or_replace=or_replace,
         ignore_catalog=ignore_catalog,
         ignore_database=ignore_database,
-        fallback_type=fallback_type or exp.DataType.Type.TEXT,
+        fallback_type=fallback_type,
     )
 
     converter: SQLConverter

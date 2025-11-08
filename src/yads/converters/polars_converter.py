@@ -37,13 +37,6 @@ if TYPE_CHECKING:
     import polars as pl  # type: ignore[import-untyped]
 
 
-@requires_dependency("polars", import_name="polars")
-def _default_polars_fallback_type() -> Any:
-    import polars as pl  # type: ignore[import-untyped]
-
-    return pl.String
-
-
 # %% ---- Configuration --------------------------------------------------------------
 @dataclass(frozen=True)
 class PolarsConverterConfig(BaseConverterConfig):
@@ -51,11 +44,11 @@ class PolarsConverterConfig(BaseConverterConfig):
 
     Args:
         fallback_type: Polars data type to use for unsupported types in coerce mode.
-            Must be one of: pl.String, pl.Object, pl.Binary.
-            Defaults to pl.String.
+            Must be one of: pl.String, pl.Object, pl.Binary, or None.
+            Defaults to None.
     """
 
-    fallback_type: Any = field(default_factory=_default_polars_fallback_type)
+    fallback_type: Any | None = None
     column_overrides: Mapping[str, Callable[[yspec.Field, PolarsConverter], Any]] = field(
         default_factory=lambda: MappingProxyType({})
     )
@@ -64,15 +57,16 @@ class PolarsConverterConfig(BaseConverterConfig):
         """Validate configuration parameters."""
         super().__post_init__()
 
-        # Validate fallback_type
-        import polars as pl  # type: ignore[import-untyped]
+        # Validate fallback_type if provided
+        if self.fallback_type is not None:
+            import polars as pl  # type: ignore[import-untyped]
 
-        valid_fallback_types = {pl.String, pl.Object, pl.Binary}
-        if self.fallback_type not in valid_fallback_types:
-            raise UnsupportedFeatureError(
-                f"fallback_type must be one of: pl.String, pl.Object, pl.Binary. "
-                f"Got: {self.fallback_type}"
-            )
+            valid_fallback_types = {pl.String, pl.Object, pl.Binary}
+            if self.fallback_type not in valid_fallback_types:
+                raise UnsupportedFeatureError(
+                    f"fallback_type must be one of: pl.String, pl.Object, pl.Binary, or None. "
+                    f"Got: {self.fallback_type}"
+                )
 
 
 # %% ---- Converter ------------------------------------------------------------------
@@ -160,6 +154,14 @@ class PolarsConverter(BaseConverter):
         import polars as pl  # type: ignore[import-untyped]
 
         # Polars strings are variable-length. Length hint is ignored.
+        if yads_type.length is not None:
+            self.raise_or_coerce(
+                coerce_type=pl.String,
+                error_msg=(
+                    f"{yads_type} cannot be represented in Polars; "
+                    f"length constraint will be lost for '{self._field_context}'."
+                ),
+            )
         return pl.String
 
     @_convert_type.register(ytypes.Integer)
@@ -226,6 +228,14 @@ class PolarsConverter(BaseConverter):
         import polars as pl  # type: ignore[import-untyped]
 
         # Polars binary is variable-length. Length hint is ignored.
+        if yads_type.length is not None:
+            self.raise_or_coerce(
+                coerce_type=pl.Binary,
+                error_msg=(
+                    f"{yads_type} cannot be represented in Polars; "
+                    f"length constraint will be lost for '{self._field_context}'."
+                ),
+            )
         return pl.Binary
 
     @_convert_type.register(ytypes.Date)
@@ -233,6 +243,14 @@ class PolarsConverter(BaseConverter):
         import polars as pl  # type: ignore[import-untyped]
 
         # Polars has a single Date type. Ignore bits parameter.
+        if yads_type.bits is not None:
+            self.raise_or_coerce(
+                coerce_type=pl.Date,
+                error_msg=(
+                    f"{yads_type} cannot be represented in Polars; "
+                    f"bits constraint will be lost for '{self._field_context}'."
+                ),
+            )
         return pl.Date
 
     @_convert_type.register(ytypes.Time)
@@ -263,7 +281,14 @@ class PolarsConverter(BaseConverter):
     @_convert_type.register(ytypes.TimestampLTZ)
     def _(self, yads_type: ytypes.TimestampLTZ) -> Any:
         # Polars doesn't have explicit LTZ semantics, use None for timezone
-        return self._build_datetime(yads_type.unit, time_zone=None)
+        # This loses local timezone semantics
+        return self.raise_or_coerce(
+            coerce_type=self._build_datetime(yads_type.unit, time_zone=None),
+            error_msg=(
+                f"{yads_type} cannot be represented in Polars; "
+                f"local timezone semantics will be lost for '{self._field_context}'."
+            ),
+        )
 
     @_convert_type.register(ytypes.TimestampNTZ)
     def _(self, yads_type: ytypes.TimestampNTZ) -> Any:

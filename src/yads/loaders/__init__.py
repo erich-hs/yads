@@ -16,11 +16,14 @@ All functions return a validated immutable `YadsSpec` instance.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import IO, Any, cast, Literal
+from typing import IO, Any, cast, Literal, TYPE_CHECKING
 
-from ..spec import YadsSpec
 from .base import BaseLoader, BaseLoaderConfig, ConfigurableLoader, DictLoader
 from .yaml_loader import YamlLoader
+
+if TYPE_CHECKING:
+    from ..spec import YadsSpec
+    from ..types import YadsType
 
 
 def __getattr__(name: str):
@@ -188,6 +191,7 @@ def from_pyarrow(
     schema: Any,
     *,
     mode: Literal["raise", "coerce"] = "coerce",
+    fallback_type: YadsType | None = None,
     name: str,
     version: str,
     description: str | None = None,
@@ -196,6 +200,12 @@ def from_pyarrow(
 
     Args:
         schema: An instance of `pyarrow.Schema`.
+        mode: Loading mode. "raise" will raise exceptions on unsupported
+            features. "coerce" will attempt to coerce unsupported features to
+            supported ones with warnings. Defaults to "coerce".
+        fallback_type: A yads type to use as fallback when an unsupported
+            PyArrow type is encountered. Only used when mode is "coerce".
+            Must be either String or Binary, or None. Defaults to None.
         name: Fully-qualified spec name to assign.
         version: Spec version string.
         description: Optional human-readable description.
@@ -205,7 +215,7 @@ def from_pyarrow(
     """
     from . import pyarrow_loader  # type: ignore
 
-    config = pyarrow_loader.PyArrowLoaderConfig(mode=mode)
+    config = pyarrow_loader.PyArrowLoaderConfig(mode=mode, fallback_type=fallback_type)
     return pyarrow_loader.PyArrowLoader(config).load(
         schema, name=name, version=version, description=description
     )
@@ -215,6 +225,7 @@ def from_pyspark(
     schema: Any,
     *,
     mode: Literal["raise", "coerce"] = "coerce",
+    fallback_type: YadsType | None = None,
     name: str,
     version: str,
     description: str | None = None,
@@ -223,6 +234,12 @@ def from_pyspark(
 
     Args:
         schema: An instance of `pyspark.sql.types.StructType`.
+        mode: Loading mode. "raise" will raise exceptions on unsupported
+            features. "coerce" will attempt to coerce unsupported features to
+            supported ones with warnings. Defaults to "coerce".
+        fallback_type: A yads type to use as fallback when an unsupported
+            PySpark type is encountered. Only used when mode is "coerce".
+            Must be either String or Binary, or None. Defaults to None.
         name: Fully-qualified spec name to assign.
         version: Spec version string.
         description: Optional human-readable description.
@@ -232,7 +249,7 @@ def from_pyspark(
     """
     from . import pyspark_loader  # type: ignore
 
-    config = pyspark_loader.PySparkLoaderConfig(mode=mode)
+    config = pyspark_loader.PySparkLoaderConfig(mode=mode, fallback_type=fallback_type)
     return pyspark_loader.PySparkLoader(config).load(
         schema, name=name, version=version, description=description
     )

@@ -67,12 +67,12 @@ class PydanticConverterConfig(BaseConverterConfig):
         model_config: Dictionary of Pydantic model configuration options.
             Defaults to empty dict.
         fallback_type: Python type to use for unsupported types in coerce mode.
-            Must be one of: str, dict, bytes. Defaults to str.
+            Must be one of: str, dict, bytes, or None. Defaults to None.
     """
 
     model_name: str | None = None
     model_config: dict[str, Any] | None = None
-    fallback_type: type = str
+    fallback_type: type | None = None
     column_overrides: Mapping[
         str, Callable[[yspec.Field, PydanticConverter], tuple[Any, FieldInfo]]
     ] = field(default_factory=lambda: MappingProxyType({}))  # type: ignore[assignment]
@@ -81,12 +81,13 @@ class PydanticConverterConfig(BaseConverterConfig):
         """Validate configuration parameters."""
         super().__post_init__()
 
-        # Validate fallback_type
-        valid_fallback_types = {str, dict, bytes}
-        if self.fallback_type not in valid_fallback_types:
-            raise UnsupportedFeatureError(
-                f"fallback_type must be one of: str, dict, bytes. Got: {self.fallback_type}"
-            )
+        # Validate fallback_type if provided
+        if self.fallback_type is not None:
+            valid_fallback_types = {str, dict, bytes}
+            if self.fallback_type not in valid_fallback_types:
+                raise UnsupportedFeatureError(
+                    f"fallback_type must be one of: str, dict, bytes, or None. Got: {self.fallback_type}"
+                )
 
 
 # %% ---- Converter ------------------------------------------------------------------
@@ -246,38 +247,94 @@ class PydanticConverter(BaseConverter):
     @_convert_type.register(ytypes.Date)
     def _(self, yads_type: ytypes.Date) -> tuple[Any, dict[str, Any]]:
         # Ignore bit-width parameter
+        if yads_type.bits is not None:
+            self.raise_or_coerce(
+                coerce_type=date,
+                error_msg=(
+                    f"{yads_type} cannot be represented in Pydantic; "
+                    f"bits constraint will be lost for '{self._field_context}'."
+                ),
+            )
         return date, {}
 
     @_convert_type.register(ytypes.Time)
     def _(self, yads_type: ytypes.Time) -> tuple[Any, dict[str, Any]]:
         # Ignore bit-width parameter
         # Ignore unit parameter
+        if yads_type.bits is not None or yads_type.unit is not None:
+            self.raise_or_coerce(
+                coerce_type=time,
+                error_msg=(
+                    f"{yads_type} cannot be represented in Pydantic; "
+                    f"bits and/or unit constraints will be lost for '{self._field_context}'."
+                ),
+            )
         return time, {}
 
     @_convert_type.register(ytypes.Timestamp)
     def _(self, yads_type: ytypes.Timestamp) -> tuple[Any, dict[str, Any]]:
         # Ignore unit parameter
+        if yads_type.unit is not None:
+            self.raise_or_coerce(
+                coerce_type=datetime,
+                error_msg=(
+                    f"{yads_type} cannot be represented in Pydantic; "
+                    f"unit constraint will be lost for '{self._field_context}'."
+                ),
+            )
         return datetime, {}
 
     @_convert_type.register(ytypes.TimestampTZ)
     def _(self, yads_type: ytypes.TimestampTZ) -> tuple[Any, dict[str, Any]]:
         # Ignore unit parameter
         # Ignore tz parameter
+        if yads_type.unit is not None or yads_type.tz is not None:
+            self.raise_or_coerce(
+                coerce_type=datetime,
+                error_msg=(
+                    f"{yads_type} cannot be represented in Pydantic; "
+                    f"unit and/or tz constraints will be lost for '{self._field_context}'."
+                ),
+            )
         return datetime, {}
 
     @_convert_type.register(ytypes.TimestampLTZ)
     def _(self, yads_type: ytypes.TimestampLTZ) -> tuple[Any, dict[str, Any]]:
         # Ignore unit parameter
+        if yads_type.unit is not None:
+            self.raise_or_coerce(
+                coerce_type=datetime,
+                error_msg=(
+                    f"{yads_type} cannot be represented in Pydantic; "
+                    f"unit constraint will be lost for '{self._field_context}'."
+                ),
+            )
         return datetime, {}
 
     @_convert_type.register(ytypes.TimestampNTZ)
     def _(self, yads_type: ytypes.TimestampNTZ) -> tuple[Any, dict[str, Any]]:
         # Ignore unit parameter
+        if yads_type.unit is not None:
+            self.raise_or_coerce(
+                coerce_type=datetime,
+                error_msg=(
+                    f"{yads_type} cannot be represented in Pydantic; "
+                    f"unit constraint will be lost for '{self._field_context}'."
+                ),
+            )
         return datetime, {}
 
     @_convert_type.register(ytypes.Duration)
     def _(self, yads_type: ytypes.Duration) -> tuple[Any, dict[str, Any]]:
         # Ignore unit parameter
+        if yads_type.unit is not None:
+            self.raise_or_coerce(
+                coerce_type=timedelta,
+                error_msg=(
+                    f"{yads_type} cannot be represented in Pydantic; "
+                    f"unit constraint will be lost for '{self._field_context}'."
+                ),
+            )
         return timedelta, {}
 
     @_convert_type.register(ytypes.Interval)
@@ -338,7 +395,14 @@ class PydanticConverter(BaseConverter):
 
         dict_type = dict[key_type, value_type]  # type: ignore[valid-type]
 
-        # Ignore keys_sorted parameter
+        if yads_type.keys_sorted:
+            self.raise_or_coerce(
+                coerce_type=dict_type,
+                error_msg=(
+                    f"{yads_type} cannot be represented in Pydantic; "
+                    f"keys_sorted parameter will be lost for '{self._field_context}'."
+                ),
+            )
         return dict_type, {}
 
     @_convert_type.register(ytypes.JSON)

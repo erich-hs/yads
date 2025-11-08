@@ -748,7 +748,7 @@ class TestPySparkLoaderConfig:
     def test_default_config(self):
         config = PySparkLoaderConfig()
         assert config.mode == "coerce"
-        assert config.fallback_type == String()
+        assert config.fallback_type is None
 
     def test_custom_config(self):
         config = PySparkLoaderConfig(mode="raise", fallback_type=Binary())
@@ -778,7 +778,7 @@ class TestPySparkLoaderWithConfig:
     def test_loader_with_default_config(self):
         loader = PySparkLoader()
         assert loader.config.mode == "coerce"
-        assert loader.config.fallback_type == String()
+        assert loader.config.fallback_type is None
 
     def test_loader_with_custom_config(self):
         config = PySparkLoaderConfig(mode="raise", fallback_type=Binary())
@@ -803,7 +803,7 @@ class TestPySparkLoaderWithConfig:
         not HAS_CALENDAR_INTERVAL_TYPE, reason="CalendarIntervalType not available"
     )
     def test_coercion_mode_with_default_fallback(self):
-        config = PySparkLoaderConfig(mode="coerce")
+        config = PySparkLoaderConfig(mode="coerce", fallback_type=String())
         loader = PySparkLoader(config)
         schema = StructType(
             [StructField("interval_col", CalendarIntervalType(), nullable=True)]

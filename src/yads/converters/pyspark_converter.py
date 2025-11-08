@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from functools import singledispatchmethod
-from typing import Any, Callable, Literal, Mapping, TYPE_CHECKING
+from typing import Any, Callable, Literal, Mapping, TYPE_CHECKING, cast
 
 from .base import BaseConverter, BaseConverterConfig
 from ..exceptions import UnsupportedFeatureError
@@ -37,13 +37,6 @@ if TYPE_CHECKING:
     from yads.spec import Field
 
 
-@requires_dependency("pyspark", import_name="pyspark.sql.types")
-def _default_fallback_type() -> DataType:
-    from pyspark.sql.types import StringType
-
-    return StringType()
-
-
 # %% ---- Configuration --------------------------------------------------------------
 @dataclass(frozen=True)
 class PySparkConverterConfig(BaseConverterConfig):
@@ -51,28 +44,29 @@ class PySparkConverterConfig(BaseConverterConfig):
 
     Args:
         fallback_type: PySpark data type to use for unsupported types in coerce mode.
-            Must be one of: StringType(), BinaryType(). Defaults to StringType().
+            Must be one of: StringType(), BinaryType(), or None. Defaults to None.
     """
 
-    fallback_type: DataType = field(default_factory=_default_fallback_type)
+    fallback_type: DataType | None = None
     column_overrides: Mapping[str, Callable[[Field, PySparkConverter], StructField]] = (
         field(default_factory=dict)
     )
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        # Validate fallback_type
-        from pyspark.sql.types import (
-            StringType,
-            BinaryType,
-        )
-
-        valid_fallback_types = (StringType, BinaryType)
-        if not isinstance(self.fallback_type, valid_fallback_types):
-            raise UnsupportedFeatureError(
-                "fallback_type must be one of: StringType(), BinaryType(). "
-                f"Got: {self.fallback_type}"
+        # Validate fallback_type if provided
+        if self.fallback_type is not None:
+            from pyspark.sql.types import (
+                StringType,
+                BinaryType,
             )
+
+            valid_fallback_types = (StringType, BinaryType)
+            if not isinstance(self.fallback_type, valid_fallback_types):
+                raise UnsupportedFeatureError(
+                    "fallback_type must be one of: StringType(), BinaryType(), or None. "
+                    f"Got: {self.fallback_type}"
+                )
 
 
 # %% ---- Converter ------------------------------------------------------------------
@@ -276,6 +270,14 @@ class PySparkConverter(BaseConverter):
         from pyspark.sql.types import BinaryType
 
         # Ignore length parameter
+        if yads_type.length is not None:
+            self.raise_or_coerce(
+                coerce_type=BinaryType(),
+                error_msg=(
+                    f"{yads_type} cannot be represented in PySpark; "
+                    f"length constraint will be lost for '{self._field_context}'."
+                ),
+            )
         return BinaryType()
 
     @_convert_type.register(ytypes.Date)
@@ -283,6 +285,14 @@ class PySparkConverter(BaseConverter):
         from pyspark.sql.types import DateType
 
         # Ignore bit-width parameter
+        if yads_type.bits is not None:
+            self.raise_or_coerce(
+                coerce_type=DateType(),
+                error_msg=(
+                    f"{yads_type} cannot be represented in PySpark; "
+                    f"bits constraint will be lost for '{self._field_context}'."
+                ),
+            )
         return DateType()
 
     @_convert_type.register(ytypes.Timestamp)
@@ -290,6 +300,14 @@ class PySparkConverter(BaseConverter):
         from pyspark.sql.types import TimestampType
 
         # Ignore unit parameter
+        if yads_type.unit is not None:
+            self.raise_or_coerce(
+                coerce_type=TimestampType(),
+                error_msg=(
+                    f"{yads_type} cannot be represented in PySpark; "
+                    f"unit constraint will be lost for '{self._field_context}'."
+                ),
+            )
         return TimestampType()
 
     @_convert_type.register(ytypes.TimestampTZ)
@@ -298,6 +316,14 @@ class PySparkConverter(BaseConverter):
 
         # Ignore unit parameter
         # Ignore tz parameter
+        if yads_type.unit is not None or yads_type.tz is not None:
+            self.raise_or_coerce(
+                coerce_type=TimestampType(),
+                error_msg=(
+                    f"{yads_type} cannot be represented in PySpark; "
+                    f"unit and/or tz constraints will be lost for '{self._field_context}'."
+                ),
+            )
         return TimestampType()
 
     @_convert_type.register(ytypes.TimestampLTZ)
@@ -305,6 +331,14 @@ class PySparkConverter(BaseConverter):
         from pyspark.sql.types import TimestampType
 
         # Ignore unit parameter
+        if yads_type.unit is not None:
+            self.raise_or_coerce(
+                coerce_type=TimestampType(),
+                error_msg=(
+                    f"{yads_type} cannot be represented in PySpark; "
+                    f"unit constraint will be lost for '{self._field_context}'."
+                ),
+            )
         return TimestampType()
 
     @_convert_type.register(ytypes.TimestampNTZ)
@@ -315,8 +349,16 @@ class PySparkConverter(BaseConverter):
             feature_description="TimestampNTZ type",
         )
         if TimestampNTZType is None:
-            return self.config.fallback_type
+            return self.raise_or_coerce(yads_type)
         # Ignore unit parameter
+        if yads_type.unit is not None:
+            self.raise_or_coerce(
+                coerce_type=TimestampNTZType(),
+                error_msg=(
+                    f"{yads_type} cannot be represented in PySpark; "
+                    f"unit constraint will be lost for '{self._field_context}'."
+                ),
+            )
         return TimestampNTZType()
 
     @_convert_type.register(ytypes.Interval)
@@ -359,7 +401,7 @@ class PySparkConverter(BaseConverter):
                 feature_description="Interval type with year-month units",
             )
             if YearMonthIntervalType is None:
-                return self.config.fallback_type
+                return cast(DataType, self.raise_or_coerce(yads_type))
 
             start_val = YEAR if start_field == ytypes.IntervalTimeUnit.YEAR else MONTH
             end_val = YEAR if end_field == ytypes.IntervalTimeUnit.YEAR else MONTH
@@ -379,7 +421,7 @@ class PySparkConverter(BaseConverter):
                 feature_description="Interval type with day-time units",
             )
             if DayTimeIntervalType is None:
-                return self.config.fallback_type
+                return cast(DataType, self.raise_or_coerce(yads_type))
 
             start_val = {
                 ytypes.IntervalTimeUnit.DAY: DAY,
@@ -406,6 +448,14 @@ class PySparkConverter(BaseConverter):
 
         # Ignore size parameter
         element_type = self._convert_type(yads_type.element)
+        if yads_type.size is not None:
+            self.raise_or_coerce(
+                coerce_type=ArrayType(element_type, True),
+                error_msg=(
+                    f"{yads_type} cannot be represented in PySpark; "
+                    f"size constraint will be lost for '{self._field_context}'."
+                ),
+            )
         return ArrayType(element_type, True)
 
     @_convert_type.register(ytypes.Struct)
@@ -441,7 +491,7 @@ class PySparkConverter(BaseConverter):
             feature_description="Variant type",
         )
         if VariantType is None:
-            return self.config.fallback_type
+            return cast(DataType, self.raise_or_coerce(yads_type))
         return VariantType()
 
     def _convert_field(self, field: yspec.Field) -> StructField:

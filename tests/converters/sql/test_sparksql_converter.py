@@ -1,8 +1,9 @@
 import pytest
 import warnings
+from sqlglot import exp
 
 from yads.spec import YadsSpec, Column, Field
-from yads.converters.sql import SparkSQLConverter
+from yads.converters.sql import SparkSQLConverter, SQLGlotConverterConfig
 from yads.exceptions import AstValidationError
 from yads.loaders import from_yaml_string, from_yaml_path
 from yads.exceptions import ValidationWarning
@@ -209,7 +210,9 @@ class TestSparkSQLConverterTypes:
             version="1.0.0",
             columns=[Column(name="col1", type=yads_type)],
         )
-        converter = SparkSQLConverter()
+        converter = SparkSQLConverter(
+            ast_config=SQLGlotConverterConfig(fallback_type=exp.DataType.Type.TEXT)
+        )
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -278,7 +281,9 @@ class TestSparkSQLConverterValidation:
         """
         spec = from_yaml_string(yaml_string)
 
-        converter = SparkSQLConverter()
+        converter = SparkSQLConverter(
+            ast_config=SQLGlotConverterConfig(fallback_type=exp.DataType.Type.TEXT)
+        )
         with pytest.warns(
             UserWarning,
             match=f"Data type '{original_type_sql}' is not supported for column 'col1'.",

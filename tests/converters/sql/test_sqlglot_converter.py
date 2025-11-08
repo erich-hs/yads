@@ -201,7 +201,9 @@ class TestSQLGlotConverterTypes:
         ],
     )
     def test_convert_type(self, yads_type, expected_datatype, expected_warning):
-        converter = SQLGlotConverter()
+        converter = SQLGlotConverter(
+            config=SQLGlotConverterConfig(fallback_type=exp.DataType.Type.TEXT)
+        )
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             result = converter._convert_type(yads_type)
@@ -737,7 +739,9 @@ class TestTransformConversion:
             converter._handle_cast_transform("col1", ["not_a_type"])
 
     def test_convert_cast_transform_unknown_type_coerce_warns_and_coerces_to_text(self):
-        converter = SQLGlotConverter(SQLGlotConverterConfig(mode="coerce"))
+        converter = SQLGlotConverter(
+            SQLGlotConverterConfig(mode="coerce", fallback_type=exp.DataType.Type.TEXT)
+        )
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             result = converter._handle_cast_transform("col1", ["not_a_type"])

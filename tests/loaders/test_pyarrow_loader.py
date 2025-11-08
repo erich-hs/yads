@@ -559,7 +559,7 @@ class TestPyArrowLoaderConfig:
     def test_default_config(self):
         config = PyArrowLoaderConfig()
         assert config.mode == "coerce"
-        assert config.fallback_type == String()
+        assert config.fallback_type is None
 
     def test_custom_config(self):
         config = PyArrowLoaderConfig(mode="raise", fallback_type=Binary())
@@ -589,7 +589,7 @@ class TestPyArrowLoaderWithConfig:
     def test_loader_with_default_config(self):
         loader = PyArrowLoader()
         assert loader.config.mode == "coerce"
-        assert loader.config.fallback_type == String()
+        assert loader.config.fallback_type is None
 
     def test_loader_with_custom_config(self):
         config = PyArrowLoaderConfig(mode="raise", fallback_type=Binary())
@@ -605,23 +605,17 @@ class TestPyArrowLoaderWithConfig:
         with pytest.raises(UnsupportedFeatureError):
             loader.load(schema, name="test", version="1.0.0", mode="raise")
 
-    def test_coercion_mode_with_default_fallback(self):
+    def test_coercion_mode_without_fallback_raises(self):
+        """Test that coerce mode raises when fallback_type is None."""
         config = PyArrowLoaderConfig(mode="coerce")  # fallback_type=None
         loader = PyArrowLoader(config)
         schema = pa.schema([pa.field("dict_col", pa.dictionary(pa.int32(), pa.string()))])
 
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            spec = loader.load(schema, name="test", version="1.0.0")
-
-            assert len(w) == 1
-            assert "PyArrowLoader does not support PyArrow type" in str(w[0].message)
-            assert "for 'dict_col'" in str(w[0].message)
-            assert "The data type will be coerced to string" in str(w[0].message)
-
-        column = spec.columns[0]
-        assert column.name == "dict_col"
-        assert column.type == String()
+        with pytest.raises(
+            UnsupportedFeatureError,
+            match="Specify a fallback_type to enable coercion",
+        ):
+            loader.load(schema, name="test", version="1.0.0")
 
     def test_coercion_mode_with_custom_fallback(self):
         config = PyArrowLoaderConfig(mode="coerce", fallback_type=Binary(length=10))

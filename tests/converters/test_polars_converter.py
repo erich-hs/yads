@@ -50,7 +50,7 @@ class TestPolarsConverterTypes:
         "yads_type, expected_pl_type, expected_warning",
         [
             (String(), pl.String, None),
-            (String(length=255), pl.String, None),  # length hint ignored
+            (String(length=255), pl.String, "length constraint will be lost"),
             (Integer(bits=8), pl.Int8, None),
             (Integer(bits=16), pl.Int16, None),
             (Integer(bits=32), pl.Int32, None),
@@ -66,10 +66,10 @@ class TestPolarsConverterTypes:
             (Decimal(precision=10, scale=2), pl.Decimal(precision=10, scale=2), None),
             (Boolean(), pl.Boolean, None),
             (Binary(), pl.Binary, None),
-            (Binary(length=8), pl.Binary, None),  # length hint ignored
+            (Binary(length=8), pl.Binary, "length constraint will be lost"),
             (Date(), pl.Date, None),
-            (Date(bits=32), pl.Date, None),  # bits ignored
-            (Date(bits=64), pl.Date, None),  # bits ignored
+            (Date(bits=32), pl.Date, "bits constraint will be lost"),   
+            (Date(bits=64), pl.Date, "bits constraint will be lost"),
             (Time(), pl.String, "Polars Time only supports nanosecond precision"),  # default MS unit
             (Time(unit=TimeUnit.S), pl.String, "Polars Time only supports nanosecond precision"),
             (Time(unit=TimeUnit.MS), pl.String, "Polars Time only supports nanosecond precision"),
@@ -82,7 +82,7 @@ class TestPolarsConverterTypes:
             (Timestamp(unit=TimeUnit.NS), pl.Datetime(time_unit="ns", time_zone=None), None),
             (TimestampTZ(), pl.Datetime(time_unit="ns", time_zone="UTC"), None),
             (TimestampTZ(unit=TimeUnit.S, tz="America/New_York"), pl.String, "Polars Datetime does not support 's' (second) time unit"),
-            (TimestampLTZ(), pl.Datetime(time_unit="ns", time_zone=None), None),  # no warning
+            (TimestampLTZ(), pl.Datetime(time_unit="ns", time_zone=None), "local timezone semantics will be lost"),
             (TimestampNTZ(), pl.Datetime(time_unit="ns", time_zone=None), None),
             (Duration(), pl.Duration(time_unit="ns"), None),
             (Duration(unit=TimeUnit.S), pl.String, "Polars Duration does not support 's' (second) time unit"),
@@ -128,7 +128,9 @@ class TestPolarsConverterTypes:
             version="1.0.0",
             columns=[Column(name="col1", type=yads_type)],
         )
-        converter = PolarsConverter()
+        # Set fallback_type explicitly for unsupported types
+        config = PolarsConverterConfig(fallback_type=pl.String)
+        converter = PolarsConverter(config)
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -220,7 +222,7 @@ class TestPolarsConverterTypes:
             PolarsConverter(PolarsConverterConfig(mode="raise")).convert(spec)
 
     def test_timestampltz_no_warning(self):
-        """TimestampLTZ should convert without warning."""
+        """TimestampLTZ converts with warning about lost LTZ semantics."""
         spec = YadsSpec(
             name="t",
             version="1.0.0",
@@ -229,15 +231,16 @@ class TestPolarsConverterTypes:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            schema = PolarsConverter().convert(spec, mode="coerce")
+            schema = PolarsConverter(
+                PolarsConverterConfig(fallback_type=pl.String)
+            ).convert(spec, mode="coerce")
 
         assert schema["ts"] == pl.Datetime(time_unit="ns", time_zone=None)
-        # No warnings should be emitted
-        assert len(w) == 0
+        assert len(w) == 1
+        assert "local timezone semantics will be lost" in str(w[0].message)
 
-        # Should also work in raise mode
-        schema = PolarsConverter(PolarsConverterConfig(mode="raise")).convert(spec)
-        assert schema["ts"] == pl.Datetime(time_unit="ns", time_zone=None)
+        with pytest.raises(UnsupportedFeatureError, match="local timezone semantics will be lost"):
+            PolarsConverter(PolarsConverterConfig(mode="raise")).convert(spec)
 
     def test_interval_coercion_and_raise(self):
         spec = YadsSpec(
@@ -248,7 +251,9 @@ class TestPolarsConverterTypes:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            schema = PolarsConverter().convert(spec, mode="coerce")
+            schema = PolarsConverter(
+                PolarsConverterConfig(fallback_type=pl.String)
+            ).convert(spec, mode="coerce")
 
         assert schema["interval"] == pl.String
         assert len(w) == 1
@@ -291,7 +296,9 @@ class TestPolarsConverterTypes:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            schema = PolarsConverter().convert(spec, mode="coerce")
+            schema = PolarsConverter(
+                PolarsConverterConfig(fallback_type=pl.String)
+            ).convert(spec, mode="coerce")
 
         assert schema["u"] == pl.String
         assert len(w) == 1
@@ -311,7 +318,9 @@ class TestPolarsConverterTypes:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            schema = PolarsConverter().convert(spec, mode="coerce")
+            schema = PolarsConverter(
+                PolarsConverterConfig(fallback_type=pl.String)
+            ).convert(spec, mode="coerce")
 
         assert schema["j"] == pl.String
         assert len(w) == 1

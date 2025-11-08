@@ -76,16 +76,19 @@ class PySparkLoaderConfig(BaseLoaderConfig):
             supported ones with warnings. Defaults to "coerce".
         fallback_type: A yads type to use as fallback when an unsupported
             PySpark type is encountered. Only used when mode is "coerce".
-            Must be either String or Binary. Defaults to String.
+            Must be either String or Binary, or None. Defaults to None.
     """
 
-    fallback_type: ytypes.YadsType = ytypes.String()
+    fallback_type: ytypes.YadsType | None = None
 
     def __post_init__(self) -> None:
         """Validate configuration parameters."""
         super().__post_init__()
-        if not isinstance(self.fallback_type, (ytypes.String, ytypes.Binary)):
-            raise LoaderConfigError("fallback_type must be either String or Binary type.")
+        if self.fallback_type is not None:
+            if not isinstance(self.fallback_type, (ytypes.String, ytypes.Binary)):
+                raise LoaderConfigError(
+                    "fallback_type must be either String or Binary type, or None."
+                )
 
 
 class PySparkLoader(ConfigurableLoader):
@@ -182,23 +185,24 @@ class PySparkLoader(ConfigurableLoader):
         Currently unsupported:
             - CalendarIntervalType
         """
-        # Apply fallback for unsupported types in coerce mode
+        error_msg = (
+            f"PySparkLoader does not support PySpark type: '{dtype}' ({type(dtype).__name__})"
+            f" for '{self._current_field_name or '<unknown>'}'"
+        )
+
         if self.config.mode == "coerce":
+            if self.config.fallback_type is None:
+                raise UnsupportedFeatureError(
+                    f"{error_msg}. Specify a fallback_type to enable coercion of unsupported types."
+                )
             validation_warning(
-                message=(
-                    f"PySparkLoader does not support PySpark type: '{dtype}' ({type(dtype).__name__})"
-                    f" for '{self._current_field_name or '<unknown>'}'."
-                    f" The data type will be coerced to {self.config.fallback_type}."
-                ),
+                message=f"{error_msg}. The data type will be coerced to {self.config.fallback_type}.",
                 filename="yads.loaders.pyspark_loader",
                 module=__name__,
             )
             return self._get_fallback_type_definition()
 
-        raise UnsupportedFeatureError(
-            f"PySparkLoader does not support PySpark type: '{dtype}' ({type(dtype).__name__})"
-            f" for '{self._current_field_name or '<unknown>'}'."
-        )
+        raise UnsupportedFeatureError(f"{error_msg}.")
 
     @_convert_type.register(T.NullType)
     def _(self, dtype: NullType) -> dict[str, Any]:

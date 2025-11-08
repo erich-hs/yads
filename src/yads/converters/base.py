@@ -203,12 +203,11 @@ class BaseConverter(Generic[T], ABC):
             The coerced type in coerce mode.
 
         Raises:
-            UnsupportedFeatureError: In raise mode when the feature is not supported.
+            UnsupportedFeatureError: In raise mode when the feature is not supported,
+                or in coerce mode when fallback_type is None.
             ValueError: If both yads_type and error_msg are None.
         """
-        if coerce_type is None:
-            coerce_type = self._get_fallback_type()
-
+        # Resolve error message once
         if error_msg is None:
             if yads_type is None:
                 raise ValueError(
@@ -216,6 +215,17 @@ class BaseConverter(Generic[T], ABC):
                 )
             error_msg = self._generate_error_message(yads_type)
 
+        # Resolve coerce_type (fallback to config if not provided)
+        if coerce_type is None:
+            try:
+                coerce_type = self._get_fallback_type()
+            except ValueError:
+                # fallback_type is None - must raise even in coerce mode
+                if self.config.mode == "coerce":
+                    error_msg = f"{error_msg} Specify a fallback_type to enable coercion of unsupported types."
+                raise UnsupportedFeatureError(error_msg)
+
+        # Handle based on mode
         if self.config.mode == "coerce":
             display_type = self._format_type_for_display(coerce_type)
             warning_msg = f"{error_msg} The data type will be coerced to {display_type}."

@@ -50,7 +50,7 @@ class TestPyArrowConverterTypes:
         "yads_type, expected_pa_type, expected_warning",
         [
             (String(), pa.string(), None),
-            (String(length=255), pa.string(), None),  # length hint ignored
+            (String(length=255), pa.string(), "length constraint will be lost"),
             (Integer(bits=8), pa.int8(), None),
             (Integer(bits=16), pa.int16(), None),
             (Integer(bits=32), pa.int32(), None),
@@ -129,7 +129,9 @@ class TestPyArrowConverterTypes:
             version="1.0.0",
             columns=[Column(name="col1", type=yads_type)],
         )
-        converter = PyArrowConverter()
+        # Set fallback_type explicitly for unsupported types
+        config = PyArrowConverterConfig(fallback_type=pa.string())
+        converter = PyArrowConverter(config)
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")

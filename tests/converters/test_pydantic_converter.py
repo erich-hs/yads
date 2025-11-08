@@ -173,24 +173,24 @@ class TestPydanticConverterTypes:
 
             # Temporal
             (Date(), PyDate, None, lambda f: None),
-            (Date(bits=32), PyDate, None, lambda f: None),
-            (Date(bits=64), PyDate, None, lambda f: None),
-            (Time(), PyTime, None, lambda f: None),
-            (Time(unit=TimeUnit.S), PyTime, None, lambda f: None),
-            (Time(unit=TimeUnit.MS), PyTime, None, lambda f: None),
-            (Time(unit=TimeUnit.US), PyTime, None, lambda f: None),
-            (Time(unit=TimeUnit.NS), PyTime, None, lambda f: None),
-            (Time(bits=32), PyTime, None, lambda f: None),
-            (Time(bits=64), PyTime, None, lambda f: None),
-            (Timestamp(), PyDatetime, None, lambda f: None),
-            (Timestamp(unit=TimeUnit.S), PyDatetime, None, lambda f: None),
-            (TimestampTZ(), PyDatetime, None, lambda f: None),
-            (TimestampTZ(tz="UTC"), PyDatetime, None, lambda f: None),
-            (TimestampLTZ(), PyDatetime, None, lambda f: None),
-            (TimestampNTZ(), PyDatetime, None, lambda f: None),
+            (Date(bits=32), PyDate, "bits constraint will be lost", lambda f: None),
+            (Date(bits=64), PyDate, "bits constraint will be lost", lambda f: None),
+            (Time(), PyTime, "bits and/or unit constraints will be lost", lambda f: None),
+            (Time(unit=TimeUnit.S), PyTime, "bits and/or unit constraints will be lost", lambda f: None),
+            (Time(unit=TimeUnit.MS), PyTime, "bits and/or unit constraints will be lost", lambda f: None),
+            (Time(unit=TimeUnit.US), PyTime, "bits and/or unit constraints will be lost", lambda f: None),
+            (Time(unit=TimeUnit.NS), PyTime, "bits and/or unit constraints will be lost", lambda f: None),
+            (Time(bits=32), PyTime, "bits and/or unit constraints will be lost", lambda f: None),
+            (Time(bits=64), PyTime, "bits and/or unit constraints will be lost", lambda f: None),
+            (Timestamp(), PyDatetime, "unit constraint will be lost", lambda f: None),
+            (Timestamp(unit=TimeUnit.S), PyDatetime, "unit constraint will be lost", lambda f: None),
+            (TimestampTZ(), PyDatetime, "unit and/or tz constraints will be lost", lambda f: None),
+            (TimestampTZ(tz="UTC"), PyDatetime, "unit and/or tz constraints will be lost", lambda f: None),
+            (TimestampLTZ(), PyDatetime, "unit constraint will be lost", lambda f: None),
+            (TimestampNTZ(), PyDatetime, "unit constraint will be lost", lambda f: None),
 
             # Duration
-            (Duration(), timedelta, None, lambda f: None),
+            (Duration(), timedelta, "unit constraint will be lost", lambda f: None),
 
             # Interval -> nested model
             (Interval(interval_start=IntervalTimeUnit.DAY), BaseModel, None, lambda f: None),
@@ -243,7 +243,7 @@ class TestPydanticConverterTypes:
             version="1.0.0",
             columns=[Column(name="col1", type=yads_type)],
         )
-        converter = PydanticConverter()
+        converter = PydanticConverter(PydanticConverterConfig(fallback_type=str))
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -423,7 +423,9 @@ class TestPydanticConverterTypes:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            model = PydanticConverter().convert(spec, mode="coerce")
+            model = PydanticConverter(
+                PydanticConverterConfig(fallback_type=str)
+            ).convert(spec, mode="coerce")
         assert len(w) == 2
         msgs = "\n".join(str(x.message) for x in w)
         assert "geometry" in msgs and "geography" in msgs
@@ -998,7 +1000,9 @@ class TestPydanticConverterModeHierarchy:
             version="1.0.0",
             columns=[Column(name="c", type=Geometry())],
         )
-        converter = PydanticConverter(PydanticConverterConfig(mode="raise"))
+        converter = PydanticConverter(
+            PydanticConverterConfig(mode="raise", fallback_type=str)
+        )
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             model = converter.convert(spec, mode="coerce")
