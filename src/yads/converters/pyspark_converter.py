@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from functools import singledispatchmethod
-from typing import Any, Callable, Literal, Mapping, TYPE_CHECKING, cast
+from typing import Any, Callable, Literal, Mapping, TYPE_CHECKING
 
 from .base import BaseConverter, BaseConverterConfig
 from ..exceptions import UnsupportedFeatureError
@@ -343,13 +343,13 @@ class PySparkConverter(BaseConverter):
 
     @_convert_type.register(ytypes.TimestampNTZ)
     def _(self, yads_type: ytypes.TimestampNTZ) -> DataType:
-        TimestampNTZType = self._get_version_gated_type(
+        TimestampNTZType, error_msg = self._get_version_gated_type(
             type_name="TimestampNTZType",
             min_version="3.4.0",
             feature_description="TimestampNTZ type",
         )
         if TimestampNTZType is None:
-            return self.raise_or_coerce(yads_type)
+            return self.raise_or_coerce(yads_type, error_msg=error_msg)
         # Ignore unit parameter
         if yads_type.unit is not None:
             self.raise_or_coerce(
@@ -395,13 +395,13 @@ class PySparkConverter(BaseConverter):
                     f" for '{self._field_context}'."
                 )
 
-            YearMonthIntervalType = self._get_version_gated_type(
+            YearMonthIntervalType, error_msg = self._get_version_gated_type(
                 type_name="YearMonthIntervalType",
                 min_version="3.5.0",
                 feature_description="Interval type with year-month units",
             )
             if YearMonthIntervalType is None:
-                return cast(DataType, self.raise_or_coerce(yads_type))
+                return self.raise_or_coerce(yads_type, error_msg=error_msg)
 
             start_val = YEAR if start_field == ytypes.IntervalTimeUnit.YEAR else MONTH
             end_val = YEAR if end_field == ytypes.IntervalTimeUnit.YEAR else MONTH
@@ -415,13 +415,13 @@ class PySparkConverter(BaseConverter):
                     f" for '{self._field_context}'."
                 )
 
-            DayTimeIntervalType = self._get_version_gated_type(
+            DayTimeIntervalType, error_msg = self._get_version_gated_type(
                 type_name="DayTimeIntervalType",
                 min_version="3.2.0",
                 feature_description="Interval type with day-time units",
             )
             if DayTimeIntervalType is None:
-                return cast(DataType, self.raise_or_coerce(yads_type))
+                return self.raise_or_coerce(yads_type, error_msg=error_msg)
 
             start_val = {
                 ytypes.IntervalTimeUnit.DAY: DAY,
@@ -485,13 +485,13 @@ class PySparkConverter(BaseConverter):
 
     @_convert_type.register(ytypes.Variant)
     def _(self, yads_type: ytypes.Variant) -> DataType:
-        VariantType = self._get_version_gated_type(
+        VariantType, error_msg = self._get_version_gated_type(
             type_name="VariantType",
             min_version="4.0.0",
             feature_description="Variant type",
         )
         if VariantType is None:
-            return cast(DataType, self.raise_or_coerce(yads_type))
+            return self.raise_or_coerce(yads_type, error_msg=error_msg)
         return VariantType()
 
     def _convert_field(self, field: yspec.Field) -> StructField:
@@ -521,8 +521,8 @@ class PySparkConverter(BaseConverter):
         type_name: str,
         min_version: str,
         feature_description: str,
-    ) -> type | None:
-        """Attempt to import a version-gated PySpark type with mode-aware fallback."""
+    ) -> tuple[type | None, str | None]:
+        """Attempt to import a version-gated PySpark type."""
         context = f"{feature_description} for '{self._field_context}'"
 
         imported_type, error_msg = try_import_optional(
@@ -533,9 +533,4 @@ class PySparkConverter(BaseConverter):
             context=context,
         )
 
-        if imported_type is not None:
-            return imported_type
-
-        # Type is unavailable - handle based on mode
-        self.raise_or_coerce(error_msg=error_msg)
-        return None
+        return imported_type, error_msg

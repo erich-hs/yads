@@ -274,7 +274,9 @@ class TestPySparkConverterTypes:
     )
     def test_year_month_interval_fallback_coerce_mode(self):
         """Test year-month interval fallback when type not available."""
-        converter = PySparkConverter(PySparkConverterConfig(mode="coerce"))
+        converter = PySparkConverter(
+            PySparkConverterConfig(mode="coerce", fallback_type=StringType())
+        )
         
         year_month_interval = Interval(
             interval_start=IntervalTimeUnit.YEAR, 
@@ -296,7 +298,9 @@ class TestPySparkConverterTypes:
     )
     def test_day_time_interval_fallback_coerce_mode(self):
         """Test day-time interval fallback when type not available."""
-        converter = PySparkConverter(PySparkConverterConfig(mode="coerce"))
+        converter = PySparkConverter(
+            PySparkConverterConfig(mode="coerce", fallback_type=StringType())
+        )
         
         day_second_interval = Interval(
             interval_start=IntervalTimeUnit.DAY, 
@@ -384,7 +388,9 @@ class TestPySparkConverterTypes:
     )
     def test_variant_type_fallback_coerce_mode(self):
         """Test variant type fallback when type not available."""
-        converter = PySparkConverter(PySparkConverterConfig(mode="coerce"))
+        converter = PySparkConverter(
+            PySparkConverterConfig(mode="coerce", fallback_type=StringType())
+        )
         
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -1020,7 +1026,9 @@ class TestPySparkConverterIntegration:
             ],
         )
 
-        converter = PySparkConverter(PySparkConverterConfig(mode="coerce"))
+        converter = PySparkConverter(
+            PySparkConverterConfig(mode="coerce", fallback_type=StringType())
+        )
 
         with warnings.catch_warnings(record=True):
             warnings.simplefilter("always")
