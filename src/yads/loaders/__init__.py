@@ -35,6 +35,10 @@ def __getattr__(name: str):
         from . import pyspark_loader
 
         return getattr(pyspark_loader, name)
+    if name in ("PolarsLoader", "PolarsLoaderConfig"):
+        from . import polars_loader
+
+        return getattr(polars_loader, name)
     raise AttributeError(name)
 
 
@@ -46,6 +50,7 @@ __all__ = [
     "from_yaml",
     "from_pyarrow",
     "from_pyspark",
+    "from_polars",
     "BaseLoader",
     "BaseLoaderConfig",
     "ConfigurableLoader",
@@ -55,6 +60,8 @@ __all__ = [
     "PyArrowLoaderConfig",
     "PySparkLoader",
     "PySparkLoaderConfig",
+    "PolarsLoader",
+    "PolarsLoaderConfig",
 ]
 
 
@@ -251,5 +258,39 @@ def from_pyspark(
 
     config = pyspark_loader.PySparkLoaderConfig(mode=mode, fallback_type=fallback_type)
     return pyspark_loader.PySparkLoader(config).load(
+        schema, name=name, version=version, description=description
+    )
+
+
+def from_polars(
+    schema: Any,
+    *,
+    mode: Literal["raise", "coerce"] = "coerce",
+    fallback_type: YadsType | None = None,
+    name: str,
+    version: str,
+    description: str | None = None,
+) -> YadsSpec:
+    """Load a spec from a `polars.Schema`.
+
+    Args:
+        schema: An instance of `polars.Schema`.
+        mode: Loading mode. "raise" will raise exceptions on unsupported
+            features. "coerce" will attempt to coerce unsupported features to
+            supported ones with warnings. Defaults to "coerce".
+        fallback_type: A yads type to use as fallback when an unsupported
+            Polars type is encountered. Only used when mode is "coerce".
+            Must be either String or Binary, or None. Defaults to None.
+        name: Fully-qualified spec name to assign.
+        version: Spec version string.
+        description: Optional human-readable description.
+
+    Returns:
+        A validated immutable `YadsSpec` instance.
+    """
+    from . import polars_loader  # type: ignore
+
+    config = polars_loader.PolarsLoaderConfig(mode=mode, fallback_type=fallback_type)
+    return polars_loader.PolarsLoader(config).load(
         schema, name=name, version=version, description=description
     )

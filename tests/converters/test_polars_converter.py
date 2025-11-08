@@ -4,8 +4,13 @@ import warnings
 import polars as pl  # type: ignore[import-untyped]
 import pytest
 
-from yads.converters import PolarsConverter, PolarsConverterConfig
 from yads.constraints import NotNullConstraint
+from yads.converters import PolarsConverter, PolarsConverterConfig
+from yads.exceptions import (
+    UnsupportedFeatureError,
+    ValidationWarning,
+    ConverterConfigError,
+)
 from yads.spec import YadsSpec, Column, Field
 from yads.types import (
     YadsType,
@@ -36,11 +41,8 @@ from yads.types import (
     Variant,
     Tensor,
 )
-from yads.exceptions import (
-    UnsupportedFeatureError,
-    ValidationWarning,
-    ConverterConfigError,
-)
+
+_VALID_FALLBACK_TYPES = [pl.String, pl.Binary]
 
 
 # fmt: off
@@ -474,7 +476,7 @@ class TestPolarsConverterCustomization:
 
     @pytest.mark.parametrize(
         "fallback_type",
-        [pl.String, pl.Object, pl.Binary],
+        _VALID_FALLBACK_TYPES,
     )
     def test_valid_fallback_types(self, fallback_type: pl.DataType):
         """Test fallback_type for unsupported types."""
@@ -504,7 +506,7 @@ class TestPolarsConverterCustomization:
         """Test that invalid fallback_type raises UnsupportedFeatureError."""
         with pytest.raises(
             UnsupportedFeatureError,
-            match="fallback_type must be one of: pl.String, pl.Object, pl.Binary",
+            match="fallback_type must be one of: pl.String, pl.Binary, or None",
         ):
             PolarsConverterConfig(fallback_type=pl.Int32)
 
@@ -574,7 +576,7 @@ class TestPolarsConverterCustomization:
             ],
         )
         config = PolarsConverterConfig(
-            fallback_type=pl.Object,
+            fallback_type=pl.String,
             column_overrides={"override_geom": custom_geometry_override},
         )
         converter = PolarsConverter(config)
@@ -584,7 +586,7 @@ class TestPolarsConverterCustomization:
             schema = converter.convert(spec, mode="coerce")
 
         # Fallback applied to fallback_geom
-        assert schema["fallback_geom"] == pl.Object
+        assert schema["fallback_geom"] == pl.String
 
         # Override applied to override_geom
         assert schema["override_geom"] == pl.Binary
@@ -864,7 +866,7 @@ class TestPolarsConverterFieldLevelFallback:
 
     @pytest.mark.parametrize(
         "fallback_type",
-        [pl.String, pl.Binary, pl.Object],
+        _VALID_FALLBACK_TYPES,
     )
     def test_fallback_type_preservation_in_nested_structures(
         self, fallback_type: pl.DataType

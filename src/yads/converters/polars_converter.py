@@ -44,7 +44,7 @@ class PolarsConverterConfig(BaseConverterConfig):
 
     Args:
         fallback_type: Polars data type to use for unsupported types in coerce mode.
-            Must be one of: pl.String, pl.Object, pl.Binary, or None.
+            Must be one of: pl.String, pl.Binary, or None.
             Defaults to None.
     """
 
@@ -61,10 +61,10 @@ class PolarsConverterConfig(BaseConverterConfig):
         if self.fallback_type is not None:
             import polars as pl  # type: ignore[import-untyped]
 
-            valid_fallback_types = {pl.String, pl.Object, pl.Binary}
+            valid_fallback_types = {pl.String, pl.Binary}
             if self.fallback_type not in valid_fallback_types:
                 raise UnsupportedFeatureError(
-                    f"fallback_type must be one of: pl.String, pl.Object, pl.Binary, or None. "
+                    f"fallback_type must be one of: pl.String, pl.Binary, or None. "
                     f"Got: {self.fallback_type}"
                 )
 
