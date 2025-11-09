@@ -1,0 +1,75 @@
+name: "iceberg_test"
+version: "2.0.0"
+description: "Iceberg table format test fixture with IDENTITY column support"
+
+storage:
+  format: "iceberg"
+  tbl_properties:
+    write_compression: "snappy"
+
+partitioned_by:
+  - column: "region"
+  - column: "event_date"
+    transform: "day"
+
+columns:
+  - name: "event_id"
+    type: "bigint"
+    description: "Unique event identifier"
+    constraints:
+      not_null: true
+
+  - name: "event_name"
+    type: "string"
+    description: "Name of the event"
+
+  - name: "event_date"
+    type: "date"
+    description: "Date of the event"
+    constraints:
+      not_null: true
+
+  - name: "event_timestamp"
+    type: "timestamp"
+    description: "Timestamp of the event"
+
+  - name: "event_data"
+    type: "struct"
+    fields:
+      - name: "field1"
+        type: "string"
+      - name: "field2"
+        type: "int"
+    description: "Structured event data"
+
+  - name: "region"
+    type: "string"
+    description: "Region partition column"
+    constraints:
+      not_null: true
+
+  - name: "tags"
+    type: "array"
+    element:
+      type: "string"
+    description: "Array of tags"
+
+  - name: "metadata"
+    type: "map"
+    key:
+      type: "string"
+    value:
+      type: "string"
+    description: "Key-value metadata"
+
+  - name: "amount"
+    type: "decimal"
+    params:
+      precision: 10
+      scale: 2
+    description: "Decimal amount"
+
+  - name: "is_active"
+    type: "boolean"
+    description: "Active status"
+

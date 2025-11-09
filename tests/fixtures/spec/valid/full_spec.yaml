@@ -1,0 +1,224 @@
+name: "catalog.db.full_spec"
+version: "2.1.0"
+description: "A full spec with all features."
+external: true
+
+metadata:
+  owner: "data-team"
+  sensitive: false
+
+storage:
+  format: "parquet"
+  location: "/data/full.spec"
+  tbl_properties:
+    write_compression: "snappy"
+
+partitioned_by:
+  - column: "c_string_len"
+  - column: "c_string"
+    transform: "truncate"
+    transform_args: [10]
+  - column: "c_date"
+    transform: "month"
+
+table_constraints:
+  - type: "primary_key"
+    name: "pk_full_spec"
+    columns: ["c_uuid", "c_date"]
+  - type: "foreign_key"
+    name: "fk_other_table"
+    columns: ["c_int64"]
+    references:
+      table: "other_table"
+      columns: ["id"]
+
+columns:
+  - name: "c_string"
+    type: "string"
+    description: "A string column with a default value."
+    constraints:
+      default: "default_string"
+
+  - name: "c_string_len"
+    type: "string"
+    params:
+      length: 255
+    description: "A string column with a specific length."
+
+  - name: "c_string_upper"
+    type: "string"
+    description: "A string column with a generated value."
+    generated_as:
+      column: "c_string"
+      transform: "upper"
+
+  - name: "c_int8"
+    type: "tinyint"
+    description: "A tiny integer."
+
+  - name: "c_int16"
+    type: "smallint"
+    description: "A small integer."
+
+  - name: "c_int32_identity"
+    type: "int"
+    description: "An integer with an identity constraint."
+    constraints:
+      identity:
+        always: true
+        start: 1
+        increment: 1
+
+  - name: "c_int64"
+    type: "bigint"
+    description: "A big integer, part of a foreign key."
+
+  - name: "c_float32"
+    type: "float"
+    description: "A 32-bit float."
+
+  - name: "c_float64"
+    type: "double"
+    description: "A 64-bit float."
+
+  - name: "c_decimal"
+    type: "decimal"
+    description: "A decimal with default precision/scale."
+
+  - name: "c_decimal_ps"
+    type: "decimal"
+    params:
+      precision: 10
+      scale: 2
+    description: "A decimal with specified precision/scale."
+
+  - name: "c_boolean"
+    type: "boolean"
+    description: "A boolean value."
+
+  - name: "c_binary"
+    type: "binary"
+    description: "A binary data column."
+
+  - name: "c_binary_len"
+    type: "binary"
+    params:
+      length: 8
+    description: "A fixed-length binary column."
+
+  - name: "c_date"
+    type: "date"
+    description: "A date value, part of the primary key."
+    constraints:
+      not_null: true
+
+  - name: "c_date_month"
+    type: "int"
+    description: "An integer column with a generated value."
+    generated_as:
+      column: "c_date"
+      transform: "month"
+
+  - name: "c_time"
+    type: "time"
+    description: "A time value."
+
+  - name: "c_timestamp"
+    type: "timestamp"
+    description: "A timestamp."
+
+  - name: "c_timestamp_date"
+    type: "date"
+    description: "A date column with a generated value."
+    generated_as:
+      column: "c_timestamp"
+      transform: "cast"
+      transform_args: ["date"]
+
+  - name: "c_timestamp_tz"
+    type: "timestamptz"
+    description: "A timestamp with timezone."
+
+  - name: "c_timestamp_ltz"
+    type: "timestampltz"
+    description: "A timestamp with local timezone."
+
+  - name: "c_timestamp_ntz"
+    type: "timestampntz"
+    description: "A timestamp without timezone."
+
+  - name: "c_interval_ym"
+    type: "interval"
+    params:
+      interval_start: "YEAR"
+      interval_end: "MONTH"
+    description: "A year-month interval."
+
+  - name: "c_interval_d"
+    type: "interval"
+    params:
+      interval_start: "DAY"
+    description: "A day interval."
+
+  - name: "c_array"
+    type: "array"
+    element:
+      type: "int"
+    description: "An array of integers."
+
+  - name: "c_array_sized"
+    type: "array"
+    element:
+      type: "string"
+    params:
+      size: 2
+    description: "A fixed-size array of strings."
+
+  - name: "c_struct"
+    type: "struct"
+    fields:
+      - name: "nested_int"
+        type: "int"
+        description: "A nested integer."
+      - name: "nested_string"
+        type: "string"
+        description: "A nested string."
+    description: "A struct column."
+
+  - name: "c_map"
+    type: "map"
+    key:
+      type: "string"
+    value:
+      type: "double"
+    description: "A map from string to double."
+  
+  - name: "c_json"
+    type: "json"
+    description: "A JSON column."
+
+  - name: "c_geometry"
+    type: "geometry"
+    params:
+      srid: 4326
+    description: "A geometry column."
+
+  - name: "c_geography"
+    type: "geography"
+    params:
+      srid: 4326
+    description: "A geography column."
+
+  - name: "c_uuid"
+    type: "uuid"
+    description: "Primary key part 1"
+    constraints:
+      not_null: true
+
+  - name: "c_void"
+    type: "void"
+    description: "A void column."
+
+  - name: "c_variant"
+    type: "variant"
+    description: "A variant column."

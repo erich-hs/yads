@@ -1,0 +1,14 @@
+name: "catalog.db.nested_spec"
+version: "1.0.0"
+columns:
+  - name: "items"
+    type: "array"
+    element:
+      type: "struct"
+      fields:
+        - name: "product_id"
+          type: "integer"
+        - name: "name"
+          type: "string"
+          params:
+            length: 100 

@@ -5,7 +5,12 @@ repos:
     -   id: ruff
         args:
           - --fix
+          - --config
+          - pyproject.toml
     -   id: ruff-format
+        args:
+          - --config
+          - pyproject.toml
 
 -   repo: https://github.com/astral-sh/uv-pre-commit
     rev: 0.7.9
@@ -14,3 +19,14 @@ repos:
         name: main dependencies
         args: [--no-dev, --no-hashes, -o, requirements.txt]
         files: pyproject.toml
+
+-   repo: local
+    hooks:
+      - id: validate-yads-spec
+        name: "Validate YADS spec"
+        entry: bash
+        language: system
+        args:
+        -   -c
+        -   "find examples/specs -name '*.yaml' -print0 | xargs -0 uv run check-jsonschema --schemafile spec/yads_spec_latest.json"
+        files: ^(examples/specs/.*\.yaml|spec/yads_spec_latest\.json)$

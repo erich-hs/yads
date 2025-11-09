@@ -1,0 +1,8 @@
+name: "invalid.interval.spec"
+version: "1.0.0"
+columns:
+  - name: "invalid_interval"
+    type: "interval"
+    params:
+      interval_start: "year"
+      interval_end: "day" 

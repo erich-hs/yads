@@ -1,0 +1,13 @@
+name: "catalog.db.map_spec"
+version: "1.0.0"
+columns:
+  - name: "metadata"
+    type: "map"
+    params:
+      keys_sorted: true
+    key:
+      type: "string"
+      params:
+        length: 50
+    value:
+      type: "integer" 

@@ -1,0 +1,160 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - refactor
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    name: Unit Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "0.5.x"
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      
+      - name: Install dependencies
+        run: uv sync --all-groups
+      
+      - name: Run tests with coverage
+        run: uv run --all-groups pytest --cov=src --cov-report=xml --cov-report=term
+      
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        if: matrix.python-version == '3.10'
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: false
+
+  prepare-dependency-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+      
+      - name: Set up matrix
+        id: set-matrix
+        run: |
+          # Generate matrix from versions.json
+          INCLUDE=$(jq -c '[ to_entries[] | .key as $dep | .value[] | {dependency:$dep, version:.} ]' ci/dependency-tests/versions.json)
+          echo "matrix={\"include\":${INCLUDE}}" >> $GITHUB_OUTPUT
+
+  dependency-tests:
+    name: Dependency Tests (${{ matrix.dependency }} ${{ matrix.version }})
+    needs: prepare-dependency-matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.prepare-dependency-matrix.outputs.matrix) }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build test image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./ci/dependency-tests/docker/Dockerfile
+          tags: yads-test:latest
+          load: true
+          pull: true
+          build-args: |
+            UV_LINK_MODE=copy
+          cache-from: type=gha,scope=deps-test
+          cache-to: type=gha,mode=max,scope=deps-test
+      
+      - name: Run dependency tests
+        run: |
+          docker run --rm \
+            -e UV_LINK_MODE=copy \
+            yads-test:latest ${{ matrix.dependency }} ${{ matrix.version }}
+
+  prepare-integration-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      dialects: ${{ steps.set-matrix.outputs.dialects }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+      
+      - name: Set up matrix
+        id: set-matrix
+        run: |
+          # Generate matrix from config.json
+          DIALECTS=$(jq -c '.dialects | keys' ci/integration-tests/config.json)
+          echo "dialects=${DIALECTS}" >> $GITHUB_OUTPUT
+
+  integration-tests:
+    name: Integration Tests (${{ matrix.dialect }})
+    needs: prepare-integration-matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        dialect: ${{ fromJson(needs.prepare-integration-matrix.outputs.dialects) }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build test image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./ci/integration-tests/docker/${{ matrix.dialect }}/Dockerfile
+          tags: yads-integration-${{ matrix.dialect }}:latest
+          load: true
+          pull: true
+          build-args: |
+            UV_LINK_MODE=copy
+          cache-from: type=gha,scope=integration-${{ matrix.dialect }}
+          cache-to: type=gha,mode=max,scope=integration-${{ matrix.dialect }}
+      
+      - name: Run integration tests
+        run: |
+          docker run --rm \
+            -e UV_LINK_MODE=copy \
+            -v "$(pwd)/ci/integration-tests/scripts:/workspace/ci/integration-tests/scripts:ro" \
+            yads-integration-${{ matrix.dialect }}:latest
+

@@ -1,0 +1,10 @@
+{
+  "dialects": {
+    "spark": {
+      "docker_image": "yads-integration-spark"
+    },
+    "duckdb": {
+      "docker_image": "yads-integration-duckdb"
+    }
+  }
+}

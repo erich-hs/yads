@@ -1,0 +1,19 @@
+name: "catalog.db.constraints_spec"
+version: "1.0.0"
+columns:
+  - name: "id"
+    type: "uuid"
+    constraints:
+      primary_key: true
+  - name: "status"
+    type: "string"
+    constraints:
+      default: "pending"
+  - name: "user_id"
+    type: "uuid"
+    constraints:
+      foreign_key:
+        name: "fk_user_id"
+        references:
+          table: "users"
+          columns: ["id"] 

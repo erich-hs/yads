@@ -1,0 +1,37 @@
+name: "catalog.db.intervals_spec"
+version: "1.0.0"
+columns:
+  - name: "interval_year"
+    type: "interval"
+    params:
+      interval_start: "year"
+  - name: "interval_month"
+    type: "interval"
+    params:
+      interval_start: "month"
+  - name: "interval_year_to_month"
+    type: "interval"
+    params:
+      interval_start: "year"
+      interval_end: "month"
+  - name: "interval_day"
+    type: "interval"
+    params:
+      interval_start: "day"
+  - name: "interval_hour"
+    type: "interval"
+    params:
+      interval_start: "hour"
+  - name: "interval_minute"
+    type: "interval"
+    params:
+      interval_start: "minute"
+  - name: "interval_second"
+    type: "interval"
+    params:
+      interval_start: "second"
+  - name: "interval_day_to_hour"
+    type: "interval"
+    params:
+      interval_start: "day"
+      interval_end: "hour" 
