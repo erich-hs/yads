@@ -140,7 +140,6 @@ class PySparkLoader(ConfigurableLoader):
         with self.load_context(mode=mode):
             columns: list[dict[str, Any]] = []
             for field in schema.fields:
-                # Set field context during conversion
                 with self.load_context(field=field.name):
                     column_def = self._convert_field(field)
                     columns.append(column_def)

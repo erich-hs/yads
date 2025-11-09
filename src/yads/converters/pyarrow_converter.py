@@ -44,6 +44,15 @@ class PyArrowConverterConfig(BaseConverterConfig):
     """Configuration for PyArrowConverter.
 
     Args:
+        mode: Conversion mode. One of "raise" or "coerce". Inherited from
+            BaseConverterConfig. Defaults to "coerce".
+        ignore_columns: Column names to exclude from conversion. Inherited from
+            BaseConverterConfig. Defaults to empty.
+        include_columns: If provided, only these columns are included. Inherited
+            from BaseConverterConfig. Defaults to None.
+        column_overrides: Mapping of column name to a callable that returns a
+            custom PyArrow field conversion. Inherited from BaseConverterConfig.
+            Defaults to empty mapping.
         use_large_string: If True, use `pa.large_string()` for
             `String`. Defaults to False.
         use_large_binary: If True, use `pa.large_binary()` for
@@ -138,16 +147,12 @@ class PyArrowConverter(BaseConverter):
         import pyarrow as pa  # type: ignore[import-untyped]
 
         fields: list[pa.Field] = []
-        # Set mode for this conversion call
         with self.conversion_context(mode=mode):
             self._validate_column_filters(spec)
             for col in self._filter_columns(spec):
-                # Set field context during conversion
                 with self.conversion_context(field=col.name):
-                    # Use centralized override resolution - fallback is handled by decorator
                     field_result = self._convert_field_with_overrides(col)
                     fields.append(field_result)
-        # Attach schema-level metadata if present, coercing values to strings
         schema_metadata = self._coerce_metadata(spec.metadata) if spec.metadata else None
         return pa.schema(fields, metadata=schema_metadata)
 

@@ -62,6 +62,15 @@ class PydanticConverterConfig(BaseConverterConfig):
     """Configuration for PydanticConverter.
 
     Args:
+        mode: Conversion mode. One of "raise" or "coerce". Inherited from
+            BaseConverterConfig. Defaults to "coerce".
+        ignore_columns: Column names to exclude from conversion. Inherited from
+            BaseConverterConfig. Defaults to empty.
+        include_columns: If provided, only these columns are included. Inherited
+            from BaseConverterConfig. Defaults to None.
+        column_overrides: Mapping of column name to a callable that returns a
+            custom Pydantic field conversion. Inherited from BaseConverterConfig.
+            Defaults to empty mapping.
         model_name: Custom name for the generated model class. If None, uses
             the spec name. Defaults to None.
         model_config: Dictionary of Pydantic model configuration options.
@@ -139,13 +148,10 @@ class PydanticConverter(BaseConverter):
         model_config: dict[str, Any] = self.config.model_config or {}
 
         fields: dict[str, Any] = {}
-        # Set mode for this conversion call
         with self.conversion_context(mode=mode):
             self._validate_column_filters(spec)
             for col in self._filter_columns(spec):
-                # Set field context during conversion
                 with self.conversion_context(field=col.name):
-                    # Use centralized override resolution - fallback is handled by decorator
                     field_type, field_info = self._convert_field_with_overrides(col)
 
                     # Pydantic expects (annotation, FieldInfo) for dynamic models

@@ -1,9 +1,4 @@
-"""Data type definitions for yads specs.
-
-This module provides the canonical type system for yads, defining primitive types
-(strings, numbers, dates), complex types (arrays, structs, maps), and specialized
-types (intervals, UUIDs). These types form the foundation for schema definitions
-and are used throughout spec conversions.
+"""Canonical type system for yads specifications.
 
 The type system is designed to be expressive and database-agnostic, while providing
 sufficient detail for accurate conversion to specific SQL dialects and data processing
@@ -106,26 +101,14 @@ class YadsType(ABC):
 class String(YadsType):
     """Variable-length string type with optional maximum length constraint.
 
-    Represents text data that can be converted to STRING-like types in various
-    SQL dialects or data-processing frameworks. The length parameter specifies
-    the maximum number of characters allowed.
+    Represents text data. The `length` parameter specifies the maximum number
+    of characters when applicable.
 
     Args:
         length: Maximum number of characters. If None, represents unlimited length.
 
     Raises:
         TypeDefinitionError: If length is not a positive integer.
-
-    Example:
-        >>> # Unlimited length string
-        >>> String()
-
-        >>> # String with maximum length
-        >>> String(length=255)
-
-        >>> # Common use in field definition
-        >>> from yads.spec import Field
-        >>> Field(name="username", type=String(length=50))
     """
 
     length: int | None = None
@@ -144,10 +127,8 @@ class String(YadsType):
 class Integer(YadsType):
     """Integer type with optional bit-width and signedness specification.
 
-    Represents whole numbers that can be converted to various integer types
-    in SQL dialects and data processing frameworks. The bit-width determines
-    the range of values that can be stored. The `signed` flag controls
-    whether values are signed or unsigned.
+    Represents whole numbers. Bit-width controls representable range; `signed`
+    controls whether negative values are allowed.
 
     Args:
         bits: Number of bits for the integer. Must be 8, 16, 32, or 64.
@@ -157,19 +138,6 @@ class Integer(YadsType):
     Raises:
         TypeDefinitionError: If `bits` is not one of the valid values or
             if `signed` is not a boolean.
-
-    Example:
-        >>> # Default integer
-        >>> Integer()
-
-        >>> # Specific bit-width integers
-        >>> Integer(bits=8)   # TINYINT
-        >>> Integer(bits=16)  # SMALLINT
-        >>> Integer(bits=32)  # INT
-        >>> Integer(bits=64)  # BIGINT
-
-        >>> # Unsigned integer
-        >>> Integer(bits=32, signed=False)
     """
 
     bits: int | None = None
@@ -208,19 +176,6 @@ class Float(YadsType):
 
     Raises:
         TypeDefinitionError: If bits is not 16, 32, or 64.
-
-    Example:
-        >>> # Default float (typically 64-bit)
-        >>> Float()
-
-        >>> # Half precision
-        >>> Float(bits=16)
-
-        >>> # Single precision
-        >>> Float(bits=32)
-
-        >>> # Double precision
-        >>> Float(bits=64)
     """
 
     bits: int | None = None
@@ -253,13 +208,6 @@ class Decimal(YadsType):
     Raises:
         TypeDefinitionError: If only one of precision/scale is specified,
                            or if values are invalid.
-
-    Example:
-        >>> # Default decimal
-        >>> Decimal()
-
-        >>> # Use in field definition
-        >>> Decimal(precision=10, scale=2)
     """
 
     precision: int | None = None
@@ -301,14 +249,7 @@ class Decimal(YadsType):
 
 @dataclass(frozen=True)
 class Boolean(YadsType):
-    """Boolean type representing true/false values.
-
-    Example:
-        >>> Boolean()
-        >>>
-        >>> # Use in field definition
-        >>> Field(name="is_active", type=Boolean())
-    """
+    """Boolean type representing true/false values."""
 
 
 @dataclass(frozen=True)
@@ -322,13 +263,6 @@ class Binary(YadsType):
     Raises:
         TypeDefinitionError: If `length` is provided and is not a
             positive integer.
-
-    Example:
-        >>> Binary()
-        >>>
-        >>> # Use in field definition
-        >>> Field(name="document", type=Binary())
-        >>> Field(name="hash", type=Binary(length=32))
     """
 
     length: int | None = None
@@ -351,13 +285,6 @@ class Date(YadsType):
         bits: Storage width for logical date. One of `32` or `64`. Defaults
             to `32`. This flag primarily affects non-SQL targets such as
             PyArrow.
-
-    Example:
-        >>> Date()
-        >>> Date(bits=64)
-        >>>
-        >>> # Use in field definition
-        >>> Field(name="birth_date", type=Date())
     """
 
     bits: int | None = None
@@ -400,11 +327,6 @@ class Time(YadsType):
 
     Raises:
         TypeDefinitionError: If `unit` is not one of the supported values.
-
-    Example:
-        >>> Time()              # defaults to milliseconds
-        >>> Time(unit="s")
-        >>> Time(unit="ns", bits=64)
     """
 
     unit: TimeUnit | None = TimeUnit.MS
@@ -436,20 +358,11 @@ class Time(YadsType):
 
 @dataclass(frozen=True)
 class Timestamp(YadsType):
-    """Date and time type without timezone information.
-
-    Represents a Timestamp type with implicit timezone awareness.
+    """Timestamp type with implicit timezone awareness.
 
     Args:
         unit: Smallest time unit for values. One of `"s"`, `"ms"`, `"us"`,
             or `"ns"`. Defaults to `"ns"`.
-
-    Example:
-        >>> Timestamp()
-        >>> Timestamp(unit="ms")
-        >>>
-        >>> # Use in field definition
-        >>> Field(name="created_at", type=Timestamp())
     """
 
     unit: TimeUnit | None = TimeUnit.NS
@@ -470,9 +383,7 @@ class Timestamp(YadsType):
 
 @dataclass(frozen=True)
 class TimestampTZ(YadsType):
-    """Date and time type with explicit timezone information.
-
-    Represents a timezone-aware Timestamp type with an explicit timezone identifier.
+    """Timezone-aware timestamp type with explicit timezone information.
 
     Args:
         unit: Smallest time unit for values. One of `"s"`, `"ms"`, `"us"`,
@@ -480,14 +391,6 @@ class TimestampTZ(YadsType):
         tz: IANA timezone name to interpret values, for example `"UTC"` or
             `"America/New_York"`. Must be a non-empty string. Defaults to
             `"UTC"`.
-
-    Example:
-        >>> TimestampTZ()
-        >>> TimestampTZ(unit="us")
-        >>> TimestampTZ(unit="ns", tz="America/New_York")
-        >>>
-        >>> # Use in field definition
-        >>> Field(name="order_time", type=TimestampTZ())
     """
 
     unit: TimeUnit | None = TimeUnit.NS
@@ -521,21 +424,11 @@ class TimestampTZ(YadsType):
 
 @dataclass(frozen=True)
 class TimestampLTZ(YadsType):
-    """Date and time type with session-local timezone semantics.
-
-    Represents a timezone-aware Timestamp type whose timezone interpretation
-    is delegated to the client or query engine session settings.
+    """Timezone-aware timestamp type with session-local timezone semantics.
 
     Args:
         unit: Smallest time unit for values. One of `"s"`, `"ms"`, `"us"`,
             or `"ns"`. Defaults to `"ns"`.
-
-    Example:
-        >>> TimestampLTZ()
-        >>> TimestampLTZ(unit="s")
-        >>>
-        >>> # Use in field definition
-        >>> Field(name="order_time", type=TimestampLTZ())
     """
 
     unit: TimeUnit | None = TimeUnit.NS
@@ -556,20 +449,11 @@ class TimestampLTZ(YadsType):
 
 @dataclass(frozen=True)
 class TimestampNTZ(YadsType):
-    """Date and time type without timezone information.
-
-    Represents a Timestamp with explicit timezone unawareness.
+    """Timestamp type with explicit timezone unawareness.
 
     Args:
         unit: Smallest time unit for values. One of `"s"`, `"ms"`, `"us"`,
             or `"ns"`. Defaults to `"ns"`.
-
-    Example:
-        >>> TimestampNTZ()
-        >>> TimestampNTZ(unit="ms")
-        >>>
-        >>> # Use in field definition
-        >>> Field(name="order_time", type=TimestampNTZ())
     """
 
     unit: TimeUnit | None = TimeUnit.NS
@@ -601,10 +485,6 @@ class Duration(YadsType):
 
     Raises:
         TypeDefinitionError: If `unit` is not one of the supported values.
-
-    Example:
-        >>> Duration()
-        >>> Duration(unit="ms")
     """
 
     unit: TimeUnit | None = TimeUnit.NS
@@ -641,11 +521,8 @@ class IntervalTimeUnit(str, Enum):
 
 @dataclass(frozen=True)
 class Interval(YadsType):
-    """Time interval type representing a duration between two time points.
-
-    Intervals can represent durations like "3 months", "2 days", or
-    "5 hours 30 minutes". The interval is defined by start and optionally
-    end time units.
+    """Time interval type representing a duration between two time points. The interval
+    is defined by start and optional end time units.
 
     Args:
         interval_start: The starting (most significant) time unit.
@@ -659,15 +536,6 @@ class Interval(YadsType):
     Raises:
         TypeDefinitionError: If start and end units are from different categories,
                            or if start is less significant than end.
-
-    Example:
-        >>> # Single unit intervals
-        >>> Interval(IntervalTimeUnit.YEAR)
-        >>> Interval(IntervalTimeUnit.DAY)
-
-        >>> # Range intervals
-        >>> Interval(IntervalTimeUnit.YEAR, IntervalTimeUnit.MONTH)
-        >>> Interval(IntervalTimeUnit.DAY, IntervalTimeUnit.SECOND)
     """
 
     interval_start: IntervalTimeUnit
@@ -746,8 +614,8 @@ class Array(YadsType):
         >>> # Array of strings
         >>> Array(element=String())
 
-        >>> # Array of integers
-        >>> Array(element=Integer(bits=32))
+        >>> # Fixed-size array of integers
+        >>> Array(element=Integer(bits=32), size=10)
 
         >>> # Nested array (array of arrays)
         >>> Array(element=Array(element=String()))
@@ -832,17 +700,7 @@ class Map(YadsType):
 
 @dataclass(frozen=True)
 class JSON(YadsType):
-    """JSON document type for semi-structured data.
-
-    Stores JSON documents with native support for JSON operations
-    in compatible databases.
-
-    Example:
-        >>> JSON()
-        >>>
-        >>> # Use in field definition
-        >>> Field(name="metadata", type=JSON())
-    """
+    """JSON document type for semi-structured data."""
 
 
 @dataclass(frozen=True)
@@ -854,12 +712,6 @@ class Geometry(YadsType):
     Args:
         srid: Spatial reference identifier, for example an integer code or
             the string `"ANY"`. If `None`, no SRID is rendered.
-
-    Examples:
-        >>> Geometry()
-        >>> Geometry(srid=0)
-        >>> Geometry(srid="ANY")
-
     """
 
     srid: int | str | None = None
@@ -879,12 +731,6 @@ class Geography(YadsType):
     Args:
         srid: Spatial reference identifier, e.g., integer code or the string
             `"ANY"`. If `None`, no SRID is rendered.
-
-    Examples:
-        >>> Geography()
-        >>> Geography(srid=4326)
-        >>> Geography(srid="ANY")
-
     """
 
     srid: int | str | None = None
@@ -897,43 +743,17 @@ class Geography(YadsType):
 
 @dataclass(frozen=True)
 class UUID(YadsType):
-    """Universally Unique Identifier type.
-
-    Represents 128-bit UUID values, commonly used for primary keys
-    and unique identifiers in distributed systems.
-
-    Example:
-        >>> UUID()
-        >>>
-        >>> # Use in field definition
-        >>> Field(name="user_id", type=UUID())
-    """
+    """Universally Unique Identifier type. Represents 128-bit UUID values."""
 
 
 @dataclass(frozen=True)
 class Void(YadsType):
-    """Represents a NULL or VOID type.
-
-    Example:
-        >>> Void()
-        >>>
-        >>> # Use in field definition
-        >>> Field(name="optional_field", type=Void())
-    """
+    """Represents a NULL or VOID type."""
 
 
 @dataclass(frozen=True)
 class Variant(YadsType):
-    """Variant type representing a union of potentially different types.
-
-    Represents a value that can be one of several types.
-
-    Example:
-        >>> Variant()
-        >>>
-        >>> # Use in field definition
-        >>> Field(name="value", type=Variant())
-    """
+    """Variant type representing a union of potentially different types."""
 
 
 @dataclass(frozen=True)

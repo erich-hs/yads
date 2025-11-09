@@ -1,11 +1,4 @@
-"""Constraint definitions for data validation and spec enforcement.
-
-This module provides constraint classes for both column-level and table-level
-data validation. Constraints define rules that data must satisfy, such as
-non-null requirements, primary key uniqueness, and foreign key relationships.
-
-The constraint system supports both column-level constraints (applied to individual
-columns) and table-level constraints (applied across multiple columns).
+"""Constraint definitions for table-level and column-level data validation.
 
 Example:
     >>> from yads.constraints import (
@@ -54,9 +47,7 @@ from .exceptions import InvalidConstraintError
 class ForeignKeyReference:
     """Reference specification for foreign key constraints.
 
-    Defines the target table and optional column list for a foreign key
-    relationship. Used by both column-level and table-level foreign key
-    constraints to specify what the constraint references.
+    Defines the target table and optional columns referenced by a foreign key.
 
     Args:
         table: Name of the referenced table.
@@ -64,16 +55,6 @@ class ForeignKeyReference:
 
     Raises:
         InvalidConstraintError: If columns is an empty list.
-
-    Example:
-        >>> # Reference primary key of users table
-        >>> ForeignKeyReference(table="users")
-
-        >>> # Reference specific columns
-        >>> ForeignKeyReference(table="users", columns=["id"])
-
-        >>> # Multi-column reference
-        >>> ForeignKeyReference(table="orders", columns=["order_id", "line_number"])
     """
 
     table: str
@@ -95,24 +76,13 @@ class ForeignKeyReference:
 class ColumnConstraint(ABC):
     """Abstract base class for column-level constraints.
 
-    Column constraints are applied to individual columns and define
-    validation rules that values in that column must satisfy.
+    Applied to individual columns to define validation rules.
     """
 
 
 @dataclass(frozen=True)
 class NotNullConstraint(ColumnConstraint):
-    """Constraint requiring that column values cannot be NULL.
-
-    Example:
-        >>> import yads.types as ytypes
-        >>> # Add to a field definition
-        >>> Field(
-        ...     name="email",
-        ...     type=ytypes.String(),
-        ...     constraints=[NotNullConstraint()]
-        ... )
-    """
+    """Constraint requiring that column values cannot be NULL."""
 
     def __str__(self) -> str:
         return "NotNullConstraint()"
@@ -120,17 +90,7 @@ class NotNullConstraint(ColumnConstraint):
 
 @dataclass(frozen=True)
 class PrimaryKeyConstraint(ColumnConstraint):
-    """Constraint designating a column as the primary key.
-
-    Example:
-        >>> import yads.types as ytypes
-        >>> # Single-column primary key
-        >>> Field(
-        ...     name="id",
-        ...     type=ytypes.Integer(),
-        ...     constraints=[PrimaryKeyConstraint()]
-        ... )
-    """
+    """Constraint designating a column as the primary key."""
 
     def __str__(self) -> str:
         return "PrimaryKeyConstraint()"
@@ -140,30 +100,11 @@ class PrimaryKeyConstraint(ColumnConstraint):
 class DefaultConstraint(ColumnConstraint):
     """Constraint providing a default value for a column.
 
-    Specifies the value to use when no explicit value is provided
-    during insert operations. The default value should be compatible
-    with the column's data type.
+    Specifies the value to use when no explicit value is provided during insert
+    operations. The default value should be compatible with the column's data type.
 
     Args:
-        value: The default value to use. Can be any JSON-serializable type.
-
-    Example:
-        >>> import yads.types as ytypes
-        >>> # String default
-        >>> DefaultConstraint(value="pending")
-
-        >>> # Numeric default
-        >>> DefaultConstraint(value=0)
-
-        >>> # Boolean default
-        >>> DefaultConstraint(value=True)
-
-        >>> # Use in field definition
-        >>> Field(
-        ...     name="status",
-        ...     type=ytypes.String(),
-        ...     constraints=[DefaultConstraint(value="active")]
-        ... )
+        value: The default value to use.
     """
 
     value: Any
@@ -218,16 +159,6 @@ class IdentityConstraint(ColumnConstraint):
 
     Raises:
         InvalidConstraintError: If increment is zero.
-
-    Example:
-        >>> # Basic identity column
-        >>> IdentityConstraint()
-
-        >>> # Custom start and increment
-        >>> IdentityConstraint(start=1000, increment=10)
-
-        >>> # Allow manual insertion
-        >>> IdentityConstraint(always=False, start=1, increment=1)
     """
 
     always: bool = True
@@ -244,11 +175,7 @@ class IdentityConstraint(ColumnConstraint):
 # Table Constraints
 @dataclass(frozen=True)
 class TableConstraint(ABC):
-    """Abstract base class for table-level constraints.
-
-    Table constraints operate across multiple columns and are defined
-    at the table level rather than on individual columns.
-    """
+    """Abstract base class for table-level constraints."""
 
     @property
     @abstractmethod
@@ -309,9 +236,8 @@ class PrimaryKeyTableConstraint(TableConstraint):
 class ForeignKeyTableConstraint(TableConstraint):
     """Table-level foreign key constraint for composite relationships.
 
-    Defines a foreign key across multiple columns, useful for referencing
-    composite primary keys in other tables. The number of columns must match
-    the number of referenced columns.
+    Defines a foreign key across multiple columns. The number of columns must
+    match the number of referenced columns.
 
     Args:
         columns: List of column names in this table that form the foreign key.

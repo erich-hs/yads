@@ -27,6 +27,15 @@ class SQLConverterConfig(BaseConverterConfig):
     """Configuration for SQLConverter.
 
     Args:
+        mode: Conversion mode. One of "raise" or "coerce". Inherited from
+            BaseConverterConfig. Defaults to "coerce".
+        ignore_columns: Column names to exclude from conversion. Inherited from
+            BaseConverterConfig. Defaults to empty.
+        include_columns: If provided, only these columns are included. Inherited
+            from BaseConverterConfig. Defaults to None.
+        column_overrides: Mapping of column name to a callable that returns a
+            custom AST column definition for the chosen AST converter. Inherited
+            from BaseConverterConfig. Defaults to empty mapping.
         dialect: Target SQL dialect name for SQL generation.
         ast_converter: AST converter instance to use for spec-to-AST transformation.
             If None, uses default SQLGlotConverter.

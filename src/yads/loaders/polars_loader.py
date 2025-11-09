@@ -114,7 +114,6 @@ class PolarsLoader(ConfigurableLoader):
         with self.load_context(mode=mode):
             columns: list[dict[str, Any]] = []
             for field_name, dtype in schema.items():
-                # Set field context during conversion
                 with self.load_context(field=field_name):
                     column_def = self._convert_field(field_name, dtype)
                     columns.append(column_def)

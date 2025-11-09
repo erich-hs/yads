@@ -1,8 +1,4 @@
-"""Core spec data structures for yads.
-
-This module defines the fundamental data structures that represent the
-canonical yads specification.
-
+"""Core data structures for the canonical yads specification.
 
 Example:
     >>> from yads.constraints import NotNullConstraint
@@ -60,37 +56,11 @@ def _format_dict_as_kwargs(d: dict[str, Any], multiline: bool = False) -> str:
 class TransformedColumnReference:
     """A reference to a column with an optional transformation function.
 
-    TransformedColumnReference represents a reference to an existing column that may
-    have a transformation function applied to it. This is used exclusively in two contexts:
-    1. Partitioning specifications (partitioned_by) - to define how column values
-       should be transformed before partitioning
-    2. Generated column specifications (generated_as) - to define computed columns
-       derived from other columns
-
-    This class does not represent an actual column definition, but rather a reference
-    to an existing column with optional transformation logic applied.
+    Used in:
+    - Partitioning definitions to transform column values before partitioning.
+    - Generated columns to define computed expressions.
 
     Common transformations include bucketing, truncating, and date part extraction.
-
-    Example:
-        >>> # Simple column reference for partitioning
-        >>> ref = TransformedColumnReference(column="status")
-        >>> str(ref)
-        'status'
-
-        >>> # Column with a transformation function applied
-        >>> ref = TransformedColumnReference(column="order_date", transform="month")
-        >>> str(ref)
-        'month(order_date)'
-
-        >>> ref = TransformedColumnReference(column="user_id", transform="bucket", transform_args=[50])
-        >>> str(ref)
-        'bucket(user_id, 50)'
-
-        >>> import yads.types as ytypes
-        >>> # Generated column example (transform is required for generated columns)
-        >>> ref = TransformedColumnReference(column="order_date", transform="year")
-        >>> # This would be used in: Column(name="order_year", type=ytypes.Integer(), generated_as=ref)
     """
 
     column: str
@@ -112,8 +82,6 @@ class Field:
 
     Field is the base class for all named data elements in yads. It represents
     individual data fields with their types, constraints, and optional metadata.
-    This class is primarily used for fields within complex types like structs, but
-    also serves as the base class for table columns.
 
     Example:
         >>> import yads.types as ytypes
@@ -188,8 +156,7 @@ class Column(Field):
     """A table column with optional generation logic.
 
     Column extends Field to represent database table columns specifically.
-    It adds support for generated column definitions, making it the primary
-    building block for table schemas.
+    It adds support for generated column definitions.
 
     Example:
         >>> from yads.constraints import NotNullConstraint, DefaultConstraint
@@ -245,22 +212,7 @@ class Column(Field):
 class Storage:
     """Defines the physical storage properties of a table.
 
-    Storage configuration specifies how and where table data should be physically
-    stored, including file format, location, and format-specific properties.
-
-    Example:
-        >>> # Basic Parquet storage
-        >>> storage = Storage(format="parquet", location="/data/tables/users")
-        >>>
-        >>> # Iceberg table with properties
-        >>> storage = Storage(
-        ...     format="iceberg",
-        ...     location="/warehouse/sales/orders",
-        ...     tbl_properties={
-        ...         "write.target-file-size-bytes": "536870912",
-        ...         "read.split.target-size": "268435456"
-        ...     }
-        ... )
+    Includes file format, location, and format-specific properties.
     """
 
     format: str | None = None
@@ -284,13 +236,10 @@ class Storage:
 
 @dataclass(frozen=True)
 class YadsSpec:
-    """Complete yads specification.
+    """Canonical yads specification.
 
-    YadsSpec is the central data structure in yads that represents a complete
-    table definition including columns, constraints, storage properties, and
-    metadata. It serves as the input for all converters and validation processes.
-
-    The yads specification is immutable.
+    Represents a complete table definition including columns, constraints,
+    storage properties, partitioning, and metadata. Instances are immutable.
 
     Args:
         name: Fully qualified table name (e.g., "catalog.database.table").

@@ -43,6 +43,15 @@ class PolarsConverterConfig(BaseConverterConfig):
     """Configuration for PolarsConverter.
 
     Args:
+        mode: Conversion mode. One of "raise" or "coerce". Inherited from
+            BaseConverterConfig. Defaults to "coerce".
+        ignore_columns: Column names to exclude from conversion. Inherited from
+            BaseConverterConfig. Defaults to empty.
+        include_columns: If provided, only these columns are included. Inherited
+            from BaseConverterConfig. Defaults to None.
+        column_overrides: Mapping of column name to a callable that returns a
+            custom Polars field conversion. Inherited from BaseConverterConfig.
+            Defaults to empty mapping.
         fallback_type: Polars data type to use for unsupported types in coerce mode.
             Must be one of: pl.String, pl.Binary, or None.
             Defaults to None.
@@ -126,13 +135,10 @@ class PolarsConverter(BaseConverter):
         import polars as pl  # type: ignore[import-untyped]
 
         fields: dict[str, pl.DataType] = {}
-        # Set mode for this conversion call
         with self.conversion_context(mode=mode):
             self._validate_column_filters(spec)
             for col in self._filter_columns(spec):
-                # Set field context during conversion
                 with self.conversion_context(field=col.name):
-                    # Use centralized override resolution
                     field_result = self._convert_field_with_overrides(col)
                     fields[field_result.name] = field_result.dtype
         return pl.Schema(fields)

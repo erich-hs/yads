@@ -1,9 +1,4 @@
-"""AST validation engine for dialect compatibility.
-
-Applies a set of validation/adjustment rules to a sqlglot AST in two modes:
-- "raise": collect all errors and raise
-- "coerce": apply adjustments and emit warnings
-"""
+"""AST validation engine for dialect compatibility."""
 
 from __future__ import annotations
 

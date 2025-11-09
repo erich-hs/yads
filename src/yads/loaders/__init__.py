@@ -219,6 +219,14 @@ def from_pyarrow(
 
     Returns:
         A validated immutable `YadsSpec` instance.
+
+    Example:
+        >>> import pyarrow as pa
+        >>> schema = pa.schema([
+        ...     pa.field("id", pa.int64()),
+        ...     pa.field("name", pa.string()),
+        ... ])
+        >>> spec = from_pyarrow(schema, name="users", version="1.0.0")
     """
     from . import pyarrow_loader  # type: ignore
 
@@ -253,6 +261,14 @@ def from_pyspark(
 
     Returns:
         A validated immutable `YadsSpec` instance.
+
+    Example:
+        >>> from pyspark.sql.types import StructType, StructField, LongType, StringType
+        >>> schema = StructType([
+        ...     StructField("id", LongType(), nullable=False),
+        ...     StructField("name", StringType(), nullable=True),
+        ... ])
+        >>> spec = from_pyspark(schema, name="users", version="1.0.0")
     """
     from . import pyspark_loader  # type: ignore
 
@@ -287,6 +303,11 @@ def from_polars(
 
     Returns:
         A validated immutable `YadsSpec` instance.
+
+    Example:
+        >>> import polars as pl
+        >>> schema = pl.Schema({"id": pl.Int64, "name": pl.Utf8})
+        >>> spec = from_polars(schema, name="users", version="1.0.0")
     """
     from . import polars_loader  # type: ignore
 

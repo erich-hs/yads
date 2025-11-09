@@ -43,6 +43,15 @@ class PySparkConverterConfig(BaseConverterConfig):
     """Configuration for PySparkConverter.
 
     Args:
+        mode: Conversion mode. One of "raise" or "coerce". Inherited from
+            BaseConverterConfig. Defaults to "coerce".
+        ignore_columns: Column names to exclude from conversion. Inherited from
+            BaseConverterConfig. Defaults to empty.
+        include_columns: If provided, only these columns are included. Inherited
+            from BaseConverterConfig. Defaults to None.
+        column_overrides: Mapping of column name to a callable that returns a
+            custom PySpark field conversion. Inherited from BaseConverterConfig.
+            Defaults to empty mapping.
         fallback_type: PySpark data type to use for unsupported types in coerce mode.
             Must be one of: StringType(), BinaryType(), or None. Defaults to None.
     """
@@ -123,13 +132,10 @@ class PySparkConverter(BaseConverter):
         from pyspark.sql.types import StructType
 
         fields: list[StructField] = []
-        # Set mode for this conversion call
         with self.conversion_context(mode=mode):
             self._validate_column_filters(spec)
             for col in self._filter_columns(spec):
-                # Set field context during conversion
                 with self.conversion_context(field=col.name):
-                    # Use centralized override resolution
                     field_result = self._convert_field_with_overrides(col)
                     fields.append(field_result)
         return StructType(fields)

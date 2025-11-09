@@ -63,6 +63,15 @@ class SQLGlotConverterConfig(BaseConverterConfig):
     """Configuration for SQLGlotConverter.
 
     Args:
+        mode: Conversion mode. One of "raise" or "coerce". Inherited from
+            BaseConverterConfig. Defaults to "coerce".
+        ignore_columns: Column names to exclude from conversion. Inherited from
+            BaseConverterConfig. Defaults to empty.
+        include_columns: If provided, only these columns are included. Inherited
+            from BaseConverterConfig. Defaults to None.
+        column_overrides: Mapping of column name to a callable that returns a
+            custom sqlglot `exp.ColumnDef`. Inherited from BaseConverterConfig.
+            Defaults to empty mapping.
         if_not_exists: If True, sets the `exists` property of the `exp.Create`
             node to `True`. Defaults to False.
         or_replace: If True, sets the `replace` property of the `exp.Create`
@@ -787,9 +796,7 @@ class SQLGlotConverter(BaseConverter, AstConverter):
     def _collect_expressions(self, spec: yspec.YadsSpec) -> list[exp.Expression]:
         expressions: list[exp.Expression] = []
         for col in self._filter_columns(spec):
-            # Set field context during conversion
             with self.conversion_context(field=col.name):
-                # Use centralized override resolution
                 column_expr = self._convert_field_with_overrides(col)
                 expressions.append(column_expr)
 
