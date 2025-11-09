@@ -1,8 +1,6 @@
-# `yads`
+# yads
 
-A canonical, typed data specification for data teams. Define once; load/convert
-deterministically across formats and backends with explicit,
-semantics-preserving rules.
+`yads` is a canonical, typed data specification for multi-disciplinary data teams. Define a schema once; load and convert it deterministically across formats with explicit, semantics-preserving rules.
 
 ## Installation
 ```bash
@@ -15,7 +13,9 @@ pip install yads
 uv add yads
 ```
 
-## Features
+## Overview
+
+As the universal format for columnar data representation, `Arrow` is central to `yads` development, but the specification is expressive enough to be derived from the most common data formats used by data teams.
 
 | Format | Loader | Converter |
 | --------- | ---------- | ------------- |
@@ -28,14 +28,14 @@ uv add yads
 
 See the [loaders](./src/yads/loaders/) and [converters](./src/yads/converters/) API for advanced usage. A list of supported SQL dialects is available [here](./src/yads/converters/sql/sql_converter.py).
 
-### End-to-end: canonical spec → model and schemas
+### `yads` specification
 
-```python
-# Load a spec from YAML (string shown; file-like objects and paths also work)
-from io import StringIO
-import yads
+Typical workflows start with an expressive yads specification that can then be used throughout the data lifecycle.
 
-yaml_spec = """
+The latest `yads` specification JSON schema is available [here](./spec/yads_spec_latest.json).
+
+```yaml
+# registry/specs/customers.yaml
 name: catalog.crm.customers
 version: 1.0.0
 columns:
@@ -56,19 +56,29 @@ columns:
     type: array
     element:
       type: string
-"""
-
-spec = yads.from_yaml(StringIO(yaml_spec))
 ```
 
+Load a yads spec (from a YAML string, file-like object, or path)
 ```python
-# Generate a Pydantic BaseModel and validate an incoming record
-from datetime import datetime, timezone
 import yads
 
+spec = yads.from_yaml("registry/specs/customers.yaml")
+
+# Generate a Pydantic BaseModel
 Customers = yads.to_pydantic(spec, model_name="Customers")
+
 print("MODEL:", Customers)
 print("FIELDS:", list(Customers.model_fields.keys()))
+```
+```text
+MODEL: <class 'yads.converters.pydantic_converter.Customers'>
+FIELDS: ['id', 'email', 'created_at', 'spend', 'tags']
+```
+
+Validate an incoming record with Pydantic
+```python
+from datetime import datetime, timezone
+
 record = Customers(
     id=123,
     email="alice@example.com",
@@ -76,29 +86,21 @@ record = Customers(
     spend="42.50",
     tags=["vip", "beta"],
 )
-print("DUMP:", record.model_dump())
+
+print(record.model_dump())
+```
+```stdout
+{'id': 123, 'email': 'alice@example.com', 'created_at': datetime.datetime(2024, 5, 1, 12, 0, tzinfo=datetime.timezone.utc), 'spend': Decimal('42.50'), 'tags': ['vip', 'beta']}
 ```
 
-Output:
-
+Emit DDL for multiple SQL dialects from the same spec
 ```python
-MODEL: <class 'yads.converters.pydantic_converter.Customers'>
-FIELDS: ['id', 'email', 'created_at', 'spend', 'tags']
-DUMP: {'id': 123, 'email': 'alice@example.com', 'created_at': datetime.datetime(2024, 5, 1, 12, 0, tzinfo=datetime.timezone.utc), 'spend': Decimal('42.50'), 'tags': ['vip', 'beta']}
-```
-
-```python
-# Emit DDL for multiple engines from the same spec
-import yads
-
 spark_sql = yads.to_sql(spec, dialect="spark", pretty=True)
 duckdb_sql = yads.to_sql(spec, dialect="duckdb", pretty=True)
+
 print("-- Spark DDL --\\n" + spark_sql)
 print("\\n-- DuckDB DDL --\\n" + duckdb_sql)
 ```
-
-Output:
-
 ```sql
 -- Spark DDL --
 CREATE TABLE catalog.crm.customers (
@@ -119,28 +121,21 @@ CREATE TABLE catalog.crm.customers (
 )
 ```
 
+Create a Polars schema for typed DataFrame IO
 ```python
-# Create a Polars schema for typed DataFrame IO
 import yads
 pl_schema = yads.to_polars(spec)
 print(pl_schema)
 ```
-
-Output:
-
 ```text
 Schema({'id': Int64, 'email': String, 'created_at': Datetime(time_unit='ns', time_zone='UTC'), 'spend': Decimal(precision=10, scale=2), 'tags': List(String)})
 ```
-
+Create a PyArrow schema with constraint preservation
 ```python
-# Create a PyArrow schema for Parquet/Arrow IO
 import yads
 pa_schema = yads.to_pyarrow(spec)
 print(pa_schema)
 ```
-
-Output:
-
 ```text
 id: int64 not null
 email: string
@@ -150,16 +145,17 @@ tags: list<item: string>
   child 0, item: string
 ```
 
-### Filter columns for a derived artifact
+### Configurable conversions
 
+The canonical yads spec is immutable, but conversions can be customized with configuration options.
 ```python
 import yads
+
+spec = yads.from_yaml("registry/specs/customers.yaml")
 ddl_min = yads.to_sql(spec, dialect="spark", include_columns={"id", "email"}, pretty=True)
+
 print(ddl_min)
 ```
-
-Output:
-
 ```sql
 CREATE TABLE catalog.crm.customers (
   id BIGINT NOT NULL,
@@ -167,25 +163,21 @@ CREATE TABLE catalog.crm.customers (
 )
 ```
 
-### Add per-column validation (Pydantic overrides)
-
+Column overrides can be used to apply custom validation to specific columns, or to supersede default conversions.
 ```python
 from pydantic import Field
-import yads
 
 def email_override(field, conv):
     # Enforce example.com domain with a regex pattern
     return str, Field(pattern=r"^.+@example\\.com$")
 
 Model = yads.to_pydantic(spec, column_overrides={"email": email_override})
+
 try:
     Model(id=1, email="user@other.com")
 except Exception as e:
     print(type(e).__name__ + ":\n" + str(e))
 ```
-
-Output:
-
 ```text
 ValidationError:
 1 validation error for catalog_crm_customers
@@ -193,7 +185,9 @@ email
   String should match pattern '^.+@example\\.com$' [type=string_pattern_mismatch, input_value='user@other.com', input_type=str]
 ```
 
-### Round-trip: PyArrow schema → Spec → Spark/DuckDB DDL/Pydantic
+### Round-trip conversions
+
+`yads` attempts to preserve the complete representation of data schemas across conversions. The following example demonstrates a round-trip from a PyArrow schema to a yads spec, then to a DuckDB DDL and PySpark schema, while preserving metadata and column constraints.
 
 ```python
 import yads
@@ -203,252 +197,63 @@ schema = pa.schema([
     pa.field("id", pa.int64(), nullable=False, metadata={"description": "Customer ID"}),
     pa.field("name", pa.string(), metadata={"description": "Customer preferred name"}),
     pa.field("email", pa.string(), metadata={"description": "Customer email address"}),
-    pa.field("created_at", pa.timestamp('ns', tz='UTC'), metadata={"description": "Customer creation timestamp"}),
+    pa.field("created_at", pa.timestamp('ns', tz='UTC'), metadata={"description": "Record creation timestamp"}),
 ])
 
 spec = yads.from_pyarrow(schema, name="catalog.crm.customers", version="1.0.0")
-print("-- yads Spec --")
 print(spec)
+```
+```text
+spec catalog.crm.customers(version='1.0.0')(
+  columns=[
+    id: integer(bits=64)(
+      description='Customer ID',
+      constraints=[NotNullConstraint()]
+    )
+    name: string(
+      description='Customer preferred name'
+    )
+    email: string(
+      description='Customer email address'
+    )
+    created_at: timestamptz(unit=ns, tz=UTC)(
+      description='Customer creation timestamp'
+    )
+  ]
+)
+```
 
-print("-- DuckDB DDL --")
+Nullability and metadata are preserved as long as the target format supports them.
+
+```python
 print(yads.to_sql(spec, dialect="duckdb", pretty=True))
-
-print("-- PySpark Schema --")
+```
+```text
+CREATE TABLE catalog.crm.customers (
+  id BIGINT NOT NULL,
+  name TEXT,
+  email TEXT,
+  created_at TIMESTAMPTZ
+)
+```
+```python
 pyspark_schema = yads.to_pyspark(spec)
 for field in pyspark_schema.fields:
     print(f"{field.name}, {field.dataType}, {field.nullable=}")
     print(f"{field.metadata=}\n")
 ```
-
-Output:
-
 ```text
-SPEC: spec catalog.crm.customers(version='1.0.0')(
-  columns=[
-    id: integer(bits=64)(
-      constraints=[NotNullConstraint()]
-    )
-    email: string
-    created_at: timestamptz(unit=ns, tz=UTC)
-    spend: decimal(precision=10, scale=2, bits=128)
-    tags: array<string>
-  ]
-)
--- Spark DDL --
-CREATE TABLE catalog.crm.customers (
-  id BIGINT NOT NULL,
-  email STRING,
-  created_at TIMESTAMP,
-  spend DECIMAL(10, 2),
-  tags ARRAY<STRING>
-)
--- DuckDB DDL --
-CREATE TABLE catalog.crm.customers (
-  id BIGINT NOT NULL,
-  email TEXT,
-  created_at TIMESTAMPTZ,
-  spend DECIMAL(10, 2),
-  tags TEXT[]
-)
-MODEL: <class 'yads.converters.pydantic_converter.CustomersFromArrow'>
-FIELDS: ['id', 'email', 'created_at', 'spend', 'tags']
-```
+id, LongType(), field.nullable=False
+field.metadata={'description': 'Customer ID'}
 
-### Constraints and metadata preservation across conversions
+name, StringType(), field.nullable=True
+field.metadata={'description': 'Customer preferred name'}
 
-```python
-from io import StringIO
-import yads
+email, StringType(), field.nullable=True
+field.metadata={'description': 'Customer email address'}
 
-yaml_spec = """
-name: analytics.app.events
-version: 1.2.3
-metadata:
-  owner: analytics
-  domain: engagement
-columns:
-  - name: event_id
-    type: uuid
-    constraints:
-      not_null: true
-  - name: user_id
-    type: bigint
-    constraints:
-      not_null: true
-  - name: event_type
-    type: string
-    constraints:
-      default: click
-    description: Logical type of event
-    metadata:
-      pii: false
-  - name: ts
-    type: timestamptz
-    constraints:
-      not_null: true
-  - name: props
-    type: json
-    metadata:
-      comment: Unstructured event payload
-
-table_constraints:
-  - type: primary_key
-    name: pk_events
-    columns: [event_id]
-  - type: foreign_key
-    name: fk_users
-    columns: [user_id]
-    references:
-      table: core.users
-      columns: [id]
-"""
-
-spec = yads.from_yaml(StringIO(yaml_spec))
-print("SPEC:")
-print(spec)
-
-print("-- Spark DDL --")
-print(yads.to_sql(spec, dialect="spark", pretty=True))
-
-print("-- DuckDB DDL --")
-print(yads.to_sql(spec, dialect="duckdb", pretty=True))
-
-Model = yads.to_pydantic(spec, model_name="EventRecord")
-print("MODEL:", Model)
-schema = Model.model_json_schema()
-print("REQUIRED:", schema.get("required"))
-print("FIELD:event_type:", schema.get("properties", {}).get("event_type"))
-print("FIELD:user_id:", schema.get("properties", {}).get("user_id"))
-```
-
-Output:
-
-```text
-SPEC:
-spec analytics.app.events(version='1.2.3')(
-  metadata={
-    owner='analytics',
-    domain='engagement'
-  }
-  table_constraints=[
-    PrimaryKeyTableConstraint(
-      name='pk_events',
-      columns=[
-        'event_id'
-      ]
-    )
-    ForeignKeyTableConstraint(
-      name='fk_users',
-      columns=[
-        'user_id'
-      ],
-      references=core.users(id)
-    )
-  ]
-  columns=[
-    event_id: uuid(
-      constraints=[NotNullConstraint()]
-    )
-    user_id: integer(bits=64)(
-      constraints=[NotNullConstraint()]
-    )
-    event_type: string(
-      description='Logical type of event',
-      constraints=[DefaultConstraint(value='click')],
-      metadata={pii=False}
-    )
-    ts: timestamptz(unit=ns, tz=UTC)(
-      constraints=[NotNullConstraint()]
-    )
-    props: json(
-      metadata={comment='Unstructured event payload'}
-    )
-  ]
-)
--- Spark DDL --
-CREATE TABLE analytics.app.events (
-  event_id STRING NOT NULL,
-  user_id BIGINT NOT NULL,
-  event_type STRING DEFAULT 'click',
-  ts TIMESTAMP NOT NULL,
-  props STRING,
-  CONSTRAINT pk_events PRIMARY KEY (event_id),
-  CONSTRAINT fk_users FOREIGN KEY (user_id) REFERENCES core.users (
-    id
-  )
-)
--- DuckDB DDL --
-CREATE TABLE analytics.app.events (
-  event_id UUID NOT NULL,
-  user_id BIGINT NOT NULL,
-  event_type TEXT DEFAULT 'click',
-  ts TIMESTAMPTZ NOT NULL,
-  props JSON,
-  CONSTRAINT pk_events PRIMARY KEY (event_id),
-  CONSTRAINT fk_users FOREIGN KEY (user_id) REFERENCES core.users (
-    id
-  )
-)
-MODEL: <class 'yads.converters.pydantic_converter.EventRecord'>
-REQUIRED: ['event_id', 'user_id', 'ts', 'props']
-FIELD:event_type: {'anyOf': [{'type': 'string'}, {'type': 'null'}], 'default': 'click', 'description': 'Logical type of event', 'title': 'Event Type', 'yads': {'metadata': {'pii': False}}}
-FIELD:user_id: {'maximum': 9223372036854775807, 'minimum': -9223372036854775808, 'title': 'User Id', 'type': 'integer'}
-```
-
-### Round-trip: Polars schema → Spec → Spark/DuckDB DDL
-
-```python
-import polars as pl
-import yads
-
-pl_schema = pl.Schema({
-    "id": pl.Int64,
-    "email": pl.String,
-    "created_at": pl.Datetime(time_unit="ns", time_zone="UTC"),
-    "spend": pl.Decimal(precision=10, scale=2),
-    "tags": pl.List(pl.String),
-})
-
-spec = yads.from_polars(pl_schema, name="catalog.crm.customers", version="1.0.0")
-print("SPEC:")
-print(spec)
-
-print("-- DuckDB DDL --")
-print(yads.to_sql(spec, dialect="duckdb", pretty=True))
-
-print("-- Spark DDL --")
-print(yads.to_sql(spec, dialect="spark", pretty=True))
-```
-
-Output:
-
-```text
-SPEC:
-spec catalog.crm.customers(version='1.0.0')(
-  columns=[
-    id: integer(bits=64)
-    email: string
-    created_at: timestamptz(unit=ns, tz=UTC)
-    spend: decimal(precision=10, scale=2)
-    tags: array<string>
-  ]
-)
--- DuckDB DDL --
-CREATE TABLE catalog.crm.customers (
-  id BIGINT,
-  email TEXT,
-  created_at TIMESTAMPTZ,
-  spend DECIMAL(10, 2),
-  tags TEXT[]
-)
--- Spark DDL --
-CREATE TABLE catalog.crm.customers (
-  id BIGINT,
-  email STRING,
-  created_at TIMESTAMP,
-  spend DECIMAL(10, 2),
-  tags ARRAY<STRING>
-)
+created_at, TimestampType(), field.nullable=True
+field.metadata={'description': 'Customer creation timestamp'}
 ```
 
 ## Design Philosophy
