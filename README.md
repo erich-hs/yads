@@ -1,201 +1,462 @@
-# yads
+# `yads`
 
-`yads`: _~~Yet Another Data Spec~~_ **YAML-Augmented Data Specification** is a Python library for managing data specs using YAML. It helps you define your data warehouse tables, schemas, and documentation in a structured, version-controlled way. With `yads`, you can specify your data assets once in YAML and then generate DDL statements for different SQL dialects and schema objects for PySpark, PyArrow, and more.
+A canonical, typed data specification for data teams. Define once; load/convert
+deterministically across formats and backends with explicit,
+semantics-preserving rules.
 
-## Why yads?
-
-In modern data platforms, data assets are often defined across a multitude of tools, leading to fragmentation and inconsistency. `yads` addresses this by providing a centralized, version-controllable, and extensible way to manage your data assets using simple YAML files.
-
-## Getting Started
-
-### Installation
-
+## Installation
 ```bash
+# With pip
 pip install yads
 ```
 
-### Usage
+```bash
+# With uv
+uv add yads
+```
 
-#### Defining a Specification
+## Features
 
-Create a YAML file to define your table schema and properties. See the latest version of the [`yads` Specification](https://github.com/erich-hs/yads/blob/refactor/examples/specs/yads_spec.yaml) for a comprehensive example.
+| Format | Loader | Converter |
+| --------- | ---------- | ------------- |
+| PyArrow | `yads.from_pyarrow` | `yads.to_pyarrow` |
+| PySpark | `yads.from_pyspark` | `yads.to_pyspark` |
+| Polars | `yads.from_polars` | `yads.to_polars` |
+| Pydantic | _Not implemented_ | `yads.to_pydantic` |
+| SQL | _Not implemented_ | `yads.to_sql` |
+| YAML | `yads.from_yaml` | _Not implemented_ |
 
-#### Generating SQL DDL
+See the [loaders](./src/yads/loaders/) and [converters](./src/yads/converters/) API for advanced usage. A list of supported SQL dialects is available [here](./src/yads/converters/sql/sql_converter.py).
 
-You can generate a `CREATE TABLE` statement for a specific SQL dialect from your YAML specification:
+### End-to-end: canonical spec → model and schemas
+
+```python
+# Load a spec from YAML (string shown; file-like objects and paths also work)
+from io import StringIO
+import yads
+
+yaml_spec = """
+name: catalog.crm.customers
+version: 1.0.0
+columns:
+  - name: id
+    type: bigint
+    constraints:
+      not_null: true
+  - name: email
+    type: string
+  - name: created_at
+    type: timestamptz
+  - name: spend
+    type: decimal
+    params:
+      precision: 10
+      scale: 2
+  - name: tags
+    type: array
+    element:
+      type: string
+"""
+
+spec = yads.from_yaml(StringIO(yaml_spec))
+```
+
+```python
+# Generate a Pydantic BaseModel and validate an incoming record
+from datetime import datetime, timezone
+import yads
+
+Customers = yads.to_pydantic(spec, model_name="Customers")
+print("MODEL:", Customers)
+print("FIELDS:", list(Customers.model_fields.keys()))
+record = Customers(
+    id=123,
+    email="alice@example.com",
+    created_at=datetime(2024, 5, 1, 12, 0, 0, tzinfo=timezone.utc),
+    spend="42.50",
+    tags=["vip", "beta"],
+)
+print("DUMP:", record.model_dump())
+```
+
+Output:
+
+```python
+MODEL: <class 'yads.converters.pydantic_converter.Customers'>
+FIELDS: ['id', 'email', 'created_at', 'spend', 'tags']
+DUMP: {'id': 123, 'email': 'alice@example.com', 'created_at': datetime.datetime(2024, 5, 1, 12, 0, tzinfo=datetime.timezone.utc), 'spend': Decimal('42.50'), 'tags': ['vip', 'beta']}
+```
+
+```python
+# Emit DDL for multiple engines from the same spec
+import yads
+
+spark_sql = yads.to_sql(spec, dialect="spark", pretty=True)
+duckdb_sql = yads.to_sql(spec, dialect="duckdb", pretty=True)
+print("-- Spark DDL --\\n" + spark_sql)
+print("\\n-- DuckDB DDL --\\n" + duckdb_sql)
+```
+
+Output:
+
+```sql
+-- Spark DDL --
+CREATE TABLE catalog.crm.customers (
+  id BIGINT NOT NULL,
+  email STRING,
+  created_at TIMESTAMP,
+  spend DECIMAL(10, 2),
+  tags ARRAY<STRING>
+)
+
+-- DuckDB DDL --
+CREATE TABLE catalog.crm.customers (
+  id BIGINT NOT NULL,
+  email TEXT,
+  created_at TIMESTAMPTZ,
+  spend DECIMAL(10, 2),
+  tags TEXT[]
+)
+```
+
+```python
+# Create a Polars schema for typed DataFrame IO
+import yads
+pl_schema = yads.to_polars(spec)
+print(pl_schema)
+```
+
+Output:
+
+```text
+Schema({'id': Int64, 'email': String, 'created_at': Datetime(time_unit='ns', time_zone='UTC'), 'spend': Decimal(precision=10, scale=2), 'tags': List(String)})
+```
+
+```python
+# Create a PyArrow schema for Parquet/Arrow IO
+import yads
+pa_schema = yads.to_pyarrow(spec)
+print(pa_schema)
+```
+
+Output:
+
+```text
+id: int64 not null
+email: string
+created_at: timestamp[ns, tz=UTC]
+spend: decimal128(10, 2)
+tags: list<item: string>
+  child 0, item: string
+```
+
+### Filter columns for a derived artifact
 
 ```python
 import yads
-from yads.converters import SparkSQLConverter
-
-# Load the specification from a YAML file
-spec = yads.from_yaml("examples/specs/yads_spec.yaml")
-
-# The SparkSQLConverter will automatically handle the "spark" dialect
-# and perform Spark-specific validation on your spec.
-spark_converter = SparkSQLConverter()
-ddl = spark_converter.convert(spec, pretty=True)
-
-print(ddl)
+ddl_min = yads.to_sql(spec, dialect="spark", include_columns={"id", "email"}, pretty=True)
+print(ddl_min)
 ```
 
-This will produce the following SQL DDL:
+Output:
 
 ```sql
-CREATE EXTERNAL TABLE IF NOT EXISTS prod_db.fact_sales.customer_orders_pro (
-  order_id STRING NOT NULL,
-  customer_id INT NOT NULL,
-  order_ts TIMESTAMP NOT NULL,
-  total_amount DECIMAL(12, 2) NOT NULL DEFAULT 0.0,
-  order_status STRING DEFAULT 'pending',
-  product_category STRING,
-  shipping_details STRUCT<address: STRING NOT NULL, city: STRING, postal_code: STRING>,
-  tags MAP<STRING, STRING>,
-  CONSTRAINT pk_customer_orders_pro PRIMARY KEY (order_id)
-)
-USING ICEBERG
-LOCATION '/warehouse/sales/customer_orders_pro'
-PARTITIONED BY (
-  MONTH(order_ts),
-  order_status
-)
-TBLPROPERTIES (
-  'write.target-file-size-bytes' = '536870912',
-  'read.split.target-size' = '268435456'
+CREATE TABLE catalog.crm.customers (
+  id BIGINT NOT NULL,
+  email STRING
 )
 ```
 
-### Available Converters
-
-Currently, `yads` supports generating SQL DDL statements via the `SQLConverter`. Support for other output formats, such as PySpark or PyArrow schemas, is planned for future releases.
-
-#### Officially Supported SQL Dialects
-
-While the generic `SQLConverter` can generate DDL for any dialect supported by `sqlglot`, we also provide officially supported converters for specific dialects. These specialized converters (e.g., `SparkSQLConverter`) perform additional validation to ensure that the generated DDL is fully compatible with the target dialect, providing a higher level of reliability.
-
-To use an officially supported converter, simply import and instantiate it directly:
+### Add per-column validation (Pydantic overrides)
 
 ```python
-from yads.converters import SparkSQLConverter
+from pydantic import Field
+import yads
 
-# The SparkSQLConverter will automatically handle the "spark" dialect
-# and perform Spark-specific validation on your spec.
-spark_converter = SparkSQLConverter()
-ddl = spark_converter.convert(spec, pretty=True)
-print(ddl)
+def email_override(field, conv):
+    # Enforce example.com domain with a regex pattern
+    return str, Field(pattern=r"^.+@example\\.com$")
+
+Model = yads.to_pydantic(spec, column_overrides={"email": email_override})
+try:
+    Model(id=1, email="user@other.com")
+except Exception as e:
+    print(type(e).__name__ + ":\n" + str(e))
 ```
 
-## Extending yads
+Output:
 
-`yads` is designed to be easily extensible, allowing you to add support for new SQL dialects or other formats. This guide provides a brief overview of how to extend `yads` with custom converters and validation rules.
+```text
+ValidationError:
+1 validation error for catalog_crm_customers
+email
+  String should match pattern '^.+@example\\.com$' [type=string_pattern_mismatch, input_value='user@other.com', input_type=str]
+```
 
-### Creating a Core Converter
-
-Core converters are responsible for the primary transformation of a `yads` `YadsSpec` into a different object representation, such as a PySpark `StructType` or a PyArrow `Schema`. These converters form the foundation of `yads`'s extensibility.
-
-To create a new core converter, the following steps are required:
-
-1.  **Subclass `BaseConverter`**: Create a new class that inherits from `yads.converters.base.BaseConverter`.
-2.  **Implement the `convert` Method**: This method takes a `YadsSpec` as input and should return the target object, such as a PySpark `StructType`.
-3.  **Implement YadsType and Field Handlers**: Within the converter, create methods to handle the conversion of `yads` types (e.g., `String`, `Decimal`, `Struct`) into their counterparts in the target framework. This typically involves a dispatch mechanism that maps `yads` types to specific handling functions.
-
-Here is a simplified example of a `PySparkConverter`:
+### Round-trip: PyArrow schema → Spec → Spark/DuckDB DDL/Pydantic
 
 ```python
-# in yads/converters/spark.py
-from pyspark.sql.types import (
-    StructType,
-    StructField,
-    StringType,
-    DecimalType
+import yads
+import pyarrow as pa
+
+schema = pa.schema([
+    pa.field("id", pa.int64(), nullable=False, metadata={"description": "Customer ID"}),
+    pa.field("name", pa.string(), metadata={"description": "Customer preferred name"}),
+    pa.field("email", pa.string(), metadata={"description": "Customer email address"}),
+    pa.field("created_at", pa.timestamp('ns', tz='UTC'), metadata={"description": "Customer creation timestamp"}),
+])
+
+spec = yads.from_pyarrow(schema, name="catalog.crm.customers", version="1.0.0")
+print("-- yads Spec --")
+print(spec)
+
+print("-- DuckDB DDL --")
+print(yads.to_sql(spec, dialect="duckdb", pretty=True))
+
+print("-- PySpark Schema --")
+pyspark_schema = yads.to_pyspark(spec)
+for field in pyspark_schema.fields:
+    print(f"{field.name}, {field.dataType}, {field.nullable=}")
+    print(f"{field.metadata=}\n")
+```
+
+Output:
+
+```text
+SPEC: spec catalog.crm.customers(version='1.0.0')(
+  columns=[
+    id: integer(bits=64)(
+      constraints=[NotNullConstraint()]
+    )
+    email: string
+    created_at: timestamptz(unit=ns, tz=UTC)
+    spend: decimal(precision=10, scale=2, bits=128)
+    tags: array<string>
+  ]
 )
-
-from yads.converters.base import BaseConverter
-from yads.spec import YadsSpec, Field
-import yads.types as ytypes
-
-
-class PySparkConverter(BaseConverter):
-    def __init__(self):
-        self._type_handlers = {
-            ytypes.String: self._handle_string_type,
-            ytypes.Decimal: self._handle_decimal_type,
-        }
-
-    def convert(self, spec: YadsSpec) -> StructType:
-        return StructType([self._convert_field(field) for field in spec.columns])
-
-    def _convert_field(self, field: Field) -> StructField:
-        spark_type = self._convert_type(field.type)
-        return StructField(
-            name=field.name,
-            dataType=spark_type,
-            nullable=not field.is_not_nullable,
-            metadata={"description": field.description},
-        )
-
-    def _convert_type(self, yads_type: ytypes.YadsType):
-        if handler := self._type_handlers.get(type(yads_type)):
-            return handler(yads_type)
-        # Fallback or error for unsupported types
-        return StringType()
-
-    def _handle_string_type(self, yads_type: ytypes.String) -> StringType:
-        return StringType()
-
-    def _handle_decimal_type(self, yads_type: ytypes.Decimal) -> DecimalType:
-        return DecimalType(precision=yads_type.precision, scale=yads_type.scale)
+-- Spark DDL --
+CREATE TABLE catalog.crm.customers (
+  id BIGINT NOT NULL,
+  email STRING,
+  created_at TIMESTAMP,
+  spend DECIMAL(10, 2),
+  tags ARRAY<STRING>
+)
+-- DuckDB DDL --
+CREATE TABLE catalog.crm.customers (
+  id BIGINT NOT NULL,
+  email TEXT,
+  created_at TIMESTAMPTZ,
+  spend DECIMAL(10, 2),
+  tags TEXT[]
+)
+MODEL: <class 'yads.converters.pydantic_converter.CustomersFromArrow'>
+FIELDS: ['id', 'email', 'created_at', 'spend', 'tags']
 ```
 
-### Creating a SQL Converter
-
-To add support for a new SQL dialect, you'll typically need to follow a structured conversion and validation flow.
-
-#### The Conversion and Validation Flow
-
-The process of converting a `yads` specification into a target format (like a SQL DDL) follows these general steps:
-
-1.  **Parsing**: The YAML/JSON spec is parsed into a `YadsSpec` object.
-2.  **Core Conversion**: A core converter (e.g., `SQLGlotConverter`) transforms the `YadsSpec` into a generic intermediate representation, like a `sqlglot` Abstract Syntax Tree (AST).
-3.  **Validation and Adjustment (Optional)**: For formats with specific constraints (like SQL dialects), an `AstValidator` can be used to process the intermediate representation. It applies a set of rules to check for unsupported features and adjusts the AST accordingly.
-4.  **Serialization**: The final representation is serialized into the target output format (e.g., a SQL string).
-
-> [!NOTE]
-> The SQL DDL conversion pipeline follows a **"wide-to-narrow"** approach, designed to keep data definitions flexible, yet with minimal loss of expressiveness:
-> -   **`yads` Spec (Most Expressive)**: The spec is the single source of truth. It's designed to capture the data model in detail, independent of any specific dialect or format's limitations. It is always treated as immutable.
-> -   **`sqlglot` AST (Generic & Expressive)**: From the spec, a generic `sqlglot` AST is built. This tree is also highly expressive and serves as a common, dialect-agnostic representation of the table schema.
-> -   **SQL Converter (Specific & Strict)**: The final converter "narrows" the generic AST into valid DDL for a specific SQL dialect. The `AstValidator` ensures that any feature from the spec is gracefully handled—either by raising an error (in `strict` mode) or by adjusting the AST to fit the dialect's constraints.
-> This flow ensures that the `yads` spec remains the ultimate source of truth, while still allowing for the practical generation of correct, dialect-specific SQL.
-
-#### Steps to Create a SQL Converter
-
-To add support for a new SQL dialect, you'll typically need to:
-
-1.  **Create a Converter Class**: Subclass `SQLConverter` (e.g., `MyNewSQLConverter`).
-2.  **Implement Validation Rules**: If the dialect has features that are not universally supported, create new validation rules by subclassing `yads.validator.Rule`. Each rule needs to implement:
-    *   `validate()`: To check the AST for a specific issue.
-    *   `adjust()`: To modify the AST to resolve the issue.
-3.  **Wire it Up**: In your new converter's `__init__`, instantiate `AstValidator` with your list of rules and pass it to the `SQLConverter`'s constructor.
-
-Here's a simplified example of a custom converter for a fictional "AwesomeDB":
+### Constraints and metadata preservation across conversions
 
 ```python
-# in yads/converters/sql.py
-from yads.converters.sql import SQLConverter, AstValidator, AstValidationRule
+from io import StringIO
+import yads
 
-class DisallowLongVarcharsRule(AstValidationRule):
-    # ... implementation for the rule ...
+yaml_spec = """
+name: analytics.app.events
+version: 1.2.3
+metadata:
+  owner: analytics
+  domain: engagement
+columns:
+  - name: event_id
+    type: uuid
+    constraints:
+      not_null: true
+  - name: user_id
+    type: bigint
+    constraints:
+      not_null: true
+  - name: event_type
+    type: string
+    constraints:
+      default: click
+    description: Logical type of event
+    metadata:
+      pii: false
+  - name: ts
+    type: timestamptz
+    constraints:
+      not_null: true
+  - name: props
+    type: json
+    metadata:
+      comment: Unstructured event payload
 
-class AwesomeDBConverter(SQLConverter):
-    def __init__(self, **convert_options: Any):
-        rules = [DisallowLongVarcharsRule()]
-        validator = AstValidator(rules=rules)
-        super().__init__(dialect="awesomedb", ast_validator=validator, **convert_options)
+table_constraints:
+  - type: primary_key
+    name: pk_events
+    columns: [event_id]
+  - type: foreign_key
+    name: fk_users
+    columns: [user_id]
+    references:
+      table: core.users
+      columns: [id]
+"""
+
+spec = yads.from_yaml(StringIO(yaml_spec))
+print("SPEC:")
+print(spec)
+
+print("-- Spark DDL --")
+print(yads.to_sql(spec, dialect="spark", pretty=True))
+
+print("-- DuckDB DDL --")
+print(yads.to_sql(spec, dialect="duckdb", pretty=True))
+
+Model = yads.to_pydantic(spec, model_name="EventRecord")
+print("MODEL:", Model)
+schema = Model.model_json_schema()
+print("REQUIRED:", schema.get("required"))
+print("FIELD:event_type:", schema.get("properties", {}).get("event_type"))
+print("FIELD:user_id:", schema.get("properties", {}).get("user_id"))
 ```
 
-By following this pattern, you can keep dialect-specific logic cleanly separated, making the codebase easier to maintain and extend.
+Output:
 
+```text
+SPEC:
+spec analytics.app.events(version='1.2.3')(
+  metadata={
+    owner='analytics',
+    domain='engagement'
+  }
+  table_constraints=[
+    PrimaryKeyTableConstraint(
+      name='pk_events',
+      columns=[
+        'event_id'
+      ]
+    )
+    ForeignKeyTableConstraint(
+      name='fk_users',
+      columns=[
+        'user_id'
+      ],
+      references=core.users(id)
+    )
+  ]
+  columns=[
+    event_id: uuid(
+      constraints=[NotNullConstraint()]
+    )
+    user_id: integer(bits=64)(
+      constraints=[NotNullConstraint()]
+    )
+    event_type: string(
+      description='Logical type of event',
+      constraints=[DefaultConstraint(value='click')],
+      metadata={pii=False}
+    )
+    ts: timestamptz(unit=ns, tz=UTC)(
+      constraints=[NotNullConstraint()]
+    )
+    props: json(
+      metadata={comment='Unstructured event payload'}
+    )
+  ]
+)
+-- Spark DDL --
+CREATE TABLE analytics.app.events (
+  event_id STRING NOT NULL,
+  user_id BIGINT NOT NULL,
+  event_type STRING DEFAULT 'click',
+  ts TIMESTAMP NOT NULL,
+  props STRING,
+  CONSTRAINT pk_events PRIMARY KEY (event_id),
+  CONSTRAINT fk_users FOREIGN KEY (user_id) REFERENCES core.users (
+    id
+  )
+)
+-- DuckDB DDL --
+CREATE TABLE analytics.app.events (
+  event_id UUID NOT NULL,
+  user_id BIGINT NOT NULL,
+  event_type TEXT DEFAULT 'click',
+  ts TIMESTAMPTZ NOT NULL,
+  props JSON,
+  CONSTRAINT pk_events PRIMARY KEY (event_id),
+  CONSTRAINT fk_users FOREIGN KEY (user_id) REFERENCES core.users (
+    id
+  )
+)
+MODEL: <class 'yads.converters.pydantic_converter.EventRecord'>
+REQUIRED: ['event_id', 'user_id', 'ts', 'props']
+FIELD:event_type: {'anyOf': [{'type': 'string'}, {'type': 'null'}], 'default': 'click', 'description': 'Logical type of event', 'title': 'Event Type', 'yads': {'metadata': {'pii': False}}}
+FIELD:user_id: {'maximum': 9223372036854775807, 'minimum': -9223372036854775808, 'title': 'User Id', 'type': 'integer'}
+```
 
-## Contributing
+### Round-trip: Polars schema → Spec → Spark/DuckDB DDL
 
-Contributions are welcome! Please open an issue or submit a pull request.
+```python
+import polars as pl
+import yads
+
+pl_schema = pl.Schema({
+    "id": pl.Int64,
+    "email": pl.String,
+    "created_at": pl.Datetime(time_unit="ns", time_zone="UTC"),
+    "spend": pl.Decimal(precision=10, scale=2),
+    "tags": pl.List(pl.String),
+})
+
+spec = yads.from_polars(pl_schema, name="catalog.crm.customers", version="1.0.0")
+print("SPEC:")
+print(spec)
+
+print("-- DuckDB DDL --")
+print(yads.to_sql(spec, dialect="duckdb", pretty=True))
+
+print("-- Spark DDL --")
+print(yads.to_sql(spec, dialect="spark", pretty=True))
+```
+
+Output:
+
+```text
+SPEC:
+spec catalog.crm.customers(version='1.0.0')(
+  columns=[
+    id: integer(bits=64)
+    email: string
+    created_at: timestamptz(unit=ns, tz=UTC)
+    spend: decimal(precision=10, scale=2)
+    tags: array<string>
+  ]
+)
+-- DuckDB DDL --
+CREATE TABLE catalog.crm.customers (
+  id BIGINT,
+  email TEXT,
+  created_at TIMESTAMPTZ,
+  spend DECIMAL(10, 2),
+  tags TEXT[]
+)
+-- Spark DDL --
+CREATE TABLE catalog.crm.customers (
+  id BIGINT,
+  email STRING,
+  created_at TIMESTAMP,
+  spend DECIMAL(10, 2),
+  tags ARRAY<STRING>
+)
+```
+
+## Design Philosophy
+
+`yads` is spec-first, deterministic, and safe-by-default: given the same spec and backend, converters and loaders produce the same schema and the same validation diagnostics.
+
+Conversions proceed silently only when they are lossless and fully semantics-preserving. When a backend cannot represent type parameters but preserves semantics (constraint loss, e.g. `String(length=10)` → `String()`), `yads` converts and emits structured warnings per affected field.
+
+Backend type gaps are handled with value-preserving substitutes only; otherwise conversion requires an explicit `fallback_type`. Potentially lossy or reinterpreting changes (range narrowing, precision downgrades, sign changes, or unit changes) are never applied implicitly. Types with no value-preserving representation fail fast with clear errors and extension guidance.
+
+Single rule: preserve semantics or notify; never lose or reinterpret data without explicit opt-in.
