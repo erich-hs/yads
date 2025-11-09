@@ -4,6 +4,12 @@ This module contains high-level SQL converters that:
 - Build an Abstract Syntax Tree (AST) from a `YadsSpec` using an AST converter
 - Optionally validate/adjust the AST using AST validation rules
 - Serialize the final AST to a SQL string for a target dialect
+
+Supported SQL dialects:
+- Spark
+- DuckDB
+
+Other SQL dialects can be extended via the `SQLConverter` class.
 """
 
 from __future__ import annotations
