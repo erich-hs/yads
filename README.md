@@ -1,6 +1,6 @@
 # yads
 
-`yads` is a canonical, typed data specification for multi-disciplinary data teams. Define a schema once; load and convert it deterministically across formats with explicit, semantics-preserving rules.
+`yads` is a canonical, typed data specification for the modern multi-disciplinary data team. Define a schema once; load and convert it deterministically across formats with minimal loss of semantics.
 
 ## Installation
 ```bash
@@ -15,7 +15,7 @@ uv add yads
 
 ## Overview
 
-As the universal format for columnar data representation, `Arrow` is central to `yads` development, but the specification is expressive enough to be derived from the most common data formats used by data teams.
+As the universal format for columnar data representation, `Arrow` is central to `yads`, but the specification is expressive enough to be derivable from the most common data formats used by data teams.
 
 | Format | Loader | Converter |
 | --------- | ---------- | ------------- |
