@@ -1,0 +1,111 @@
+name-template: 'yads $RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+version-template: '$MAJOR.$MINOR.$PATCH'
+
+categories:
+  - title: '## Features'
+    labels:
+      - 'feature'
+      - 'enhancement'
+    collapse-after: 15
+  - title: '## Bug Fixes'
+    labels:
+      - 'fix'
+      - 'bugfix'
+      - 'bug'
+    collapse-after: 15
+  - title: '## Performance'
+    labels:
+      - 'performance'
+      - 'perf'
+    collapse-after: 10
+  - title: '## Documentation'
+    labels:
+      - 'documentation'
+      - 'docs'
+    collapse-after: 10
+  - title: '## Maintenance'
+    labels:
+      - 'chore'
+      - 'maintenance'
+      - 'refactor'
+      - 'test'
+      - 'ci'
+      - 'build'
+    collapse-after: 10
+
+# Automatically categorize PRs based on title prefix
+category-template: |
+  {% if pull_request.title contains "feat:" or pull_request.title contains "feat(" %}
+  Features
+  {% elsif pull_request.title contains "fix:" or pull_request.title contains "fix(" %}
+  Bug Fixes
+  {% elsif pull_request.title contains "perf:" or pull_request.title contains "perf(" %}
+  Performance
+  {% elsif pull_request.title contains "docs:" or pull_request.title contains "docs(" %}
+  Documentation
+  {% elsif pull_request.title contains "chore:" or pull_request.title contains "refactor:" or pull_request.title contains "test:" or pull_request.title contains "ci:" or pull_request.title contains "build:" %}
+  Maintenance
+  {% endif %}
+
+change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+change-title-escapes: '\<*_&'
+
+version-resolver:
+  major:
+    labels:
+      - 'major'
+      - 'breaking'
+  minor:
+    labels:
+      - 'minor'
+      - 'feature'
+      - 'enhancement'
+  patch:
+    labels:
+      - 'patch'
+      - 'fix'
+      - 'bugfix'
+      - 'bug'
+  default: patch
+
+autolabeler:
+  - label: 'feature'
+    title:
+      - '/^feat(\(.*\))?:/'
+  - label: 'fix'
+    title:
+      - '/^fix(\(.*\))?:/'
+  - label: 'performance'
+    title:
+      - '/^perf(\(.*\))?:/'
+  - label: 'documentation'
+    title:
+      - '/^docs(\(.*\))?:/'
+  - label: 'maintenance'
+    title:
+      - '/^(chore|refactor|test|ci|build)(\(.*\))?:/'
+
+template: |
+  ## Changes
+
+  $CHANGES
+
+  ## Contributors
+
+  Thanks to all our contributors that made this release possible:
+  $CONTRIBUTORS
+
+  ---
+
+  **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
+
+  ## Release Instructions
+
+  This is a draft release. To publish:
+
+  1. Review the changes above and edit as needed
+  2. Ensure version in `pyproject.toml` matches `$RESOLVED_VERSION`
+  3. Trigger the "Release Python" workflow from GitHub Actions
+  4. This draft will be automatically published when the workflow completes
+
