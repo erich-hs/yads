@@ -1,8 +1,16 @@
-# yads
+<h1 style="text-align: center;"><strong>yads</strong></h1>
 
-`yads` is a canonical, typed data specification for the modern multi-disciplinary data team. Define a schema once; load and convert it deterministically across formats with minimal loss of semantics.
+<p align="center">
+  <img src="https://github.com/erich-hs/yads/actions/workflows/ci.yml/badge.svg" alt="CI">
+  <img src="https://badge.fury.io/py/yads.svg" alt="PyPI version">
+  <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+">
+  <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License">
+</p>
+
+`yads` is a canonical, typed data specification to solve schema management across your data stack. Define a schema once; load and convert it deterministically across formats with minimal loss of semantics.
 
 ## Installation
+
 ```bash
 # With pip
 pip install yads
@@ -13,18 +21,27 @@ pip install yads
 uv add yads
 ```
 
+`yads` is a lightweight dependency designed to run in your existing Python workflows. Each loader and converter is designed to support a wide range of versions for your source or target format.
+
+You can install `yads` alongside the required optional dependency for your use case.
+```bash
+uv add yads[pyarrow]
+```
+
+Or simply add `yads` to your project that is already using the optional dependency within the supported version range. See the supported versions [here](pyproject.toml).
+
 ## Overview
 
 As the universal format for columnar data representation, `Arrow` is central to `yads`, but the specification is expressive enough to be derivable from the most common data formats used by data teams.
 
-| Format | Loader | Converter |
-| --------- | ---------- | ------------- |
-| PyArrow | `yads.from_pyarrow` | `yads.to_pyarrow` |
-| PySpark | `yads.from_pyspark` | `yads.to_pyspark` |
-| Polars | `yads.from_polars` | `yads.to_polars` |
-| Pydantic | _Not implemented_ | `yads.to_pydantic` |
-| SQL | _Not implemented_ | `yads.to_sql` |
-| YAML | `yads.from_yaml` | _Not implemented_ |
+| Format | Loader | Converter | Installation |
+| --------- | ---------- | ------------- | ------------- |
+| PyArrow | `yads.from_pyarrow` | `yads.to_pyarrow` | `pip install yads[pyarrow]` |
+| PySpark | `yads.from_pyspark` | `yads.to_pyspark` | `pip install yads[pyspark]` |
+| Polars | `yads.from_polars` | `yads.to_polars` | `pip install yads[polars]` |
+| Pydantic | _Not implemented_ | `yads.to_pydantic` | `pip install yads[pydantic]` |
+| SQL | _Not implemented_ | `yads.to_sql` | `pip install yads[sql]` |
+| YAML | `yads.from_yaml` | _Not implemented_ | `pip install yads` |
 
 See the [loaders](./src/yads/loaders/) and [converters](./src/yads/converters/) API for advanced usage. A list of supported SQL dialects is available [here](./src/yads/converters/sql/sql_converter.py).
 
@@ -67,12 +84,12 @@ spec = yads.from_yaml("registry/specs/customers.yaml")
 # Generate a Pydantic BaseModel
 Customers = yads.to_pydantic(spec, model_name="Customers")
 
-print("MODEL:", Customers)
-print("FIELDS:", list(Customers.model_fields.keys()))
+print(Customers)
+print(list(Customers.model_fields.keys()))
 ```
 ```text
-MODEL: <class 'yads.converters.pydantic_converter.Customers'>
-FIELDS: ['id', 'email', 'created_at', 'spend', 'tags']
+<class 'yads.converters.pydantic_converter.Customers'>
+['id', 'email', 'created_at', 'spend', 'tags']
 ```
 
 Validate an incoming record with Pydantic
@@ -95,23 +112,10 @@ print(record.model_dump())
 
 Emit DDL for multiple SQL dialects from the same spec
 ```python
-spark_sql = yads.to_sql(spec, dialect="spark", pretty=True)
-duckdb_sql = yads.to_sql(spec, dialect="duckdb", pretty=True)
-
-print("-- Spark DDL --\\n" + spark_sql)
-print("\\n-- DuckDB DDL --\\n" + duckdb_sql)
+spark_ddl = yads.to_sql(spec, dialect="spark", pretty=True)
+print(spark_ddl)
 ```
 ```sql
--- Spark DDL --
-CREATE TABLE catalog.crm.customers (
-  id BIGINT NOT NULL,
-  email STRING,
-  created_at TIMESTAMP,
-  spend DECIMAL(10, 2),
-  tags ARRAY<STRING>
-)
-
--- DuckDB DDL --
 CREATE TABLE catalog.crm.customers (
   id BIGINT NOT NULL,
   email TEXT,
@@ -120,8 +124,21 @@ CREATE TABLE catalog.crm.customers (
   tags TEXT[]
 )
 ```
+```python
+duckdb_ddl = yads.to_sql(spec, dialect="duckdb", pretty=True)
+print(duckdb_ddl)
+```
+```sql
+CREATE TABLE catalog.crm.customers (
+  id BIGINT NOT NULL,
+  email STRING,
+  created_at TIMESTAMP,
+  spend DECIMAL(10, 2),
+  tags ARRAY<STRING>
+)
+```
 
-Create a Polars schema for typed DataFrame IO
+Create a Polars DataFrame schema
 ```python
 import yads
 pl_schema = yads.to_polars(spec)
@@ -226,9 +243,10 @@ spec catalog.crm.customers(version='1.0.0')(
 Nullability and metadata are preserved as long as the target format supports them.
 
 ```python
-print(yads.to_sql(spec, dialect="duckdb", pretty=True))
+duckdb_ddl = yads.to_sql(spec, dialect="duckdb", pretty=True)
+print(duckdb_ddl)
 ```
-```text
+```sql
 CREATE TABLE catalog.crm.customers (
   id BIGINT NOT NULL,
   name TEXT,
@@ -265,3 +283,7 @@ Conversions proceed silently only when they are lossless and fully semantics-pre
 Backend type gaps are handled with value-preserving substitutes only; otherwise conversion requires an explicit `fallback_type`. Potentially lossy or reinterpreting changes (range narrowing, precision downgrades, sign changes, or unit changes) are never applied implicitly. Types with no value-preserving representation fail fast with clear errors and extension guidance.
 
 Single rule: preserve semantics or notify; never lose or reinterpret data without explicit opt-in.
+
+## Contributing
+
+Want to contribute? See our [contributing guide](CONTRIBUTING.md) for details.

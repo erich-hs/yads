@@ -1,15 +1,15 @@
 # Contributing to yads
 
-We welcome contributions to yads! Whether you're fixing a bug, adding a feature, or improving documentation, your help is appreciated. This guide will walk you through the contribution process.
+We welcome contributions to `yads`! Whether you're fixing a bug, adding a feature, or improving documentation, your help is appreciated. This guide will walk you through the contribution process.
 
 If anything is unclear after reading this guide, feel free to open an [issue](https://github.com/erich-hs/yads/issues) and ask for clarification.
 
 ## Found a bug?
 
-Bug reports help us improve yads. Before submitting a bug report:
+Bug reports help us improve `yads`. Before submitting a bug report:
 
 - Search [existing issues](https://github.com/erich-hs/yads/issues) to avoid duplicates
-- Verify the bug exists on the latest version of yads
+- Verify the bug exists on the latest version of `yads`
 - If you find a similar closed issue, open a new one and reference it
 
 When reporting bugs, include enough detail to help us reproduce the issue. The more information you provide, the faster we can investigate and fix the problem.
@@ -19,7 +19,7 @@ When reporting bugs, include enough detail to help us reproduce the issue. The m
 We track feature requests through [GitHub issues](https://github.com/erich-hs/yads/issues). Before suggesting a feature:
 
 - Check if someone has already requested something similar
-- Think about how the feature aligns with yads' goals—You can read more about it in the [README](README.md). If unclear, suggest the feature anyways! We love hearing new ideas.
+- Think about how the feature aligns with `yads`' goals—You can read more about it in the [README](README.md). If unclear, suggest the feature anyways! We love hearing new ideas.
 
 In your feature request, explain what you want to achieve and why it would be valuable. Show examples of how you envision using the feature.
 
@@ -27,17 +27,17 @@ In your feature request, explain what you want to achieve and why it would be va
 
 ### Finding something to work on
 
-Browse the [issue tracker](https://github.com/erich-hs/yads/issues) to find tasks that interest you. Look for issues that aren't assigned to anyone. The yads codebase covers schema specification, type systems, and converters for multiple frameworks, so there's plenty of variety.
+Browse the [issue tracker](https://github.com/erich-hs/yads/issues) to find tasks that interest you. Look for issues that aren't assigned to anyone. The `yads` codebase covers schema specification, type systems, and converters for multiple frameworks, so there's plenty of variety.
 
 Start with smaller issues to get familiar with the codebase architecture. Once you've picked an issue, comment on it to let others know you're working on it. Use the issue thread to discuss your approach if needed.
 
 ### Environment setup
 
-Contributing to yads requires [Python](https://www.python.org/) and [uv](https://github.com/astral-sh/uv) for dependency management.
+Contributing to `yads` requires [Python](https://www.python.org/) and [uv](https://github.com/astral-sh/uv) for dependency management.
 
 #### Get the code
 
-You'll need a [GitHub account](https://github.com) and [git](https://git-scm.com) installed. Fork the yads repository on GitHub, then clone your fork:
+You'll need a [GitHub account](https://github.com) and [git](https://git-scm.com) installed. Fork the `yads` repository on GitHub, then clone your fork:
 
 ```bash
 git clone https://github.com/<your-username>/yads.git
@@ -61,23 +61,24 @@ Install uv if you haven't already:
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-Run the test suite to verify your setup:
+Set up your development environment:
+
+```bash
+make install
+```
+
+This installs all core dependencies and sets up pre-commit hooks.
+
+Verify your setup by running tests and linting:
 
 ```bash
 make test
-```
-
-This command creates a virtual environment, installs dependencies, and runs tests. The first run will be slow as it sets everything up.
-
-Verify linting works:
-
-```bash
 make lint
 ```
 
-We use [ruff](https://github.com/charliermarsh/ruff) for code formatting and linting. The `make lint` command runs these checks automatically.
+We use [ruff](https://github.com/charliermarsh/ruff) for code formatting and linting.
 
-If everything passes, your development environment is ready.
+If everything passes, your development environment is ready. Run `make help` to see all available commands.
 
 #### Keeping dependencies current
 
@@ -93,7 +94,7 @@ git push origin main
 Update dependencies:
 
 ```bash
-uv sync --all-groups
+make sync
 ```
 
 ### Making changes
@@ -107,8 +108,10 @@ git checkout -b feature/your-feature main
 The source code lives in `src/yads/`. Use the Makefile commands while developing:
 
 - `make test` - Run the test suite
+- `make test-cov` - Run tests with coverage report
 - `make lint` - Check formatting and run linters  
 - `make format` - Auto-format code
+- `make pre-commit` - Run all pre-commit hooks
 
 Your changes won't be merged if tests fail or linting issues exist. Run `make help` to see all available commands.
 
@@ -121,7 +124,14 @@ Remember to:
 
 Tests are organized by module in the `tests/` directory. Write tests that are clear and comprehensive. Use descriptive names that explain what behavior is being verified.
 
-yads tests compatibility with multiple versions of optional dependencies (PySpark, PyArrow, Pydantic, Polars). See the [CI README](ci/README.md) for details on dependency testing and integration tests.
+`yads` tests compatibility with multiple versions of optional dependencies (PySpark, PyArrow, Pydantic, Polars). You can test specific dependency versions locally:
+
+```bash
+make test-dependency DEP=pyspark VER=3.5.3
+make test-integration DIALECT=spark
+```
+
+See the [CI README](ci/README.md) for details on dependency testing and integration tests.
 
 ### Submitting your work
 
@@ -145,7 +155,7 @@ Don't worry about making everything perfect on the first try. Open a draft pull 
 
 ## Code conventions
 
-yads follows standard Python practices:
+`yads` follows standard Python practices:
 
 - [PEP 8](https://pep8.org/) style guide
 - Type hints following [PEP 484](https://www.python.org/dev/peps/pep-0484/)
@@ -160,7 +170,7 @@ Run `make format` before committing to automatically fix formatting issues.
 
 ## Development model
 
-yads uses trunk-based development. The `main` branch is always stable and ready to deploy. All development happens in short-lived feature branches that get merged via pull requests.
+`yads` uses trunk-based development. The `main` branch is always stable and ready to deploy. All development happens in short-lived feature branches that get merged via pull requests.
 
 Branch naming suggestions:
 - `feature/descriptive-name` for new functionality
@@ -172,10 +182,10 @@ We use "Squash and merge" for all pull requests. This creates a single commit on
 
 ## Releasing new versions
 
-Maintainers handle releases. The process uses [Release Drafter](https://github.com/release-drafter/release-drafter) to automatically generate release notes from pull request titles. For complete release procedures, see [RELEASE.md](RELEASE.md).
+Maintainers handle releases. The process uses [Release Drafter](https://github.com/release-drafter/release-drafter) to automatically generate release notes from pull request titles. For complete release procedures, see [RELEASE.md](.github/RELEASE.md).
 
 Contributors don't need to worry about versions or releases - just focus on your code changes.
 
 ## License
 
-Your contributions will be licensed under the same terms as the yads project.
+Your contributions will be licensed under the same terms as the `yads` project.

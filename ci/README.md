@@ -6,13 +6,13 @@ Testing infrastructure for yads across dependency versions and database environm
 
 ```bash
 # Dependency version tests
-make test-deps DEP=pyspark VER=3.5.3
-make test-deps-all DEP=pyspark
+make test-dependency DEP=pyspark VER=3.5.3
+make test-dependency-all DEP=pyspark
 
 # Integration tests
-make integration-test DIALECT=spark
-make integration-test DIALECT=duckdb
-make integration-test-all
+make test-integration DIALECT=spark
+make test-integration DIALECT=duckdb
+make test-integration-all
 ```
 
 ## Dependency Tests
@@ -25,7 +25,7 @@ The version matrix is defined in [`dependency-tests/versions.json`](dependency-t
 
 ```bash
 # Local testing (via Makefile)
-make test-deps DEP=pyspark VER=3.5.3
+make test-dependency DEP=pyspark VER=3.5.3
 
 # Direct script
 cd ci/dependency-tests
@@ -46,8 +46,8 @@ Supported dialects are defined in [`integration-tests/config.json`](integration-
 
 ```bash
 # Local testing
-make integration-test DIALECT=spark
-make integration-test DIALECT=duckdb
+make test-integration DIALECT=spark
+make test-integration DIALECT=duckdb
 
 # Direct script
 cd ci/integration-tests
@@ -70,7 +70,7 @@ cd ci/integration-tests
 
 ### Test Failures
 - Use verbose output: `pytest -v`
-- Test locally first: `make integration-test DIALECT=<dialect>`
+- Test locally first: `make test-integration DIALECT=<dialect>`
 - Check target logs in containers
 
 ### Environment Issues
