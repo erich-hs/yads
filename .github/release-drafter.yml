@@ -1,6 +1,5 @@
 name-template: 'yads $RESOLVED_VERSION'
 tag-template: 'v$RESOLVED_VERSION'
-version-template: '$MAJOR.$MINOR.$PATCH'
 
 categories:
   - title: '## Features'
@@ -50,24 +49,6 @@ category-template: |
 
 change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
 change-title-escapes: '\<*_&'
-
-version-resolver:
-  major:
-    labels:
-      - 'major'
-      - 'breaking'
-  minor:
-    labels:
-      - 'minor'
-      - 'feature'
-      - 'enhancement'
-  patch:
-    labels:
-      - 'patch'
-      - 'fix'
-      - 'bugfix'
-      - 'bug'
-  default: patch
 
 autolabeler:
   - label: 'feature'
