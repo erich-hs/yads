@@ -5,7 +5,29 @@ on:
     branches:
       - main
       - refactor
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.docs_draft/**'
+      - '.examples/**'
+      - 'LICENSE'
+      - 'CONTRIBUTING.md'
+      - 'SPECIFICATION.md'
+      - '.github/**'
+      - '.cursor/**'
+      - 'TODO.md'
   pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.docs_draft/**'
+      - '.examples/**'
+      - 'LICENSE'
+      - 'CONTRIBUTING.md'
+      - 'SPECIFICATION.md'
+      - '.github/**'
+      - '.cursor/**'
+      - 'TODO.md'
   workflow_dispatch:
 
 permissions:
