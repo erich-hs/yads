@@ -116,19 +116,17 @@ jobs:
         run: |
           VERSION="${{ steps.get-version.outputs.version }}"
           
-          # Find the draft release matching this version
+          # Check if a draft release exists for this tag
           echo "Looking for draft release for version ${VERSION}..."
-          RELEASE_ID=$(gh release list --limit 100 --json tagName,isDraft,id --jq ".[] | select(.tagName == \"v${VERSION}\" and .isDraft == true) | .id")
-          
-          if [ -z "$RELEASE_ID" ]; then
+          if gh release view "v${VERSION}" --json isDraft --jq '.isDraft' 2>/dev/null | grep -q true; then
+            echo "Found draft release for v${VERSION}, publishing..."
+            gh release edit "v${VERSION}" --draft=false
+          else
             echo "No draft release found for v${VERSION}, creating new release..."
             gh release create "v${VERSION}" \
               --title "yads ${VERSION}" \
               --notes "Release ${VERSION}" \
               --verify-tag
-          else
-            echo "Found draft release (ID: ${RELEASE_ID}), publishing..."
-            gh release edit "v${VERSION}" --draft=false
           fi
           
           echo "GitHub release published: v${VERSION}"
