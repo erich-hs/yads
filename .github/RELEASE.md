@@ -99,12 +99,13 @@ uv version --bump patch
 
 ### 5. Verify build
 
+Test the build locally to ensure everything packages correctly:
+
 ```bash
-uv build
-ls -lh dist/
+make build
 ```
 
-Fix any build issues before proceeding.
+This builds both source distribution and wheel files. Fix any build issues before proceeding.
 
 ### 6. Commit and push
 
@@ -224,7 +225,7 @@ Run tests and linting to identify issues:
 ```bash
 make test
 make lint
-uv build
+make build
 ```
 
 **Cancel in-progress release**
