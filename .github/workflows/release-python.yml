@@ -1,0 +1,146 @@
+name: Release Python
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Commit SHA (defaults to latest on main)
+        type: string
+      dry-run:
+        description: Dry run (build but do not publish)
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha || github.sha }}
+          fetch-depth: 0
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "0.5.x"
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      
+      - name: Get version from pyproject.toml
+        id: get-version
+        run: |
+          VERSION=$(uv version --short)
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Package version: ${VERSION}"
+      
+      - name: Validate version format
+        run: |
+          VERSION="${{ steps.get-version.outputs.version }}"
+          if ! [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$ ]]; then
+            echo "Invalid semantic version format: $VERSION"
+            exit 1
+          fi
+          echo "Valid semantic version: $VERSION"
+      
+      - name: Check if tag already exists
+        run: |
+          VERSION="${{ steps.get-version.outputs.version }}"
+          if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
+            echo "Tag v${VERSION} already exists"
+            exit 1
+          fi
+          echo "Tag v${VERSION} does not exist yet"
+      
+      - name: Build package
+        run: |
+          echo "Building package..."
+          uv build
+          echo "Build complete"
+          ls -lh dist/
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-yads-${{ steps.get-version.outputs.version }}
+          path: dist/
+          retention-days: 30
+      
+      - name: Publish to PyPI
+        if: inputs.dry-run == false
+        run: |
+          echo "Publishing to PyPI..."
+          uv publish
+          echo "Published to PyPI"
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
+      
+      - name: Verify PyPI publication
+        if: inputs.dry-run == false
+        run: |
+          VERSION="${{ steps.get-version.outputs.version }}"
+          echo "Waiting 30 seconds for PyPI to process upload..."
+          sleep 30
+          echo "Verifying installation from PyPI..."
+          uv run --with yads==${VERSION} --no-project -- python -c "import yads; print(f'Successfully verified yads {yads.__version__}')"
+      
+      - name: Create and push git tag
+        if: inputs.dry-run == false
+        run: |
+          VERSION="${{ steps.get-version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${VERSION}" -m "Release v${VERSION}"
+          git push origin "v${VERSION}"
+          echo "Created and pushed tag v${VERSION}"
+      
+      - name: Find and publish GitHub release
+        if: inputs.dry-run == false
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.get-version.outputs.version }}"
+          
+          # Find the draft release matching this version
+          echo "Looking for draft release for version ${VERSION}..."
+          RELEASE_ID=$(gh release list --limit 100 --json tagName,isDraft,id --jq ".[] | select(.tagName == \"v${VERSION}\" and .isDraft == true) | .id")
+          
+          if [ -z "$RELEASE_ID" ]; then
+            echo "No draft release found for v${VERSION}, creating new release..."
+            gh release create "v${VERSION}" \
+              --title "yads ${VERSION}" \
+              --notes "Release ${VERSION}" \
+              --verify-tag
+          else
+            echo "Found draft release (ID: ${RELEASE_ID}), publishing..."
+            gh release edit "v${VERSION}" --draft=false
+          fi
+          
+          echo "GitHub release published: v${VERSION}"
+      
+      - name: Dry-run summary
+        if: inputs.dry-run == true
+        run: |
+          echo "DRY RUN COMPLETE"
+          echo "================================"
+          echo "Version: ${{ steps.get-version.outputs.version }}"
+          echo "Build artifacts created successfully"
+          echo "No changes were published (dry-run mode)"
+          echo ""
+          echo "To publish for real, run this workflow again without dry-run"
+

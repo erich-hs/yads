@@ -10,20 +10,16 @@ make test-deps DEP=pyspark VER=3.5.3
 make test-deps-all DEP=pyspark
 
 # Integration tests
-make integration-test-spark
-make integration-test-duckdb
+make integration-test DIALECT=spark
+make integration-test DIALECT=duckdb
 make integration-test-all
 ```
 
 ## Dependency Tests
 
-Tests compatibility across multiple versions of optional dependencies (pyspark, pyarrow, pydantic). Each dependency is tested in isolation to ensure true compatibility.
+Tests compatibility across multiple versions of optional dependencies (pyspark, pyarrow, pydantic, polars). Each dependency is tested in isolation to ensure true compatibility.
 
-### Files
-
-- `dependency-tests/versions.json` - Version matrix
-- `dependency-tests/docker/Dockerfile` - Test environment
-- `dependency-tests/scripts/test-deps.sh` - Test runner
+The version matrix is defined in [`dependency-tests/versions.json`](dependency-tests/versions.json).
 
 ### Usage
 
@@ -38,36 +34,20 @@ cd ci/dependency-tests
 
 ### Adding Versions
 
-Edit `dependency-tests/versions.json`:
-
-```json
-{
-  "pyspark": ["3.1.1", "4.0.1", "new-version"]
-}
-```
+Edit [`dependency-tests/versions.json`](dependency-tests/versions.json) and add the version to the appropriate dependency array. The CI workflow automatically picks up new versions.
 
 ## Integration Tests
 
 End-to-end tests that validate SQL converters by executing generated DDL in actual database environments.
 
-### Supported Dialects
-
-- **Spark**: Apache Spark 3.5+ with Iceberg extension
-- **DuckDB**: DuckDB with Python API
-
-### Files
-
-- `integration-tests/config.json` - Test configuration
-- `integration-tests/docker/<dialect>/Dockerfile` - Database environments
-- `integration-tests/scripts/test-<dialect>.py` - Test scripts
-- `integration-tests/scripts/run-integration.sh` - Orchestration
+Supported dialects are defined in [`integration-tests/config.json`](integration-tests/config.json).
 
 ### Usage
 
 ```bash
 # Local testing
-make integration-test-spark
-make integration-test-duckdb
+make integration-test DIALECT=spark
+make integration-test DIALECT=duckdb
 
 # Direct script
 cd ci/integration-tests
@@ -76,10 +56,10 @@ cd ci/integration-tests
 
 ### Adding Dialects
 
-1. Update `integration-tests/config.json` with new dialect and Docker image name
+1. Update [`integration-tests/config.json`](integration-tests/config.json) with new dialect and Docker image name
 2. Create Dockerfile in `integration-tests/docker/<dialect>/`
 3. Create test script in `integration-tests/scripts/test-<dialect>.py`
-4. Add Make target (optional)
+4. Add Make target
 
 ## Troubleshooting
 
@@ -90,7 +70,7 @@ cd ci/integration-tests
 
 ### Test Failures
 - Use verbose output: `pytest -v`
-- Test locally first: `make integration-test-<dialect>`
+- Test locally first: `make integration-test DIALECT=<dialect>`
 - Check target logs in containers
 
 ### Environment Issues
