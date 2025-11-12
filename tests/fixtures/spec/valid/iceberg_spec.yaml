@@ -1,5 +1,6 @@
 name: "iceberg_test"
-version: "2.0.0"
+version: 1
+yads_spec_version: "0.0.2"
 description: "Iceberg table format test fixture with IDENTITY column support"
 
 storage:

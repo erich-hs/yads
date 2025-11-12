@@ -1,5 +1,5 @@
 name: "invalid.interval.spec"
-version: "1.0.0"
+version: 1
 columns:
   - name: "invalid_interval"
     type: "interval"

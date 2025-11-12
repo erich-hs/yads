@@ -41,6 +41,9 @@ from .constraints import ColumnConstraint, NotNullConstraint, TableConstraint
 from .exceptions import SpecValidationError
 from .types import YadsType
 
+# Version of the yads specification format
+YADS_SPEC_VERSION = "0.0.2"
+
 
 def _format_dict_as_kwargs(d: dict[str, Any], multiline: bool = False) -> str:
     if not d:
@@ -243,7 +246,8 @@ class YadsSpec:
 
     Args:
         name: Fully qualified table name (e.g., "catalog.database.table").
-        version: spec version string for tracking changes.
+        version: Registry-assigned monotonic integer version for tracking changes.
+        yads_spec_version: Version of the yads specification format itself.
         columns: List of Column objects defining the table structure.
         description: Optional human-readable description of the table.
         external: Whether to generate CREATE EXTERNAL TABLE statements.
@@ -264,7 +268,7 @@ class YadsSpec:
         >>> # Create a simple spec
         >>> spec = YadsSpec(
         ...     name="users",
-        ...     version="1.0.0",
+        ...     version=1,
         ...     description="User information table",
         ...     columns=[
         ...         Column(
@@ -283,7 +287,7 @@ class YadsSpec:
         >>>
         >>> # Access spec properties
         >>> print(f"Spec: {spec.name} v{spec.version}")
-        Spec: users v1.0.0
+        Spec: users v1
         >>> print(f"Columns: {len(spec.columns)}")
         Columns: 3
         >>> print(f"Column names: {spec.column_names}")
@@ -296,8 +300,9 @@ class YadsSpec:
     """
 
     name: str
-    version: str
-    columns: list[Column]
+    version: int
+    yads_spec_version: str = YADS_SPEC_VERSION
+    columns: list[Column] = field(default_factory=list)
     description: str | None = None
     external: bool = False
     storage: Storage | None = None

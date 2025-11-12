@@ -1,5 +1,5 @@
 name: "my_table"
-version: "1.0"
+version: 1
 columns:
   - name: "id_col"
     type: "integer"

@@ -115,10 +115,10 @@ class TestPyArrowLoaderTypeConversion:
     ):
         schema = pa.schema([pa.field("col1", pa_type)])
         loader = PyArrowLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
         
         assert spec.name == "test_spec"
-        assert spec.version == "1.0.0"
+        assert spec.version == 1
         assert len(spec.columns) == 1
         
         column = spec.columns[0]
@@ -160,7 +160,7 @@ class TestPyArrowLoaderTypeConversion:
     ):
         schema = pa.schema([pa.field("col1", pa_type)])
         loader = PyArrowLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
         
         column = spec.columns[0]
         assert isinstance(column.type, Array)
@@ -188,7 +188,7 @@ class TestPyArrowLoaderTypeConversion:
     ):
         schema = pa.schema([pa.field("col1", pa_type)])
         loader = PyArrowLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
         
         column = spec.columns[0]
         assert isinstance(column.type, Map)
@@ -205,7 +205,7 @@ class TestPyArrowLoaderTypeConversion:
             ]))
         ])
         loader = PyArrowLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
         
         column = spec.columns[0]
         assert isinstance(column.type, Struct)
@@ -230,7 +230,7 @@ class TestPyArrowLoaderTypeConversion:
         ])
         schema = pa.schema([pa.field("nested", pa.list_(inner_struct))])
         loader = PyArrowLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
         
         column = spec.columns[0]
         assert isinstance(column.type, Array)
@@ -258,7 +258,7 @@ class TestPyArrowLoaderTypeConversion:
             pa.field("complex_col", pa.map_(pa.string(), pa.list_(inner_struct)))
         ])
         loader = PyArrowLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
         
         column = spec.columns[0]
         assert isinstance(column.type, Map)
@@ -289,7 +289,7 @@ class TestPyArrowLoaderNullability:
             ]
         )
         loader = PyArrowLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
 
         nullable_col = spec.columns[0]
         assert nullable_col.name == "nullable_col"
@@ -317,7 +317,7 @@ class TestPyArrowLoaderNullability:
             ]
         )
         loader = PyArrowLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
 
         struct_col = spec.columns[0]
         assert isinstance(struct_col.type, Struct)
@@ -344,7 +344,7 @@ class TestPyArrowLoaderMetadata:
         }
         schema = pa.schema([pa.field("test_col", pa.string(), metadata=field_metadata)])
         loader = PyArrowLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
 
         column = spec.columns[0]
         assert column.name == "test_col"
@@ -365,7 +365,7 @@ class TestPyArrowLoaderMetadata:
             metadata=schema_metadata,
         )
         loader = PyArrowLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
 
         assert spec.metadata["owner"] == "data-eng"
         assert spec.metadata["version_info"] == {"major": 1, "minor": 0}
@@ -378,7 +378,7 @@ class TestPyArrowLoaderMetadata:
         }
         schema = pa.schema([pa.field("test_col", pa.string(), metadata=field_metadata)])
         loader = PyArrowLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
 
         column = spec.columns[0]
         assert column.description == "This is a description"
@@ -392,7 +392,7 @@ class TestPyArrowLoaderMetadata:
         }
         schema = pa.schema([pa.field("test_col", pa.string(), metadata=field_metadata)])
         loader = PyArrowLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
 
         column = spec.columns[0]
         assert column.metadata["config"] == {"retries": 3, "timeout": 30}
@@ -407,7 +407,7 @@ class TestPyArrowLoaderMetadata:
         }
         schema = pa.schema([pa.field("test_col", pa.string(), metadata=field_metadata)])
         loader = PyArrowLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
 
         column = spec.columns[0]
         assert column.metadata["valid_json"] == {"key": "value"}
@@ -421,7 +421,7 @@ class TestPyArrowLoaderMetadata:
         }
         schema = pa.schema([pa.field("test_col", pa.string(), metadata=field_metadata)])
         loader = PyArrowLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
 
         column = spec.columns[0]
         assert column.description == "A field with bytes metadata"
@@ -434,7 +434,7 @@ class TestPyArrowLoaderMetadata:
         }
         schema = pa.schema([pa.field("test_col", pa.string(), metadata=field_metadata)])
         loader = PyArrowLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
 
         column = spec.columns[0]
         assert column.metadata == {
@@ -450,7 +450,7 @@ class TestPyArrowLoaderMetadata:
             ]
         )
         loader = PyArrowLoader()
-        spec = loader.load(schema, name="test", version="1.0.0")
+        spec = loader.load(schema, name="test", version=1)
 
         assert spec.metadata == {}
         for column in spec.columns:
@@ -463,7 +463,7 @@ class TestPyArrowLoaderMetadata:
             ]
         )
         loader = PyArrowLoader()
-        spec = loader.load(schema, name="test", version="1.0.0")
+        spec = loader.load(schema, name="test", version=1)
 
         column = spec.columns[0]
         assert column.metadata == {}
@@ -476,7 +476,7 @@ class TestPyArrowLoaderMetadata:
             metadata={},
         )
         loader = PyArrowLoader()
-        spec = loader.load(schema, name="test", version="1.0.0")
+        spec = loader.load(schema, name="test", version=1)
 
         assert spec.metadata == {}
 
@@ -486,19 +486,19 @@ class TestPyArrowLoaderSchema:
     def test_schema_without_description(self):
         schema = pa.schema([pa.field("id", pa.int32())])
         loader = PyArrowLoader()
-        spec = loader.load(schema, name="test", version="1.0.0")
+        spec = loader.load(schema, name="test", version=1)
 
         assert spec.name == "test"
-        assert spec.version == "1.0.0"
+        assert spec.version == 1
         assert spec.description is None
 
     def test_empty_schema(self):
         schema = pa.schema([])
         loader = PyArrowLoader()
-        spec = loader.load(schema, name="empty", version="1.0.0")
+        spec = loader.load(schema, name="empty", version=1)
 
         assert spec.name == "empty"
-        assert spec.version == "1.0.0"
+        assert spec.version == 1
         assert len(spec.columns) == 0
 
 
@@ -513,7 +513,7 @@ class TestPyArrowLoaderUnsupportedTypes:
             UnsupportedFeatureError,
             match="PyArrowLoader does not support PyArrow type.*for 'dict_col'",
         ):
-            loader.load(schema, name="test", version="1.0.0")
+            loader.load(schema, name="test", version=1)
 
     def test_run_end_encoded_type_raises_error(self):
         if hasattr(pa, "run_end_encoded"):
@@ -527,7 +527,7 @@ class TestPyArrowLoaderUnsupportedTypes:
                 UnsupportedFeatureError,
                 match="PyArrowLoader does not support PyArrow type.*for 'run_col'",
             ):
-                loader.load(schema, name="test", version="1.0.0")
+                loader.load(schema, name="test", version=1)
 
     def test_union_type_raises_error(self):
         if hasattr(pa, "dense_union"):
@@ -551,7 +551,7 @@ class TestPyArrowLoaderUnsupportedTypes:
                 UnsupportedFeatureError,
                 match="PyArrowLoader does not support PyArrow type.*for 'union_col'",
             ):
-                loader.load(schema, name="test", version="1.0.0")
+                loader.load(schema, name="test", version=1)
 
 
 # %% Configuration tests
@@ -603,7 +603,7 @@ class TestPyArrowLoaderWithConfig:
         schema = pa.schema([pa.field("dict_col", pa.dictionary(pa.int32(), pa.string()))])
 
         with pytest.raises(UnsupportedFeatureError):
-            loader.load(schema, name="test", version="1.0.0", mode="raise")
+            loader.load(schema, name="test", version=1, mode="raise")
 
     def test_coercion_mode_without_fallback_raises(self):
         """Test that coerce mode raises when fallback_type is None."""
@@ -615,7 +615,7 @@ class TestPyArrowLoaderWithConfig:
             UnsupportedFeatureError,
             match="Specify a fallback_type to enable coercion",
         ):
-            loader.load(schema, name="test", version="1.0.0")
+            loader.load(schema, name="test", version=1)
 
     def test_coercion_mode_with_custom_fallback(self):
         config = PyArrowLoaderConfig(mode="coerce", fallback_type=Binary(length=10))
@@ -624,7 +624,7 @@ class TestPyArrowLoaderWithConfig:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            spec = loader.load(schema, name="test", version="1.0.0")
+            spec = loader.load(schema, name="test", version=1)
 
             assert len(w) == 1
             assert "PyArrowLoader does not support PyArrow type" in str(w[0].message)
@@ -645,7 +645,7 @@ class TestPyArrowLoaderWithConfig:
         with pytest.raises(
             UnsupportedFeatureError, match="PyArrowLoader does not support PyArrow type"
         ):
-            loader.load(schema, name="test", version="1.0.0")
+            loader.load(schema, name="test", version=1)
 
     def test_multiple_unsupported_types_coercion(self):
         config = PyArrowLoaderConfig(mode="coerce", fallback_type=String())
@@ -661,7 +661,7 @@ class TestPyArrowLoaderWithConfig:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            spec = loader.load(schema, name="test", version="1.0.0")
+            spec = loader.load(schema, name="test", version=1)
 
             assert len(w) == 2
             assert all(
@@ -685,7 +685,7 @@ class TestPyArrowLoaderWithConfig:
         schema = pa.schema([pa.field("my_field", pa.dictionary(pa.int32(), pa.string()))])
 
         with pytest.raises(UnsupportedFeatureError) as exc_info:
-            loader.load(schema, name="test", version="1.0.0")
+            loader.load(schema, name="test", version=1)
 
         assert "for 'my_field'" in str(exc_info.value)
 
@@ -704,7 +704,7 @@ class TestPyArrowLoaderWithConfig:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            spec = loader.load(schema, name="test", version="1.0.0")
+            spec = loader.load(schema, name="test", version=1)
 
             assert len(w) == 1
             assert "PyArrowLoader does not support PyArrow type" in str(w[0].message)
@@ -745,7 +745,7 @@ class TestPyArrowLoaderWithConfig:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            spec = loader.load(schema, name="test", version="1.0.0")
+            spec = loader.load(schema, name="test", version=1)
 
             assert len(w) == 1
             assert "PyArrowLoader does not support PyArrow type" in str(w[0].message)
@@ -784,7 +784,7 @@ class TestPyArrowLoaderWithConfig:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            spec = loader.load(schema, name="test", version="1.0.0")
+            spec = loader.load(schema, name="test", version=1)
 
             assert len(w) == 1
             assert "PyArrowLoader does not support PyArrow type" in str(w[0].message)
@@ -822,7 +822,7 @@ class TestPyArrowLoaderWithConfig:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            spec = loader.load(schema, name="test", version="1.0.0")
+            spec = loader.load(schema, name="test", version=1)
 
             assert len(w) == 1
             assert "PyArrowLoader does not support PyArrow type" in str(w[0].message)
@@ -865,7 +865,7 @@ class TestPyArrowLoaderWithConfig:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            spec = loader.load(schema, name="test_complex", version="1.0.0")
+            spec = loader.load(schema, name="test_complex", version=1)
 
         # Should have warnings for all unsupported types
         assert len(w) == 2
