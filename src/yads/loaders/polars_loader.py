@@ -13,7 +13,7 @@ Example:
     ...     "name": pl.String,
     ... })
     >>> loader = PolarsLoader()
-    >>> spec = loader.load(schema, name="test.table", version="1.0.0")
+    >>> spec = loader.load(schema, name="test.table", version=1)
     >>> spec.name
     'test.table'
 """
@@ -92,7 +92,7 @@ class PolarsLoader(ConfigurableLoader):
         schema: pl.Schema,
         *,
         name: str,
-        version: str,
+        version: int = 1,
         description: str | None = None,
         mode: Literal["raise", "coerce"] | None = None,
     ) -> YadsSpec:
@@ -101,7 +101,7 @@ class PolarsLoader(ConfigurableLoader):
         Args:
             schema: Source Polars schema.
             name: Fully-qualified spec name to assign.
-            version: Spec version string.
+            version: Spec version integer. Defaults to 1 for newly loaded specs.
             description: Optional human-readable description.
             mode: Optional override for the loading mode. When not provided, the
                 loader's configured mode is used. If provided:

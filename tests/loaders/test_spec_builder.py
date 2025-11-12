@@ -79,7 +79,7 @@ class TestConstraintParsing:
     def _create_minimal_spec_with_constraint(self, constraint_def: dict) -> dict:
         return {
             "name": "test_spec",
-            "version": "1.0.0",
+            "version": 1,
             "columns": [
                 {
                     "name": "test_column",
@@ -323,7 +323,7 @@ class TestGenerationClauseParsing:
 
         return {
             "name": "test_spec",
-            "version": "1.0.0",
+            "version": 1,
             "columns": [
                 {"name": "source_col", "type": "string"},
                 column_def,
@@ -388,7 +388,7 @@ class TestTableConstraintParsing:
     def _create_spec_with_table_constraint(self, constraint_def: dict) -> dict:
         return {
             "name": "test_spec",
-            "version": "1.0.0",
+            "version": 1,
             "columns": [
                 {"name": "col1", "type": "string"},
                 {"name": "col2", "type": "integer"},
@@ -516,7 +516,7 @@ class TestStorageParsing:
     def test_storage_parsing(self):
         spec_dict = {
             "name": "test_spec",
-            "version": "1.0.0",
+            "version": 1,
             "columns": [{"name": "col1", "type": "string"}],
             "storage": {
                 "format": "parquet",
@@ -534,7 +534,7 @@ class TestStorageParsing:
     def test_storage_with_unknown_key_raises_error(self):
         spec_dict = {
             "name": "test_spec",
-            "version": "1.0.0",
+            "version": 1,
             "columns": [{"name": "col1", "type": "string"}],
             "storage": {
                 "format": "parquet",
@@ -550,7 +550,7 @@ class TestStorageParsing:
     def test_partitioned_by_missing_column_raises_error(self):
         spec_dict = {
             "name": "test_spec",
-            "version": "1.0.0",
+            "version": 1,
             "columns": [{"name": "col1", "type": "string"}],
             "partitioned_by": [{"transform": "year"}],
         }
@@ -563,7 +563,7 @@ class TestStorageParsing:
     def test_partitioned_by_unknown_key_raises_error(self):
         spec_dict = {
             "name": "test_spec",
-            "version": "1.0.0",
+            "version": 1,
             "columns": [{"name": "col1", "type": "string"}],
             "partitioned_by": [{"column": "col1", "params": [1]}],
         }
@@ -579,7 +579,7 @@ class TestPartitioningParsing:
     def test_partitioned_by_parsing(self):
         spec_dict = {
             "name": "test_spec",
-            "version": "1.0.0",
+            "version": 1,
             "columns": [
                 {"name": "col1", "type": "string"},
                 {"name": "date_col", "type": "date"},
@@ -613,7 +613,7 @@ class TestTopLevelSpecParsingErrors:
     def test_spec_with_unknown_top_level_key_raises_error(self):
         spec_dict = {
             "name": "test_spec",
-            "version": "1.0.0",
+            "version": 1,
             "foo": "bar",
             "columns": [{"name": "col1", "type": "string"}],
         }
@@ -629,7 +629,7 @@ class TestSemanticValidation:
     def test_validate_columns_duplicate_names(self):
         spec_dict = {
             "name": "test_spec",
-            "version": "1.0.0",
+            "version": 1,
             "columns": [
                 {"name": "col1", "type": "string"},
                 {"name": "col1", "type": "integer"},
@@ -643,7 +643,7 @@ class TestSemanticValidation:
     def test_validate_partitions_undefined_column(self):
         spec_dict = {
             "name": "test_spec",
-            "version": "1.0.0",
+            "version": 1,
             "columns": [{"name": "col1", "type": "string"}],
             "partitioned_by": [{"column": "undefined_col"}],
         }
@@ -656,7 +656,7 @@ class TestSemanticValidation:
     def test_validate_generated_columns_undefined_source(self):
         spec_dict = {
             "name": "test_spec",
-            "version": "1.0.0",
+            "version": 1,
             "columns": [
                 {
                     "name": "generated_col",
@@ -677,7 +677,7 @@ class TestSemanticValidation:
     def test_validate_table_constraints_undefined_column(self):
         spec_dict = {
             "name": "test_spec",
-            "version": "1.0.0",
+            "version": 1,
             "columns": [{"name": "col1", "type": "string"}],
             "table_constraints": [
                 {
@@ -702,7 +702,7 @@ class TestFullSpecBuilding:
 
     def test_top_level_attributes(self, spec: YadsSpec):
         assert spec.name == "catalog.db.full_spec"
-        assert spec.version == "2.1.0"
+        assert spec.version == 1
         assert spec.description == "A full spec with all features."
         assert spec.metadata == {"owner": "data-team", "sensitive": False}
         assert spec.external is True
@@ -798,11 +798,6 @@ class TestFullSpecBuilding:
             r"Missing required key\(s\) in spec definition: name\.",
         ),
         (
-            INVALID_SPEC_DIR / "missing_required_field" / "missing_version.yaml",
-            SpecParsingError,
-            r"Missing required key\(s\) in spec definition: version\.",
-        ),
-        (
             INVALID_SPEC_DIR / "missing_required_field" / "missing_columns.yaml",
             SpecParsingError,
             r"Missing required key\(s\) in spec definition: columns\.",
@@ -885,7 +880,7 @@ def test_from_string_with_invalid_spec_raises_error(spec_path, error_type, error
 def test_unquoted_null_type_gives_helpful_error():
     content = """
 name: test_spec
-version: 1.0.0
+version: 1
 columns:
   - name: col1
     type: null  # This will parse as None, not "null"
@@ -901,7 +896,7 @@ class TestTypeLoading:
     def _create_minimal_spec_with_type(self, type_def: dict) -> dict:
         return {
             "name": "test_spec",
-            "version": "1.0.0",
+            "version": 1,
             "columns": [{"name": "test_column", **type_def}],
         }
 

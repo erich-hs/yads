@@ -84,6 +84,7 @@ class SpecBuilder:
             allowed_keys={
                 "name",
                 "version",
+                "yads_spec_version",
                 "description",
                 "external",
                 "metadata",
@@ -92,12 +93,23 @@ class SpecBuilder:
                 "table_constraints",
                 "columns",
             },
-            required_keys={"name", "version", "columns"},
+            required_keys={"name", "columns"},
             context="spec definition",
         )
+
+        # Extract version, default to 1 if not provided (for newly loaded specs)
+        version = self.data.get("version", 1)
+        # Ensure version is an integer
+        if not isinstance(version, int):
+            version = int(version)
+
+        # Extract yads_spec_version, default to current spec version
+        yads_spec_version = self.data.get("yads_spec_version", yspec.YADS_SPEC_VERSION)
+
         self._spec = yspec.YadsSpec(
             name=self.data["name"],
-            version=self.data["version"],
+            version=version,
+            yads_spec_version=yads_spec_version,
             description=self.data.get("description"),
             external=self.data.get("external", False),
             storage=self._parse_storage(self.data.get("storage")),

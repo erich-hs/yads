@@ -1,5 +1,5 @@
 name: "invalid.constraint.spec"
-version: "1.0.0"
+version: 1
 columns:
   - name: "id"
     type: "uuid"

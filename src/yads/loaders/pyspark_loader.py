@@ -118,7 +118,7 @@ class PySparkLoader(ConfigurableLoader):
         schema: StructType,
         *,
         name: str,
-        version: str,
+        version: int = 1,
         description: str | None = None,
         mode: Literal["raise", "coerce"] | None = None,
     ) -> YadsSpec:
@@ -127,7 +127,7 @@ class PySparkLoader(ConfigurableLoader):
         Args:
             schema: Source PySpark StructType schema.
             name: Fully-qualified spec name to assign.
-            version: Spec version string.
+            version: Spec version integer. Defaults to 1 for newly loaded specs.
             description: Optional human-readable description.
             mode: Optional override for the loading mode. When not provided, the
                 loader's configured mode is used. If provided:

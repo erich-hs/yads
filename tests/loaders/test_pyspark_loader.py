@@ -170,10 +170,10 @@ class TestPySparkLoaderTypeConversion:
     ):
         schema = StructType([StructField("col1", pyspark_type, nullable=True)])
         loader = PySparkLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
         
         assert spec.name == "test_spec"
-        assert spec.version == "1.0.0"
+        assert spec.version == 1
         assert len(spec.columns) == 1
         
         column = spec.columns[0]
@@ -199,7 +199,7 @@ class TestPySparkLoaderTypeConversion:
     ):
         schema = StructType([StructField("col1", pyspark_type, nullable=True)])
         loader = PySparkLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
         
         column = spec.columns[0]
         assert isinstance(column.type, Interval)
@@ -235,7 +235,7 @@ class TestPySparkLoaderTypeConversion:
     ):
         schema = StructType([StructField("col1", pyspark_type, nullable=True)])
         loader = PySparkLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
         
         column = spec.columns[0]
         assert isinstance(column.type, Interval)
@@ -263,7 +263,7 @@ class TestPySparkLoaderTypeConversion:
     ):
         schema = StructType([StructField("col1", pyspark_type, nullable=True)])
         loader = PySparkLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
         
         column = spec.columns[0]
         assert isinstance(column.type, Array)
@@ -285,7 +285,7 @@ class TestPySparkLoaderTypeConversion:
     ):
         schema = StructType([StructField("col1", pyspark_type, nullable=True)])
         loader = PySparkLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
         
         column = spec.columns[0]
         assert isinstance(column.type, Map)
@@ -302,7 +302,7 @@ class TestPySparkLoaderTypeConversion:
             ]), nullable=True)
         ])
         loader = PySparkLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
         
         column = spec.columns[0]
         assert isinstance(column.type, Struct)
@@ -330,7 +330,7 @@ class TestPySparkLoaderTypeConversion:
         ])
         schema = StructType([StructField("nested", ArrayType(inner_struct, containsNull=True), nullable=True)])
         loader = PySparkLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
         
         column = spec.columns[0]
         assert isinstance(column.type, Array)
@@ -364,7 +364,7 @@ class TestPySparkLoaderTypeConversion:
             ), nullable=True)
         ])
         loader = PySparkLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
         
         column = spec.columns[0]
         assert isinstance(column.type, Map)
@@ -397,7 +397,7 @@ class TestPySparkLoaderNullability:
             ]
         )
         loader = PySparkLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
 
         nullable_col = spec.columns[0]
         assert nullable_col.name == "nullable_col"
@@ -428,7 +428,7 @@ class TestPySparkLoaderNullability:
             ]
         )
         loader = PySparkLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
 
         struct_col = spec.columns[0]
         assert isinstance(struct_col.type, Struct)
@@ -461,7 +461,7 @@ class TestPySparkLoaderMetadata:
             ]
         )
         loader = PySparkLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
 
         column = spec.columns[0]
         assert column.name == "test_col"
@@ -481,7 +481,7 @@ class TestPySparkLoaderMetadata:
             ]
         )
         loader = PySparkLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
 
         column = spec.columns[0]
         assert column.description == "This is a description"
@@ -503,7 +503,7 @@ class TestPySparkLoaderMetadata:
             ]
         )
         loader = PySparkLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
 
         column = spec.columns[0]
         assert column.metadata["config_dict"] == {"retries": 3, "timeout": 30}
@@ -528,7 +528,7 @@ class TestPySparkLoaderMetadata:
             ]
         )
         loader = PySparkLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
 
         column = spec.columns[0]
         assert (
@@ -540,7 +540,7 @@ class TestPySparkLoaderMetadata:
     def test_field_with_no_metadata(self):
         schema = StructType([StructField("test_col", StringType(), nullable=True)])
         loader = PySparkLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
 
         column = spec.columns[0]
         assert column.metadata == {}
@@ -551,7 +551,7 @@ class TestPySparkLoaderMetadata:
             [StructField("test_col", StringType(), nullable=True, metadata={})]
         )
         loader = PySparkLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
 
         column = spec.columns[0]
         assert column.metadata == {}
@@ -576,7 +576,7 @@ class TestPySparkLoaderMetadata:
         )
         schema = StructType([StructField("nested", inner_struct, nullable=True)])
         loader = PySparkLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
 
         nested_col = spec.columns[0]
         assert isinstance(nested_col.type, Struct)
@@ -610,7 +610,7 @@ class TestPySparkLoaderMetadata:
             ]
         )
         loader = PySparkLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
 
         column = spec.columns[0]
         assert column.description == "Complex metadata field"
@@ -649,7 +649,7 @@ class TestPySparkLoaderMetadata:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            spec = loader.load(schema, name="test_spec", version="1.0.0")
+            spec = loader.load(schema, name="test_spec", version=1)
 
             assert len(w) == 1
             assert "PySparkLoader does not support PySpark type" in str(w[0].message)
@@ -678,7 +678,7 @@ class TestPySparkLoaderMetadata:
             ]
         )
         loader = PySparkLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
 
         column = spec.columns[0]
         assert column.name == "required_col"
@@ -697,30 +697,28 @@ class TestPySparkLoaderSchema:
     def test_schema_without_description(self):
         schema = StructType([StructField("id", IntegerType(), nullable=True)])
         loader = PySparkLoader()
-        spec = loader.load(schema, name="test", version="1.0.0")
+        spec = loader.load(schema, name="test", version=1)
 
         assert spec.name == "test"
-        assert spec.version == "1.0.0"
+        assert spec.version == 1
         assert spec.description is None
 
     def test_empty_schema(self):
         schema = StructType([])
         loader = PySparkLoader()
-        spec = loader.load(schema, name="empty", version="1.0.0")
+        spec = loader.load(schema, name="empty", version=1)
 
         assert spec.name == "empty"
-        assert spec.version == "1.0.0"
+        assert spec.version == 1
         assert len(spec.columns) == 0
 
     def test_schema_with_description(self):
         schema = StructType([StructField("id", IntegerType(), nullable=True)])
         loader = PySparkLoader()
-        spec = loader.load(
-            schema, name="test", version="1.0.0", description="Test description"
-        )
+        spec = loader.load(schema, name="test", version=1, description="Test description")
 
         assert spec.name == "test"
-        assert spec.version == "1.0.0"
+        assert spec.version == 1
         assert spec.description == "Test description"
 
 
@@ -740,7 +738,7 @@ class TestPySparkLoaderUnsupportedTypes:
             UnsupportedFeatureError,
             match="PySparkLoader does not support PySpark type.*for 'interval_col'",
         ):
-            loader.load(schema, name="test", version="1.0.0")
+            loader.load(schema, name="test", version=1)
 
 
 # %% Configuration tests
@@ -797,7 +795,7 @@ class TestPySparkLoaderWithConfig:
         )
 
         with pytest.raises(UnsupportedFeatureError):
-            loader.load(schema, name="test", version="1.0.0", mode="raise")
+            loader.load(schema, name="test", version=1, mode="raise")
 
     @pytest.mark.skipif(
         not HAS_CALENDAR_INTERVAL_TYPE, reason="CalendarIntervalType not available"
@@ -811,7 +809,7 @@ class TestPySparkLoaderWithConfig:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            spec = loader.load(schema, name="test", version="1.0.0")
+            spec = loader.load(schema, name="test", version=1)
 
             assert len(w) == 1
             assert "PySparkLoader does not support PySpark type" in str(w[0].message)
@@ -834,7 +832,7 @@ class TestPySparkLoaderWithConfig:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            spec = loader.load(schema, name="test", version="1.0.0")
+            spec = loader.load(schema, name="test", version=1)
 
             assert len(w) == 1
             assert "PySparkLoader does not support PySpark type" in str(w[0].message)
@@ -860,7 +858,7 @@ class TestPySparkLoaderWithConfig:
         with pytest.raises(
             UnsupportedFeatureError, match="PySparkLoader does not support PySpark type"
         ):
-            loader.load(schema, name="test", version="1.0.0")
+            loader.load(schema, name="test", version=1)
 
     @pytest.mark.skipif(
         not HAS_CALENDAR_INTERVAL_TYPE, reason="CalendarIntervalType not available"
@@ -878,7 +876,7 @@ class TestPySparkLoaderWithConfig:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            spec = loader.load(schema, name="test", version="1.0.0")
+            spec = loader.load(schema, name="test", version=1)
 
             assert len(w) == 1
             assert "PySparkLoader does not support PySpark type" in str(w[0].message)
@@ -902,7 +900,7 @@ class TestPySparkLoaderWithConfig:
         )
 
         with pytest.raises(UnsupportedFeatureError) as exc_info:
-            loader.load(schema, name="test", version="1.0.0")
+            loader.load(schema, name="test", version=1)
 
         assert "for 'my_field'" in str(exc_info.value)
 
@@ -924,7 +922,7 @@ class TestPySparkLoaderWithConfig:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            spec = loader.load(schema, name="test", version="1.0.0")
+            spec = loader.load(schema, name="test", version=1)
 
             assert len(w) == 1
             assert "PySparkLoader does not support PySpark type" in str(w[0].message)
@@ -956,7 +954,7 @@ class TestPySparkLoaderWithConfig:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            spec = loader.load(schema, name="test", version="1.0.0")
+            spec = loader.load(schema, name="test", version=1)
 
             assert len(w) == 1
             assert "PySparkLoader does not support PySpark type" in str(w[0].message)
@@ -982,7 +980,7 @@ class TestPySparkLoaderWithConfig:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            spec = loader.load(schema, name="test", version="1.0.0")
+            spec = loader.load(schema, name="test", version=1)
 
             assert len(w) == 1
             assert "PySparkLoader does not support PySpark type" in str(w[0].message)
@@ -1024,7 +1022,7 @@ class TestPySparkLoaderWithConfig:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            spec = loader.load(schema, name="test_complex", version="1.0.0")
+            spec = loader.load(schema, name="test_complex", version=1)
 
         # Should have warnings for the unsupported type
         assert len(w) == 1

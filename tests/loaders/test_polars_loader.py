@@ -71,10 +71,10 @@ class TestPolarsLoaderTypeConversion:
     ):
         schema = pl.Schema({"col1": pl_type})
         loader = PolarsLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
         
         assert spec.name == "test_spec"
-        assert spec.version == "1.0.0"
+        assert spec.version == 1
         assert len(spec.columns) == 1
         
         column = spec.columns[0]
@@ -106,7 +106,7 @@ class TestPolarsLoaderTypeConversion:
     ):
         schema = pl.Schema({"col1": pl_type})
         loader = PolarsLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
         
         column = spec.columns[0]
         assert column.name == "col1"
@@ -133,7 +133,7 @@ class TestPolarsLoaderTypeConversion:
     ):
         schema = pl.Schema({"col1": pl_type})
         loader = PolarsLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
         
         column = spec.columns[0]
         assert isinstance(column.type, Array)
@@ -155,7 +155,7 @@ class TestPolarsLoaderTypeConversion:
     ):
         schema = pl.Schema({"col1": pl_type})
         loader = PolarsLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
         
         column = spec.columns[0]
         assert isinstance(column.type, Tensor)
@@ -171,7 +171,7 @@ class TestPolarsLoaderTypeConversion:
             ])
         })
         loader = PolarsLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
         
         column = spec.columns[0]
         assert isinstance(column.type, Struct)
@@ -199,7 +199,7 @@ class TestPolarsLoaderTypeConversion:
         ])
         schema = pl.Schema({"nested": pl.List(inner_struct)})
         loader = PolarsLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
         
         column = spec.columns[0]
         assert isinstance(column.type, Array)
@@ -226,7 +226,7 @@ class TestPolarsLoaderTypeConversion:
             "complex_col": pl.List(inner_struct)
         })
         loader = PolarsLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
         
         column = spec.columns[0]
         assert isinstance(column.type, Array)
@@ -252,7 +252,7 @@ class TestPolarsLoaderTypeConversion:
         """Test that pl.Object maps to Variant."""
         schema = pl.Schema({"obj_col": pl.Object})
         loader = PolarsLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
         
         column = spec.columns[0]
         assert column.name == "obj_col"
@@ -269,7 +269,7 @@ class TestPolarsLoaderTypeConversion:
             "records": pl.List(inner_struct)
         })
         loader = PolarsLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
         
         column = spec.columns[0]
         assert isinstance(column.type, Array)
@@ -307,7 +307,7 @@ class TestPolarsLoaderNullability:
             }
         )
         loader = PolarsLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
 
         for column in spec.columns:
             assert column.is_nullable is True
@@ -326,7 +326,7 @@ class TestPolarsLoaderNullability:
             }
         )
         loader = PolarsLoader()
-        spec = loader.load(schema, name="test_spec", version="1.0.0")
+        spec = loader.load(schema, name="test_spec", version=1)
 
         struct_col = spec.columns[0]
         assert isinstance(struct_col.type, Struct)
@@ -341,30 +341,28 @@ class TestPolarsLoaderSchema:
     def test_schema_without_description(self):
         schema = pl.Schema({"id": pl.Int32})
         loader = PolarsLoader()
-        spec = loader.load(schema, name="test", version="1.0.0")
+        spec = loader.load(schema, name="test", version=1)
 
         assert spec.name == "test"
-        assert spec.version == "1.0.0"
+        assert spec.version == 1
         assert spec.description is None
 
     def test_schema_with_description(self):
         schema = pl.Schema({"id": pl.Int32})
         loader = PolarsLoader()
-        spec = loader.load(
-            schema, name="test", version="1.0.0", description="Test description"
-        )
+        spec = loader.load(schema, name="test", version=1, description="Test description")
 
         assert spec.name == "test"
-        assert spec.version == "1.0.0"
+        assert spec.version == 1
         assert spec.description == "Test description"
 
     def test_empty_schema(self):
         schema = pl.Schema({})
         loader = PolarsLoader()
-        spec = loader.load(schema, name="empty", version="1.0.0")
+        spec = loader.load(schema, name="empty", version=1)
 
         assert spec.name == "empty"
-        assert spec.version == "1.0.0"
+        assert spec.version == 1
         assert len(spec.columns) == 0
 
     def test_multiple_columns(self):
@@ -377,7 +375,7 @@ class TestPolarsLoaderSchema:
             }
         )
         loader = PolarsLoader()
-        spec = loader.load(schema, name="test", version="1.0.0")
+        spec = loader.load(schema, name="test", version=1)
 
         assert len(spec.columns) == 4
         assert spec.columns[0].name == "id"
@@ -401,7 +399,7 @@ class TestPolarsLoaderUnsupportedTypes:
             UnsupportedFeatureError,
             match="PolarsLoader does not support Polars type.*for 'cat_col'",
         ):
-            loader.load(schema, name="test", version="1.0.0")
+            loader.load(schema, name="test", version=1)
 
     def test_enum_type_raises_error(self):
         """Test that Enum type raises error in raise mode."""
@@ -414,7 +412,7 @@ class TestPolarsLoaderUnsupportedTypes:
                 UnsupportedFeatureError,
                 match="PolarsLoader does not support Polars type.*for 'enum_col'",
             ):
-                loader.load(schema, name="test", version="1.0.0")
+                loader.load(schema, name="test", version=1)
 
 
 # %% Configuration tests
@@ -469,7 +467,7 @@ class TestPolarsLoaderWithConfig:
         schema = df.schema
 
         with pytest.raises(UnsupportedFeatureError):
-            loader.load(schema, name="test", version="1.0.0", mode="raise")
+            loader.load(schema, name="test", version=1, mode="raise")
 
     def test_coercion_mode_without_fallback_raises(self):
         """Test that coerce mode raises when fallback_type is None."""
@@ -484,7 +482,7 @@ class TestPolarsLoaderWithConfig:
             UnsupportedFeatureError,
             match="Specify a fallback_type to enable coercion",
         ):
-            loader.load(schema, name="test", version="1.0.0")
+            loader.load(schema, name="test", version=1)
 
     def test_coercion_mode_with_string_fallback(self):
         config = PolarsLoaderConfig(mode="coerce", fallback_type=String())
@@ -496,7 +494,7 @@ class TestPolarsLoaderWithConfig:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            spec = loader.load(schema, name="test", version="1.0.0")
+            spec = loader.load(schema, name="test", version=1)
 
             assert len(w) == 1
             assert "PolarsLoader does not support Polars type" in str(w[0].message)
@@ -517,7 +515,7 @@ class TestPolarsLoaderWithConfig:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            spec = loader.load(schema, name="test", version="1.0.0")
+            spec = loader.load(schema, name="test", version=1)
 
             assert len(w) == 1
             assert "PolarsLoader does not support Polars type" in str(w[0].message)
@@ -541,7 +539,7 @@ class TestPolarsLoaderWithConfig:
         with pytest.raises(
             UnsupportedFeatureError, match="PolarsLoader does not support Polars type"
         ):
-            loader.load(schema, name="test", version="1.0.0")
+            loader.load(schema, name="test", version=1)
 
     def test_multiple_unsupported_types_coercion(self):
         config = PolarsLoaderConfig(mode="coerce", fallback_type=String())
@@ -558,7 +556,7 @@ class TestPolarsLoaderWithConfig:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            spec = loader.load(schema, name="test", version="1.0.0")
+            spec = loader.load(schema, name="test", version=1)
 
             assert len(w) == 1
             assert "PolarsLoader does not support Polars type" in str(w[0].message)
@@ -579,7 +577,7 @@ class TestPolarsLoaderWithConfig:
         schema = df.schema
 
         with pytest.raises(UnsupportedFeatureError) as exc_info:
-            loader.load(schema, name="test", version="1.0.0")
+            loader.load(schema, name="test", version=1)
 
         assert "for 'my_field'" in str(exc_info.value)
 
@@ -597,7 +595,7 @@ class TestPolarsLoaderWithConfig:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            spec = loader.load(schema, name="test", version="1.0.0")
+            spec = loader.load(schema, name="test", version=1)
 
             assert len(w) == 1
             assert "PolarsLoader does not support Polars type" in str(w[0].message)
@@ -639,7 +637,7 @@ class TestPolarsLoaderWithConfig:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            spec = loader.load(schema, name="test_complex", version="1.0.0")
+            spec = loader.load(schema, name="test_complex", version=1)
 
         # Should have warnings for the unsupported type
         assert len(w) == 1
