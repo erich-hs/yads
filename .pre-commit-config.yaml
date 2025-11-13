@@ -3,11 +3,13 @@ repos:
     rev: 'v0.11.12'
     hooks:
     -   id: ruff
+        name: ruff
         args:
           - --fix
           - --config
           - pyproject.toml
     -   id: ruff-format
+        name: ruff format
         args:
           - --config
           - pyproject.toml
@@ -15,15 +17,17 @@ repos:
 -   repo: https://github.com/astral-sh/uv-pre-commit
     rev: 0.7.9
     hooks:
+      - id: uv-lock
+        name: uv.lock file is up to date
       - id: uv-export
-        name: main dependencies
+        name: requirements.txt is up to date
         args: [--no-dev, --no-hashes, -o, requirements.txt]
         files: pyproject.toml
 
 -   repo: local
     hooks:
       - id: validate-yads-spec
-        name: "Validate YADS spec"
+        name: latest yads spec is valid
         entry: bash
         language: system
         args:
