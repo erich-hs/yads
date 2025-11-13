@@ -98,7 +98,7 @@ help:
 	@echo "======================"
 	@echo ""
 	@echo "Setup Commands:"
-	@echo "  make install          Install core dependencies and setup pre-commit hooks"
+	@echo "  make install          Install core and development dependencies and setup pre-commit hooks"
 	@echo "  make install-all      Install all dependencies and setup hooks"
 	@echo "  make sync             Update dependencies to match lockfile"
 	@echo ""
