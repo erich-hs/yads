@@ -77,7 +77,7 @@ def from_dict(data: dict[str, Any]) -> YadsSpec:
     Example:
         >>> data = {
         ...     "name": "users",
-        ...     "version": "1.0.0",
+        ...     "version": 1,
         ...     "columns": [
         ...         {
         ...             "name": "id",
@@ -91,7 +91,7 @@ def from_dict(data: dict[str, Any]) -> YadsSpec:
         ... }
         >>> spec = from_dict(data)
         >>> print(f"Loaded spec: {spec.name} v{spec.version}")
-        Loaded spec: users v1.0.0
+        Loaded spec: users v1
     """
     return DictLoader().load(data)
 
@@ -108,7 +108,8 @@ def from_yaml_string(content: str) -> YadsSpec:
     Example:
         >>> content = \"""
         ... name: users
-        ... version: 1.0.0
+        ... version: 1
+        ... yads_spec_version: 0.0.2
         ... columns:
         ...   - name: id
         ...     type: integer
@@ -117,7 +118,7 @@ def from_yaml_string(content: str) -> YadsSpec:
         ... \"""
         >>> spec = from_yaml_string(content)
         >>> print(f"Loaded spec: {spec.name} v{spec.version}")
-        Loaded spec: users v1.0.0
+        Loaded spec: users v1
     """
     return YamlLoader().load(content)
 
@@ -138,7 +139,7 @@ def from_yaml_path(path: str | Path, *, encoding: str = "utf-8") -> YadsSpec:
     Example:
         >>> spec = from_yaml_path("specs/users.yaml")
         >>> print(f"Loaded spec: {spec.name} v{spec.version}")
-        Loaded spec: users v1.0.0
+        Loaded spec: users v1
     """
     text = Path(path).read_text(encoding=encoding)
     return YamlLoader().load(text)
@@ -160,7 +161,7 @@ def from_yaml_stream(stream: IO[str] | IO[bytes], *, encoding: str = "utf-8") ->
         >>> with open("specs/users.yaml", "r") as f:
         ...     spec = from_yaml_stream(f)
         >>> print(f"Loaded spec: {spec.name} v{spec.version}")
-        Loaded spec: users v1.0.0
+        Loaded spec: users v1
     """
     raw = stream.read()
     text = raw.decode(encoding) if isinstance(raw, (bytes, bytearray)) else raw
@@ -187,7 +188,7 @@ def from_yaml(
     Example:
         >>> spec = from_yaml("specs/users.yaml")
         >>> print(f"Loaded spec: {spec.name} v{spec.version}")
-        Loaded spec: users v1.0.0
+        Loaded spec: users v1
     """
     if hasattr(source, "read"):
         return from_yaml_stream(cast(IO[str] | IO[bytes], source), encoding=encoding)
@@ -200,7 +201,7 @@ def from_pyarrow(
     mode: Literal["raise", "coerce"] = "coerce",
     fallback_type: YadsType | None = None,
     name: str,
-    version: str,
+    version: int,
     description: str | None = None,
 ) -> YadsSpec:
     """Load a spec from a `pyarrow.Schema`.
@@ -226,7 +227,7 @@ def from_pyarrow(
         ...     pa.field("id", pa.int64()),
         ...     pa.field("name", pa.string()),
         ... ])
-        >>> spec = from_pyarrow(schema, name="users", version="1.0.0")
+        >>> spec = from_pyarrow(schema, name="users", version=1)
     """
     from . import pyarrow_loader  # type: ignore
 
@@ -242,7 +243,7 @@ def from_pyspark(
     mode: Literal["raise", "coerce"] = "coerce",
     fallback_type: YadsType | None = None,
     name: str,
-    version: str,
+    version: int,
     description: str | None = None,
 ) -> YadsSpec:
     """Load a spec from a `pyspark.sql.types.StructType`.
@@ -268,7 +269,7 @@ def from_pyspark(
         ...     StructField("id", LongType(), nullable=False),
         ...     StructField("name", StringType(), nullable=True),
         ... ])
-        >>> spec = from_pyspark(schema, name="users", version="1.0.0")
+        >>> spec = from_pyspark(schema, name="users", version=1)
     """
     from . import pyspark_loader  # type: ignore
 
@@ -284,7 +285,7 @@ def from_polars(
     mode: Literal["raise", "coerce"] = "coerce",
     fallback_type: YadsType | None = None,
     name: str,
-    version: str,
+    version: int,
     description: str | None = None,
 ) -> YadsSpec:
     """Load a spec from a `polars.Schema`.
@@ -307,7 +308,7 @@ def from_polars(
     Example:
         >>> import polars as pl
         >>> schema = pl.Schema({"id": pl.Int64, "name": pl.Utf8})
-        >>> spec = from_polars(schema, name="users", version="1.0.0")
+        >>> spec = from_polars(schema, name="users", version=1)
     """
     from . import polars_loader  # type: ignore
 

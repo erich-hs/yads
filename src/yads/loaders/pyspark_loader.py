@@ -13,7 +13,7 @@ Example:
     ...     StructField("name", StringType(), nullable=True),
     ... ])
     >>> loader = PySparkLoader()
-    >>> spec = loader.load(schema, name="test.table", version="1.0.0")
+    >>> spec = loader.load(schema, name="test.table", version=1)
     >>> spec.name
     'test.table'
 """

@@ -9,7 +9,7 @@ Example:
     >>> from yads.converters import PydanticConverter
     >>> spec = YadsSpec(
     ...     name="catalog.db.table",
-    ...     version="0.0.1",
+    ...     version=1,
     ...     columns=[
     ...         Column(name="id", type=ytypes.Integer(bits=64)),
     ...         Column(name="name", type=ytypes.String()),
