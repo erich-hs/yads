@@ -35,7 +35,7 @@ test:
 
 .PHONY: test-cov
 test-cov:
-	uv run --all-groups pytest --cov=src --cov-report=html
+	uv run --all-groups pytest --cov=src --cov-branch --cov-report=html
 
 .PHONY: test-dependency
 test-dependency:  # Test compatibility across different versions of a specific optional dependency.
