@@ -39,7 +39,7 @@ if TYPE_CHECKING:
 
 # %% ---- Configuration --------------------------------------------------------------
 @dataclass(frozen=True)
-class PolarsConverterConfig(BaseConverterConfig):
+class PolarsConverterConfig(BaseConverterConfig[Any]):
     """Configuration for PolarsConverter.
 
     Args:
@@ -58,7 +58,7 @@ class PolarsConverterConfig(BaseConverterConfig):
     """
 
     fallback_type: Any | None = None
-    column_overrides: Mapping[str, Callable[[yspec.Field, PolarsConverter], Any]] = field(
+    column_overrides: Mapping[str, Callable[[yspec.Field, Any], Any]] = field(
         default_factory=lambda: MappingProxyType({})
     )
 
@@ -79,7 +79,7 @@ class PolarsConverterConfig(BaseConverterConfig):
 
 
 # %% ---- Converter ------------------------------------------------------------------
-class PolarsConverter(BaseConverter):
+class PolarsConverter(BaseConverter[Any]):
     """Convert a yads `YadsSpec` into a `polars.Schema`.
 
     The converter maps each yads column to a `polars.Field` and assembles a

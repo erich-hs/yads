@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 
 # %% ---- Configuration --------------------------------------------------------------
 @dataclass(frozen=True)
-class PyArrowConverterConfig(BaseConverterConfig):
+class PyArrowConverterConfig(BaseConverterConfig[Any]):
     """Configuration for PyArrowConverter.
 
     Args:
@@ -96,7 +96,7 @@ class PyArrowConverterConfig(BaseConverterConfig):
 
 
 # %% ---- Converter ------------------------------------------------------------------
-class PyArrowConverter(BaseConverter):
+class PyArrowConverter(BaseConverter[Any]):
     """Convert a yads `YadsSpec` into a `pyarrow.Schema`.
 
     The converter maps each yads column to a `pyarrow.Field` and assembles a

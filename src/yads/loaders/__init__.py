@@ -1,3 +1,4 @@
+# pyright: reportUnsupportedDunderAll=none
 """Entry points for loading `YadsSpec` from various sources.
 
 This module provides simple functions for loading a `YadsSpec` from common

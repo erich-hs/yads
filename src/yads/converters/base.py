@@ -20,7 +20,6 @@ from typing import (
     Literal,
     Mapping,
     TypeVar,
-    cast,
 )
 
 from ..spec import Field
@@ -33,6 +32,10 @@ T = TypeVar("T")
 # Keep permissive here to avoid contravariance issues. Subclasses may narrow.
 ColumnOverrideFunc = Callable[[Field, Any], T]
 ColumnOverrides = Mapping[str, ColumnOverrideFunc[T]]
+
+
+def _empty_frozenset_str() -> frozenset[str]:
+    return frozenset()
 
 
 @dataclass(frozen=True)
@@ -61,7 +64,7 @@ class BaseConverterConfig(Generic[T]):
 
     # Public fields (inputs are coerced to immutable in __post_init__)
     mode: Literal["raise", "coerce"] = "coerce"
-    ignore_columns: frozenset[str] = field(default_factory=frozenset)
+    ignore_columns: frozenset[str] = field(default_factory=_empty_frozenset_str)
     include_columns: frozenset[str] | None = None
     column_overrides: Mapping[str, ColumnOverrideFunc[T]] = field(
         default_factory=lambda: MappingProxyType({})
@@ -151,9 +154,7 @@ class BaseConverter(Generic[T], ABC):
         return column_name in self.config.column_overrides
 
     def _apply_column_override(self, field: Field) -> T:
-        override_func = cast(
-            ColumnOverrideFunc[T], self.config.column_overrides[field.name]
-        )
+        override_func = self.config.column_overrides[field.name]
         return override_func(field, self)
 
     def _convert_field_with_overrides(self, field: Field) -> T:
@@ -174,7 +175,7 @@ class BaseConverter(Generic[T], ABC):
         self,
         yads_type: Any | None = None,
         *,
-        coerce_type: T | None = None,
+        coerce_type: Any | None = None,
         error_msg: str | None = None,
     ) -> T:
         """Handle raise or coerce mode for unsupported type features.

@@ -43,8 +43,8 @@ from ..constraints import (
 from ..exceptions import UnsupportedFeatureError
 from .._dependencies import (
     requires_dependency,
-    _get_installed_version,
-    _meets_min_version,
+    get_installed_version,
+    meets_min_version,
 )
 from .base import BaseConverter, BaseConverterConfig
 
@@ -58,7 +58,7 @@ if TYPE_CHECKING:
 
 # %% ---- Configuration --------------------------------------------------------------
 @dataclass(frozen=True)
-class PydanticConverterConfig(BaseConverterConfig):
+class PydanticConverterConfig(BaseConverterConfig[Any]):
     """Configuration for PydanticConverter.
 
     Args:
@@ -82,9 +82,9 @@ class PydanticConverterConfig(BaseConverterConfig):
     model_name: str | None = None
     model_config: dict[str, Any] | None = None
     fallback_type: type | None = None
-    column_overrides: Mapping[
-        str, Callable[[yspec.Field, PydanticConverter], tuple[Any, FieldInfo]]
-    ] = field(default_factory=lambda: MappingProxyType({}))  # type: ignore[assignment]
+    column_overrides: Mapping[str, Callable[[yspec.Field, Any], Any]] = field(
+        default_factory=lambda: MappingProxyType({})
+    )
 
     def __post_init__(self) -> None:
         """Validate configuration parameters."""
@@ -100,7 +100,7 @@ class PydanticConverterConfig(BaseConverterConfig):
 
 
 # %% ---- Converter ------------------------------------------------------------------
-class PydanticConverter(BaseConverter):
+class PydanticConverter(BaseConverter[Any]):
     """Convert a yads `YadsSpec` into a Pydantic `BaseModel` class.
 
     The converter maps each yads column to a Pydantic field and assembles a
@@ -233,7 +233,7 @@ class PydanticConverter(BaseConverter):
                 error_msg=(
                     f"Decimal precision and scale constraints require Pydantic >= 2.8.0"
                     f" for '{self._field_context}'. "
-                    f"Found version {_get_installed_version('pydantic') or 'unknown'}."
+                    f"Found version {get_installed_version('pydantic') or 'unknown'}."
                 ),
             )
         return PythonDecimal, params
@@ -292,9 +292,8 @@ class PydanticConverter(BaseConverter):
 
     @_convert_type.register(ytypes.TimestampTZ)
     def _(self, yads_type: ytypes.TimestampTZ) -> tuple[Any, dict[str, Any]]:
-        # Ignore unit parameter
-        # Ignore tz parameter
-        if yads_type.unit is not None or yads_type.tz is not None:
+        # Ignore unit parameter and timezone parameter
+        if yads_type.unit is not None:
             self.raise_or_coerce(
                 coerce_type=datetime,
                 error_msg=(
@@ -378,7 +377,7 @@ class PydanticConverter(BaseConverter):
         from pydantic import create_model  # type: ignore[import-untyped]
 
         # Create nested model for struct
-        nested_fields = {}
+        nested_fields: dict[str, tuple[Any, FieldInfo]] = {}
         for yads_field in yads_type.fields:
             with self.conversion_context(field=yads_field.name):
                 field_type, field_info = self._convert_field(yads_field)
@@ -388,9 +387,9 @@ class PydanticConverter(BaseConverter):
         struct_model_name = self._nested_model_name(yads_type.__class__.__name__)
         # Preserve FieldInfo for nested fields
         nested_kwargs: dict[str, Any] = {
-            name: (ftype, finfo) for name, (ftype, finfo) in nested_fields.items()
+            key: value for key, value in nested_fields.items()
         }
-        nested_model = create_model(struct_model_name, **nested_kwargs)
+        nested_model: Any = create_model(struct_model_name, **nested_kwargs)
 
         return nested_model, {}
 
@@ -562,10 +561,10 @@ class PydanticConverter(BaseConverter):
         Decimal max_digits and decimal_places constraints were introduced in
         Pydantic 2.8.0.
         """
-        pydantic_version = _get_installed_version("pydantic")
+        pydantic_version = get_installed_version("pydantic")
         if pydantic_version is None:
             return False
-        return _meets_min_version(pydantic_version, "2.8.0")
+        return meets_min_version(pydantic_version, "2.8.0")
 
     def _nested_model_name(self, suffix: str) -> str:
         base = self.config.model_name or "Model"

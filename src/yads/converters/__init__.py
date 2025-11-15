@@ -153,7 +153,7 @@ def to_pydantic(
     # PydanticConverterConfig options
     model_name: str | None = None,
     model_config: dict[str, Any] | None = None,
-    fallback_type: type[str] | type[dict] | type[bytes] | None = None,
+    fallback_type: type[str] | type[dict[Any, Any]] | type[bytes] | None = None,
 ) -> Type[BaseModel]:
     """Convert a `YadsSpec` to a Pydantic `BaseModel` subclass.
 

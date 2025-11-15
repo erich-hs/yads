@@ -39,7 +39,7 @@ if TYPE_CHECKING:
 
 # %% ---- Configuration --------------------------------------------------------------
 @dataclass(frozen=True)
-class PySparkConverterConfig(BaseConverterConfig):
+class PySparkConverterConfig(BaseConverterConfig[Any]):
     """Configuration for PySparkConverter.
 
     Args:
@@ -79,7 +79,7 @@ class PySparkConverterConfig(BaseConverterConfig):
 
 
 # %% ---- Converter ------------------------------------------------------------------
-class PySparkConverter(BaseConverter):
+class PySparkConverter(BaseConverter[Any]):
     """Convert a yads `YadsSpec` into a PySpark `StructType`.
 
     The converter maps each yads column to a `StructField` and assembles a
