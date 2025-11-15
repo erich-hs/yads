@@ -16,9 +16,17 @@ from .exceptions import (
 P = ParamSpec("P")
 R = TypeVar("R")
 
+__all__ = [
+    "get_installed_version",
+    "meets_min_version",
+    "ensure_dependency",
+    "requires_dependency",
+    "try_import_optional",
+]
+
 
 @lru_cache(maxsize=None)
-def _get_installed_version(package_name: str) -> str | None:
+def get_installed_version(package_name: str) -> str | None:
     """Return installed version for `package_name` or `None` if missing."""
 
     try:
@@ -46,7 +54,7 @@ def _normalize_version(version: str) -> tuple[int, ...]:
     return tuple(parts)
 
 
-def _meets_min_version(installed: str, minimum: str) -> bool:
+def meets_min_version(installed: str, minimum: str) -> bool:
     """Return True if `installed` >= `minimum` using numeric tuple compare.
 
     Falls back to string comparison if normalization yields empty tuples.
@@ -80,7 +88,7 @@ def ensure_dependency(package_name: str, min_version: str | None = None) -> None
         DependencyVersionError: When the required dependency version is below the minimum.
     """
 
-    installed = _get_installed_version(package_name)
+    installed = get_installed_version(package_name)
     if installed is None:
         hint = _format_install_hint(package_name, min_version)
         needed = f" (>= {min_version})" if min_version else ""
@@ -88,7 +96,7 @@ def ensure_dependency(package_name: str, min_version: str | None = None) -> None
             f"Dependency '{package_name}'{needed} is required but not installed.\n{hint}"
         )
 
-    if min_version and not _meets_min_version(installed, min_version):
+    if min_version and not meets_min_version(installed, min_version):
         hint = _format_install_hint(package_name, min_version)
         raise DependencyVersionError(
             f"Dependency '{package_name}' must be >= {min_version}, "
