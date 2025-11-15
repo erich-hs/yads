@@ -31,7 +31,7 @@ from __future__ import annotations
 import logging
 import urllib.parse
 import warnings
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import fsspec  # type: ignore[import]
 import yaml
@@ -108,7 +108,7 @@ class FileSystemRegistry(BaseRegistry):
         self,
         base_path: str,
         logger: logging.Logger | None = None,
-        **fsspec_kwargs,
+        **fsspec_kwargs: Any,
     ):
         """Initialize the FileSystemRegistry.
 
@@ -122,14 +122,16 @@ class FileSystemRegistry(BaseRegistry):
 
         # Initialize filesystem
         try:
-            self.fs, self.base_path = fsspec.core.url_to_fs(base_path, **fsspec_kwargs)
+            fs_obj, resolved_base_path = fsspec.core.url_to_fs(base_path, **fsspec_kwargs)
             # Validate base path exists by attempting to access it
-            self.fs.exists(self.base_path)
+            fs_obj.exists(resolved_base_path)
         except Exception as e:
             raise RegistryConnectionError(
                 f"Failed to connect to registry at '{base_path}': {e}"
             ) from e
 
+        self.fs = cast(Any, fs_obj)
+        self.base_path = resolved_base_path
         self.logger.info(f"Initialized FileSystemRegistry at: {self.base_path}")
 
     def register(self, spec: YadsSpec) -> int:
@@ -484,7 +486,7 @@ class FileSystemRegistry(BaseRegistry):
 
         return yaml.dump(spec_dict, default_flow_style=False, sort_keys=False)
 
-    def _serialize_column(self, column) -> dict:
+    def _serialize_column(self, column: Any) -> dict[str, Any]:
         """Serialize a column to a dictionary."""
         col_dict = {"name": column.name}
 
@@ -546,7 +548,7 @@ class FileSystemRegistry(BaseRegistry):
 
         return col_dict
 
-    def _serialize_type(self, yads_type) -> dict | str:
+    def _serialize_type(self, yads_type: Any) -> dict[str, Any] | str:
         """Serialize a yads type to dict or string."""
         # For simple types, return string
         type_name = yads_type.__class__.__name__.lower()

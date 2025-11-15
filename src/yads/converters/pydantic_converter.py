@@ -82,9 +82,10 @@ class PydanticConverterConfig(BaseConverterConfig[Any]):
     model_name: str | None = None
     model_config: dict[str, Any] | None = None
     fallback_type: type | None = None
-    column_overrides: Mapping[str, Callable[[yspec.Field, Any], Any]] = field(
-        default_factory=lambda: MappingProxyType({})
-    )
+    column_overrides: Mapping[
+        str,
+        Callable[[yspec.Field, PydanticConverter], tuple[Any, FieldInfo]],
+    ] = field(default_factory=lambda: MappingProxyType({}))
 
     def __post_init__(self) -> None:
         """Validate configuration parameters."""
@@ -465,12 +466,12 @@ class PydanticConverter(BaseConverter[Any]):
         from pydantic.fields import FieldInfo  # type: ignore[import-untyped]
 
         result = self.config.column_overrides[field.name](field, self)
-        if not (isinstance(result, tuple) and len(result) == 2):
+        if not (isinstance(result, tuple) and len(result) == 2):  # pyright: ignore[reportUnnecessaryIsInstance]
             raise UnsupportedFeatureError(
                 "Pydantic column override must return (annotation, FieldInfo)."
             )
         annotation, field_info = result
-        if not isinstance(field_info, FieldInfo):
+        if not isinstance(field_info, FieldInfo):  # pyright: ignore[reportUnnecessaryIsInstance]
             raise UnsupportedFeatureError(
                 "Pydantic column override second element must be a FieldInfo."
             )

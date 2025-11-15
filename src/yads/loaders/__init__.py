@@ -1,4 +1,3 @@
-# pyright: reportUnsupportedDunderAll=none
 """Entry points for loading `YadsSpec` from various sources.
 
 This module provides simple functions for loading a `YadsSpec` from common
@@ -13,6 +12,9 @@ formats:
 
 All functions return a validated immutable `YadsSpec` instance.
 """
+
+# pyright: reportUnsupportedDunderAll=none
+# PyArrow typing stubs progress: https://github.com/apache/arrow/pull/47609
 
 from __future__ import annotations
 
@@ -233,9 +235,8 @@ def from_pyarrow(
     from . import pyarrow_loader  # type: ignore
 
     config = pyarrow_loader.PyArrowLoaderConfig(mode=mode, fallback_type=fallback_type)
-    return pyarrow_loader.PyArrowLoader(config).load(
-        schema, name=name, version=version, description=description
-    )
+    loader = cast(Any, pyarrow_loader.PyArrowLoader(config))
+    return loader.load(schema, name=name, version=version, description=description)
 
 
 def from_pyspark(
@@ -275,9 +276,8 @@ def from_pyspark(
     from . import pyspark_loader  # type: ignore
 
     config = pyspark_loader.PySparkLoaderConfig(mode=mode, fallback_type=fallback_type)
-    return pyspark_loader.PySparkLoader(config).load(
-        schema, name=name, version=version, description=description
-    )
+    loader = cast(Any, pyspark_loader.PySparkLoader(config))
+    return loader.load(schema, name=name, version=version, description=description)
 
 
 def from_polars(
@@ -314,6 +314,5 @@ def from_polars(
     from . import polars_loader  # type: ignore
 
     config = polars_loader.PolarsLoaderConfig(mode=mode, fallback_type=fallback_type)
-    return polars_loader.PolarsLoader(config).load(
-        schema, name=name, version=version, description=description
-    )
+    loader = cast(Any, polars_loader.PolarsLoader(config))
+    return loader.load(schema, name=name, version=version, description=description)

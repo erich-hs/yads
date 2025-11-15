@@ -8,7 +8,7 @@ constraint handling that used to live inside the monolithic loader.
 from __future__ import annotations
 
 import warnings
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from ...constraints import (
     CONSTRAINT_EQUIVALENTS,
@@ -203,7 +203,8 @@ class SpecBuilder:
                 "The 'element' of an array must be a dictionary with a 'type' key."
             )
 
-        element_type_name = element_def["type"]
+        element_def = cast(dict[str, Any], element_def)
+        element_type_name = cast(str, element_def["type"])
         final_params = self._get_processed_type_params(type_def.get("type", ""), type_def)
         return ytypes.Array(
             element=self._parse_type(element_type_name, element_def),
@@ -224,11 +225,21 @@ class SpecBuilder:
 
         key_def = type_def["key"]
         value_def = type_def["value"]
+        if not isinstance(key_def, dict) or "type" not in key_def:
+            raise TypeDefinitionError(
+                "Map key definition must be a dictionary that includes 'type'."
+            )
+        if not isinstance(value_def, dict) or "type" not in value_def:
+            raise TypeDefinitionError(
+                "Map value definition must be a dictionary that includes 'type'."
+            )
+        key_def = cast(dict[str, Any], key_def)
+        value_def = cast(dict[str, Any], value_def)
         final_params = self._get_processed_type_params(type_def.get("type", ""), type_def)
 
         return ytypes.Map(
-            key=self._parse_type(key_def["type"], key_def),
-            value=self._parse_type(value_def["type"], value_def),
+            key=self._parse_type(cast(str, key_def["type"]), key_def),
+            value=self._parse_type(cast(str, value_def["type"]), value_def),
             **final_params,
         )
 
@@ -242,7 +253,8 @@ class SpecBuilder:
                 "The 'element' of a tensor must be a dictionary with a 'type' key."
             )
 
-        element_type_name = element_def["type"]
+        element_def = cast(dict[str, Any], element_def)
+        element_type_name = cast(str, element_def["type"])
         final_params = self._get_processed_type_params(type_def.get("type", ""), type_def)
 
         if "shape" not in final_params:

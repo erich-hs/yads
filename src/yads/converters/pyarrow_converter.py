@@ -22,6 +22,11 @@ Example:
 
 from __future__ import annotations
 
+# pyright: reportUnknownArgumentType=none, reportUnknownMemberType=none
+# pyright: reportUnknownVariableType=none, reportUnknownParameterType=none
+# pyright: reportUnknownLambdaType=none
+# PyArrow typing stubs progress: https://github.com/apache/arrow/pull/47609
+
 from functools import singledispatchmethod
 import json
 from typing import Any, Callable, Literal, Mapping, TYPE_CHECKING
@@ -457,7 +462,7 @@ class PyArrowConverter(BaseConverter[Any]):
         metadata: dict[str, Any] = {}
         if field.description is not None:
             metadata["description"] = field.description
-        if field.metadata is not None:
+        if field.metadata:
             metadata.update(field.metadata)
         return self._coerce_metadata(metadata) if metadata else None
 

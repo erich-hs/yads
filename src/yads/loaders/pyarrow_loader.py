@@ -20,6 +20,10 @@ Example:
 
 from __future__ import annotations
 
+# pyright: reportUnknownArgumentType=none, reportUnknownMemberType=none
+# pyright: reportUnknownVariableType=none, reportUnknownParameterType=none
+# PyArrow typing stubs progress: https://github.com/apache/arrow/pull/47609
+
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, Mapping
 

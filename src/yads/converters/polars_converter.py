@@ -22,6 +22,9 @@ Example:
 
 from __future__ import annotations
 
+# pyright: reportUnknownArgumentType=none, reportUnknownMemberType=none
+# pyright: reportUnknownVariableType=none
+
 from functools import singledispatchmethod
 from typing import TYPE_CHECKING, Any, Callable, Literal, Mapping
 from dataclasses import dataclass, field

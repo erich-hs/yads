@@ -22,9 +22,13 @@ Example:
 
 from __future__ import annotations
 
+# pyright: reportUnknownArgumentType=none, reportUnknownMemberType=none
+# pyright: reportUnknownVariableType=none
+
 from dataclasses import dataclass, field
 from functools import singledispatchmethod
 from typing import Any, Callable, Literal, Mapping, TYPE_CHECKING
+from types import MappingProxyType
 
 from .base import BaseConverter, BaseConverterConfig
 from ..exceptions import UnsupportedFeatureError
@@ -58,7 +62,7 @@ class PySparkConverterConfig(BaseConverterConfig[Any]):
 
     fallback_type: DataType | None = None
     column_overrides: Mapping[str, Callable[[Field, PySparkConverter], StructField]] = (
-        field(default_factory=dict)
+        field(default_factory=lambda: MappingProxyType({}))
     )
 
     def __post_init__(self) -> None:
@@ -320,9 +324,8 @@ class PySparkConverter(BaseConverter[Any]):
     def _(self, yads_type: ytypes.TimestampTZ) -> DataType:
         from pyspark.sql.types import TimestampType
 
-        # Ignore unit parameter
-        # Ignore tz parameter
-        if yads_type.unit is not None or yads_type.tz is not None:
+        # Ignore unit parameter and tz parameter
+        if yads_type.unit is not None:
             self.raise_or_coerce(
                 coerce_type=TimestampType(),
                 error_msg=(
@@ -507,7 +510,7 @@ class PySparkConverter(BaseConverter[Any]):
         metadata: dict[str, Any] = {}
         if field.description is not None:
             metadata["description"] = field.description
-        if field.metadata is not None:
+        if field.metadata:
             metadata.update(field.metadata)
 
         return StructField(
