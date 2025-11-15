@@ -7,6 +7,9 @@ producing dialect-agnostic AST representations from YadsSpec objects.
 
 from __future__ import annotations
 
+# pyright: reportUnknownArgumentType=none, reportUnknownMemberType=none
+# pyright: reportUnknownVariableType=none
+
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from functools import singledispatchmethod
@@ -59,7 +62,7 @@ class AstConverter(ABC):
 
 @dataclass(frozen=True)
 # %% ---- Configuration --------------------------------------------------------------
-class SQLGlotConverterConfig(BaseConverterConfig):
+class SQLGlotConverterConfig(BaseConverterConfig[Any]):
     """Configuration for SQLGlotConverter.
 
     Args:
@@ -113,7 +116,7 @@ class SQLGlotConverterConfig(BaseConverterConfig):
 
 
 # %% ---- Converter ------------------------------------------------------------------
-class SQLGlotConverter(BaseConverter, AstConverter):
+class SQLGlotConverter(BaseConverter[Any], AstConverter):
     """Core converter that transforms yads specs into sqlglot AST expressions.
 
     SQLGlotConverter is the foundational converter that handles the transformation
@@ -670,7 +673,7 @@ class SQLGlotConverter(BaseConverter, AstConverter):
 
     # %% ---- Transform handlers ------------------------------------------------------
     def _handle_transformation(
-        self, column: str, transform: str, transform_args: list
+        self, column: str, transform: str, transform_args: list[Any]
     ) -> exp.Expression:
         from sqlglot import exp
 
@@ -690,7 +693,9 @@ class SQLGlotConverter(BaseConverter, AstConverter):
             transform, exp.column(column), *(exp.convert(arg) for arg in transform_args)
         )
 
-    def _handle_cast_transform(self, column: str, transform_args: list) -> exp.Expression:
+    def _handle_cast_transform(
+        self, column: str, transform_args: list[Any]
+    ) -> exp.Expression:
         from sqlglot import exp
 
         self._validate_transform_args("cast", len(transform_args), 1)
@@ -714,7 +719,7 @@ class SQLGlotConverter(BaseConverter, AstConverter):
         )
 
     def _handle_bucket_transform(
-        self, column: str, transform_args: list
+        self, column: str, transform_args: list[Any]
     ) -> exp.Expression:
         from sqlglot import exp
 
@@ -724,7 +729,7 @@ class SQLGlotConverter(BaseConverter, AstConverter):
         )
 
     def _handle_truncate_transform(
-        self, column: str, transform_args: list
+        self, column: str, transform_args: list[Any]
     ) -> exp.Expression:
         from sqlglot import exp
 
@@ -734,7 +739,7 @@ class SQLGlotConverter(BaseConverter, AstConverter):
         )
 
     def _handle_date_trunc_transform(
-        self, column: str, transform_args: list
+        self, column: str, transform_args: list[Any]
     ) -> exp.Expression:
         from sqlglot import exp
 

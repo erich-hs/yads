@@ -14,6 +14,9 @@ Other SQL dialects can be extended via the `SQLConverter` class.
 
 from __future__ import annotations
 
+# pyright: reportUnknownArgumentType=none, reportUnknownMemberType=none
+# pyright: reportUnknownVariableType=none
+
 from typing import Any, Literal, TYPE_CHECKING
 from dataclasses import dataclass, replace
 
@@ -29,7 +32,7 @@ if TYPE_CHECKING:
 
 # %% ---- Configuration --------------------------------------------------------------
 @dataclass(frozen=True)
-class SQLConverterConfig(BaseConverterConfig):
+class SQLConverterConfig(BaseConverterConfig[Any]):
     """Configuration for SQLConverter.
 
     Args:
@@ -59,7 +62,7 @@ class SQLConverterConfig(BaseConverterConfig):
 
 
 # %% ---- Converters -----------------------------------------------------------------
-class SQLConverter(BaseConverter):
+class SQLConverter(BaseConverter[Any]):
     """Base class for SQL DDL generation.
 
     The converter composes:

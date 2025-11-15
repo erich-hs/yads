@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+# pyright: reportUnknownArgumentType=none, reportUnknownMemberType=none
+# pyright: reportUnknownVariableType=none
+
 from typing import TYPE_CHECKING, Literal, cast
 
 from ...._dependencies import ensure_dependency
