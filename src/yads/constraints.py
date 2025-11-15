@@ -138,7 +138,7 @@ class ForeignKeyConstraint(ColumnConstraint):
     name: str | None = None
 
     def __str__(self) -> str:
-        parts = []
+        parts: list[str] = []
         if self.name:
             parts.append(f"name={self.name!r}")
         parts.append(f"references={self.references}")
@@ -177,7 +177,7 @@ class IdentityConstraint(ColumnConstraint):
 class TableConstraint(ABC):
     """Abstract base class for table-level constraints."""
 
-    @property
+    @cached_property
     @abstractmethod
     def constrained_columns(self) -> list[str]:
         """Return the list of column names involved in this constraint."""
@@ -219,7 +219,7 @@ class PrimaryKeyTableConstraint(TableConstraint):
         return self.columns
 
     def __str__(self) -> str:
-        parts = []
+        parts: list[str] = []
         if self.name:
             parts.append(f"name={self.name!r}")
 
@@ -280,7 +280,7 @@ class ForeignKeyTableConstraint(TableConstraint):
         return self.columns
 
     def __str__(self) -> str:
-        parts = []
+        parts: list[str] = []
         if self.name:
             parts.append(f"name={self.name!r}")
 
