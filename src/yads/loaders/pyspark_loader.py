@@ -288,17 +288,17 @@ class PySparkLoader(ConfigurableLoader):
 
         @_convert_type.register(pyspark_types.DayTimeIntervalType)  # type: ignore[misc]
         def _convert_daytime_interval(self, dtype: DayTimeIntervalType) -> dict[str, Any]:
-            start_field = dtype.startField
-            end_field = dtype.endField
-            # Map integer field values to names
-            field_names = {0: "DAY", 1: "HOUR", 2: "MINUTE", 3: "SECOND"}
-            start_name = field_names.get(start_field, "DAY")
-            if end_field is None or start_field == end_field:
-                return {
-                    "type": "interval",
-                    "params": {"interval_start": start_name},
-                }
-            end_name = field_names.get(end_field, "SECOND")
+            start_field: int | None = dtype.startField
+            end_field: int | None = dtype.endField
+            field_names: dict[int, str] = {0: "DAY", 1: "HOUR", 2: "MINUTE", 3: "SECOND"}
+            start_key: int = start_field if start_field is not None else 0
+            start_name: str = field_names.get(start_key, "DAY")
+            if end_field is None:
+                return {"type": "interval", "params": {"interval_start": start_name}}
+            end_key: int = end_field
+            if start_key == end_key:
+                return {"type": "interval", "params": {"interval_start": start_name}}
+            end_name: str = field_names.get(end_key, "SECOND")
             return {
                 "type": "interval",
                 "params": {
@@ -331,17 +331,17 @@ class PySparkLoader(ConfigurableLoader):
         def _convert_yearmonth_interval(
             self, dtype: YearMonthIntervalType
         ) -> dict[str, Any]:
-            start_field = dtype.startField
-            end_field = dtype.endField
-            # Map integer field values to names
-            field_names = {0: "YEAR", 1: "MONTH"}
-            start_name = field_names.get(start_field, "YEAR")
-            if end_field is None or start_field == end_field:
-                return {
-                    "type": "interval",
-                    "params": {"interval_start": start_name},
-                }
-            end_name = field_names.get(end_field, "MONTH")
+            start_field: int | None = dtype.startField
+            end_field: int | None = dtype.endField
+            field_names: dict[int, str] = {0: "YEAR", 1: "MONTH"}
+            start_key: int = start_field if start_field is not None else 0
+            start_name: str = field_names.get(start_key, "YEAR")
+            if end_field is None:
+                return {"type": "interval", "params": {"interval_start": start_name}}
+            end_key: int = end_field
+            if start_key == end_key:
+                return {"type": "interval", "params": {"interval_start": start_name}}
+            end_name: str = field_names.get(end_key, "MONTH")
             return {
                 "type": "interval",
                 "params": {
