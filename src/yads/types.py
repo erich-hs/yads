@@ -148,7 +148,7 @@ class Integer(YadsType):
             raise TypeDefinitionError(
                 f"Integer 'bits' must be one of 8, 16, 32, 64, not {self.bits}."
             )
-        if not isinstance(self.signed, bool):
+        if not isinstance(self.signed, bool):  # pyright: ignore[reportUnnecessaryIsInstance]
             raise TypeDefinitionError("Integer 'signed' must be a boolean.")
 
     def __str__(self) -> str:
@@ -220,12 +220,12 @@ class Decimal(YadsType):
                 "Decimal type requires both 'precision' and 'scale', or neither."
             )
         if self.precision is not None and (
-            not isinstance(self.precision, int) or self.precision <= 0
+            not isinstance(self.precision, int) or self.precision <= 0  # pyright: ignore[reportUnnecessaryIsInstance]
         ):
             raise TypeDefinitionError(
                 f"Decimal 'precision' must be a positive integer, not {self.precision}."
             )
-        if self.scale is not None and (not isinstance(self.scale, int)):
+        if self.scale is not None and (not isinstance(self.scale, int)):  # pyright: ignore[reportUnnecessaryIsInstance]
             raise TypeDefinitionError(
                 f"Decimal 'scale' must be an integer, not {self.scale}."
             )
@@ -402,11 +402,11 @@ class TimestampTZ(YadsType):
             raise TypeDefinitionError(
                 f"TimestampTZ 'unit' must be one of {allowed}, not {self.unit}."
             )
-        if self.tz is None:
+        if self.tz is None:  # pyright: ignore[reportUnnecessaryComparison]
             raise TypeDefinitionError(
                 "TimestampTZ 'tz' must not be None. Use Timestamp or TimestampNTZ for no timezone."
             )
-        if isinstance(self.tz, str) and not self.tz:
+        if isinstance(self.tz, str) and not self.tz:  # pyright: ignore[reportUnnecessaryIsInstance]
             raise TypeDefinitionError("TimestampTZ 'tz' must be a non-empty string.")
 
     def __str__(self) -> str:
@@ -784,7 +784,7 @@ class Tensor(YadsType):
     def __post_init__(self):
         if not self.shape:
             raise TypeDefinitionError("Tensor 'shape' cannot be empty.")
-        if not all(isinstance(dim, int) and dim > 0 for dim in self.shape):
+        if not all(isinstance(dim, int) and dim > 0 for dim in self.shape):  # pyright: ignore[reportUnnecessaryIsInstance]
             raise TypeDefinitionError(
                 f"Tensor 'shape' must contain only positive integers, got {self.shape}."
             )
