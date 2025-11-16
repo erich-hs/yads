@@ -53,3 +53,11 @@ sql = [
 
 [tool.ruff]
 line-length = 90
+
+[tool.pyright]
+include = ["src"]
+pythonVersion = "3.10"
+typeCheckingMode = "strict"
+reportMissingImports = "error"
+reportMissingTypeStubs = false
+reportMissingModuleSource = "none"
