@@ -8,7 +8,7 @@ constraint handling that used to live inside the monolithic loader.
 from __future__ import annotations
 
 import warnings
-from typing import Any, Mapping, Protocol, Sequence, TypedDict, cast
+from typing import Any, Mapping, Sequence, TypedDict, cast
 
 from ...constraints import (
     CONSTRAINT_EQUIVALENTS,
@@ -35,14 +35,6 @@ from ... import types as ytypes
 
 
 # %% ---- Protocols ------------------------------------------------------------------
-class ConstraintParser(Protocol):
-    def __call__(self, value: Any) -> ColumnConstraint: ...
-
-
-class TableConstraintParser(Protocol):
-    def __call__(self, const_def: dict[str, Any]) -> TableConstraint: ...
-
-
 class _PartitioningOptionalDefinition(TypedDict, total=False):
     transform: str
     transform_args: list[Any]
