@@ -26,11 +26,11 @@ repos:
 
 -   repo: local
     hooks:
-      # - id: pyright
-      #   name: pyright
-      #   entry: uv run --group dev pyright src/
-      #   language: system
-      #   pass_filenames: false
+      - id: pyright
+        name: pyright
+        entry: uv run --group dev pyright src/
+        language: system
+        pass_filenames: false
       - id: validate-yads-spec
         name: latest yads spec is valid
         entry: bash
