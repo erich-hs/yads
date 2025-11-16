@@ -136,7 +136,7 @@ class PyArrowConverter(BaseConverter[Any]):
         spec: yspec.YadsSpec,
         *,
         mode: Literal["raise", "coerce"] | None = None,
-    ) -> pa.Schema:
+    ) -> Any:
         """Convert a yads `YadsSpec` into a `pyarrow.Schema`.
 
         Args:

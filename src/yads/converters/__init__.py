@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 # pyright: reportUnsupportedDunderAll=none
-# PyArrow typing stubs progress: https://github.com/apache/arrow/pull/47609
+
 
 from typing import Any, Callable, Literal, Mapping, TYPE_CHECKING, cast
 
@@ -11,7 +11,8 @@ from .base import BaseConverter, BaseConverterConfig
 from .pydantic_converter import PydanticConverter, PydanticConverterConfig
 
 if TYPE_CHECKING:
-    import pyarrow as pa  # pyright: ignore[reportMissingImports]
+    # PyArrow typing stubs are not yet available.
+    # https://github.com/apache/arrow/pull/47609
     import polars as pl  # pyright: ignore[reportMissingImports]
     from pydantic import BaseModel  # pyright: ignore[reportMissingImports]
     from pydantic.fields import FieldInfo  # pyright: ignore[reportMissingImports]
@@ -33,7 +34,7 @@ if TYPE_CHECKING:
     )
 
     # Column override type aliases (type checking only)
-    PyArrowColumnOverride = Callable[[SpecField, PyArrowConverter], pa.Field]
+    PyArrowColumnOverride = Callable[[SpecField, PyArrowConverter], Any]
     PydanticColumnOverride = Callable[
         [SpecField, PydanticConverter], tuple[Any, FieldInfo]
     ]
@@ -109,8 +110,8 @@ def to_pyarrow(
     use_large_string: bool = False,
     use_large_binary: bool = False,
     use_large_list: bool = False,
-    fallback_type: pa.DataType | None = None,
-) -> pa.Schema:
+    fallback_type: Any | None = None,
+) -> Any:
     """Convert a `YadsSpec` to a `pyarrow.Schema`.
 
     Args:
