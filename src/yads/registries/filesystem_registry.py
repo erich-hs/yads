@@ -28,10 +28,13 @@ Example:
 
 from __future__ import annotations
 
+# pyright: reportUnknownArgumentType=none, reportUnknownMemberType=none
+# pyright: reportUnknownVariableType=none
+
 import logging
 import urllib.parse
 import warnings
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 import fsspec  # type: ignore[import]
 import yaml
@@ -130,7 +133,7 @@ class FileSystemRegistry(BaseRegistry):
                 f"Failed to connect to registry at '{base_path}': {e}"
             ) from e
 
-        self.fs = cast(Any, fs_obj)
+        self.fs = fs_obj
         self.base_path = resolved_base_path
         self.logger.info(f"Initialized FileSystemRegistry at: {self.base_path}")
 
@@ -401,7 +404,7 @@ class FileSystemRegistry(BaseRegistry):
         """
         # Create a dictionary representation
         # We'll manually build this to control the order and formatting
-        spec_dict = {
+        spec_dict: dict[str, Any] = {
             "name": spec.name,
             "version": version,
             "yads_spec_version": spec.yads_spec_version,
@@ -462,11 +465,12 @@ class FileSystemRegistry(BaseRegistry):
                     c_dict["columns"] = list(tc.columns)
 
                 if isinstance(tc, ForeignKeyTableConstraint) and tc.references:
-                    c_dict["references"] = {
+                    references_dict: dict[str, Any] = {
                         "table": tc.references.table,
                     }
                     if tc.references.columns:
-                        c_dict["references"]["columns"] = list(tc.references.columns)
+                        references_dict["columns"] = list(tc.references.columns)
+                    c_dict["references"] = references_dict
                 constraints.append(c_dict)
             spec_dict["table_constraints"] = constraints
 
