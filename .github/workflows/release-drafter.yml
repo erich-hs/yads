@@ -7,6 +7,8 @@ on:
     paths-ignore:
       - '**.md'
       - 'docs/**'
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review]
   workflow_dispatch:
     inputs:
       sha:
@@ -15,7 +17,7 @@ on:
 
 permissions:
   contents: write
-  pull-requests: read
+  pull-requests: write
 
 jobs:
   update-release-draft:
@@ -25,8 +27,7 @@ jobs:
         uses: release-drafter/release-drafter@v6
         with:
           config-name: release-drafter.yml
-          commitish: ${{ inputs.sha || github.sha }}
+          commitish: ${{ github.event.inputs.sha || github.sha }}
           disable-autolabeler: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
