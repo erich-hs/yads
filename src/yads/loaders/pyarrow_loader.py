@@ -207,7 +207,7 @@ class PyArrowLoader(ConfigurableLoader):
         # Strings / Binary
         if types.is_string(t):
             return {"type": "string"}
-        if getattr(types, "is_large_string", lambda _t: False)(t):
+        if getattr(types, "is_large_string", self._type_predicate_default)(t):
             return {"type": "string"}
         if hasattr(types, "is_string_view") and types.is_string_view(
             t
@@ -221,7 +221,7 @@ class PyArrowLoader(ConfigurableLoader):
             }
         if types.is_binary(t):
             return {"type": "binary"}
-        if getattr(types, "is_large_binary", lambda _t: False)(t):
+        if getattr(types, "is_large_binary", self._type_predicate_default)(t):
             return {"type": "binary"}
         if hasattr(types, "is_binary_view") and types.is_binary_view(
             t
@@ -266,7 +266,7 @@ class PyArrowLoader(ConfigurableLoader):
         if types.is_duration(t):
             return {"type": "duration", "params": {"unit": t.unit}}
         # Only M/D/N interval exists in Arrow; default to DAY as start unit
-        if getattr(types, "is_interval", lambda _t: False)(t):
+        if getattr(types, "is_interval", self._type_predicate_default)(t):
             return {
                 "type": "interval",
                 "params": {"interval_start": "DAY"},
@@ -275,7 +275,7 @@ class PyArrowLoader(ConfigurableLoader):
         # Complex: Array / Struct / Map
         if (
             types.is_list(t)
-            or getattr(types, "is_large_list", lambda _t: False)(t)
+            or getattr(types, "is_large_list", self._type_predicate_default)(t)
             or (
                 hasattr(types, "is_list_view") and types.is_list_view(t)
             )  # Added in pyarrow 16.0.0
@@ -287,7 +287,7 @@ class PyArrowLoader(ConfigurableLoader):
                 elem_def = self._convert_type(t.value_type)
             return {"type": "array", "element": elem_def}
 
-        if getattr(types, "is_fixed_size_list", lambda _t: False)(t):
+        if getattr(types, "is_fixed_size_list", self._type_predicate_default)(t):
             with self.load_context(field="<array_element>"):
                 elem_def = self._convert_type(t.value_type)
             return {"type": "array", "element": elem_def, "params": {"size": t.list_size}}
@@ -370,6 +370,10 @@ class PyArrowLoader(ConfigurableLoader):
             return {"type": "string"}
 
     # %% ---- Helpers -----------------------------------------------------------------
+    @staticmethod
+    def _type_predicate_default(_dtype: pa.DataType) -> bool:
+        return False
+
     @staticmethod
     def _decode_key_value_metadata(
         metadata: Mapping[bytes | str, bytes | str] | None,
