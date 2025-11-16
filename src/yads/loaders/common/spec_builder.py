@@ -8,7 +8,7 @@ constraint handling that used to live inside the monolithic loader.
 from __future__ import annotations
 
 import warnings
-from typing import Any, Protocol
+from typing import Any, Mapping, Sequence, TypedDict, cast
 
 from ...constraints import (
     CONSTRAINT_EQUIVALENTS,
@@ -35,12 +35,13 @@ from ... import types as ytypes
 
 
 # %% ---- Protocols ------------------------------------------------------------------
-class ConstraintParser(Protocol):
-    def __call__(self, value: Any) -> ColumnConstraint: ...
+class _PartitioningOptionalDefinition(TypedDict, total=False):
+    transform: str
+    transform_args: list[Any]
 
 
-class TableConstraintParser(Protocol):
-    def __call__(self, const_def: dict[str, Any]) -> TableConstraint: ...
+class PartitioningDefinition(_PartitioningOptionalDefinition):
+    column: str
 
 
 # %% ---- Spec builder ---------------------------------------------------------------
@@ -125,7 +126,7 @@ class SpecBuilder:
 
     def _validate_keys(
         self,
-        obj: dict[str, Any],
+        obj: Mapping[str, Any],
         *,
         allowed_keys: set[str],
         required_keys: set[str] | None = None,
@@ -203,7 +204,8 @@ class SpecBuilder:
                 "The 'element' of an array must be a dictionary with a 'type' key."
             )
 
-        element_type_name = element_def["type"]
+        element_def = cast(dict[str, Any], element_def)
+        element_type_name = cast(str, element_def["type"])
         final_params = self._get_processed_type_params(type_def.get("type", ""), type_def)
         return ytypes.Array(
             element=self._parse_type(element_type_name, element_def),
@@ -224,11 +226,21 @@ class SpecBuilder:
 
         key_def = type_def["key"]
         value_def = type_def["value"]
+        if not isinstance(key_def, dict) or "type" not in key_def:
+            raise TypeDefinitionError(
+                "Map key definition must be a dictionary that includes 'type'."
+            )
+        if not isinstance(value_def, dict) or "type" not in value_def:
+            raise TypeDefinitionError(
+                "Map value definition must be a dictionary that includes 'type'."
+            )
+        key_def = cast(dict[str, Any], key_def)
+        value_def = cast(dict[str, Any], value_def)
         final_params = self._get_processed_type_params(type_def.get("type", ""), type_def)
 
         return ytypes.Map(
-            key=self._parse_type(key_def["type"], key_def),
-            value=self._parse_type(value_def["type"], value_def),
+            key=self._parse_type(cast(str, key_def["type"]), key_def),
+            value=self._parse_type(cast(str, value_def["type"]), value_def),
             **final_params,
         )
 
@@ -242,21 +254,30 @@ class SpecBuilder:
                 "The 'element' of a tensor must be a dictionary with a 'type' key."
             )
 
-        element_type_name = element_def["type"]
+        element_def = cast(dict[str, Any], element_def)
+        element_type_name = cast(str, element_def["type"])
         final_params = self._get_processed_type_params(type_def.get("type", ""), type_def)
 
         if "shape" not in final_params:
             raise TypeDefinitionError("Tensor type definition must include 'shape'.")
 
-        shape = final_params["shape"]
-        if not isinstance(shape, (list, tuple)):
+        raw_shape = final_params["shape"]
+        if not isinstance(raw_shape, (list, tuple)):
             raise TypeDefinitionError(
-                f"Tensor 'shape' must be a list or tuple, got {type(shape).__name__}."
+                f"Tensor 'shape' must be a list or tuple, got {type(raw_shape).__name__}."
             )
+
+        raw_shape_sequence = cast(Sequence[Any], raw_shape)
+        normalized_shape: list[int] = []
+        for raw_dim in raw_shape_sequence:
+            if isinstance(raw_dim, int):
+                normalized_shape.append(raw_dim)
+                continue
+            raise TypeDefinitionError("Tensor 'shape' elements must be integers.")
 
         return ytypes.Tensor(
             element=self._parse_type(element_type_name, element_def),
-            shape=tuple(shape),
+            shape=tuple(normalized_shape),
         )
 
     # %% ---- Field/Column parsing ----------------------------------------------------
@@ -343,9 +364,22 @@ class SpecBuilder:
             raise InvalidConstraintError(
                 "The 'foreign_key' constraint must specify 'references'."
             )
+        value_dict = cast(dict[str, Any], value)
+        name = value_dict.get("name")
+        if name is not None and not isinstance(name, str):
+            raise InvalidConstraintError(
+                "Foreign key constraint 'name' must be a string if provided."
+            )
+
+        references_value = value_dict["references"]
+        if not isinstance(references_value, dict):
+            raise InvalidConstraintError("Foreign key 'references' must be a dictionary.")
+
         return ForeignKeyConstraint(
-            name=value.get("name"),
-            references=self._parse_foreign_key_references(value["references"]),
+            name=name,
+            references=self._parse_foreign_key_references(
+                cast(dict[str, Any], references_value)
+            ),
         )
 
     def _parse_identity_constraint(self, value: Any) -> IdentityConstraint:
@@ -354,11 +388,23 @@ class SpecBuilder:
                 f"The 'identity' constraint expects a dictionary. Got {value!r}."
             )
 
-        increment = value.get("increment")
+        value_dict = cast(dict[str, Any], value)
+        always_value = value_dict.get("always", True)
+        if not isinstance(always_value, bool):
+            raise InvalidConstraintError("'always' must be a boolean when specified.")
+
+        start_value = value_dict.get("start")
+        if start_value is not None and not isinstance(start_value, int):
+            raise InvalidConstraintError("'start' must be an integer when specified.")
+
+        increment_value = value_dict.get("increment")
+        if increment_value is not None and not isinstance(increment_value, int):
+            raise InvalidConstraintError("'increment' must be an integer when specified.")
+
         return IdentityConstraint(
-            always=value.get("always", True),
-            start=value.get("start"),
-            increment=increment,
+            always=always_value,
+            start=start_value,
+            increment=increment_value,
         )
 
     def _parse_column_constraints(self, constraints_def: Any) -> list[ColumnConstraint]:
@@ -370,8 +416,9 @@ class SpecBuilder:
             raise SpecParsingError(
                 f"The 'constraints' attribute of a column must be a dictionary. Got {constraints_def!r} of type {type(constraints_def)}."
             )
+        constraints_map = cast(dict[str, Any], constraints_def)
 
-        for key, value in constraints_def.items():
+        for key, value in constraints_map.items():
             if parser_method_name := self._COLUMN_CONSTRAINT_PARSERS.get(key):
                 parser_method = getattr(self, parser_method_name)
                 # For boolean constraints, only add the constraint if the value is True
@@ -412,12 +459,12 @@ class SpecBuilder:
         )
 
     def _parse_partitioned_by(
-        self, partitioned_by_def: list[dict[str, Any]] | None
+        self, partitioned_by_def: list[PartitioningDefinition] | None
     ) -> list[yspec.TransformedColumnReference]:
         if not partitioned_by_def:
             return []
 
-        transformed_columns = []
+        transformed_columns: list[yspec.TransformedColumnReference] = []
         for pc in partitioned_by_def:
             self._validate_keys(
                 pc,
@@ -435,6 +482,21 @@ class SpecBuilder:
         return transformed_columns
 
     # %% ---- Table constraint parsing -----------------------------------------------
+    def _ensure_column_name_list(self, value: Any, context: str) -> list[str]:
+        if not isinstance(value, list):
+            raise InvalidConstraintError(
+                f"'{context}' columns must be a list of strings."
+            )
+        typed_columns = cast(list[object], value)
+        validated_columns: list[str] = []
+        for column in typed_columns:
+            if not isinstance(column, str):
+                raise InvalidConstraintError(
+                    f"'{context}' columns must be a list of strings."
+                )
+            validated_columns.append(column)
+        return validated_columns
+
     def _parse_primary_key_table_constraint(
         self, const_def: dict[str, Any]
     ) -> PrimaryKeyTableConstraint:
@@ -443,9 +505,15 @@ class SpecBuilder:
                 raise InvalidConstraintError(
                     f"Primary key table constraint must specify '{required_field}'."
                 )
-        return PrimaryKeyTableConstraint(
-            columns=const_def["columns"], name=const_def["name"]
+        name = const_def["name"]
+        if not isinstance(name, str):
+            raise InvalidConstraintError(
+                "Primary key table constraint 'name' must be a string."
+            )
+        columns = self._ensure_column_name_list(
+            const_def["columns"], "primary key table constraint"
         )
+        return PrimaryKeyTableConstraint(columns=columns, name=name)
 
     def _parse_foreign_key_table_constraint(
         self, const_def: dict[str, Any]
@@ -455,10 +523,25 @@ class SpecBuilder:
                 raise InvalidConstraintError(
                     f"Foreign key table constraint must specify '{required_field}'."
                 )
+        name = const_def["name"]
+        if not isinstance(name, str):
+            raise InvalidConstraintError(
+                "Foreign key table constraint 'name' must be a string."
+            )
+        columns = self._ensure_column_name_list(
+            const_def["columns"], "foreign key table constraint"
+        )
+        references_value = const_def["references"]
+        if not isinstance(references_value, dict):
+            raise InvalidConstraintError(
+                "Foreign key table constraint 'references' must be a dictionary."
+            )
         return ForeignKeyTableConstraint(
-            columns=const_def["columns"],
-            name=const_def["name"],
-            references=self._parse_foreign_key_references(const_def["references"]),
+            columns=columns,
+            name=name,
+            references=self._parse_foreign_key_references(
+                cast(dict[str, Any], references_value)
+            ),
         )
 
     def _parse_foreign_key_references(
@@ -468,8 +551,29 @@ class SpecBuilder:
             raise InvalidConstraintError(
                 "The 'references' of a foreign key must be a dictionary with a 'table' key."
             )
+        table_value = references_def["table"]
+        if not isinstance(table_value, str):
+            raise InvalidConstraintError("'references.table' must be a string.")
+
+        columns_value = references_def.get("columns")
+        validated_columns: list[str] | None = None
+        if columns_value is not None:
+            if not isinstance(columns_value, list):
+                raise InvalidConstraintError(
+                    "'references.columns' must be a list of strings."
+                )
+            validated_columns = []
+            columns_iterable = cast(list[object], columns_value)
+            for column in columns_iterable:
+                if not isinstance(column, str):
+                    raise InvalidConstraintError(
+                        "'references.columns' must be a list of strings."
+                    )
+                validated_columns.append(column)
+
         return ForeignKeyReference(
-            table=references_def["table"], columns=references_def.get("columns")
+            table=table_value,
+            columns=validated_columns,
         )
 
     def _parse_table_constraints(
@@ -480,9 +584,10 @@ class SpecBuilder:
 
         constraints: list[TableConstraint] = []
         for const_def in table_constraints_def:
-            if not (constraint_type := const_def.get("type")):
+            constraint_type = const_def.get("type")
+            if not isinstance(constraint_type, str):
                 raise InvalidConstraintError(
-                    "Table constraint definition must have a 'type'."
+                    "Table constraint definition must have a 'type' string."
                 )
 
             if parser_method_name := self._TABLE_CONSTRAINT_PARSERS.get(constraint_type):
@@ -522,7 +627,7 @@ class SpecBuilder:
                 for c in spec.columns
                 if any(isinstance(const, col_const_type) for const in c.constraints)
             }
-            table_constrained_cols = set()
+            table_constrained_cols: set[str] = set()
             for const in spec.table_constraints:
                 if isinstance(const, tbl_const_type):
                     table_constrained_cols.update(const.constrained_columns)

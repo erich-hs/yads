@@ -67,7 +67,7 @@ Set up your development environment:
 make install
 ```
 
-This installs all core dependencies and sets up pre-commit hooks.
+This installs all core and development dependencies and sets up pre-commit hooks.
 
 Verify your setup by running tests and linting:
 

@@ -19,7 +19,7 @@ Example:
     >>> # Create a complete spec
     >>> spec = YadsSpec(
     ...     name="users",
-    ...     version="1.0.0",
+    ...     version=1,
     ...     columns=columns,
     ...     description="User information table"
     ... )
@@ -55,6 +55,35 @@ def _format_dict_as_kwargs(d: dict[str, Any], multiline: bool = False) -> str:
     return f"{{{', '.join(items)}}}"
 
 
+# Typed default factory helpers
+def _empty_any_list() -> list[Any]:
+    return []
+
+
+def _empty_constraints() -> list[ColumnConstraint]:
+    return []
+
+
+def _empty_metadata() -> dict[str, Any]:
+    return {}
+
+
+def _empty_tbl_properties() -> dict[str, str]:
+    return {}
+
+
+def _empty_columns() -> list[Column]:
+    return []
+
+
+def _empty_partitions() -> list[TransformedColumnReference]:
+    return []
+
+
+def _empty_table_constraints() -> list[TableConstraint]:
+    return []
+
+
 @dataclass(frozen=True)
 class TransformedColumnReference:
     """A reference to a column with an optional transformation function.
@@ -68,7 +97,7 @@ class TransformedColumnReference:
 
     column: str
     transform: str | None = None
-    transform_args: list[Any] = field(default_factory=list)
+    transform_args: list[Any] = field(default_factory=_empty_any_list)
 
     def __str__(self) -> str:
         if self.transform:
@@ -110,8 +139,8 @@ class Field:
     name: str
     type: YadsType
     description: str | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
-    constraints: list[ColumnConstraint] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=_empty_metadata)
+    constraints: list[ColumnConstraint] = field(default_factory=_empty_constraints)
 
     @cached_property
     def has_metadata(self) -> bool:
@@ -134,7 +163,7 @@ class Field:
         return {type(constraint) for constraint in self.constraints}
 
     def _build_details_repr(self) -> str:
-        details = []
+        details: list[str] = []
         if self.description:
             details.append(f"description={self.description!r}")
         if self.constraints:
@@ -193,7 +222,7 @@ class Column(Field):
         return self.generated_as is not None
 
     def _build_details_repr(self) -> str:
-        details = []
+        details: list[str] = []
         if self.description:
             details.append(f"description={self.description!r}")
         if self.constraints:
@@ -220,10 +249,10 @@ class Storage:
 
     format: str | None = None
     location: str | None = None
-    tbl_properties: dict[str, str] = field(default_factory=dict)
+    tbl_properties: dict[str, str] = field(default_factory=_empty_tbl_properties)
 
     def __str__(self) -> str:
-        parts = []
+        parts: list[str] = []
         if self.format:
             parts.append(f"format={self.format!r}")
         if self.location:
@@ -302,13 +331,17 @@ class YadsSpec:
     name: str
     version: int
     yads_spec_version: str = YADS_SPEC_VERSION
-    columns: list[Column] = field(default_factory=list)
+    columns: list[Column] = field(default_factory=_empty_columns)
     description: str | None = None
     external: bool = False
     storage: Storage | None = None
-    partitioned_by: list[TransformedColumnReference] = field(default_factory=list)
-    table_constraints: list[TableConstraint] = field(default_factory=list)
-    metadata: dict[str, Any] = field(default_factory=dict)
+    partitioned_by: list[TransformedColumnReference] = field(
+        default_factory=_empty_partitions
+    )
+    table_constraints: list[TableConstraint] = field(
+        default_factory=_empty_table_constraints
+    )
+    metadata: dict[str, Any] = field(default_factory=_empty_metadata)
 
     def __post_init__(self):
         self._validate_columns()
@@ -317,7 +350,7 @@ class YadsSpec:
         self._validate_table_constraints()
 
     def _validate_columns(self):
-        names = set()
+        names: set[str] = set()
         for c in self.columns:
             if c.name in names:
                 raise SpecValidationError(f"Duplicate column name found: {c.name!r}.")
@@ -381,7 +414,7 @@ class YadsSpec:
         return f"spec {self.name}(version={self.version!r})"
 
     def _build_body_str(self) -> str:
-        parts = []
+        parts: list[str] = []
         if self.description:
             parts.append(f"description={self.description!r}")
         if self.metadata:

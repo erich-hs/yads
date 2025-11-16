@@ -13,7 +13,7 @@ Example:
     ...     StructField("name", StringType(), nullable=True),
     ... ])
     >>> loader = PySparkLoader()
-    >>> spec = loader.load(schema, name="test.table", version="1.0.0")
+    >>> spec = loader.load(schema, name="test.table", version=1)
     >>> spec.name
     'test.table'
 """
@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from functools import singledispatchmethod
 from typing import TYPE_CHECKING, Any, Literal
 
-import importlib
+import pyspark.sql.types as pyspark_types
 
 from .. import types as ytypes
 from ..exceptions import LoaderConfigError, UnsupportedFeatureError, validation_warning
@@ -33,8 +33,6 @@ from .base import BaseLoaderConfig, ConfigurableLoader
 from .common import SpecBuilder
 
 ensure_dependency("pyspark", min_version="3.1.1")
-
-T = importlib.import_module("pyspark.sql.types")
 
 if TYPE_CHECKING:
     from ..spec import YadsSpec
@@ -203,39 +201,39 @@ class PySparkLoader(ConfigurableLoader):
 
         raise UnsupportedFeatureError(f"{error_msg}.")
 
-    @_convert_type.register(T.NullType)
+    @_convert_type.register(pyspark_types.NullType)
     def _(self, dtype: NullType) -> dict[str, Any]:
         return {"type": "void"}
 
-    @_convert_type.register(T.BooleanType)
+    @_convert_type.register(pyspark_types.BooleanType)
     def _(self, dtype: BooleanType) -> dict[str, Any]:
         return {"type": "boolean"}
 
-    @_convert_type.register(T.ByteType)
+    @_convert_type.register(pyspark_types.ByteType)
     def _(self, dtype: ByteType) -> dict[str, Any]:
         return {"type": "integer", "params": {"bits": 8, "signed": True}}
 
-    @_convert_type.register(T.ShortType)
+    @_convert_type.register(pyspark_types.ShortType)
     def _(self, dtype: ShortType) -> dict[str, Any]:
         return {"type": "integer", "params": {"bits": 16, "signed": True}}
 
-    @_convert_type.register(T.IntegerType)
+    @_convert_type.register(pyspark_types.IntegerType)
     def _(self, dtype: IntegerType) -> dict[str, Any]:
         return {"type": "integer", "params": {"bits": 32, "signed": True}}
 
-    @_convert_type.register(T.LongType)
+    @_convert_type.register(pyspark_types.LongType)
     def _(self, dtype: LongType) -> dict[str, Any]:
         return {"type": "integer", "params": {"bits": 64, "signed": True}}
 
-    @_convert_type.register(T.FloatType)
+    @_convert_type.register(pyspark_types.FloatType)
     def _(self, dtype: FloatType) -> dict[str, Any]:
         return {"type": "float", "params": {"bits": 32}}
 
-    @_convert_type.register(T.DoubleType)
+    @_convert_type.register(pyspark_types.DoubleType)
     def _(self, dtype: DoubleType) -> dict[str, Any]:
         return {"type": "float", "params": {"bits": 64}}
 
-    @_convert_type.register(T.DecimalType)
+    @_convert_type.register(pyspark_types.DecimalType)
     def _(self, dtype: DecimalType) -> dict[str, Any]:
         return {
             "type": "decimal",
@@ -245,29 +243,29 @@ class PySparkLoader(ConfigurableLoader):
             },
         }
 
-    @_convert_type.register(T.StringType)
+    @_convert_type.register(pyspark_types.StringType)
     def _(self, dtype: StringType) -> dict[str, Any]:
         return {"type": "string"}
 
-    @_convert_type.register(T.BinaryType)
+    @_convert_type.register(pyspark_types.BinaryType)
     def _(self, dtype: BinaryType) -> dict[str, Any]:
         return {"type": "binary"}
 
-    @_convert_type.register(T.DateType)
+    @_convert_type.register(pyspark_types.DateType)
     def _(self, dtype: DateType) -> dict[str, Any]:
         return {"type": "date", "params": {"bits": 32}}
 
-    @_convert_type.register(T.TimestampType)
+    @_convert_type.register(pyspark_types.TimestampType)
     def _(self, dtype: TimestampType) -> dict[str, Any]:
         return {"type": "timestampltz", "params": {"unit": "ns"}}
 
-    @_convert_type.register(T.ArrayType)
+    @_convert_type.register(pyspark_types.ArrayType)
     def _(self, dtype: ArrayType) -> dict[str, Any]:
         with self.load_context(field="<array_element>"):
             elem_def = self._convert_type(dtype.elementType)
         return {"type": "array", "element": elem_def}
 
-    @_convert_type.register(T.MapType)
+    @_convert_type.register(pyspark_types.MapType)
     def _(self, dtype: MapType) -> dict[str, Any]:
         with self.load_context(field="<map_key>"):
             key_def = self._convert_type(dtype.keyType)
@@ -275,7 +273,7 @@ class PySparkLoader(ConfigurableLoader):
             val_def = self._convert_type(dtype.valueType)
         return {"type": "map", "key": key_def, "value": val_def}
 
-    @_convert_type.register(T.StructType)
+    @_convert_type.register(pyspark_types.StructType)
     def _(self, dtype: StructType) -> dict[str, Any]:
         fields: list[dict[str, Any]] = []
         for field in dtype.fields:
@@ -286,21 +284,21 @@ class PySparkLoader(ConfigurableLoader):
 
     # Version-gated type registrations for types not available in earlier PySpark versions
 
-    if hasattr(T, "DayTimeIntervalType"):  # Added in pyspark 3.2.0
+    if hasattr(pyspark_types, "DayTimeIntervalType"):  # Added in pyspark 3.2.0
 
-        @_convert_type.register(T.DayTimeIntervalType)  # type: ignore[misc]
+        @_convert_type.register(pyspark_types.DayTimeIntervalType)  # type: ignore[misc]
         def _convert_daytime_interval(self, dtype: DayTimeIntervalType) -> dict[str, Any]:
-            start_field = dtype.startField
-            end_field = dtype.endField
-            # Map integer field values to names
-            field_names = {0: "DAY", 1: "HOUR", 2: "MINUTE", 3: "SECOND"}
-            start_name = field_names.get(start_field, "DAY")
-            if end_field is None or start_field == end_field:
-                return {
-                    "type": "interval",
-                    "params": {"interval_start": start_name},
-                }
-            end_name = field_names.get(end_field, "SECOND")
+            start_field: int | None = dtype.startField
+            end_field: int | None = dtype.endField
+            field_names: dict[int, str] = {0: "DAY", 1: "HOUR", 2: "MINUTE", 3: "SECOND"}
+            start_key: int = start_field if start_field is not None else 0
+            start_name: str = field_names.get(start_key, "DAY")
+            if end_field is None:
+                return {"type": "interval", "params": {"interval_start": start_name}}
+            end_key: int = end_field
+            if start_key == end_key:
+                return {"type": "interval", "params": {"interval_start": start_name}}
+            end_name: str = field_names.get(end_key, "SECOND")
             return {
                 "type": "interval",
                 "params": {
@@ -309,41 +307,41 @@ class PySparkLoader(ConfigurableLoader):
                 },
             }
 
-    if hasattr(T, "CharType"):  # Added in pyspark 3.4.0
+    if hasattr(pyspark_types, "CharType"):  # Added in pyspark 3.4.0
 
-        @_convert_type.register(T.CharType)  # type: ignore[misc]
+        @_convert_type.register(pyspark_types.CharType)  # type: ignore[misc]
         def _convert_char(self, dtype: CharType) -> dict[str, Any]:
             return {"type": "string", "params": {"length": dtype.length}}
 
-    if hasattr(T, "VarcharType"):  # Added in pyspark 3.4.0
+    if hasattr(pyspark_types, "VarcharType"):  # Added in pyspark 3.4.0
 
-        @_convert_type.register(T.VarcharType)  # type: ignore[misc]
+        @_convert_type.register(pyspark_types.VarcharType)  # type: ignore[misc]
         def _convert_varchar(self, dtype: VarcharType) -> dict[str, Any]:
             return {"type": "string", "params": {"length": dtype.length}}
 
-    if hasattr(T, "TimestampNTZType"):  # Added in pyspark 3.4.0
+    if hasattr(pyspark_types, "TimestampNTZType"):  # Added in pyspark 3.4.0
 
-        @_convert_type.register(T.TimestampNTZType)  # type: ignore[misc]
+        @_convert_type.register(pyspark_types.TimestampNTZType)  # type: ignore[misc]
         def _convert_timestamp_ntz(self, dtype: TimestampNTZType) -> dict[str, Any]:
             return {"type": "timestampntz", "params": {"unit": "ns"}}
 
-    if hasattr(T, "YearMonthIntervalType"):  # Added in pyspark 3.5.0
+    if hasattr(pyspark_types, "YearMonthIntervalType"):  # Added in pyspark 3.5.0
 
-        @_convert_type.register(T.YearMonthIntervalType)  # type: ignore[misc]
+        @_convert_type.register(pyspark_types.YearMonthIntervalType)  # type: ignore[misc]
         def _convert_yearmonth_interval(
             self, dtype: YearMonthIntervalType
         ) -> dict[str, Any]:
-            start_field = dtype.startField
-            end_field = dtype.endField
-            # Map integer field values to names
-            field_names = {0: "YEAR", 1: "MONTH"}
-            start_name = field_names.get(start_field, "YEAR")
-            if end_field is None or start_field == end_field:
-                return {
-                    "type": "interval",
-                    "params": {"interval_start": start_name},
-                }
-            end_name = field_names.get(end_field, "MONTH")
+            start_field: int | None = dtype.startField
+            end_field: int | None = dtype.endField
+            field_names: dict[int, str] = {0: "YEAR", 1: "MONTH"}
+            start_key: int = start_field if start_field is not None else 0
+            start_name: str = field_names.get(start_key, "YEAR")
+            if end_field is None:
+                return {"type": "interval", "params": {"interval_start": start_name}}
+            end_key: int = end_field
+            if start_key == end_key:
+                return {"type": "interval", "params": {"interval_start": start_name}}
+            end_name: str = field_names.get(end_key, "MONTH")
             return {
                 "type": "interval",
                 "params": {
@@ -352,9 +350,9 @@ class PySparkLoader(ConfigurableLoader):
                 },
             }
 
-    if hasattr(T, "VariantType"):  # Added in pyspark 4.0.0
+    if hasattr(pyspark_types, "VariantType"):  # Added in pyspark 4.0.0
 
-        @_convert_type.register(T.VariantType)  # type: ignore[misc]
+        @_convert_type.register(pyspark_types.VariantType)  # type: ignore[misc]
         def _convert_variant(self, dtype: VariantType) -> dict[str, Any]:
             return {"type": "variant"}
 

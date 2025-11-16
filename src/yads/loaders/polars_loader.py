@@ -21,7 +21,7 @@ Example:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from .. import types as ytypes
 from ..exceptions import LoaderConfigError, UnsupportedFeatureError, validation_warning
@@ -35,6 +35,8 @@ import polars as pl  # type: ignore[import-untyped] # noqa: E402
 
 if TYPE_CHECKING:
     from ..spec import YadsSpec
+
+ArrayShapeSequence = tuple[int, ...] | list[int]
 
 
 @dataclass(frozen=True)
@@ -235,7 +237,7 @@ class PolarsLoader(ConfigurableLoader):
 
         if isinstance(dtype, pl.Array):
             inner_type = getattr(dtype, "inner", None)
-            shape = getattr(dtype, "shape", None)
+            shape = cast(ArrayShapeSequence | int | None, getattr(dtype, "shape", None))
 
             if inner_type is None:
                 raise UnsupportedFeatureError(
@@ -251,7 +253,7 @@ class PolarsLoader(ConfigurableLoader):
 
             # Convert shape to tuple if it's not already
             if isinstance(shape, (list, tuple)):
-                shape_tuple = tuple(shape)
+                shape_tuple: tuple[int, ...] = tuple(shape)
             else:
                 shape_tuple = (shape,)
 

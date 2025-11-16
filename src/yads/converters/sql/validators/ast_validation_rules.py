@@ -6,6 +6,9 @@ issues across different SQL dialects.
 
 from __future__ import annotations
 
+# pyright: reportUnknownArgumentType=none, reportUnknownMemberType=none
+# pyright: reportUnknownVariableType=none
+
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, TypeGuard
 
@@ -329,9 +332,7 @@ class DisallowColumnConstraintGeneratedIdentity(AstValidationRule):
         if not constraints:
             return False
         for constraint in constraints:
-            if isinstance(constraint, ColumnConstraint) and isinstance(
-                constraint.kind, GeneratedAsIdentityColumnConstraint
-            ):
+            if isinstance(constraint.kind, GeneratedAsIdentityColumnConstraint):
                 # Only flag true IDENTITY (sequence) clauses, not generated columns
                 # Generated columns carry an 'expression' argument
                 if not constraint.kind.args.get("expression"):

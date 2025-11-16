@@ -1,10 +1,46 @@
 from __future__ import annotations
 
-from typing import Any, Callable, Literal, Mapping, Type, TYPE_CHECKING
+# pyright: reportUnsupportedDunderAll=none
 
+
+from typing import Any, Callable, Literal, Mapping, TYPE_CHECKING, cast
+
+from ..spec import Field as SpecField, YadsSpec
 from .._dependencies import requires_dependency
 from .base import BaseConverter, BaseConverterConfig
 from .pydantic_converter import PydanticConverter, PydanticConverterConfig
+
+if TYPE_CHECKING:
+    # PyArrow typing stubs are not yet available.
+    # https://github.com/apache/arrow/pull/47609
+    import polars as pl  # pyright: ignore[reportMissingImports]
+    from pydantic import BaseModel  # pyright: ignore[reportMissingImports]
+    from pydantic.fields import FieldInfo  # pyright: ignore[reportMissingImports]
+    from pyspark.sql.types import (  # pyright: ignore[reportMissingImports]
+        StructType,
+        StructField,
+        DataType,
+    )
+    from sqlglot import expressions as exp  # pyright: ignore[reportMissingImports]
+    from .pyarrow_converter import PyArrowConverter
+    from .pyspark_converter import PySparkConverter
+    from .polars_converter import PolarsConverter
+    from .sql.ast_converter import AstConverter, SQLGlotConverter, SQLGlotConverterConfig
+    from .sql.sql_converter import (
+        SQLConverter,
+        SQLConverterConfig,
+        SparkSQLConverter,
+        DuckdbSQLConverter,
+    )
+
+    # Column override type aliases (type checking only)
+    PyArrowColumnOverride = Callable[[SpecField, PyArrowConverter], Any]
+    PydanticColumnOverride = Callable[
+        [SpecField, PydanticConverter], tuple[Any, FieldInfo]
+    ]
+    PySparkColumnOverride = Callable[[SpecField, PySparkConverter], StructField]
+    PolarsColumnOverride = Callable[[SpecField, PolarsConverter], pl.Field]
+    SQLGlotColumnOverride = Callable[[SpecField, SQLGlotConverter], exp.ColumnDef]
 
 
 def __getattr__(name: str):
@@ -60,38 +96,6 @@ __all__ = [
     "PolarsConverterConfig",
 ]
 
-if TYPE_CHECKING:
-    import pyarrow as pa  # type: ignore[import-untyped]
-    import polars as pl  # type: ignore[import-untyped]
-    from pydantic import BaseModel  # type: ignore[import-untyped]
-    from pydantic.fields import FieldInfo  # type: ignore[import-untyped]
-    from pyspark.sql.types import (
-        StructType,
-        StructField,
-        DataType,
-    )  # type: ignore[import-untyped]
-    from sqlglot import expressions as exp  # type: ignore[import-untyped]
-    from .pyarrow_converter import PyArrowConverter
-    from .pyspark_converter import PySparkConverter
-    from .polars_converter import PolarsConverter
-    from .sql.ast_converter import AstConverter, SQLGlotConverter, SQLGlotConverterConfig
-    from .sql.sql_converter import (
-        SQLConverter,
-        SQLConverterConfig,
-        SparkSQLConverter,
-        DuckdbSQLConverter,
-    )
-    from ..spec import YadsSpec, Field as SpecField
-
-    # Column override type aliases (for static typing only)
-    PyArrowColumnOverride = Callable[[SpecField, PyArrowConverter], pa.Field]
-    PydanticColumnOverride = Callable[
-        [SpecField, PydanticConverter], tuple[Any, FieldInfo]
-    ]
-    PySparkColumnOverride = Callable[[SpecField, PySparkConverter], StructField]
-    PolarsColumnOverride = Callable[[SpecField, PolarsConverter], pl.Field]
-    SQLGlotColumnOverride = Callable[[SpecField, SQLGlotConverter], exp.ColumnDef]
-
 
 @requires_dependency("pyarrow", min_version="15.0.0", import_name="pyarrow")
 def to_pyarrow(
@@ -106,8 +110,8 @@ def to_pyarrow(
     use_large_string: bool = False,
     use_large_binary: bool = False,
     use_large_list: bool = False,
-    fallback_type: pa.DataType | None = None,
-) -> pa.Schema:
+    fallback_type: Any | None = None,
+) -> Any:
     """Convert a `YadsSpec` to a `pyarrow.Schema`.
 
     Args:
@@ -132,7 +136,9 @@ def to_pyarrow(
         mode=mode,
         ignore_columns=frozenset(ignore_columns) if ignore_columns else frozenset[str](),
         include_columns=frozenset(include_columns) if include_columns else None,
-        column_overrides=column_overrides or {},
+        column_overrides=cast(
+            Mapping[str, PyArrowColumnOverride], column_overrides or {}
+        ),
         use_large_string=use_large_string,
         use_large_binary=use_large_binary,
         use_large_list=use_large_list,
@@ -153,8 +159,8 @@ def to_pydantic(
     # PydanticConverterConfig options
     model_name: str | None = None,
     model_config: dict[str, Any] | None = None,
-    fallback_type: type[str] | type[dict] | type[bytes] | None = None,
-) -> Type[BaseModel]:
+    fallback_type: type[str] | type[dict[Any, Any]] | type[bytes] | None = None,
+) -> type[BaseModel]:
     """Convert a `YadsSpec` to a Pydantic `BaseModel` subclass.
 
     Args:
@@ -178,7 +184,9 @@ def to_pydantic(
         mode=mode,
         ignore_columns=frozenset(ignore_columns) if ignore_columns else frozenset[str](),
         include_columns=frozenset(include_columns) if include_columns else None,
-        column_overrides=column_overrides or {},
+        column_overrides=cast(
+            Mapping[str, PydanticColumnOverride], column_overrides or {}
+        ),
         model_name=model_name,
         model_config=model_config,
         fallback_type=fallback_type,
@@ -219,7 +227,9 @@ def to_pyspark(
         mode=mode,
         ignore_columns=frozenset(ignore_columns) if ignore_columns else frozenset[str](),
         include_columns=frozenset(include_columns) if include_columns else None,
-        column_overrides=column_overrides or {},
+        column_overrides=cast(
+            Mapping[str, PySparkColumnOverride], column_overrides or {}
+        ),
         fallback_type=fallback_type,
     )
     return pyspark_converter.PySparkConverter(config).convert(spec)
@@ -258,7 +268,7 @@ def to_polars(
         mode=mode,
         ignore_columns=frozenset(ignore_columns) if ignore_columns else frozenset[str](),
         include_columns=frozenset(include_columns) if include_columns else None,
-        column_overrides=column_overrides or {},
+        column_overrides=cast(Mapping[str, PolarsColumnOverride], column_overrides or {}),
         fallback_type=fallback_type,
     )
     return polars_converter.PolarsConverter(config).convert(spec)
@@ -280,7 +290,7 @@ def to_sql(
     or_replace: bool = False,
     ignore_catalog: bool = False,
     ignore_database: bool = False,
-    fallback_type: Any = None,
+    fallback_type: exp.DataType.Type | None = None,
     # SQL serialization options to forward to sqlglot (e.g., pretty=True)
     **sql_options: Any,
 ) -> str:
@@ -317,7 +327,9 @@ def to_sql(
         mode=mode,
         ignore_columns=frozenset(ignore_columns) if ignore_columns else frozenset[str](),
         include_columns=frozenset(include_columns) if include_columns else None,
-        column_overrides=column_overrides or {},
+        column_overrides=cast(
+            Mapping[str, SQLGlotColumnOverride], column_overrides or {}
+        ),
         if_not_exists=if_not_exists,
         or_replace=or_replace,
         ignore_catalog=ignore_catalog,

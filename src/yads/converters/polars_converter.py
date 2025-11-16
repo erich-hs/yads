@@ -9,7 +9,7 @@ Example:
     >>> from yads.converters import PolarsConverter
     >>> spec = YadsSpec(
     ...     name="catalog.db.table",
-    ...     version="0.0.1",
+    ...     version=1,
     ...     columns=[
     ...         Column(name="id", type=ytypes.Integer(bits=64)),
     ...         Column(name="name", type=ytypes.String()),
@@ -21,6 +21,9 @@ Example:
 """
 
 from __future__ import annotations
+
+# pyright: reportUnknownArgumentType=none, reportUnknownMemberType=none
+# pyright: reportUnknownVariableType=none
 
 from functools import singledispatchmethod
 from typing import TYPE_CHECKING, Any, Callable, Literal, Mapping
@@ -39,7 +42,7 @@ if TYPE_CHECKING:
 
 # %% ---- Configuration --------------------------------------------------------------
 @dataclass(frozen=True)
-class PolarsConverterConfig(BaseConverterConfig):
+class PolarsConverterConfig(BaseConverterConfig[Any]):
     """Configuration for PolarsConverter.
 
     Args:
@@ -58,7 +61,7 @@ class PolarsConverterConfig(BaseConverterConfig):
     """
 
     fallback_type: Any | None = None
-    column_overrides: Mapping[str, Callable[[yspec.Field, PolarsConverter], Any]] = field(
+    column_overrides: Mapping[str, Callable[[yspec.Field, Any], Any]] = field(
         default_factory=lambda: MappingProxyType({})
     )
 
@@ -79,7 +82,7 @@ class PolarsConverterConfig(BaseConverterConfig):
 
 
 # %% ---- Converter ------------------------------------------------------------------
-class PolarsConverter(BaseConverter):
+class PolarsConverter(BaseConverter[Any]):
     """Convert a yads `YadsSpec` into a `polars.Schema`.
 
     The converter maps each yads column to a `polars.Field` and assembles a

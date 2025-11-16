@@ -8,7 +8,7 @@ import pytest
 from pydantic import BaseModel, create_model
 from pydantic import Field as PydanticField
 
-from yads._dependencies import _get_installed_version, _meets_min_version
+from yads._dependencies import get_installed_version, meets_min_version
 from yads.converters import PydanticConverter, PydanticConverterConfig
 from yads.constraints import (
     DefaultConstraint,
@@ -125,10 +125,10 @@ def unwrap_optional(annotation: Any) -> Any:
 
 def supports_decimal_constraints() -> bool:
     """Check if the installed Pydantic version supports Decimal constraints."""
-    pydantic_version = _get_installed_version("pydantic")
+    pydantic_version = get_installed_version("pydantic")
     if pydantic_version is None:
         return False
-    return _meets_min_version(pydantic_version, "2.8.0")
+    return meets_min_version(pydantic_version, "2.8.0")
 
 
 # fmt: off

@@ -35,7 +35,7 @@ test:
 
 .PHONY: test-cov
 test-cov:
-	uv run --all-groups pytest --cov=src --cov-report=html
+	uv run --all-groups pytest --cov=src --cov-branch --cov-report=html
 
 .PHONY: test-dependency
 test-dependency:  # Test compatibility across different versions of a specific optional dependency.
@@ -98,7 +98,7 @@ help:
 	@echo "======================"
 	@echo ""
 	@echo "Setup Commands:"
-	@echo "  make install          Install core dependencies and setup pre-commit hooks"
+	@echo "  make install          Install core and development dependencies and setup pre-commit hooks"
 	@echo "  make install-all      Install all dependencies and setup hooks"
 	@echo "  make sync             Update dependencies to match lockfile"
 	@echo ""

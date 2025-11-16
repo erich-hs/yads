@@ -54,7 +54,8 @@ The latest `yads` specification JSON schema is available [here](./spec/yads_spec
 ```yaml
 # registry/specs/customers.yaml
 name: catalog.crm.customers
-version: 1.0.0
+version: 1
+yads_spec_version: 0.0.2
 columns:
   - name: id
     type: bigint
@@ -217,11 +218,11 @@ schema = pa.schema([
     pa.field("created_at", pa.timestamp('ns', tz='UTC'), metadata={"description": "Record creation timestamp"}),
 ])
 
-spec = yads.from_pyarrow(schema, name="catalog.crm.customers", version="1.0.0")
+spec = yads.from_pyarrow(schema, name="catalog.crm.customers", version=1)
 print(spec)
 ```
 ```text
-spec catalog.crm.customers(version='1.0.0')(
+spec catalog.crm.customers(version=1)(
   columns=[
     id: integer(bits=64)(
       description='Customer ID',

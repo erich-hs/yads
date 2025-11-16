@@ -9,7 +9,7 @@ Example:
     >>> from yads.converters import PyArrowConverter
     >>> spec = YadsSpec(
     ...     name="catalog.db.table",
-    ...     version="0.0.1",
+    ...     version=1,
     ...     columns=[
     ...         Column(name="id", type=ytypes.Integer(bits=64)),
     ...         Column(name="name", type=ytypes.String()),
@@ -21,6 +21,11 @@ Example:
 """
 
 from __future__ import annotations
+
+# pyright: reportUnknownArgumentType=none, reportUnknownMemberType=none
+# pyright: reportUnknownVariableType=none, reportUnknownParameterType=none
+# pyright: reportUnknownLambdaType=none
+# PyArrow typing stubs progress: https://github.com/apache/arrow/pull/47609
 
 from functools import singledispatchmethod
 import json
@@ -40,7 +45,7 @@ if TYPE_CHECKING:
 
 # %% ---- Configuration --------------------------------------------------------------
 @dataclass(frozen=True)
-class PyArrowConverterConfig(BaseConverterConfig):
+class PyArrowConverterConfig(BaseConverterConfig[Any]):
     """Configuration for PyArrowConverter.
 
     Args:
@@ -96,7 +101,7 @@ class PyArrowConverterConfig(BaseConverterConfig):
 
 
 # %% ---- Converter ------------------------------------------------------------------
-class PyArrowConverter(BaseConverter):
+class PyArrowConverter(BaseConverter[Any]):
     """Convert a yads `YadsSpec` into a `pyarrow.Schema`.
 
     The converter maps each yads column to a `pyarrow.Field` and assembles a
@@ -131,7 +136,7 @@ class PyArrowConverter(BaseConverter):
         spec: yspec.YadsSpec,
         *,
         mode: Literal["raise", "coerce"] | None = None,
-    ) -> pa.Schema:
+    ) -> Any:
         """Convert a yads `YadsSpec` into a `pyarrow.Schema`.
 
         Args:
@@ -457,7 +462,7 @@ class PyArrowConverter(BaseConverter):
         metadata: dict[str, Any] = {}
         if field.description is not None:
             metadata["description"] = field.description
-        if field.metadata is not None:
+        if field.metadata:
             metadata.update(field.metadata)
         return self._coerce_metadata(metadata) if metadata else None
 

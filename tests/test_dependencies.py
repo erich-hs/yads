@@ -10,9 +10,9 @@ from unittest.mock import patch
 import pytest
 
 from yads._dependencies import (
-    _get_installed_version,
+    get_installed_version,
     _normalize_version,
-    _meets_min_version,
+    meets_min_version,
     _format_install_hint,
     ensure_dependency,
     requires_dependency,
@@ -28,7 +28,7 @@ class TestGetInstalledVersion:
         """Test getting version for an existing package."""
         with patch("yads._dependencies.md.version") as mock_version:
             mock_version.return_value = "1.2.3"
-            result = _get_installed_version("pytest")
+            result = get_installed_version("pytest")
             assert result == "1.2.3"
             mock_version.assert_called_once_with("pytest")
 
@@ -36,7 +36,7 @@ class TestGetInstalledVersion:
         """Test getting version for a missing package."""
         with patch("yads._dependencies.md.version") as mock_version:
             mock_version.side_effect = md.PackageNotFoundError("Package not found")
-            result = _get_installed_version("nonexistent-package")
+            result = get_installed_version("nonexistent-package")
             assert result is None
             mock_version.assert_called_once_with("nonexistent-package")
 
@@ -46,11 +46,11 @@ class TestGetInstalledVersion:
             mock_version.return_value = "2.0.0"
 
             # First call
-            result1 = _get_installed_version("test-package")
+            result1 = get_installed_version("test-package")
             assert result1 == "2.0.0"
 
             # Second call should use cache
-            result2 = _get_installed_version("test-package")
+            result2 = get_installed_version("test-package")
             assert result2 == "2.0.0"
 
             # Should only be called once due to caching
@@ -96,32 +96,32 @@ class TestMeetsMinVersion:
 
     def test_meets_min_version_numeric_comparison(self):
         """Test numeric tuple comparison."""
-        assert _meets_min_version("1.2.3", "1.2.2") is True
-        assert _meets_min_version("1.2.3", "1.2.3") is True
-        assert _meets_min_version("1.2.3", "1.2.4") is False
-        assert _meets_min_version("2.0.0", "1.9.9") is True
+        assert meets_min_version("1.2.3", "1.2.2") is True
+        assert meets_min_version("1.2.3", "1.2.3") is True
+        assert meets_min_version("1.2.3", "1.2.4") is False
+        assert meets_min_version("2.0.0", "1.9.9") is True
 
     def test_meets_min_version_different_lengths(self):
         """Test comparison with different version lengths."""
         # "1.2" normalizes to (1, 2), gets padded to (1, 2, 0)
         # "1.2.0" normalizes to (1, 2, 0)
-        assert _meets_min_version("1.2", "1.2.0") is True  # (1, 2, 0) >= (1, 2, 0)
-        assert _meets_min_version("1.2.0", "1.2") is True  # (1, 2, 0) >= (1, 2, 0)
-        assert _meets_min_version("1.1", "1.2.0") is False  # (1, 1, 0) < (1, 2, 0)
+        assert meets_min_version("1.2", "1.2.0") is True  # (1, 2, 0) >= (1, 2, 0)
+        assert meets_min_version("1.2.0", "1.2") is True  # (1, 2, 0) >= (1, 2, 0)
+        assert meets_min_version("1.1", "1.2.0") is False  # (1, 1, 0) < (1, 2, 0)
 
     def test_meets_min_version_fallback_to_string(self):
         """Test fallback to string comparison when normalization fails."""
         # These should fall back to string comparison
-        assert _meets_min_version("1.0.0", "1.0.0") is True
-        assert _meets_min_version("2.0.0", "1.0.0") is True
-        assert _meets_min_version("0.9.0", "1.0.0") is False
+        assert meets_min_version("1.0.0", "1.0.0") is True
+        assert meets_min_version("2.0.0", "1.0.0") is True
+        assert meets_min_version("0.9.0", "1.0.0") is False
 
     def test_meets_min_version_edge_cases(self):
         """Test edge cases in version comparison."""
         # Empty versions fall back to string comparison
-        assert _meets_min_version("", "") is True
-        assert _meets_min_version("1.0.0", "") is True
-        assert _meets_min_version("", "1.0.0") is False
+        assert meets_min_version("", "") is True
+        assert meets_min_version("1.0.0", "") is True
+        assert meets_min_version("", "1.0.0") is False
 
 
 class TestFormatInstallHint:
@@ -146,7 +146,7 @@ class TestEnsureDependency:
 
     def test_ensure_dependency_package_exists(self):
         """Test ensuring dependency when package exists."""
-        with patch("yads._dependencies._get_installed_version") as mock_get_version:
+        with patch("yads._dependencies.get_installed_version") as mock_get_version:
             mock_get_version.return_value = "1.0.0"
             # Should not raise
             ensure_dependency("pyspark")
@@ -154,7 +154,7 @@ class TestEnsureDependency:
 
     def test_ensure_dependency_package_missing(self):
         """Test ensuring dependency when package is missing."""
-        with patch("yads._dependencies._get_installed_version") as mock_get_version:
+        with patch("yads._dependencies.get_installed_version") as mock_get_version:
             mock_get_version.return_value = None
 
             with pytest.raises(MissingDependencyError) as exc_info:
@@ -167,7 +167,7 @@ class TestEnsureDependency:
 
     def test_ensure_dependency_package_missing_with_version(self):
         """Test ensuring dependency when package is missing with version requirement."""
-        with patch("yads._dependencies._get_installed_version") as mock_get_version:
+        with patch("yads._dependencies.get_installed_version") as mock_get_version:
             mock_get_version.return_value = None
 
             with pytest.raises(MissingDependencyError) as exc_info:
@@ -182,7 +182,7 @@ class TestEnsureDependency:
 
     def test_ensure_dependency_version_too_old(self):
         """Test ensuring dependency when version is too old."""
-        with patch("yads._dependencies._get_installed_version") as mock_get_version:
+        with patch("yads._dependencies.get_installed_version") as mock_get_version:
             mock_get_version.return_value = "3.0.0"
 
             with pytest.raises(DependencyVersionError) as exc_info:
@@ -194,7 +194,7 @@ class TestEnsureDependency:
 
     def test_ensure_dependency_version_satisfied(self):
         """Test ensuring dependency when version requirement is satisfied."""
-        with patch("yads._dependencies._get_installed_version") as mock_get_version:
+        with patch("yads._dependencies.get_installed_version") as mock_get_version:
             mock_get_version.return_value = "4.1.0"
             # Should not raise
             ensure_dependency("pyspark", "4.0.0")
@@ -202,7 +202,7 @@ class TestEnsureDependency:
 
     def test_ensure_dependency_exact_version_match(self):
         """Test ensuring dependency with exact version match."""
-        with patch("yads._dependencies._get_installed_version") as mock_get_version:
+        with patch("yads._dependencies.get_installed_version") as mock_get_version:
             mock_get_version.return_value = "4.0.0"
             # Should not raise
             ensure_dependency("pyspark", "4.0.0")
@@ -347,7 +347,7 @@ class TestIntegrationScenarios:
 
             return f"PySpark {StringType()} conversion"
 
-        with patch("yads._dependencies._get_installed_version") as mock_get_version:
+        with patch("yads._dependencies.get_installed_version") as mock_get_version:
             mock_get_version.return_value = "3.5.0"
 
             with patch("importlib.import_module") as mock_import:
@@ -365,7 +365,7 @@ class TestIntegrationScenarios:
 
             return f"PyArrow {pa.__version__} conversion"
 
-        with patch("yads._dependencies._get_installed_version") as mock_get_version:
+        with patch("yads._dependencies.get_installed_version") as mock_get_version:
             mock_get_version.return_value = "12.0.0"
 
             result = convert_to_pyarrow()
@@ -381,7 +381,7 @@ class TestIntegrationScenarios:
 
             return f"VariantType: {VariantType()}"
 
-        with patch("yads._dependencies._get_installed_version") as mock_get_version:
+        with patch("yads._dependencies.get_installed_version") as mock_get_version:
             mock_get_version.return_value = "3.5.0"
 
             with pytest.raises(DependencyVersionError) as exc_info:

@@ -28,6 +28,9 @@ Example:
 
 from __future__ import annotations
 
+# pyright: reportUnknownArgumentType=none, reportUnknownMemberType=none
+# pyright: reportUnknownVariableType=none
+
 import logging
 import urllib.parse
 import warnings
@@ -108,7 +111,7 @@ class FileSystemRegistry(BaseRegistry):
         self,
         base_path: str,
         logger: logging.Logger | None = None,
-        **fsspec_kwargs,
+        **fsspec_kwargs: Any,
     ):
         """Initialize the FileSystemRegistry.
 
@@ -122,14 +125,16 @@ class FileSystemRegistry(BaseRegistry):
 
         # Initialize filesystem
         try:
-            self.fs, self.base_path = fsspec.core.url_to_fs(base_path, **fsspec_kwargs)
+            fs_obj, resolved_base_path = fsspec.core.url_to_fs(base_path, **fsspec_kwargs)
             # Validate base path exists by attempting to access it
-            self.fs.exists(self.base_path)
+            fs_obj.exists(resolved_base_path)
         except Exception as e:
             raise RegistryConnectionError(
                 f"Failed to connect to registry at '{base_path}': {e}"
             ) from e
 
+        self.fs = fs_obj
+        self.base_path = resolved_base_path
         self.logger.info(f"Initialized FileSystemRegistry at: {self.base_path}")
 
     def register(self, spec: YadsSpec) -> int:
@@ -399,7 +404,7 @@ class FileSystemRegistry(BaseRegistry):
         """
         # Create a dictionary representation
         # We'll manually build this to control the order and formatting
-        spec_dict = {
+        spec_dict: dict[str, Any] = {
             "name": spec.name,
             "version": version,
             "yads_spec_version": spec.yads_spec_version,
@@ -460,11 +465,12 @@ class FileSystemRegistry(BaseRegistry):
                     c_dict["columns"] = list(tc.columns)
 
                 if isinstance(tc, ForeignKeyTableConstraint) and tc.references:
-                    c_dict["references"] = {
+                    references_dict: dict[str, Any] = {
                         "table": tc.references.table,
                     }
                     if tc.references.columns:
-                        c_dict["references"]["columns"] = list(tc.references.columns)
+                        references_dict["columns"] = list(tc.references.columns)
+                    c_dict["references"] = references_dict
                 constraints.append(c_dict)
             spec_dict["table_constraints"] = constraints
 
@@ -484,7 +490,7 @@ class FileSystemRegistry(BaseRegistry):
 
         return yaml.dump(spec_dict, default_flow_style=False, sort_keys=False)
 
-    def _serialize_column(self, column) -> dict:
+    def _serialize_column(self, column: Any) -> dict[str, Any]:
         """Serialize a column to a dictionary."""
         col_dict = {"name": column.name}
 
@@ -546,7 +552,7 @@ class FileSystemRegistry(BaseRegistry):
 
         return col_dict
 
-    def _serialize_type(self, yads_type) -> dict | str:
+    def _serialize_type(self, yads_type: Any) -> dict[str, Any] | str:
         """Serialize a yads type to dict or string."""
         # For simple types, return string
         type_name = yads_type.__class__.__name__.lower()
