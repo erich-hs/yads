@@ -76,11 +76,7 @@ replacers:
 template: |
   ## Changes
 
-  $CATEGORIES
-
-  ## 🔍 Other changes
-
-  $UNCATEGORIZED
+  $CHANGES
 
   ## Contributors
 
