@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 import yaml
 
 from ..exceptions import SpecParsingError
@@ -28,7 +28,8 @@ class YamlLoader(BaseLoader):
             SpecParsingError: If the YAML content is invalid or does not
                               parse to a dictionary.
         """
-        data = yaml.safe_load(content)
-        if not isinstance(data, dict):
+        raw_data = yaml.safe_load(content)
+        if not isinstance(raw_data, dict):
             raise SpecParsingError("Loaded YAML content did not parse to a dictionary.")
+        data = cast(dict[str, Any], raw_data)
         return DictLoader().load(data)
