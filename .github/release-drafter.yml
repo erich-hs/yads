@@ -2,50 +2,47 @@ name-template: 'yads $RESOLVED_VERSION'
 tag-template: 'v$RESOLVED_VERSION'
 
 categories:
-  - title: '## Features'
+  - title: '## 🏆 Highlights'
+    labels:
+      - 'highlight'
+    collapse-after: 10
+  - title: '## 💥 Breaking changes'
+    labels:
+      - 'breaking'
+      - 'breaking change'
+  - title: '## ⚠️ Deprecations'
+    labels:
+      - 'deprecation'
+  - title: '## 🚀 Performance improvements'
+    labels:
+      - 'performance'
+      - 'perf'
+    collapse-after: 10
+  - title: '## ✨ Enhancements'
     labels:
       - 'feature'
       - 'enhancement'
     collapse-after: 15
-  - title: '## Bug Fixes'
+  - title: '## 🐞 Bug fixes'
     labels:
       - 'fix'
       - 'bugfix'
       - 'bug'
     collapse-after: 15
-  - title: '## Performance'
-    labels:
-      - 'performance'
-      - 'perf'
-    collapse-after: 10
-  - title: '## Documentation'
+  - title: '## 📖 Documentation'
     labels:
       - 'documentation'
       - 'docs'
     collapse-after: 10
-  - title: '## Maintenance'
+  - title: '## 🛠️ Internal improvements'
     labels:
-      - 'chore'
       - 'maintenance'
+      - 'chore'
       - 'refactor'
       - 'test'
       - 'ci'
       - 'build'
     collapse-after: 10
-
-# Automatically categorize PRs based on title prefix
-category-template: |
-  {% if pull_request.title contains "feat:" or pull_request.title contains "feat(" %}
-  Features
-  {% elsif pull_request.title contains "fix:" or pull_request.title contains "fix(" %}
-  Bug Fixes
-  {% elsif pull_request.title contains "perf:" or pull_request.title contains "perf(" %}
-  Performance
-  {% elsif pull_request.title contains "docs:" or pull_request.title contains "docs(" %}
-  Documentation
-  {% elsif pull_request.title contains "chore:" or pull_request.title contains "refactor:" or pull_request.title contains "test:" or pull_request.title contains "ci:" or pull_request.title contains "build:" %}
-  Maintenance
-  {% endif %}
 
 change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
 change-title-escapes: '\<*_&'
@@ -66,11 +63,24 @@ autolabeler:
   - label: 'maintenance'
     title:
       - '/^(chore|refactor|test|ci|build)(\(.*\))?:/'
+  - label: 'breaking'
+    title:
+      - '/^.+!:/'
+    body:
+      - '/BREAKING CHANGE:/i'
+
+replacers:
+  - search: '/^- (feat|fix|perf|docs|test|refactor|chore|ci|build)(\([^)]+\))?(!)?:\s+/gim'
+    replace: '- '
 
 template: |
   ## Changes
 
-  $CHANGES
+  $CATEGORIES
+
+  ## 🔍 Other changes
+
+  $UNCATEGORIZED
 
   ## Contributors
 
@@ -89,4 +99,3 @@ template: |
   2. Ensure version in `pyproject.toml` matches `$RESOLVED_VERSION`
   3. Trigger the "Release Python" workflow from GitHub Actions
   4. This draft will be automatically published when the workflow completes
-
