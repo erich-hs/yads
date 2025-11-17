@@ -2,39 +2,39 @@ name-template: 'yads $RESOLVED_VERSION'
 tag-template: 'v$RESOLVED_VERSION'
 
 categories:
-  - title: '## 🏆 Highlights'
+  - title: '🏆 Highlights'
     labels:
       - 'highlight'
     collapse-after: 10
-  - title: '## 💥 Breaking changes'
+  - title: '💥 Breaking changes'
     labels:
       - 'breaking'
       - 'breaking change'
-  - title: '## ⚠️ Deprecations'
+  - title: '⚠️ Deprecations'
     labels:
       - 'deprecation'
-  - title: '## 🚀 Performance improvements'
+  - title: '🚀 Performance improvements'
     labels:
       - 'performance'
       - 'perf'
     collapse-after: 10
-  - title: '## ✨ Enhancements'
+  - title: '✨ Enhancements'
     labels:
       - 'feature'
       - 'enhancement'
     collapse-after: 15
-  - title: '## 🐞 Bug fixes'
+  - title: '🐞 Bug fixes'
     labels:
       - 'fix'
       - 'bugfix'
       - 'bug'
     collapse-after: 15
-  - title: '## 📖 Documentation'
+  - title: '📖 Documentation'
     labels:
       - 'documentation'
       - 'docs'
     collapse-after: 10
-  - title: '## 🛠️ Internal improvements'
+  - title: '🛠️ Internal improvements'
     labels:
       - 'maintenance'
       - 'chore'
@@ -74,13 +74,11 @@ replacers:
     replace: '- '
 
 template: |
-  ## Changes
-
   $CHANGES
 
   ## Contributors
 
-  Thanks to all our contributors that made this release possible:
+  Thanks to all our contributors who made this release possible:
   $CONTRIBUTORS
 
   ---
