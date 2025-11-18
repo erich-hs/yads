@@ -35,7 +35,7 @@ from __future__ import annotations
 import textwrap
 from dataclasses import dataclass, field
 from functools import cached_property
-from typing import Any, Type
+from typing import Any, Mapping, Type
 
 from .constraints import ColumnConstraint, NotNullConstraint, TableConstraint
 from .exceptions import SpecValidationError
@@ -43,6 +43,13 @@ from .types import YadsType
 
 # Version of the yads specification format
 YADS_SPEC_VERSION = "0.0.2"
+
+
+def from_dict(data: Mapping[str, Any]) -> "YadsSpec":
+    """Build a `YadsSpec` from a normalized dictionary."""
+    from .serializers.spec_deserializer import SpecDeserializer
+
+    return SpecDeserializer().deserialize(data)
 
 
 def _format_dict_as_kwargs(d: dict[str, Any], multiline: bool = False) -> str:
