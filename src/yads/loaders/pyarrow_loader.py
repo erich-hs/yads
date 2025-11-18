@@ -1,9 +1,9 @@
 """Load a `YadsSpec` from a `pyarrow.Schema`.
 
 This loader converts PyArrow schemas to yads specifications by building a
-normalized dictionary representation and delegating spec construction and
-validation to `SpecBuilder`. It preserves column-level nullability and
-propagates field and schema metadata when available.
+normalized dictionary representation and delegating spec construction to
+`yads.spec.from_dict`. It preserves column-level nullability and propagates
+field and schema metadata when available.
 
 Example:
     >>> import pyarrow as pa
@@ -27,11 +27,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, Mapping
 
+from .. import spec as yspec
 from .. import types as ytypes
 from ..exceptions import LoaderConfigError, UnsupportedFeatureError, validation_warning
 from .._dependencies import ensure_dependency
 from .base import BaseLoaderConfig, ConfigurableLoader
-from .common import SpecBuilder
 
 ensure_dependency("pyarrow", min_version="15.0.0")
 
@@ -70,9 +70,9 @@ class PyArrowLoader(ConfigurableLoader):
     """Load a `YadsSpec` from a `pyarrow.Schema`.
 
     The loader converts PyArrow schemas to yads specifications by building a
-    normalized dictionary representation and delegating spec construction and
-    validation to `SpecBuilder`. It preserves column-level nullability and
-    propagates field and schema metadata when available.
+    normalized dictionary representation and delegating spec construction to
+    `yads.spec.from_dict`. It preserves column-level nullability and propagates
+    field and schema metadata when available.
 
     In "raise" mode, incompatible Arrow types raise `UnsupportedFeatureError`.
     In "coerce" mode, the loader attempts to coerce unsupported types to
@@ -131,7 +131,7 @@ class PyArrowLoader(ConfigurableLoader):
             if schema.metadata:
                 data["metadata"] = self._decode_key_value_metadata(schema.metadata)
 
-            return SpecBuilder(data).build()
+            return yspec.from_dict(data)
 
     # %% ---- Field and type conversion -----------------------------------------------
     def _convert_field(self, field: pa.Field) -> dict[str, Any]:
