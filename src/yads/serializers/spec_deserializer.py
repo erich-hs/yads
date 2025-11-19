@@ -8,7 +8,8 @@ structures.
 from __future__ import annotations
 
 import warnings
-from typing import Any, Mapping, TypedDict
+from collections.abc import Mapping, Sequence
+from typing import Any, TypedDict, cast
 
 from ..constraints import CONSTRAINT_EQUIVALENTS
 from ..exceptions import SpecParsingError, TypeDefinitionError
@@ -48,7 +49,6 @@ class SpecDeserializer:
         self._constraint_deserializer = (
             constraint_deserializer or ConstraintDeserializer()
         )
-        self._type_deserializer.set_field_factory(self._parse_field)
 
     def deserialize(self, data: Mapping[str, Any]) -> yspec.YadsSpec:
         """Build and validate the `YadsSpec` from provided data."""
@@ -92,7 +92,7 @@ class SpecDeserializer:
                 self.data.get("table_constraints")
             ),
             metadata=self.data.get("metadata", {}),
-            columns=[self._parse_column(c) for c in self.data["columns"]],
+            columns=self._parse_columns(self.data["columns"]),
         )
         self._spec = spec
         self._validate_spec()
@@ -122,13 +122,24 @@ class SpecDeserializer:
     # (Type parsing now delegated to `TypeDeserializer`)
 
     # %% ---- Field/Column parsing ----------------------------------------------------
+    def _parse_columns(self, raw_columns: Any) -> list[yspec.Column]:
+        normalized_columns = self._ensure_mapping_sequence(
+            raw_columns, context="columns definition"
+        )
+        return [self._parse_column(col_def) for col_def in normalized_columns]
+
     def _parse_field(self, field_def: dict[str, Any]) -> yspec.Field:
         self._validate_field_definition(field_def, context="field")
+        metadata = self._parse_metadata(field_def.get("metadata"), context="field")
         return yspec.Field(
             name=field_def["name"],
-            type=self._type_deserializer.parse(field_def["type"], field_def),
+            type=self._type_deserializer.parse(
+                field_def["type"],
+                field_def,
+                field_factory=self._parse_field,
+            ),
             description=field_def.get("description"),
-            metadata=field_def.get("metadata", {}),
+            metadata=metadata,
             constraints=self._constraint_deserializer.parse_column_constraints(
                 field_def.get("constraints")
             ),
@@ -136,11 +147,16 @@ class SpecDeserializer:
 
     def _parse_column(self, col_def: dict[str, Any]) -> yspec.Column:
         self._validate_field_definition(col_def, context="column")
+        metadata = self._parse_metadata(col_def.get("metadata"), context="column")
         return yspec.Column(
             name=col_def["name"],
-            type=self._type_deserializer.parse(col_def["type"], col_def),
+            type=self._type_deserializer.parse(
+                col_def["type"],
+                col_def,
+                field_factory=self._parse_field,
+            ),
             description=col_def.get("description"),
-            metadata=col_def.get("metadata", {}),
+            metadata=metadata,
             constraints=self._constraint_deserializer.parse_column_constraints(
                 col_def.get("constraints")
             ),
@@ -184,62 +200,172 @@ class SpecDeserializer:
 
     # %% ---- Generation clauses & partitions ----------------------------------------
     def _parse_generation_clause(
-        self, gen_clause_def: dict[str, Any] | None
+        self, gen_clause_def: object | None
     ) -> yspec.TransformedColumnReference | None:
         if not gen_clause_def:
             return None
+        if not isinstance(gen_clause_def, Mapping):
+            raise SpecParsingError(
+                "Generated column definition must be a mapping when provided."
+            )
+        clause_mapping = cast(Mapping[str, Any], gen_clause_def)
 
         self._validate_keys(
-            gen_clause_def,
+            clause_mapping,
             allowed_keys={"column", "transform", "transform_args"},
             required_keys={"column", "transform"},
             context="generation clause",
         )
 
-        # For generated columns, transform is required
-        if not gen_clause_def["transform"]:
+        column_value = clause_mapping["column"]
+        if not isinstance(column_value, str):
+            raise SpecParsingError("'column' in generation clause must be a string.")
+
+        transform_value = clause_mapping["transform"]
+        if not isinstance(transform_value, str):
+            raise SpecParsingError("'transform' in generation clause must be a string.")
+        if not transform_value:
             raise SpecParsingError("'transform' cannot be empty in a generation clause.")
 
+        transform_args = self._parse_transform_args(
+            clause_mapping.get("transform_args"), context="generation clause"
+        )
+
         return yspec.TransformedColumnReference(
-            column=gen_clause_def["column"],
-            transform=gen_clause_def["transform"],
-            transform_args=gen_clause_def.get("transform_args", []),
+            column=column_value,
+            transform=transform_value,
+            transform_args=transform_args,
         )
 
     def _parse_partitioned_by(
-        self, partitioned_by_def: list[PartitioningDefinition] | None
+        self, partitioned_by_def: object | None
     ) -> list[yspec.TransformedColumnReference]:
         if not partitioned_by_def:
             return []
+        if isinstance(partitioned_by_def, (str, bytes)):
+            raise SpecParsingError("'partitioned_by' must be a sequence of mappings.")
+        if not isinstance(partitioned_by_def, Sequence):
+            raise SpecParsingError("'partitioned_by' must be a sequence of mappings.")
+        partition_sequence = cast(Sequence[object], partitioned_by_def)
 
         transformed_columns: list[yspec.TransformedColumnReference] = []
-        for pc in partitioned_by_def:
+        for index, pc in enumerate(partition_sequence):
+            if not isinstance(pc, Mapping):
+                raise SpecParsingError(
+                    f"Partition definition at index {index} must be a mapping."
+                )
+            partition_mapping = cast(Mapping[str, Any], pc)
             self._validate_keys(
-                pc,
+                partition_mapping,
                 allowed_keys={"column", "transform", "transform_args"},
                 required_keys={"column"},
                 context="partitioned_by item",
             )
+            column_value = partition_mapping["column"]
+            if not isinstance(column_value, str):
+                raise SpecParsingError(
+                    "'column' in partitioned_by item must be a string."
+                )
+            transform_value = partition_mapping.get("transform")
+            if transform_value is not None and not isinstance(transform_value, str):
+                raise SpecParsingError(
+                    "'transform' in partitioned_by item must be a string when specified."
+                )
             transformed_columns.append(
                 yspec.TransformedColumnReference(
-                    column=pc["column"],
-                    transform=pc.get("transform"),
-                    transform_args=pc.get("transform_args", []),
+                    column=column_value,
+                    transform=transform_value,
+                    transform_args=self._parse_transform_args(
+                        partition_mapping.get("transform_args"),
+                        context="partitioned_by item",
+                    ),
                 )
             )
         return transformed_columns
 
     # %% ---- Storage -----------------------------------------------------------------
-    def _parse_storage(self, storage_def: dict[str, Any] | None) -> yspec.Storage | None:
+    def _parse_storage(self, storage_def: object | None) -> yspec.Storage | None:
         if not storage_def:
             return None
+        if not isinstance(storage_def, Mapping):
+            raise SpecParsingError("Storage definition must be a mapping when provided.")
+        storage_mapping = cast(Mapping[str, Any], storage_def)
         self._validate_keys(
-            storage_def,
+            storage_mapping,
             allowed_keys={"format", "location", "tbl_properties"},
             required_keys=set(),
             context="storage definition",
         )
-        return yspec.Storage(**storage_def)
+        normalized: dict[str, Any] = dict(storage_mapping)
+        if "format" in normalized and not isinstance(normalized["format"], str):
+            raise SpecParsingError("'storage.format' must be a string when specified.")
+        if "location" in normalized and not isinstance(normalized["location"], str):
+            raise SpecParsingError("'storage.location' must be a string when specified.")
+        tbl_properties_value = normalized.get("tbl_properties")
+        if tbl_properties_value is not None:
+            if not isinstance(tbl_properties_value, Mapping):
+                raise SpecParsingError(
+                    "'storage.tbl_properties' must be a mapping of strings."
+                )
+            normalized["tbl_properties"] = self._parse_string_dict(
+                cast(Mapping[Any, Any], tbl_properties_value),
+                context="'storage.tbl_properties'",
+            )
+        return yspec.Storage(**normalized)
+
+    def _parse_metadata(self, raw_metadata: Any, *, context: str) -> dict[str, Any]:
+        if raw_metadata is None:
+            return {}
+        if not isinstance(raw_metadata, Mapping):
+            raise SpecParsingError(
+                f"Metadata for {context} must be a mapping of string keys."
+            )
+        metadata_mapping = cast(Mapping[Any, Any], raw_metadata)
+        normalized: dict[str, Any] = {}
+        for key, value in metadata_mapping.items():
+            if not isinstance(key, str):
+                raise SpecParsingError(
+                    f"Metadata keys for {context} must be strings (got {key!r})."
+                )
+            normalized[key] = value
+        return normalized
+
+    def _parse_transform_args(self, args: Any, *, context: str) -> list[Any]:
+        if args is None:
+            return []
+        if not isinstance(args, Sequence) or isinstance(args, (str, bytes)):
+            raise SpecParsingError(
+                f"'transform_args' in {context} must be provided as a list."
+            )
+        sequence_args = cast(Sequence[Any], args)
+        return list(sequence_args)
+
+    def _parse_string_dict(
+        self, value: Mapping[Any, Any], *, context: str
+    ) -> dict[str, str]:
+        normalized: dict[str, str] = {}
+        for key, val in value.items():
+            if not isinstance(key, str) or not isinstance(val, str):
+                raise SpecParsingError(
+                    f"{context} must only contain string keys and values."
+                )
+            normalized[key] = val
+        return normalized
+
+    def _ensure_mapping_sequence(
+        self, value: Any, *, context: str
+    ) -> list[dict[str, Any]]:
+        if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+            raise SpecParsingError(f"{context} must be a sequence of mappings.")
+        sequence_value = cast(Sequence[object], value)
+        normalized: list[dict[str, Any]] = []
+        for index, item in enumerate(sequence_value):
+            if not isinstance(item, Mapping):
+                raise SpecParsingError(
+                    f"Entry at index {index} in {context} must be a mapping."
+                )
+            normalized.append(dict(cast(Mapping[str, Any], item)))
+        return normalized
 
     # %% ---- Post-build validations --------------------------------------------------
     def _validate_spec(self) -> None:

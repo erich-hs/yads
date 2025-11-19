@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Sequence, cast
+from collections.abc import Mapping, Sequence
+from typing import Any, Callable, cast
 
 from ..constraints import (
     ColumnConstraint,
@@ -18,40 +19,40 @@ from ..constraints import (
 )
 from ..exceptions import InvalidConstraintError, SpecParsingError, UnknownConstraintError
 
-# pyright: reportUnknownArgumentType=none, reportUnknownMemberType=none
-# pyright: reportUnknownVariableType=none, reportUnknownParameterType=none
+ColumnConstraintParser = Callable[[Any], ColumnConstraint]
+TableConstraintParser = Callable[[Mapping[str, Any]], TableConstraint]
 
 
 class ConstraintDeserializer:
     """Parse column and table constraint dictionaries."""
 
-    _COLUMN_PARSERS: dict[str, str] = {
-        "not_null": "_parse_not_null_constraint",
-        "primary_key": "_parse_primary_key_constraint",
-        "default": "_parse_default_constraint",
-        "foreign_key": "_parse_foreign_key_constraint",
-        "identity": "_parse_identity_constraint",
-    }
+    def __init__(self) -> None:
+        self._column_parsers: dict[str, ColumnConstraintParser] = {}
+        self._table_parsers: dict[str, TableConstraintParser] = {}
+        self._register_default_parsers()
 
-    _TABLE_PARSERS: dict[str, str] = {
-        "primary_key": "_parse_primary_key_table_constraint",
-        "foreign_key": "_parse_foreign_key_table_constraint",
-    }
+    def register_column_parser(self, name: str, parser: ColumnConstraintParser) -> None:
+        """Register a parser for a named column constraint."""
+        self._column_parsers[name] = parser
+
+    def register_table_parser(self, name: str, parser: TableConstraintParser) -> None:
+        """Register a parser for a named table constraint."""
+        self._table_parsers[name] = parser
 
     def parse_column_constraints(
-        self, constraints: Mapping[str, Any] | None
+        self, constraints: object | None
     ) -> list[ColumnConstraint]:
         parsed: list[ColumnConstraint] = []
         if constraints is None:
             return parsed
-        if not isinstance(constraints, dict):
+        if not isinstance(constraints, Mapping):
             raise SpecParsingError(
-                "The 'constraints' attribute of a column must be a dictionary. "
-                f"Got {constraints!r} of type {type(constraints)}."
+                "The 'constraints' attribute of a column must be a dictionary."
             )
-        for key, value in constraints.items():
-            parser_method_name = self._COLUMN_PARSERS.get(key)
-            if not parser_method_name:
+        typed_constraints = cast(Mapping[str, Any], constraints)
+        for key, value in typed_constraints.items():
+            parser = self._column_parsers.get(key)
+            if not parser:
                 raise UnknownConstraintError(f"Unknown column constraint: {key}.")
             if (
                 key in {"not_null", "primary_key"}
@@ -59,32 +60,56 @@ class ConstraintDeserializer:
                 and not value
             ):
                 continue
-            parser = getattr(self, parser_method_name)
             parsed.append(parser(value))
         return parsed
 
     def parse_table_constraints(
-        self, constraints: Sequence[Mapping[str, Any]] | None
+        self, constraints: object | None
     ) -> list[TableConstraint]:
-        if not constraints:
+        if constraints is None:
             return []
+        if isinstance(constraints, (str, bytes)):
+            raise InvalidConstraintError(
+                "Table constraints must be provided as a sequence of dictionaries."
+            )
         parsed: list[TableConstraint] = []
-        for constraint_def in constraints:
-            constraint_type = constraint_def.get("type")
+        if not isinstance(constraints, Sequence):
+            raise InvalidConstraintError("Table constraints must be a sequence.")
+        typed_constraints = cast(Sequence[object], constraints)
+        for index, constraint_def in enumerate(typed_constraints):
+            if not isinstance(constraint_def, Mapping):
+                raise InvalidConstraintError(
+                    f"Table constraint at index {index} must be a dictionary."
+                )
+            typed_constraint = cast(Mapping[str, Any], constraint_def)
+            constraint_type = typed_constraint.get("type")
             if not isinstance(constraint_type, str):
                 raise InvalidConstraintError(
                     "Table constraint definition must have a 'type' string."
                 )
-            parser_method_name = self._TABLE_PARSERS.get(constraint_type)
-            if not parser_method_name:
+            parser = self._table_parsers.get(constraint_type)
+            if not parser:
                 raise UnknownConstraintError(
                     f"Unknown table constraint type: {constraint_type}."
                 )
-            parser = getattr(self, parser_method_name)
-            parsed.append(parser(dict(constraint_def)))
+            parsed.append(parser(dict(typed_constraint)))
         return parsed
 
     # ---- Column constraint helpers -------------------------------------------------
+    def _register_default_parsers(self) -> None:
+        self.register_column_parser("not_null", self._parse_not_null_constraint)
+        self.register_column_parser("primary_key", self._parse_primary_key_constraint)
+        self.register_column_parser("default", self._parse_default_constraint)
+        self.register_column_parser("foreign_key", self._parse_foreign_key_constraint)
+        self.register_column_parser("identity", self._parse_identity_constraint)
+
+        self.register_table_parser(
+            "primary_key", self._parse_primary_key_table_constraint
+        )
+        self.register_table_parser(
+            "foreign_key", self._parse_foreign_key_table_constraint
+        )
+
     def _parse_not_null_constraint(self, value: Any) -> NotNullConstraint:
         if not isinstance(value, bool):
             raise InvalidConstraintError(
@@ -111,7 +136,7 @@ class ConstraintDeserializer:
             raise InvalidConstraintError(
                 "The 'foreign_key' constraint must specify 'references'."
             )
-        value_dict = dict(value)
+        value_dict: dict[str, Any] = dict(cast(Mapping[str, Any], value))
         name = value_dict.get("name")
         if name is not None and not isinstance(name, str):
             raise InvalidConstraintError(
@@ -125,7 +150,7 @@ class ConstraintDeserializer:
         return ForeignKeyConstraint(
             name=name,
             references=self._parse_foreign_key_references(
-                cast(dict[str, Any], dict(references_value))
+                cast(Mapping[str, Any], references_value)
             ),
         )
 
@@ -135,7 +160,7 @@ class ConstraintDeserializer:
                 f"The 'identity' constraint expects a dictionary. Got {value!r}."
             )
 
-        value_dict = dict(value)
+        value_dict: dict[str, Any] = dict(cast(Mapping[str, Any], value))
         always_value = value_dict.get("always", True)
         if not isinstance(always_value, bool):
             raise InvalidConstraintError("'always' must be a boolean when specified.")
@@ -198,7 +223,7 @@ class ConstraintDeserializer:
             columns=columns,
             name=name,
             references=self._parse_foreign_key_references(
-                cast(dict[str, Any], dict(references_value))
+                cast(Mapping[str, Any], references_value)
             ),
         )
 
