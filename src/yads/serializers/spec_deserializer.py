@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Mapping, Sequence
-from typing import Any, TypedDict, cast
+from typing import Any, cast
 
 from ..constraints import CONSTRAINT_EQUIVALENTS
 from ..exceptions import SpecParsingError, TypeDefinitionError
@@ -18,17 +18,6 @@ from .constraint_deserializer import ConstraintDeserializer
 from .type_deserializer import TypeDeserializer
 
 
-# %% ---- Protocols ------------------------------------------------------------------
-class _PartitioningOptionalDefinition(TypedDict, total=False):
-    transform: str
-    transform_args: list[Any]
-
-
-class PartitioningDefinition(_PartitioningOptionalDefinition):
-    column: str
-
-
-# %% ---- Spec deserializer ----------------------------------------------------------
 class SpecDeserializer:
     """Builds and validates a `YadsSpec` from a dictionary.
 
