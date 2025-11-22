@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Any, Callable, cast
+from typing import Any, Callable, TypeVar, cast
 
 from ..exceptions import TypeDefinitionError, UnknownTypeError
 from .. import types as ytypes
@@ -11,6 +11,7 @@ from .. import spec as yspec
 
 FieldFactory = Callable[[dict[str, Any]], yspec.Field]
 TypeParser = Callable[[Mapping[str, Any], FieldFactory], ytypes.YadsType]
+TypeT = TypeVar("TypeT", bound=ytypes.YadsType)
 
 
 class TypeDeserializer:
@@ -47,7 +48,11 @@ class TypeDeserializer:
         final_params = self._get_processed_type_params(type_name, type_def)
         if "unit" in final_params and isinstance(final_params["unit"], str):
             final_params["unit"] = ytypes.TimeUnit(final_params["unit"])
-        return base_type_class(**final_params)
+        return self._instantiate_type(
+            base_type_class,
+            params=final_params,
+            type_name=type_name,
+        )
 
     # ---- Helpers -----------------------------------------------------------------
     def _register_default_parsers(self) -> None:
@@ -56,6 +61,26 @@ class TypeDeserializer:
         self.register_parser(ytypes.Struct, self._parse_struct_type)
         self.register_parser(ytypes.Map, self._parse_map_type)
         self.register_parser(ytypes.Tensor, self._parse_tensor_type)
+
+    def _type_label(self, type_def: Mapping[str, Any], default: str) -> str:
+        raw_label = type_def.get("type")
+        if isinstance(raw_label, str) and raw_label:
+            return raw_label
+        return default
+
+    def _instantiate_type(
+        self,
+        type_cls: type[TypeT],
+        *,
+        params: Mapping[str, Any],
+        type_name: str,
+    ) -> TypeT:
+        try:
+            return type_cls(**params)
+        except (TypeError, ValueError) as exc:
+            raise TypeDefinitionError(
+                f"Failed to instantiate type '{type_name}': {exc}"
+            ) from exc
 
     def _get_processed_type_params(
         self, type_name: str, type_def: Mapping[str, Any]
@@ -93,7 +118,11 @@ class TypeDeserializer:
             final_params["interval_end"] = ytypes.IntervalTimeUnit(
                 str(end_field_val).upper()
             )
-        return ytypes.Interval(**final_params)
+        return self._instantiate_type(
+            ytypes.Interval,
+            params=final_params,
+            type_name=self._type_label(type_def, "interval"),
+        )
 
     def _parse_array_type(
         self, type_def: Mapping[str, Any], field_factory: FieldFactory
@@ -113,13 +142,18 @@ class TypeDeserializer:
         normalized_element = dict(cast(Mapping[str, Any], element_def))
         element_type_name = cast(str, normalized_element["type"])
         final_params = self._get_processed_type_params(type_def.get("type", ""), type_def)
-        return ytypes.Array(
-            element=self.parse(
+        array_params: dict[str, Any] = {
+            "element": self.parse(
                 element_type_name,
                 normalized_element,
                 field_factory=field_factory,
             ),
             **final_params,
+        }
+        return self._instantiate_type(
+            ytypes.Array,
+            params=array_params,
+            type_name=self._type_label(type_def, "array"),
         )
 
     def _parse_struct_type(
@@ -140,7 +174,11 @@ class TypeDeserializer:
                     f"Struct field at index {index} must be a dictionary."
                 )
             struct_fields.append(field_factory(dict(cast(Mapping[str, Any], field_def))))
-        return ytypes.Struct(fields=struct_fields)
+        return self._instantiate_type(
+            ytypes.Struct,
+            params={"fields": struct_fields},
+            type_name=self._type_label(type_def, "struct"),
+        )
 
     def _parse_map_type(
         self, type_def: Mapping[str, Any], field_factory: FieldFactory
@@ -169,18 +207,23 @@ class TypeDeserializer:
         key_def_normalized = dict(cast(Mapping[str, Any], key_def))
         value_def_normalized = dict(cast(Mapping[str, Any], value_def))
         final_params = self._get_processed_type_params(type_def.get("type", ""), type_def)
-        return ytypes.Map(
-            key=self.parse(
+        map_params: dict[str, Any] = {
+            "key": self.parse(
                 cast(str, key_def_normalized["type"]),
                 key_def_normalized,
                 field_factory=field_factory,
             ),
-            value=self.parse(
+            "value": self.parse(
                 cast(str, value_def_normalized["type"]),
                 value_def_normalized,
                 field_factory=field_factory,
             ),
             **final_params,
+        }
+        return self._instantiate_type(
+            ytypes.Map,
+            params=map_params,
+            type_name=self._type_label(type_def, "map"),
         )
 
     def _parse_tensor_type(
@@ -220,11 +263,16 @@ class TypeDeserializer:
                 f"Tensor 'shape' elements must be integers (failed at index {index})."
             )
 
-        return ytypes.Tensor(
-            element=self.parse(
+        tensor_params: dict[str, Any] = {
+            "element": self.parse(
                 element_type_name,
                 element_def,
                 field_factory=field_factory,
             ),
-            shape=tuple(normalized_shape),
+            "shape": tuple(normalized_shape),
+        }
+        return self._instantiate_type(
+            ytypes.Tensor,
+            params=tensor_params,
+            type_name=self._type_label(type_def, "tensor"),
         )

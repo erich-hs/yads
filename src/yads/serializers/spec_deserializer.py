@@ -71,27 +71,46 @@ class SpecDeserializer:
             context="spec definition",
         )
 
+        name_value = self.data["name"]
+        if not isinstance(name_value, str) or not name_value.strip():
+            raise SpecParsingError("'name' must be a non-empty string.")
+
         # Extract version, default to 1 if not provided (for newly loaded specs)
-        version = self.data.get("version", 1)
-        # Ensure version is an integer
-        if not isinstance(version, int):
-            version = int(version)
+        version_value = self.data.get("version", 1)
+        try:
+            version = int(version_value)
+        except (TypeError, ValueError) as exc:
+            raise SpecParsingError(
+                "'version' must be an integer when specified."
+            ) from exc
+        if isinstance(version_value, bool):
+            raise SpecParsingError("'version' must be an integer when specified.")
+        if version < 1:
+            raise SpecParsingError("'version' must be a positive integer.")
 
         # Extract yads_spec_version, default to current spec version
         yads_spec_version = self.data.get("yads_spec_version", yspec.YADS_SPEC_VERSION)
+        if not isinstance(yads_spec_version, str) or not yads_spec_version.strip():
+            raise SpecParsingError("'yads_spec_version' must be a non-empty string.")
+
+        external_value = self.data.get("external", False)
+        if not isinstance(external_value, bool):
+            raise SpecParsingError("'external' must be a boolean when specified.")
 
         spec = yspec.YadsSpec(
-            name=self.data["name"],
+            name=name_value,
             version=version,
             yads_spec_version=yads_spec_version,
             description=self.data.get("description"),
-            external=self.data.get("external", False),
+            external=external_value,
             storage=self._parse_storage(self.data.get("storage")),
             partitioned_by=self._parse_partitioned_by(self.data.get("partitioned_by")),
             table_constraints=self._constraint_deserializer.parse_table_constraints(
                 self.data.get("table_constraints")
             ),
-            metadata=self.data.get("metadata", {}),
+            metadata=self._parse_metadata(
+                self.data.get("metadata"), context="spec metadata"
+            ),
             columns=self._parse_columns(self.data["columns"]),
         )
         self._spec = spec
@@ -109,7 +128,7 @@ class SpecDeserializer:
         """Validate keys of an object against allowed/required sets."""
         unknown = set(obj.keys()) - allowed_keys
         if unknown:
-            unknown_sorted = ", ".join(sorted(unknown))
+            unknown_sorted = ", ".join(sorted(str(key) for key in unknown))
             raise SpecParsingError(f"Unknown key(s) in {context}: {unknown_sorted}.")
         if required_keys:
             missing = required_keys - set(obj.keys())
@@ -172,6 +191,12 @@ class SpecDeserializer:
                     f"'{required_field}' is a required field in a {context} definition."
                 )
 
+        name_value = field_def["name"]
+        if not isinstance(name_value, str) or not name_value:
+            raise SpecParsingError(
+                f"The 'name' of a {context} must be a non-empty string."
+            )
+
         type_name = field_def["type"]
         if not isinstance(type_name, str):
             if type_name is None:
@@ -202,7 +227,7 @@ class SpecDeserializer:
     def _parse_generation_clause(
         self, gen_clause_def: object | None
     ) -> yspec.TransformedColumnReference | None:
-        if not gen_clause_def:
+        if gen_clause_def is None:
             return None
         if not isinstance(gen_clause_def, Mapping):
             raise SpecParsingError(
@@ -240,7 +265,7 @@ class SpecDeserializer:
     def _parse_partitioned_by(
         self, partitioned_by_def: object | None
     ) -> list[yspec.TransformedColumnReference]:
-        if not partitioned_by_def:
+        if partitioned_by_def is None:
             return []
         if isinstance(partitioned_by_def, (str, bytes)):
             raise SpecParsingError("'partitioned_by' must be a sequence of mappings.")
@@ -285,7 +310,7 @@ class SpecDeserializer:
 
     # %% ---- Storage -----------------------------------------------------------------
     def _parse_storage(self, storage_def: object | None) -> yspec.Storage | None:
-        if not storage_def:
+        if storage_def is None:
             return None
         if not isinstance(storage_def, Mapping):
             raise SpecParsingError("Storage definition must be a mapping when provided.")
