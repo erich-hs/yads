@@ -12,7 +12,7 @@ from yads.exceptions import (
     UnknownTypeError,
 )
 from yads.loaders import from_dict, from_yaml_path, from_yaml_string
-from yads.spec import YadsSpec
+from yads.spec import YadsSpec, Storage
 from yads.constraints import DefaultConstraint, ForeignKeyTableConstraint
 from yads.types import (
     String,
@@ -1346,5 +1346,117 @@ class TestTypeLoading:
         with pytest.raises(
             TypeDefinitionError,
             match="Tensor 'shape' must contain only positive integers",
+        ):
+            from_dict(spec_dict)
+
+
+class TestSpecValidationGuards:
+    def _base_spec(self) -> dict:
+        return {
+            "name": "test_spec",
+            "version": 1,
+            "columns": [
+                {
+                    "name": "id",
+                    "type": "string",
+                }
+            ],
+        }
+
+    def test_spec_name_must_be_string(self):
+        spec_dict = self._base_spec()
+        spec_dict["name"] = 123
+        with pytest.raises(SpecParsingError, match="'name' must be a non-empty string"):
+            from_dict(spec_dict)
+
+    def test_spec_metadata_requires_mapping(self):
+        spec_dict = self._base_spec()
+        spec_dict["metadata"] = []
+        with pytest.raises(
+            SpecParsingError, match="Metadata for spec metadata must be a mapping"
+        ):
+            from_dict(spec_dict)
+
+    def test_spec_version_rejects_non_integer(self):
+        spec_dict = self._base_spec()
+        spec_dict["version"] = "latest"
+        with pytest.raises(
+            SpecParsingError, match="'version' must be an integer when specified"
+        ):
+            from_dict(spec_dict)
+
+    def test_spec_version_rejects_boolean(self):
+        spec_dict = self._base_spec()
+        spec_dict["version"] = True
+        with pytest.raises(
+            SpecParsingError, match="'version' must be an integer when specified"
+        ):
+            from_dict(spec_dict)
+
+    def test_spec_external_must_be_boolean(self):
+        spec_dict = self._base_spec()
+        spec_dict["external"] = "true"
+        with pytest.raises(
+            SpecParsingError, match="'external' must be a boolean when specified"
+        ):
+            from_dict(spec_dict)
+
+    def test_spec_yads_version_must_be_string(self):
+        spec_dict = self._base_spec()
+        spec_dict["yads_spec_version"] = 123
+        with pytest.raises(
+            SpecParsingError, match="'yads_spec_version' must be a non-empty string"
+        ):
+            from_dict(spec_dict)
+
+    def test_generated_column_empty_mapping_not_ignored(self):
+        spec_dict = self._base_spec()
+        spec_dict["columns"][0]["generated_as"] = {}
+        with pytest.raises(SpecParsingError, match="generation clause"):
+            from_dict(spec_dict)
+
+    def test_partitioned_by_mapping_rejected(self):
+        spec_dict = self._base_spec()
+        spec_dict["partitioned_by"] = {"column": "id"}
+        with pytest.raises(SpecParsingError, match="'partitioned_by' must be a sequence"):
+            from_dict(spec_dict)
+
+    def test_storage_empty_mapping_preserved(self):
+        spec_dict = self._base_spec()
+        spec_dict["storage"] = {}
+        spec = from_dict(spec_dict)
+        assert spec.storage == Storage()
+
+    def test_storage_invalid_type_raises(self):
+        spec_dict = self._base_spec()
+        spec_dict["storage"] = []
+        with pytest.raises(
+            SpecParsingError, match="Storage definition must be a mapping"
+        ):
+            from_dict(spec_dict)
+
+    def test_unknown_non_string_keys_reported(self):
+        spec_dict = self._base_spec()
+        spec_dict[1] = "bad"
+        with pytest.raises(
+            SpecParsingError, match="Unknown key\\(s\\) in spec definition: 1"
+        ):
+            from_dict(spec_dict)
+
+    def test_column_name_must_be_non_empty_string(self):
+        spec_dict = self._base_spec()
+        spec_dict["columns"][0]["name"] = None
+        with pytest.raises(
+            SpecParsingError,
+            match="The 'name' of a column must be a non-empty string",
+        ):
+            from_dict(spec_dict)
+
+    def test_type_params_unknown_field_raises_type_definition_error(self):
+        spec_dict = self._base_spec()
+        spec_dict["columns"][0]["type"] = "integer"
+        spec_dict["columns"][0]["params"] = {"bogus": 1}
+        with pytest.raises(
+            TypeDefinitionError, match="Failed to instantiate type 'integer'"
         ):
             from_dict(spec_dict)
