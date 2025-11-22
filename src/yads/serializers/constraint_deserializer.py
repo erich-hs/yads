@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Any, Callable, cast
+from typing import Any, Callable, ClassVar, Mapping as TypingMapping, cast
 
 from ..constraints import (
     ColumnConstraint,
@@ -26,10 +26,22 @@ TableConstraintParser = Callable[[Mapping[str, Any]], TableConstraint]
 class ConstraintDeserializer:
     """Parse column and table constraint dictionaries."""
 
-    def __init__(self) -> None:
-        self._column_parsers: dict[str, ColumnConstraintParser] = {}
-        self._table_parsers: dict[str, TableConstraintParser] = {}
-        self._register_default_parsers()
+    def __init__(
+        self,
+        *,
+        column_parsers: TypingMapping[str, ColumnConstraintParser] | None = None,
+        table_parsers: TypingMapping[str, TableConstraintParser] | None = None,
+    ) -> None:
+        self._column_parsers: dict[str, ColumnConstraintParser] = (
+            dict(column_parsers)
+            if column_parsers is not None
+            else dict(self._DEFAULT_COLUMN_CONSTRAINT_PARSERS)
+        )
+        self._table_parsers: dict[str, TableConstraintParser] = (
+            dict(table_parsers)
+            if table_parsers is not None
+            else dict(self._DEFAULT_TABLE_CONSTRAINT_PARSERS)
+        )
 
     def register_column_parser(self, name: str, parser: ColumnConstraintParser) -> None:
         """Register a parser for a named column constraint."""
@@ -96,38 +108,28 @@ class ConstraintDeserializer:
         return parsed
 
     # ---- Column constraint helpers -------------------------------------------------
-    def _register_default_parsers(self) -> None:
-        self.register_column_parser("not_null", self._parse_not_null_constraint)
-        self.register_column_parser("primary_key", self._parse_primary_key_constraint)
-        self.register_column_parser("default", self._parse_default_constraint)
-        self.register_column_parser("foreign_key", self._parse_foreign_key_constraint)
-        self.register_column_parser("identity", self._parse_identity_constraint)
-
-        self.register_table_parser(
-            "primary_key", self._parse_primary_key_table_constraint
-        )
-        self.register_table_parser(
-            "foreign_key", self._parse_foreign_key_table_constraint
-        )
-
-    def _parse_not_null_constraint(self, value: Any) -> NotNullConstraint:
+    @staticmethod
+    def _parse_not_null_constraint(value: Any) -> NotNullConstraint:
         if not isinstance(value, bool):
             raise InvalidConstraintError(
                 f"The 'not_null' constraint expects a boolean value. Got {value!r}."
             )
         return NotNullConstraint()
 
-    def _parse_primary_key_constraint(self, value: Any) -> PrimaryKeyConstraint:
+    @staticmethod
+    def _parse_primary_key_constraint(value: Any) -> PrimaryKeyConstraint:
         if not isinstance(value, bool):
             raise InvalidConstraintError(
                 f"The 'primary_key' constraint expects a boolean value. Got {value!r}."
             )
         return PrimaryKeyConstraint()
 
-    def _parse_default_constraint(self, value: Any) -> DefaultConstraint:
+    @staticmethod
+    def _parse_default_constraint(value: Any) -> DefaultConstraint:
         return DefaultConstraint(value=value)
 
-    def _parse_foreign_key_constraint(self, value: Any) -> ForeignKeyConstraint:
+    @staticmethod
+    def _parse_foreign_key_constraint(value: Any) -> ForeignKeyConstraint:
         if not isinstance(value, Mapping):
             raise InvalidConstraintError(
                 f"The 'foreign_key' constraint expects a dictionary. Got {value!r}."
@@ -149,12 +151,13 @@ class ConstraintDeserializer:
 
         return ForeignKeyConstraint(
             name=name,
-            references=self._parse_foreign_key_references(
+            references=ConstraintDeserializer._parse_foreign_key_references(
                 cast(Mapping[str, Any], references_value)
             ),
         )
 
-    def _parse_identity_constraint(self, value: Any) -> IdentityConstraint:
+    @staticmethod
+    def _parse_identity_constraint(value: Any) -> IdentityConstraint:
         if not isinstance(value, Mapping):
             raise InvalidConstraintError(
                 f"The 'identity' constraint expects a dictionary. Got {value!r}."
@@ -180,8 +183,9 @@ class ConstraintDeserializer:
         )
 
     # ---- Table constraint helpers --------------------------------------------------
+    @staticmethod
     def _parse_primary_key_table_constraint(
-        self, const_def: Mapping[str, Any]
+        const_def: Mapping[str, Any],
     ) -> PrimaryKeyTableConstraint:
         for required_field in ("name", "columns"):
             if required_field not in const_def:
@@ -193,13 +197,14 @@ class ConstraintDeserializer:
             raise InvalidConstraintError(
                 "Primary key table constraint 'name' must be a string."
             )
-        columns = self._ensure_column_name_list(
+        columns = ConstraintDeserializer._ensure_column_name_list(
             const_def["columns"], "primary key table constraint"
         )
         return PrimaryKeyTableConstraint(columns=columns, name=name)
 
+    @staticmethod
     def _parse_foreign_key_table_constraint(
-        self, const_def: Mapping[str, Any]
+        const_def: Mapping[str, Any],
     ) -> ForeignKeyTableConstraint:
         for required_field in ("name", "columns", "references"):
             if required_field not in const_def:
@@ -211,7 +216,7 @@ class ConstraintDeserializer:
             raise InvalidConstraintError(
                 "Foreign key table constraint 'name' must be a string."
             )
-        columns = self._ensure_column_name_list(
+        columns = ConstraintDeserializer._ensure_column_name_list(
             const_def["columns"], "foreign key table constraint"
         )
         references_value = const_def["references"]
@@ -222,13 +227,14 @@ class ConstraintDeserializer:
         return ForeignKeyTableConstraint(
             columns=columns,
             name=name,
-            references=self._parse_foreign_key_references(
+            references=ConstraintDeserializer._parse_foreign_key_references(
                 cast(Mapping[str, Any], references_value)
             ),
         )
 
+    @staticmethod
     def _parse_foreign_key_references(
-        self, references_def: Mapping[str, Any]
+        references_def: Mapping[str, Any],
     ) -> ForeignKeyReference:
         if "table" not in references_def:
             raise InvalidConstraintError(
@@ -259,7 +265,8 @@ class ConstraintDeserializer:
             columns=validated_columns,
         )
 
-    def _ensure_column_name_list(self, value: Any, context: str) -> list[str]:
+    @staticmethod
+    def _ensure_column_name_list(value: Any, context: str) -> list[str]:
         if not isinstance(value, list):
             raise InvalidConstraintError(
                 f"'{context}' columns must be a list of strings."
@@ -273,3 +280,16 @@ class ConstraintDeserializer:
                 )
             validated_columns.append(column)
         return validated_columns
+
+    _DEFAULT_COLUMN_CONSTRAINT_PARSERS: ClassVar[dict[str, ColumnConstraintParser]] = {
+        "not_null": _parse_not_null_constraint,
+        "primary_key": _parse_primary_key_constraint,
+        "default": _parse_default_constraint,
+        "foreign_key": _parse_foreign_key_constraint,
+        "identity": _parse_identity_constraint,
+    }
+
+    _DEFAULT_TABLE_CONSTRAINT_PARSERS: ClassVar[dict[str, TableConstraintParser]] = {
+        "primary_key": _parse_primary_key_table_constraint,
+        "foreign_key": _parse_foreign_key_table_constraint,
+    }

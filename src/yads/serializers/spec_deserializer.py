@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Mapping, Sequence
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from ..constraints import CONSTRAINT_EQUIVALENTS
 from ..exceptions import SpecParsingError, TypeDefinitionError
@@ -32,8 +32,6 @@ class SpecDeserializer:
         type_deserializer: TypeDeserializer | None = None,
         constraint_deserializer: ConstraintDeserializer | None = None,
     ) -> None:
-        self.data: dict[str, Any] | None = None
-        self._spec: yspec.YadsSpec | None = None
         self._type_deserializer = type_deserializer or TypeDeserializer()
         self._constraint_deserializer = (
             constraint_deserializer or ConstraintDeserializer()
@@ -41,9 +39,9 @@ class SpecDeserializer:
 
     def deserialize(self, data: Mapping[str, Any]) -> yspec.YadsSpec:
         """Build and validate the `YadsSpec` from provided data."""
-        self.data = dict(data)
+        normalized_data = dict(data)
         self._validate_keys(
-            self.data,
+            normalized_data,
             allowed_keys={
                 "name",
                 "version",
@@ -60,12 +58,12 @@ class SpecDeserializer:
             context="spec definition",
         )
 
-        name_value = self.data["name"]
+        name_value = normalized_data["name"]
         if not isinstance(name_value, str) or not name_value.strip():
             raise SpecParsingError("'name' must be a non-empty string.")
 
         # Extract version, default to 1 if not provided (for newly loaded specs)
-        version_value = self.data.get("version", 1)
+        version_value = normalized_data.get("version", 1)
         try:
             version = int(version_value)
         except (TypeError, ValueError) as exc:
@@ -78,11 +76,13 @@ class SpecDeserializer:
             raise SpecParsingError("'version' must be a positive integer.")
 
         # Extract yads_spec_version, default to current spec version
-        yads_spec_version = self.data.get("yads_spec_version", yspec.YADS_SPEC_VERSION)
+        yads_spec_version = normalized_data.get(
+            "yads_spec_version", yspec.YADS_SPEC_VERSION
+        )
         if not isinstance(yads_spec_version, str) or not yads_spec_version.strip():
             raise SpecParsingError("'yads_spec_version' must be a non-empty string.")
 
-        external_value = self.data.get("external", False)
+        external_value = normalized_data.get("external", False)
         if not isinstance(external_value, bool):
             raise SpecParsingError("'external' must be a boolean when specified.")
 
@@ -90,20 +90,21 @@ class SpecDeserializer:
             name=name_value,
             version=version,
             yads_spec_version=yads_spec_version,
-            description=self.data.get("description"),
+            description=normalized_data.get("description"),
             external=external_value,
-            storage=self._parse_storage(self.data.get("storage")),
-            partitioned_by=self._parse_partitioned_by(self.data.get("partitioned_by")),
+            storage=self._parse_storage(normalized_data.get("storage")),
+            partitioned_by=self._parse_partitioned_by(
+                normalized_data.get("partitioned_by")
+            ),
             table_constraints=self._constraint_deserializer.parse_table_constraints(
-                self.data.get("table_constraints")
+                normalized_data.get("table_constraints")
             ),
             metadata=self._parse_metadata(
-                self.data.get("metadata"), context="spec metadata"
+                normalized_data.get("metadata"), context="spec metadata"
             ),
-            columns=self._parse_columns(self.data["columns"]),
+            columns=self._parse_columns(normalized_data["columns"]),
         )
-        self._spec = spec
-        self._validate_spec()
+        self._validate_spec(spec)
         return spec
 
     def _validate_keys(
@@ -137,39 +138,34 @@ class SpecDeserializer:
         return [self._parse_column(col_def) for col_def in normalized_columns]
 
     def _parse_field(self, field_def: dict[str, Any]) -> yspec.Field:
-        self._validate_field_definition(field_def, context="field")
-        metadata = self._parse_metadata(field_def.get("metadata"), context="field")
-        return yspec.Field(
-            name=field_def["name"],
-            type=self._type_deserializer.parse(
+        base_kwargs = self._build_field_arguments(field_def, context="field")
+        return yspec.Field(**base_kwargs)
+
+    def _parse_column(self, col_def: dict[str, Any]) -> yspec.Column:
+        base_kwargs = self._build_field_arguments(col_def, context="column")
+        return yspec.Column(
+            **base_kwargs,
+            generated_as=self._parse_generation_clause(col_def.get("generated_as")),
+        )
+
+    def _build_field_arguments(
+        self, field_def: dict[str, Any], *, context: Literal["field", "column"]
+    ) -> dict[str, Any]:
+        self._validate_field_definition(field_def, context=context)
+        metadata = self._parse_metadata(field_def.get("metadata"), context=context)
+        return {
+            "name": field_def["name"],
+            "type": self._type_deserializer.parse(
                 field_def["type"],
                 field_def,
                 field_factory=self._parse_field,
             ),
-            description=field_def.get("description"),
-            metadata=metadata,
-            constraints=self._constraint_deserializer.parse_column_constraints(
+            "description": field_def.get("description"),
+            "metadata": metadata,
+            "constraints": self._constraint_deserializer.parse_column_constraints(
                 field_def.get("constraints")
             ),
-        )
-
-    def _parse_column(self, col_def: dict[str, Any]) -> yspec.Column:
-        self._validate_field_definition(col_def, context="column")
-        metadata = self._parse_metadata(col_def.get("metadata"), context="column")
-        return yspec.Column(
-            name=col_def["name"],
-            type=self._type_deserializer.parse(
-                col_def["type"],
-                col_def,
-                field_factory=self._parse_field,
-            ),
-            description=col_def.get("description"),
-            metadata=metadata,
-            constraints=self._constraint_deserializer.parse_column_constraints(
-                col_def.get("constraints")
-            ),
-            generated_as=self._parse_generation_clause(col_def.get("generated_as")),
-        )
+        }
 
     def _validate_field_definition(
         self, field_def: dict[str, Any], context: str = "field"
@@ -223,32 +219,10 @@ class SpecDeserializer:
                 "Generated column definition must be a mapping when provided."
             )
         clause_mapping = cast(Mapping[str, Any], gen_clause_def)
-
-        self._validate_keys(
+        return self._parse_transformed_column_reference(
             clause_mapping,
-            allowed_keys={"column", "transform", "transform_args"},
-            required_keys={"column", "transform"},
             context="generation clause",
-        )
-
-        column_value = clause_mapping["column"]
-        if not isinstance(column_value, str):
-            raise SpecParsingError("'column' in generation clause must be a string.")
-
-        transform_value = clause_mapping["transform"]
-        if not isinstance(transform_value, str):
-            raise SpecParsingError("'transform' in generation clause must be a string.")
-        if not transform_value:
-            raise SpecParsingError("'transform' cannot be empty in a generation clause.")
-
-        transform_args = self._parse_transform_args(
-            clause_mapping.get("transform_args"), context="generation clause"
-        )
-
-        return yspec.TransformedColumnReference(
-            column=column_value,
-            transform=transform_value,
-            transform_args=transform_args,
+            transform_required=True,
         )
 
     def _parse_partitioned_by(
@@ -269,33 +243,64 @@ class SpecDeserializer:
                     f"Partition definition at index {index} must be a mapping."
                 )
             partition_mapping = cast(Mapping[str, Any], pc)
-            self._validate_keys(
-                partition_mapping,
-                allowed_keys={"column", "transform", "transform_args"},
-                required_keys={"column"},
-                context="partitioned_by item",
-            )
-            column_value = partition_mapping["column"]
-            if not isinstance(column_value, str):
-                raise SpecParsingError(
-                    "'column' in partitioned_by item must be a string."
-                )
-            transform_value = partition_mapping.get("transform")
-            if transform_value is not None and not isinstance(transform_value, str):
-                raise SpecParsingError(
-                    "'transform' in partitioned_by item must be a string when specified."
-                )
             transformed_columns.append(
-                yspec.TransformedColumnReference(
-                    column=column_value,
-                    transform=transform_value,
-                    transform_args=self._parse_transform_args(
-                        partition_mapping.get("transform_args"),
-                        context="partitioned_by item",
-                    ),
+                self._parse_transformed_column_reference(
+                    partition_mapping,
+                    context="partitioned_by item",
+                    transform_required=False,
                 )
             )
         return transformed_columns
+
+    def _parse_transformed_column_reference(
+        self,
+        clause_mapping: Mapping[str, Any],
+        *,
+        context: str,
+        transform_required: bool,
+    ) -> yspec.TransformedColumnReference:
+        required_keys = {"column"}
+        if transform_required:
+            required_keys.add("transform")
+        self._validate_keys(
+            clause_mapping,
+            allowed_keys={"column", "transform", "transform_args"},
+            required_keys=required_keys,
+            context=context,
+        )
+
+        column_value = clause_mapping["column"]
+        if not isinstance(column_value, str):
+            raise SpecParsingError(f"'column' in {context} must be a string.")
+
+        transform_value = clause_mapping.get("transform")
+        normalized_transform: str | None
+        if transform_required:
+            if not isinstance(transform_value, str):
+                raise SpecParsingError(f"'transform' in {context} must be a string.")
+            if not transform_value:
+                raise SpecParsingError(
+                    "'transform' cannot be empty in a generation clause."
+                )
+            normalized_transform = transform_value
+        elif transform_value is not None and not isinstance(transform_value, str):
+            raise SpecParsingError(
+                f"'transform' in {context} must be a string when specified."
+            )
+        else:
+            normalized_transform = (
+                transform_value if isinstance(transform_value, str) else None
+            )
+
+        transform_args = self._parse_transform_args(
+            clause_mapping.get("transform_args"), context=context
+        )
+
+        return yspec.TransformedColumnReference(
+            column=column_value,
+            transform=normalized_transform,
+            transform_args=transform_args,
+        )
 
     # %% ---- Storage -----------------------------------------------------------------
     def _parse_storage(self, storage_def: object | None) -> yspec.Storage | None:
@@ -382,15 +387,15 @@ class SpecDeserializer:
         return normalized
 
     # %% ---- Post-build validations --------------------------------------------------
-    def _validate_spec(self) -> None:
-        if not self._spec:
-            return
-        self._check_for_duplicate_constraint_definitions(self._spec)
-        self._check_for_undefined_columns_in_table_constraints(self._spec)
-        self._check_for_undefined_columns_in_partitioned_by(self._spec)
-        self._check_for_undefined_columns_in_generated_as(self._spec)
+    @staticmethod
+    def _validate_spec(spec: yspec.YadsSpec) -> None:
+        SpecDeserializer._check_for_duplicate_constraint_definitions(spec)
+        SpecDeserializer._check_for_undefined_columns_in_table_constraints(spec)
+        SpecDeserializer._check_for_undefined_columns_in_partitioned_by(spec)
+        SpecDeserializer._check_for_undefined_columns_in_generated_as(spec)
 
-    def _check_for_duplicate_constraint_definitions(self, spec: yspec.YadsSpec) -> None:
+    @staticmethod
+    def _check_for_duplicate_constraint_definitions(spec: yspec.YadsSpec) -> None:
         for col_const_type, tbl_const_type in CONSTRAINT_EQUIVALENTS.items():
             constrained_cols = {
                 c.name
@@ -410,8 +415,9 @@ class SpecDeserializer:
                     stacklevel=2,
                 )
 
+    @staticmethod
     def _check_for_undefined_columns_in_table_constraints(
-        self, spec: yspec.YadsSpec
+        spec: yspec.YadsSpec,
     ) -> None:
         for constraint in spec.table_constraints:
             constrained_columns = set(constraint.constrained_columns)
@@ -427,15 +433,17 @@ class SpecDeserializer:
                     stacklevel=2,
                 )
 
+    @staticmethod
     def _check_for_undefined_columns_in_partitioned_by(
-        self, spec: yspec.YadsSpec
+        spec: yspec.YadsSpec,
     ) -> None:
         if not_defined := spec.partition_column_names - spec.column_names:
             raise SpecParsingError(
                 f"Partition spec references undefined columns: {sorted(list(not_defined))}."
             )
 
-    def _check_for_undefined_columns_in_generated_as(self, spec: yspec.YadsSpec) -> None:
+    @staticmethod
+    def _check_for_undefined_columns_in_generated_as(spec: yspec.YadsSpec) -> None:
         for gen_col, source_col in spec.generated_columns.items():
             if source_col not in spec.column_names:
                 raise SpecParsingError(
