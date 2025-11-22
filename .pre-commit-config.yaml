@@ -30,7 +30,6 @@ repos:
         name: pyright
         entry: uv run --group dev pyright
         language: system
-        pass_filenames: false
       - id: validate-yads-spec
         name: latest yads spec is valid
         entry: bash
