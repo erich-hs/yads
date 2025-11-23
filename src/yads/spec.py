@@ -47,7 +47,7 @@ YADS_SPEC_VERSION = "0.0.2"
 
 def from_dict(data: Mapping[str, Any]) -> "YadsSpec":
     """Build a `YadsSpec` from a normalized dictionary."""
-    from .serializers.spec_deserializer import SpecDeserializer
+    from .serializers.spec_serializer import SpecDeserializer
 
     return SpecDeserializer().deserialize(data)
 
@@ -385,6 +385,12 @@ class YadsSpec:
                     raise SpecValidationError(
                         f"Column {col!r} in constraint {constraint} not found in schema."
                     )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize this spec into the canonical dictionary format."""
+        from .serializers.spec_serializer import SpecSerializer
+
+        return SpecSerializer().serialize(self)
 
     @cached_property
     def column_names(self) -> set[str]:

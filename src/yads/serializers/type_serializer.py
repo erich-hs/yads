@@ -1,20 +1,153 @@
-"""Type deserialization helpers."""
+"""Type serialization and deserialization helpers."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import MISSING, fields as dataclass_fields, is_dataclass
+from enum import Enum
 from typing import Any, Callable, Mapping as TypingMapping, TypeVar, cast
 
-from ..exceptions import TypeDefinitionError, UnknownTypeError
+from ..exceptions import SpecSerializationError, TypeDefinitionError, UnknownTypeError
 from .. import types as ytypes
 from .. import spec as yspec
 
 FieldFactory = Callable[[dict[str, Any]], yspec.Field]
+FieldSerializer = Callable[[yspec.Field], dict[str, Any]]
 TypeParser = Callable[
     [str, Mapping[str, Any], TypingMapping[str, Any], FieldFactory],
     ytypes.YadsType,
 ]
 TypeT = TypeVar("TypeT", bound=ytypes.YadsType)
+
+
+class TypeSerializer:
+    """Serialize `YadsType` instances into dictionary definitions."""
+
+    _COMPLEX_ATTRIBUTE_NAMES = {"element", "fields", "key", "value"}
+
+    def __init__(
+        self,
+        *,
+        type_aliases: TypingMapping[str, tuple[type[ytypes.YadsType], dict[str, Any]]]
+        | None = None,
+        field_serializer: FieldSerializer | None = None,
+    ) -> None:
+        self._type_aliases = type_aliases or ytypes.TYPE_ALIASES
+        self._canonical_aliases, self._alias_defaults = self._build_alias_metadata()
+        self._field_serializer = field_serializer
+
+    def bind_field_serializer(self, serializer: FieldSerializer) -> None:
+        """Set the callable used to serialize nested `Field` instances."""
+        self._field_serializer = serializer
+
+    def serialize(self, yads_type: ytypes.YadsType) -> dict[str, Any]:
+        """Serialize a `YadsType` into its dictionary representation."""
+        type_name, alias_defaults = self._select_alias(yads_type)
+        payload: dict[str, Any] = {"type": type_name}
+        params = self._collect_params(yads_type, alias_defaults)
+        if params:
+            payload["params"] = params
+        if isinstance(yads_type, ytypes.Array):
+            payload["element"] = self.serialize(yads_type.element)
+        if isinstance(yads_type, ytypes.Tensor):
+            payload["element"] = self.serialize(yads_type.element)
+        if isinstance(yads_type, ytypes.Struct):
+            payload["fields"] = self._serialize_struct_fields(yads_type)
+        if isinstance(yads_type, ytypes.Map):
+            payload["key"] = self.serialize(yads_type.key)
+            payload["value"] = self.serialize(yads_type.value)
+        return payload
+
+    def _serialize_struct_fields(
+        self, struct_type: ytypes.Struct
+    ) -> list[dict[str, Any]]:
+        field_serializer = self._field_serializer
+        if field_serializer is None:
+            raise SpecSerializationError(
+                "Struct serialization requires a bound field serializer."
+            )
+        serialized_fields: list[dict[str, Any]] = []
+        for field in struct_type.fields:
+            serialized_fields.append(field_serializer(field))
+        return serialized_fields
+
+    def _build_alias_metadata(
+        self,
+    ) -> tuple[
+        dict[type[ytypes.YadsType], str],
+        dict[type[ytypes.YadsType], dict[str, Any]],
+    ]:
+        canonical: dict[type[ytypes.YadsType], str] = {}
+        defaults: dict[type[ytypes.YadsType], dict[str, Any]] = {}
+        candidates: dict[type[ytypes.YadsType], list[tuple[str, dict[str, Any]]]] = {}
+        for alias, (type_cls, default_params) in self._type_aliases.items():
+            candidates.setdefault(type_cls, []).append((alias, dict(default_params)))
+            canonical_label = type_cls.__name__.lower()
+            if alias == canonical_label and type_cls not in canonical:
+                canonical[type_cls] = alias
+                defaults[type_cls] = dict(default_params)
+        for type_cls, alias_list in candidates.items():
+            if type_cls not in canonical and alias_list:
+                alias, alias_defaults = alias_list[0]
+                canonical[type_cls] = alias
+                defaults[type_cls] = dict(alias_defaults)
+        return canonical, defaults
+
+    def _select_alias(self, yads_type: ytypes.YadsType) -> tuple[str, dict[str, Any]]:
+        type_cls = type(yads_type)
+        alias = self._canonical_aliases.get(type_cls, type_cls.__name__.lower())
+        defaults = self._alias_defaults.get(type_cls, {})
+        return alias, defaults
+
+    def _collect_params(
+        self,
+        yads_type: ytypes.YadsType,
+        alias_defaults: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        params: dict[str, Any] = {}
+        normalized_alias_defaults = {
+            key: self._normalize_param_value(value)
+            for key, value in alias_defaults.items()
+        }
+        data_cls = type(yads_type)
+        if not is_dataclass(data_cls):
+            raise SpecSerializationError(
+                f"Type {data_cls.__name__} must be a dataclass to be serialized."
+            )
+        for data_field in dataclass_fields(cast(type[Any], data_cls)):
+            name = data_field.name
+            if name in self._COMPLEX_ATTRIBUTE_NAMES:
+                continue
+            value = getattr(yads_type, name)
+            normalized_value = self._normalize_param_value(value)
+            if normalized_value is None:
+                continue
+            include_param = False
+            if name in normalized_alias_defaults:
+                if normalized_value != normalized_alias_defaults[name]:
+                    include_param = True
+            elif data_field.default is not MISSING:
+                default_value = self._normalize_param_value(data_field.default)
+                if normalized_value != default_value:
+                    include_param = True
+            elif data_field.default_factory is not MISSING:
+                default_factory_value = self._normalize_param_value(
+                    data_field.default_factory()  # type: ignore[misc]
+                )
+                if normalized_value != default_factory_value:
+                    include_param = True
+            else:
+                include_param = True
+            if include_param:
+                params[name] = normalized_value
+        return params
+
+    def _normalize_param_value(self, value: Any) -> Any:
+        if isinstance(value, Enum):
+            return value.value
+        if isinstance(value, tuple):
+            return list(cast(tuple[Any, ...], value))
+        return value
 
 
 class TypeDeserializer:

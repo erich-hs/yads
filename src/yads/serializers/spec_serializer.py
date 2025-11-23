@@ -1,9 +1,4 @@
-"""Deserialize dictionaries into `YadsSpec` instances.
-
-This module centralizes the current spec-building logic so it can evolve into
-dedicated serializer/deserializer helpers that live alongside the core data
-structures.
-"""
+"""Serialization and deserialization helpers for `YadsSpec` instances."""
 
 from __future__ import annotations
 
@@ -14,8 +9,95 @@ from typing import Any, Literal, cast
 from ..constraints import CONSTRAINT_EQUIVALENTS
 from ..exceptions import SpecParsingError, TypeDefinitionError
 from .. import spec as yspec
-from .constraint_deserializer import ConstraintDeserializer
-from .type_deserializer import TypeDeserializer
+from .constraint_serializer import ConstraintDeserializer, ConstraintSerializer
+from .type_serializer import TypeDeserializer, TypeSerializer
+
+
+class SpecSerializer:
+    """Serialize `YadsSpec` instances into normalized dictionaries."""
+
+    def __init__(
+        self,
+        *,
+        type_serializer: TypeSerializer | None = None,
+        constraint_serializer: ConstraintSerializer | None = None,
+    ) -> None:
+        self._type_serializer = type_serializer or TypeSerializer()
+        self._constraint_serializer = constraint_serializer or ConstraintSerializer()
+        self._type_serializer.bind_field_serializer(self._serialize_field_definition)
+
+    def serialize(self, spec: yspec.YadsSpec) -> dict[str, Any]:
+        """Serialize the provided spec into a dictionary."""
+        serialized: dict[str, Any] = {
+            "name": spec.name,
+            "version": spec.version,
+            "yads_spec_version": spec.yads_spec_version,
+            "columns": [self._serialize_column(column) for column in spec.columns],
+        }
+        if spec.description:
+            serialized["description"] = spec.description
+        if spec.external:
+            serialized["external"] = True
+        if spec.metadata:
+            serialized["metadata"] = dict(spec.metadata)
+        if spec.storage:
+            storage_dict = self._serialize_storage(spec.storage)
+            if storage_dict:
+                serialized["storage"] = storage_dict
+        if spec.partitioned_by:
+            serialized["partitioned_by"] = [
+                self._serialize_transformed_column_reference(ref)
+                for ref in spec.partitioned_by
+            ]
+        table_constraints = self._constraint_serializer.serialize_table_constraints(
+            spec.table_constraints
+        )
+        if table_constraints:
+            serialized["table_constraints"] = table_constraints
+        return serialized
+
+    def _serialize_column(self, column: yspec.Column) -> dict[str, Any]:
+        column_dict = self._serialize_field_definition(column)
+        if column.generated_as:
+            column_dict["generated_as"] = self._serialize_transformed_column_reference(
+                column.generated_as
+            )
+        return column_dict
+
+    def _serialize_field_definition(self, field: yspec.Field) -> dict[str, Any]:
+        field_dict: dict[str, Any] = {"name": field.name}
+        type_payload = self._type_serializer.serialize(field.type)
+        field_dict.update(type_payload)
+        if field.description:
+            field_dict["description"] = field.description
+        if field.metadata:
+            field_dict["metadata"] = dict(field.metadata)
+        constraints = self._constraint_serializer.serialize_column_constraints(
+            field.constraints
+        )
+        if constraints:
+            field_dict["constraints"] = constraints
+        return field_dict
+
+    def _serialize_storage(self, storage: yspec.Storage) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        if storage.format:
+            payload["format"] = storage.format
+        if storage.location:
+            payload["location"] = storage.location
+        if storage.tbl_properties:
+            payload["tbl_properties"] = dict(storage.tbl_properties)
+        return payload
+
+    def _serialize_transformed_column_reference(
+        self, reference: yspec.TransformedColumnReference
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {"column": reference.column}
+        if reference.transform:
+            payload["transform"] = reference.transform
+        if reference.transform_args:
+            payload["transform_args"] = list(reference.transform_args)
+        return payload
 
 
 class SpecDeserializer:

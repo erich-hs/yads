@@ -62,6 +62,10 @@ class SpecValidationError(SpecError):
     """Spec consistency and integrity validation errors."""
 
 
+class SpecSerializationError(SpecError):
+    """Errors encountered while serializing specs to dictionaries."""
+
+
 # Type System Exceptions
 class TypeDefinitionError(YadsValidationError):
     """Invalid type definitions and parameters."""

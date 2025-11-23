@@ -1,4 +1,4 @@
-"""Constraint deserialization helpers."""
+"""Constraint serialization and deserialization helpers."""
 
 from __future__ import annotations
 
@@ -17,10 +17,119 @@ from ..constraints import (
     PrimaryKeyTableConstraint,
     TableConstraint,
 )
-from ..exceptions import InvalidConstraintError, SpecParsingError, UnknownConstraintError
+from ..exceptions import (
+    InvalidConstraintError,
+    SpecParsingError,
+    SpecSerializationError,
+    UnknownConstraintError,
+)
 
 ColumnConstraintParser = Callable[[Any], ColumnConstraint]
 TableConstraintParser = Callable[[Mapping[str, Any]], TableConstraint]
+
+
+class ConstraintSerializer:
+    """Serialize constraint objects into dictionary representations."""
+
+    def serialize_column_constraints(
+        self, constraints: Sequence[ColumnConstraint]
+    ) -> dict[str, Any]:
+        serialized: dict[str, Any] = {}
+        for constraint in constraints:
+            if isinstance(constraint, NotNullConstraint):
+                serialized["not_null"] = True
+            elif isinstance(constraint, PrimaryKeyConstraint):
+                serialized["primary_key"] = True
+            elif isinstance(constraint, DefaultConstraint):
+                serialized["default"] = constraint.value
+            elif isinstance(constraint, ForeignKeyConstraint):
+                serialized["foreign_key"] = self._serialize_foreign_key_constraint(
+                    constraint
+                )
+            elif isinstance(constraint, IdentityConstraint):
+                serialized["identity"] = self._serialize_identity_constraint(constraint)
+            else:
+                raise SpecSerializationError(
+                    f"Unsupported column constraint {type(constraint).__name__!s}"
+                )
+        return serialized
+
+    def serialize_table_constraints(
+        self, constraints: Sequence[TableConstraint]
+    ) -> list[dict[str, Any]]:
+        serialized: list[dict[str, Any]] = []
+        for constraint in constraints:
+            if isinstance(constraint, PrimaryKeyTableConstraint):
+                serialized.append(
+                    self._serialize_primary_key_table_constraint(constraint)
+                )
+            elif isinstance(constraint, ForeignKeyTableConstraint):
+                serialized.append(
+                    self._serialize_foreign_key_table_constraint(constraint)
+                )
+            else:
+                raise SpecSerializationError(
+                    f"Unsupported table constraint {type(constraint).__name__!s}"
+                )
+        return serialized
+
+    def _serialize_foreign_key_constraint(
+        self, constraint: ForeignKeyConstraint
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "references": self._serialize_foreign_key_reference(constraint.references)
+        }
+        if constraint.name:
+            payload["name"] = constraint.name
+        return payload
+
+    def _serialize_identity_constraint(
+        self, constraint: IdentityConstraint
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        if constraint.always is not True:
+            payload["always"] = constraint.always
+        if constraint.start is not None:
+            payload["start"] = constraint.start
+        if constraint.increment is not None:
+            payload["increment"] = constraint.increment
+        return payload
+
+    def _serialize_primary_key_table_constraint(
+        self, constraint: PrimaryKeyTableConstraint
+    ) -> dict[str, Any]:
+        if not constraint.name:
+            raise SpecSerializationError(
+                "Primary key table constraints require a 'name' to serialize."
+            )
+        return {
+            "type": "primary_key",
+            "name": constraint.name,
+            "columns": list(constraint.columns),
+        }
+
+    def _serialize_foreign_key_table_constraint(
+        self, constraint: ForeignKeyTableConstraint
+    ) -> dict[str, Any]:
+        if not constraint.name:
+            raise SpecSerializationError(
+                "Foreign key table constraints require a 'name' to serialize."
+            )
+        payload: dict[str, Any] = {
+            "type": "foreign_key",
+            "name": constraint.name,
+            "columns": list(constraint.columns),
+            "references": self._serialize_foreign_key_reference(constraint.references),
+        }
+        return payload
+
+    def _serialize_foreign_key_reference(
+        self, reference: ForeignKeyReference
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {"table": reference.table}
+        if reference.columns:
+            payload["columns"] = list(reference.columns)
+        return payload
 
 
 class ConstraintDeserializer:
