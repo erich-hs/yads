@@ -55,6 +55,7 @@ class SpecSerializer:
             serialized["table_constraints"] = table_constraints
         return serialized
 
+    # ---- Column and Field serialization helpers ----------------------------------
     def _serialize_column(self, column: yspec.Column) -> dict[str, Any]:
         column_dict = self._serialize_field_definition(column)
         if column.generated_as:
@@ -68,6 +69,8 @@ class SpecSerializer:
         type_payload = self._type_serializer.serialize(
             field.type, field_serializer=self._serialize_field_definition
         )
+        # Merge the type payload directly so callers share identical structure for
+        # nested fields, arrays, and other recursive elements.
         field_dict.update(type_payload)
         if field.description:
             field_dict["description"] = field.description
@@ -80,6 +83,7 @@ class SpecSerializer:
             field_dict["constraints"] = constraints
         return field_dict
 
+    # ---- Storage serialization helpers -------------------------------------------
     def _serialize_storage(self, storage: yspec.Storage) -> dict[str, Any]:
         payload: dict[str, Any] = {}
         if storage.format:
@@ -90,6 +94,7 @@ class SpecSerializer:
             payload["tbl_properties"] = dict(storage.tbl_properties)
         return payload
 
+    # ---- Transformed Column serialization helpers --------------------------------
     def _serialize_transformed_column_reference(
         self, reference: yspec.TransformedColumnReference
     ) -> dict[str, Any]:
@@ -153,6 +158,7 @@ class SpecDeserializer:
             raise SpecParsingError(
                 "'version' must be an integer when specified."
             ) from exc
+        # Guard against YAML booleans sneaking through since bool subclasses int.
         if isinstance(version_value, bool):
             raise SpecParsingError("'version' must be an integer when specified.")
         if version < 1:
@@ -190,6 +196,7 @@ class SpecDeserializer:
         self._validate_spec(spec)
         return spec
 
+    # ---- Generic validation helpers ----------------------------------------------
     def _validate_keys(
         self,
         obj: Mapping[str, Any],
@@ -211,9 +218,7 @@ class SpecDeserializer:
                     f"Missing required key(s) in {context}: {missing_sorted}."
                 )
 
-    # (Type parsing now delegated to `TypeDeserializer`)
-
-    # %% ---- Field/Column parsing ----------------------------------------------------
+    # ---- Column and Field parsing helpers ------------------------------------------
     def _parse_columns(self, raw_columns: Any) -> list[yspec.Column]:
         normalized_columns = self._ensure_mapping_sequence(
             raw_columns, context="columns definition"
@@ -238,6 +243,8 @@ class SpecDeserializer:
         metadata = self._parse_metadata(field_def.get("metadata"), context=context)
         return {
             "name": field_def["name"],
+            # Feed the entire field definition to the type deserializer so nested
+            # structures (arrays, structs, etc.) reuse the same recursion path.
             "type": self._type_deserializer.parse(
                 field_def["type"],
                 field_def,
@@ -291,7 +298,7 @@ class SpecDeserializer:
             context=f"{context} definition",
         )
 
-    # %% ---- Generation clauses & partitions ----------------------------------------
+    # ---- Generation clause & partition helpers ------------------------------------
     def _parse_generation_clause(
         self, gen_clause_def: object | None
     ) -> yspec.TransformedColumnReference | None:
@@ -326,6 +333,8 @@ class SpecDeserializer:
                     f"Partition definition at index {index} must be a mapping."
                 )
             partition_mapping = cast(Mapping[str, Any], pc)
+            # Partition clauses mirror generated columns but permit passthrough
+            # columns, so reuse the same helper with relaxed requirements.
             transformed_columns.append(
                 self._parse_transformed_column_reference(
                     partition_mapping,
@@ -345,6 +354,8 @@ class SpecDeserializer:
         required_keys = {"column"}
         if transform_required:
             required_keys.add("transform")
+        # Generated columns require explicit transforms, but partitions allow plain
+        # column references; tweak validation accordingly.
         self._validate_keys(
             clause_mapping,
             allowed_keys={"column", "transform", "transform_args"},
@@ -385,7 +396,7 @@ class SpecDeserializer:
             transform_args=transform_args,
         )
 
-    # %% ---- Storage -----------------------------------------------------------------
+    # ---- Storage & metadata helpers ------------------------------------------------
     def _parse_storage(self, storage_def: object | None) -> yspec.Storage | None:
         if storage_def is None:
             return None
@@ -432,6 +443,7 @@ class SpecDeserializer:
             normalized[key] = value
         return normalized
 
+    # ---- Miscellaneous parsing helpers --------------------------------------------
     def _parse_transform_args(self, args: Any, *, context: str) -> list[Any]:
         if args is None:
             return []
@@ -469,7 +481,7 @@ class SpecDeserializer:
             normalized.append(dict(cast(Mapping[str, Any], item)))
         return normalized
 
-    # %% ---- Post-build validations --------------------------------------------------
+    # ---- Post-build validations ----------------------------------------------------
     @staticmethod
     def _validate_spec(spec: yspec.YadsSpec) -> None:
         SpecDeserializer._check_for_duplicate_constraint_definitions(spec)

@@ -31,6 +31,7 @@ TableConstraintParser = Callable[[Mapping[str, Any]], TableConstraint]
 class ConstraintSerializer:
     """Serialize constraint objects into dictionary representations."""
 
+    # ---- Column Constraints serialization helpers ---------------------------------
     def serialize_column_constraints(
         self, constraints: Sequence[ColumnConstraint]
     ) -> dict[str, Any]:
@@ -54,6 +55,7 @@ class ConstraintSerializer:
                 )
         return serialized
 
+    # ---- Table Constraints serialization helpers ----------------------------------
     def serialize_table_constraints(
         self, constraints: Sequence[TableConstraint]
     ) -> list[dict[str, Any]]:
@@ -73,6 +75,7 @@ class ConstraintSerializer:
                 )
         return serialized
 
+    # ---- Shared serialization helpers ---------------------------------------------
     def _serialize_foreign_key_constraint(
         self, constraint: ForeignKeyConstraint
     ) -> dict[str, Any]:
@@ -152,6 +155,7 @@ class ConstraintDeserializer:
             else dict(self._DEFAULT_TABLE_CONSTRAINT_PARSERS)
         )
 
+    # ---- Registration helpers -----------------------------------------------------
     def register_column_parser(self, name: str, parser: ColumnConstraintParser) -> None:
         """Register a parser for a named column constraint."""
         self._column_parsers[name] = parser
@@ -160,6 +164,7 @@ class ConstraintDeserializer:
         """Register a parser for a named table constraint."""
         self._table_parsers[name] = parser
 
+    # ---- Column Constraint parsing ------------------------------------------------
     def parse_column_constraints(
         self, constraints: object | None
     ) -> list[ColumnConstraint]:
@@ -180,10 +185,13 @@ class ConstraintDeserializer:
                 and isinstance(value, bool)
                 and not value
             ):
+                # Explicit `false` entries for boolean constraints simply mean
+                # "constraint not present"; ignore them to match serialization output.
                 continue
             parsed.append(parser(value))
         return parsed
 
+    # ---- Table Constraint parsing -------------------------------------------------
     def parse_table_constraints(
         self, constraints: object | None
     ) -> list[TableConstraint]:
@@ -216,7 +224,7 @@ class ConstraintDeserializer:
             parsed.append(parser(dict(typed_constraint)))
         return parsed
 
-    # ---- Column constraint helpers -------------------------------------------------
+    # ---- Column Constraint helpers -------------------------------------------------
     @staticmethod
     def _parse_not_null_constraint(value: Any) -> NotNullConstraint:
         if not isinstance(value, bool):
@@ -258,6 +266,8 @@ class ConstraintDeserializer:
         if not isinstance(references_value, Mapping):
             raise InvalidConstraintError("Foreign key 'references' must be a dictionary.")
 
+        # Delegate nested reference parsing so both serialization directions
+        # validate column/table combinations consistently.
         return ForeignKeyConstraint(
             name=name,
             references=ConstraintDeserializer._parse_foreign_key_references(
@@ -291,7 +301,7 @@ class ConstraintDeserializer:
             increment=increment_value,
         )
 
-    # ---- Table constraint helpers --------------------------------------------------
+    # ---- Table Constraint helpers --------------------------------------------------
     @staticmethod
     def _parse_primary_key_table_constraint(
         const_def: Mapping[str, Any],
@@ -390,6 +400,7 @@ class ConstraintDeserializer:
             validated_columns.append(column)
         return validated_columns
 
+    # ---- Built-in parser registries -----------------------------------------------
     _DEFAULT_COLUMN_CONSTRAINT_PARSERS: ClassVar[dict[str, ColumnConstraintParser]] = {
         "not_null": _parse_not_null_constraint,
         "primary_key": _parse_primary_key_constraint,
