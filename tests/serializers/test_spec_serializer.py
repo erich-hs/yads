@@ -262,6 +262,107 @@ class TestSpecSerializerOptionalFields:
         ]
 
 
+class TestSpecDeserializerFullSpec:
+    @pytest.fixture(scope="class")
+    def parsed_spec(self) -> YadsSpec:
+        return SpecDeserializer().deserialize(
+            _load_yaml(VALID_SPEC_DIR / "full_spec.yaml")
+        )
+
+    def test_top_level_attributes(self, parsed_spec: YadsSpec):
+        assert parsed_spec.name == "catalog.db.full_spec"
+        assert parsed_spec.version == 1
+        assert parsed_spec.description == "A full spec with all features."
+        assert parsed_spec.metadata == {"owner": "data-team", "sensitive": False}
+        assert parsed_spec.external is True
+
+    def test_storage_attributes(self, parsed_spec: YadsSpec):
+        assert parsed_spec.storage is not None
+        assert parsed_spec.storage.location == "/data/full.spec"
+        assert parsed_spec.storage.format == "parquet"
+        assert parsed_spec.storage.tbl_properties == {"write_compression": "snappy"}
+
+    def test_partitioning(self, parsed_spec: YadsSpec):
+        assert len(parsed_spec.partitioned_by) == 3
+        assert parsed_spec.partitioned_by[0].column == "c_string_len"
+        assert parsed_spec.partitioned_by[1].column == "c_string"
+        assert parsed_spec.partitioned_by[1].transform == "truncate"
+        assert parsed_spec.partitioned_by[1].transform_args == [10]
+        assert parsed_spec.partitioned_by[2].column == "c_date"
+        assert parsed_spec.partitioned_by[2].transform == "month"
+
+    def test_columns(self, parsed_spec: YadsSpec):
+        assert len(parsed_spec.columns) == 34
+
+    def test_column_constraints(self, parsed_spec: YadsSpec):
+        constrained_columns = {
+            column.name
+            for column in parsed_spec.columns
+            if any(isinstance(cons, NotNullConstraint) for cons in column.constraints)
+        }
+        assert constrained_columns == {"c_uuid", "c_date"}
+
+        defaults = {
+            column.name: next(
+                (
+                    cons
+                    for cons in column.constraints
+                    if isinstance(cons, DefaultConstraint)
+                ),
+                None,
+            )
+            for column in parsed_spec.columns
+            if any(isinstance(cons, DefaultConstraint) for cons in column.constraints)
+        }
+        assert set(defaults) == {"c_string"}
+        assert defaults["c_string"] is not None
+        assert defaults["c_string"].value == "default_string"
+
+    def test_table_constraints(self, parsed_spec: YadsSpec):
+        assert len(parsed_spec.table_constraints) == 2
+
+        pk_constraint = next(
+            (
+                constraint
+                for constraint in parsed_spec.table_constraints
+                if isinstance(constraint, PrimaryKeyTableConstraint)
+            ),
+            None,
+        )
+        assert pk_constraint is not None
+        assert pk_constraint.name == "pk_full_spec"
+        assert pk_constraint.columns == ["c_uuid", "c_date"]
+
+        fk_constraint = next(
+            (
+                constraint
+                for constraint in parsed_spec.table_constraints
+                if isinstance(constraint, ForeignKeyTableConstraint)
+            ),
+            None,
+        )
+        assert fk_constraint is not None
+        assert fk_constraint.name == "fk_other_table"
+        assert fk_constraint.columns == ["c_int64"]
+        assert fk_constraint.references.table == "other_table"
+        assert fk_constraint.references.columns == ["id"]
+
+    def test_get_column(self, parsed_spec: YadsSpec):
+        column = next((col for col in parsed_spec.columns if col.name == "c_uuid"), None)
+        assert column is not None
+        assert column.name == "c_uuid"
+        assert str(column.type) == "uuid"
+        assert column.description == "Primary key part 1"
+        assert not column.metadata
+
+
+class TestSpecDeserializerFromDict:
+    def test_with_valid_spec(self, valid_spec_dict):
+        parsed_spec = SpecDeserializer().deserialize(valid_spec_dict)
+        assert isinstance(parsed_spec, YadsSpec)
+        assert parsed_spec.name == valid_spec_dict["name"]
+
+
 class TestGeneratedColumnDeserialization:
     def setup_method(self) -> None:
         self.deserializer = SpecDeserializer()
@@ -507,107 +608,6 @@ class TestPartitionDefinitionDeserialization:
             match="'transform_args' in partitioned_by item must be provided as a list",
         ):
             self.deserializer.deserialize(spec_dict)
-
-
-class TestSpecDeserializerFromDict:
-    def test_with_valid_spec(self, valid_spec_dict):
-        parsed_spec = SpecDeserializer().deserialize(valid_spec_dict)
-        assert isinstance(parsed_spec, YadsSpec)
-        assert parsed_spec.name == valid_spec_dict["name"]
-
-
-class TestSpecDeserializerFullSpec:
-    @pytest.fixture(scope="class")
-    def parsed_spec(self) -> YadsSpec:
-        return SpecDeserializer().deserialize(
-            _load_yaml(VALID_SPEC_DIR / "full_spec.yaml")
-        )
-
-    def test_top_level_attributes(self, parsed_spec: YadsSpec):
-        assert parsed_spec.name == "catalog.db.full_spec"
-        assert parsed_spec.version == 1
-        assert parsed_spec.description == "A full spec with all features."
-        assert parsed_spec.metadata == {"owner": "data-team", "sensitive": False}
-        assert parsed_spec.external is True
-
-    def test_storage_attributes(self, parsed_spec: YadsSpec):
-        assert parsed_spec.storage is not None
-        assert parsed_spec.storage.location == "/data/full.spec"
-        assert parsed_spec.storage.format == "parquet"
-        assert parsed_spec.storage.tbl_properties == {"write_compression": "snappy"}
-
-    def test_partitioning(self, parsed_spec: YadsSpec):
-        assert len(parsed_spec.partitioned_by) == 3
-        assert parsed_spec.partitioned_by[0].column == "c_string_len"
-        assert parsed_spec.partitioned_by[1].column == "c_string"
-        assert parsed_spec.partitioned_by[1].transform == "truncate"
-        assert parsed_spec.partitioned_by[1].transform_args == [10]
-        assert parsed_spec.partitioned_by[2].column == "c_date"
-        assert parsed_spec.partitioned_by[2].transform == "month"
-
-    def test_columns(self, parsed_spec: YadsSpec):
-        assert len(parsed_spec.columns) == 34
-
-    def test_column_constraints(self, parsed_spec: YadsSpec):
-        constrained_columns = {
-            column.name
-            for column in parsed_spec.columns
-            if any(isinstance(cons, NotNullConstraint) for cons in column.constraints)
-        }
-        assert constrained_columns == {"c_uuid", "c_date"}
-
-        defaults = {
-            column.name: next(
-                (
-                    cons
-                    for cons in column.constraints
-                    if isinstance(cons, DefaultConstraint)
-                ),
-                None,
-            )
-            for column in parsed_spec.columns
-            if any(isinstance(cons, DefaultConstraint) for cons in column.constraints)
-        }
-        assert set(defaults) == {"c_string"}
-        assert defaults["c_string"] is not None
-        assert defaults["c_string"].value == "default_string"
-
-    def test_table_constraints(self, parsed_spec: YadsSpec):
-        assert len(parsed_spec.table_constraints) == 2
-
-        pk_constraint = next(
-            (
-                constraint
-                for constraint in parsed_spec.table_constraints
-                if isinstance(constraint, PrimaryKeyTableConstraint)
-            ),
-            None,
-        )
-        assert pk_constraint is not None
-        assert pk_constraint.name == "pk_full_spec"
-        assert pk_constraint.columns == ["c_uuid", "c_date"]
-
-        fk_constraint = next(
-            (
-                constraint
-                for constraint in parsed_spec.table_constraints
-                if isinstance(constraint, ForeignKeyTableConstraint)
-            ),
-            None,
-        )
-        assert fk_constraint is not None
-        assert fk_constraint.name == "fk_other_table"
-        assert fk_constraint.columns == ["c_int64"]
-        assert fk_constraint.references.table == "other_table"
-        assert fk_constraint.references.columns == ["id"]
-
-    def test_get_column(self, parsed_spec: YadsSpec):
-        column = next((col for col in parsed_spec.columns if col.name == "c_uuid"), None)
-        assert column is not None
-        assert column.name == "c_uuid"
-        assert str(column.type) == "uuid"
-        assert column.description == "Primary key part 1"
-        assert not column.metadata
 
 
 @pytest.mark.parametrize(

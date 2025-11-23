@@ -125,19 +125,12 @@ class TestConstraintDeserializerColumnConstraints:
     def _parse(self, data: object) -> list[object]:
         return self.deserializer.parse_column_constraints(data)
 
-    def test_not_null_constraint_with_non_boolean_raises_error(self):
+    def test_constraints_attribute_as_list_raises_error(self):
         with pytest.raises(
-            InvalidConstraintError,
-            match="The 'not_null' constraint expects a boolean",
+            SpecParsingError,
+            match=r"The 'constraints' attribute of a column must be a dictionary",
         ):
-            self._parse({"not_null": "true"})
-
-    def test_primary_key_constraint_with_non_boolean_raises_error(self):
-        with pytest.raises(
-            InvalidConstraintError,
-            match="The 'primary_key' constraint expects a boolean",
-        ):
-            self._parse({"primary_key": "true"})
+            self._parse([{"primary_key": True}])
 
     def test_foreign_key_constraint_with_non_dict_raises_error(self):
         with pytest.raises(
@@ -160,33 +153,39 @@ class TestConstraintDeserializerColumnConstraints:
         ):
             self._parse({"identity": True})
 
-    def test_default_constraint_deserialization(self):
-        constraints = self._parse({"default": "test_value"})
-        default_constraints = [c for c in constraints if isinstance(c, DefaultConstraint)]
-        assert len(default_constraints) == 1
-        assert default_constraints[0].value == "test_value"
+    def test_not_null_constraint_with_non_boolean_raises_error(self):
+        with pytest.raises(
+            InvalidConstraintError,
+            match="The 'not_null' constraint expects a boolean",
+        ):
+            self._parse({"not_null": "true"})
 
-    def test_identity_constraint_deserialization(self):
-        constraints = self._parse(
-            {"identity": {"always": False, "start": 10, "increment": 2}}
-        )
-        identity_constraints = [
-            c for c in constraints if isinstance(c, IdentityConstraint)
+    def test_primary_key_constraint_with_non_boolean_raises_error(self):
+        with pytest.raises(
+            InvalidConstraintError,
+            match="The 'primary_key' constraint expects a boolean",
+        ):
+            self._parse({"primary_key": "true"})
+
+    def test_not_null_constraint_false_creates_no_constraint(self):
+        constraints = self._parse({"not_null": False})
+        assert all(not isinstance(c, NotNullConstraint) for c in constraints)
+
+    def test_not_null_constraint_true_creates_constraint(self):
+        constraints = self._parse({"not_null": True})
+        not_null_constraints = [
+            c for c in constraints if isinstance(c, NotNullConstraint)
         ]
-        assert len(identity_constraints) == 1
-        identity = identity_constraints[0]
-        assert identity.always is False
-        assert identity.start == 10
-        assert identity.increment == 2
+        assert len(not_null_constraints) == 1
 
-    def test_identity_constraint_with_negative_increment(self):
-        constraints = self._parse(
-            {"identity": {"always": False, "start": 10, "increment": -2}}
-        )
-        identity = next(c for c in constraints if isinstance(c, IdentityConstraint))
-        assert identity.always is False
-        assert identity.start == 10
-        assert identity.increment == -2
+    def test_primary_key_constraint_false_creates_no_constraint(self):
+        constraints = self._parse({"primary_key": False})
+        assert all(not isinstance(c, PrimaryKeyConstraint) for c in constraints)
+
+    def test_primary_key_constraint_true_creates_constraint(self):
+        constraints = self._parse({"primary_key": True})
+        pk_constraints = [c for c in constraints if isinstance(c, PrimaryKeyConstraint)]
+        assert len(pk_constraints) == 1
 
     def test_identity_constraint_type_errors(self):
         with pytest.raises(
@@ -203,6 +202,34 @@ class TestConstraintDeserializerColumnConstraints:
             InvalidConstraintError, match="'increment' must be an integer when specified"
         ):
             self._parse({"identity": {"increment": "up"}})
+
+    def test_identity_constraint_with_negative_increment(self):
+        constraints = self._parse(
+            {"identity": {"always": False, "start": 10, "increment": -2}}
+        )
+        identity = next(c for c in constraints if isinstance(c, IdentityConstraint))
+        assert identity.always is False
+        assert identity.start == 10
+        assert identity.increment == -2
+
+    def test_identity_constraint_deserialization(self):
+        constraints = self._parse(
+            {"identity": {"always": False, "start": 10, "increment": 2}}
+        )
+        identity_constraints = [
+            c for c in constraints if isinstance(c, IdentityConstraint)
+        ]
+        assert len(identity_constraints) == 1
+        identity = identity_constraints[0]
+        assert identity.always is False
+        assert identity.start == 10
+        assert identity.increment == 2
+
+    def test_default_constraint_deserialization(self):
+        constraints = self._parse({"default": "test_value"})
+        default_constraints = [c for c in constraints if isinstance(c, DefaultConstraint)]
+        assert len(default_constraints) == 1
+        assert default_constraints[0].value == "test_value"
 
     def test_foreign_key_constraint_deserialization(self):
         constraints = self._parse(
@@ -232,33 +259,6 @@ class TestConstraintDeserializerColumnConstraints:
             InvalidConstraintError, match="Foreign key 'references' must be a dictionary"
         ):
             self._parse({"foreign_key": {"name": "fk", "references": "other_table"}})
-
-    def test_constraints_attribute_as_list_raises_error(self):
-        with pytest.raises(
-            SpecParsingError,
-            match=r"The 'constraints' attribute of a column must be a dictionary",
-        ):
-            self._parse([{"primary_key": True}])
-
-    def test_not_null_constraint_false_creates_no_constraint(self):
-        constraints = self._parse({"not_null": False})
-        assert all(not isinstance(c, NotNullConstraint) for c in constraints)
-
-    def test_not_null_constraint_true_creates_constraint(self):
-        constraints = self._parse({"not_null": True})
-        not_null_constraints = [
-            c for c in constraints if isinstance(c, NotNullConstraint)
-        ]
-        assert len(not_null_constraints) == 1
-
-    def test_primary_key_constraint_false_creates_no_constraint(self):
-        constraints = self._parse({"primary_key": False})
-        assert all(not isinstance(c, PrimaryKeyConstraint) for c in constraints)
-
-    def test_primary_key_constraint_true_creates_constraint(self):
-        constraints = self._parse({"primary_key": True})
-        pk_constraints = [c for c in constraints if isinstance(c, PrimaryKeyConstraint)]
-        assert len(pk_constraints) == 1
 
     def test_multiple_boolean_constraints_mixed_values(self):
         constraints = self._parse({"not_null": True, "primary_key": False})
@@ -297,6 +297,31 @@ class TestConstraintDeserializerTableConstraints:
 
     def _parse(self, data: object) -> list[object]:
         return self.deserializer.parse_table_constraints(data)
+
+    def test_table_constraints_invalid_container_types(self):
+        with pytest.raises(
+            InvalidConstraintError,
+            match="Table constraints must be provided as a sequence of dictionaries",
+        ):
+            self._parse("not-a-sequence")
+
+        with pytest.raises(
+            InvalidConstraintError, match="Table constraints must be a sequence"
+        ):
+            self._parse({"type": "primary_key"})
+
+        with pytest.raises(
+            InvalidConstraintError,
+            match="Table constraint at index 0 must be a dictionary",
+        ):
+            self._parse([["not", "a", "dict"]])
+
+    def test_table_constraint_missing_type_raises_error(self):
+        with pytest.raises(
+            InvalidConstraintError,
+            match="Table constraint definition must have a 'type'",
+        ):
+            self._parse([{"name": "test_constraint", "columns": ["col1"]}])
 
     def test_primary_key_table_constraint_missing_columns_raises_error(self):
         with pytest.raises(
@@ -348,31 +373,6 @@ class TestConstraintDeserializerTableConstraints:
             match="Foreign key table constraint must specify 'references'",
         ):
             self._parse([{"type": "foreign_key", "name": "fk_test", "columns": ["col1"]}])
-
-    def test_table_constraint_missing_type_raises_error(self):
-        with pytest.raises(
-            InvalidConstraintError,
-            match="Table constraint definition must have a 'type'",
-        ):
-            self._parse([{"name": "test_constraint", "columns": ["col1"]}])
-
-    def test_table_constraints_invalid_container_types(self):
-        with pytest.raises(
-            InvalidConstraintError,
-            match="Table constraints must be provided as a sequence of dictionaries",
-        ):
-            self._parse("not-a-sequence")
-
-        with pytest.raises(
-            InvalidConstraintError, match="Table constraints must be a sequence"
-        ):
-            self._parse({"type": "primary_key"})
-
-        with pytest.raises(
-            InvalidConstraintError,
-            match="Table constraint at index 0 must be a dictionary",
-        ):
-            self._parse([["not", "a", "dict"]])
 
     def test_table_constraint_column_validation(self):
         with pytest.raises(
@@ -456,23 +456,6 @@ class TestConstraintDeserializerTableConstraints:
                 ]
             )
 
-    def test_register_custom_table_constraint_parser(self):
-        @dataclass(frozen=True)
-        class CustomTableConstraint(TableConstraint):
-            columns: list[str]
-
-            @cached_property
-            def constrained_columns(self) -> list[str]:
-                return self.columns
-
-        def _parse_custom(value: dict[str, object]) -> TableConstraint:
-            assert value == {"type": "custom", "columns": ["c1"]}
-            return CustomTableConstraint(columns=["c1"])
-
-        self.deserializer.register_table_parser("custom", _parse_custom)
-        constraints = self._parse([{"type": "custom", "columns": ["c1"]}])
-        assert any(isinstance(c, CustomTableConstraint) for c in constraints)
-
     def test_foreign_key_references_missing_table_raises_error(self):
         with pytest.raises(
             InvalidConstraintError,
@@ -490,6 +473,23 @@ class TestConstraintDeserializerTableConstraints:
                     }
                 ]
             )
+
+    def test_register_custom_table_constraint_parser(self):
+        @dataclass(frozen=True)
+        class CustomTableConstraint(TableConstraint):
+            columns: list[str]
+
+            @cached_property
+            def constrained_columns(self) -> list[str]:
+                return self.columns
+
+        def _parse_custom(value: dict[str, object]) -> TableConstraint:
+            assert value == {"type": "custom", "columns": ["c1"]}
+            return CustomTableConstraint(columns=["c1"])
+
+        self.deserializer.register_table_parser("custom", _parse_custom)
+        constraints = self._parse([{"type": "custom", "columns": ["c1"]}])
+        assert any(isinstance(c, CustomTableConstraint) for c in constraints)
 
     def test_valid_primary_key_table_constraint_parsing(self):
         constraints = self._parse(

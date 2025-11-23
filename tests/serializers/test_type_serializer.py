@@ -384,6 +384,19 @@ class TestTypeDeserialization:
         assert isinstance(parsed_type, types.Array)
         assert parsed_type.element == expected_element_type
 
+    def test_array_type_with_size_parameter(self):
+        type_def = {
+            "type": "array",
+            "element": {"type": "string"},
+            "params": {"size": 10},
+        }
+        parsed_type = self._parse(type_def)
+
+        assert isinstance(parsed_type, types.Array)
+        assert parsed_type.element == types.String()
+        assert parsed_type.size == 10
+        assert str(parsed_type) == "array<string, size=10>"
+
     @pytest.mark.parametrize(
         "type_def, expected_key_type, expected_value_type",
         [
@@ -421,19 +434,6 @@ class TestTypeDeserialization:
         assert isinstance(parsed_type, types.Map)
         assert parsed_type.key == expected_key_type
         assert parsed_type.value == expected_value_type
-
-    def test_array_type_with_size_parameter(self):
-        type_def = {
-            "type": "array",
-            "element": {"type": "string"},
-            "params": {"size": 10},
-        }
-        parsed_type = self._parse(type_def)
-
-        assert isinstance(parsed_type, types.Array)
-        assert parsed_type.element == types.String()
-        assert parsed_type.size == 10
-        assert str(parsed_type) == "array<string, size=10>"
 
     def test_map_type_with_keys_sorted_parameter_true(self):
         """Test that Map type correctly handles keys_sorted parameter."""
@@ -562,41 +562,6 @@ class TestTypeDeserialization:
         assert parsed_type.element.fields[0].name == "value"
         assert parsed_type.element.fields[0].type == types.String()
 
-    def test_tensor_type_missing_element_raises_error(self):
-        """Tensor type without element raises error."""
-        type_def = {
-            "type": "tensor",
-            "params": {"shape": [10, 20]},
-        }
-        with pytest.raises(
-            TypeDefinitionError, match="Tensor type definition must include 'element'"
-        ):
-            self._parse(type_def)
-
-    def test_tensor_type_missing_shape_raises_error(self):
-        """Tensor type without shape raises error."""
-        type_def = {
-            "type": "tensor",
-            "element": {"type": "int32"},
-        }
-        with pytest.raises(
-            TypeDefinitionError, match="Tensor type definition must include 'shape'"
-        ):
-            self._parse(type_def)
-
-    def test_tensor_type_invalid_shape_raises_error(self):
-        """Tensor type with invalid shape raises error."""
-        type_def = {
-            "type": "tensor",
-            "element": {"type": "int32"},
-            "params": {"shape": [10, 0, 20]},
-        }
-        with pytest.raises(
-            TypeDefinitionError,
-            match="Tensor 'shape' must contain only positive integers",
-        ):
-            self._parse(type_def)
-
     def test_params_must_be_mapping_with_string_keys(self):
         with pytest.raises(
             TypeDefinitionError, match="'params' must be a mapping of parameter names"
@@ -654,6 +619,41 @@ class TestTypeDeserialization:
             TypeDefinitionError, match="Map value definition must include a string 'type'"
         ):
             self._parse({"type": "map", "key": {"type": "string"}, "value": {}})
+
+    def test_tensor_type_missing_element_raises_error(self):
+        """Tensor type without element raises error."""
+        type_def = {
+            "type": "tensor",
+            "params": {"shape": [10, 20]},
+        }
+        with pytest.raises(
+            TypeDefinitionError, match="Tensor type definition must include 'element'"
+        ):
+            self._parse(type_def)
+
+    def test_tensor_type_missing_shape_raises_error(self):
+        """Tensor type without shape raises error."""
+        type_def = {
+            "type": "tensor",
+            "element": {"type": "int32"},
+        }
+        with pytest.raises(
+            TypeDefinitionError, match="Tensor type definition must include 'shape'"
+        ):
+            self._parse(type_def)
+
+    def test_tensor_type_invalid_shape_raises_error(self):
+        """Tensor type with invalid shape raises error."""
+        type_def = {
+            "type": "tensor",
+            "element": {"type": "int32"},
+            "params": {"shape": [10, 0, 20]},
+        }
+        with pytest.raises(
+            TypeDefinitionError,
+            match="Tensor 'shape' must contain only positive integers",
+        ):
+            self._parse(type_def)
 
     def test_tensor_validation_branches(self):
         with pytest.raises(
