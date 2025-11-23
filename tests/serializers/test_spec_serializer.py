@@ -3,7 +3,6 @@ from pathlib import Path
 import pytest
 import yaml
 
-from yads import spec
 from yads.constraints import (
     DefaultConstraint,
     ForeignKeyTableConstraint,
@@ -25,6 +24,10 @@ FIXTURE_DIR = Path(__file__).parent.parent / "fixtures" / "spec"
 VALID_SPEC_DIR = FIXTURE_DIR / "valid"
 INVALID_SPEC_DIR = FIXTURE_DIR / "invalid"
 valid_spec_files = list(VALID_SPEC_DIR.glob("*.yaml"))
+
+
+def _load_yaml(path: Path) -> dict:
+    return yaml.safe_load(path.read_text())
 
 
 @pytest.fixture(params=valid_spec_files, ids=[f.name for f in valid_spec_files])
@@ -91,20 +94,21 @@ def _build_complex_spec_dict() -> dict:
     }
 
 
-class TestSpecSerializer:
+class TestSpecSerializerRoundtrip:
+    def setup_method(self) -> None:
+        self.serializer = SpecSerializer()
+        self.deserializer = SpecDeserializer()
+
     def test_roundtrip_dict(self):
         original = _build_complex_spec_dict()
-        parsed_spec = spec.from_dict(original)
-
-        serializer = SpecSerializer()
-        serialized = serializer.serialize(parsed_spec)
-
+        parsed_spec = self.deserializer.deserialize(original)
+        serialized = self.serializer.serialize(parsed_spec)
         assert serialized == original
-        assert spec.from_dict(serialized) == parsed_spec
+        assert self.deserializer.deserialize(serialized) == parsed_spec
 
     def test_yads_spec_to_dict(self):
         spec_dict = _build_complex_spec_dict()
-        parsed_spec = spec.from_dict(spec_dict)
+        parsed_spec = self.deserializer.deserialize(spec_dict)
 
         assert parsed_spec.to_dict() == spec_dict
 
@@ -292,7 +296,7 @@ class TestSpecDeserializerFullSpec:
     @pytest.fixture(scope="class")
     def parsed_spec(self) -> YadsSpec:
         return SpecDeserializer().deserialize(
-            yaml.safe_load((VALID_SPEC_DIR / "full_spec.yaml").read_text())
+            _load_yaml(VALID_SPEC_DIR / "full_spec.yaml")
         )
 
     def test_top_level_attributes(self, parsed_spec: YadsSpec):
