@@ -8,7 +8,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Generator, Literal
 
 from ..exceptions import LoaderConfigError
-from .common import SpecBuilder
+from .. import spec as yspec
 
 if TYPE_CHECKING:
     from ..spec import YadsSpec
@@ -115,4 +115,4 @@ class DictLoader(BaseLoader):
         Returns:
             A `YadsSpec` instance.
         """
-        return SpecBuilder(data).build()
+        return yspec.from_dict(data)

@@ -1,9 +1,9 @@
 """Load a `YadsSpec` from a `pyspark.sql.types.StructType`.
 
 This loader converts PySpark schemas to yads specifications by building a
-normalized dictionary representation and delegating spec construction and
-validation to `SpecBuilder`. It preserves column-level nullability and
-propagates field metadata when available.
+normalized dictionary representation and delegating spec construction to
+`yads.spec.from_dict`. It preserves column-level nullability and propagates
+field metadata when available.
 
 Example:
     >>> from pyspark.sql.types import StructType, StructField, StringType, IntegerType
@@ -26,11 +26,11 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import pyspark.sql.types as pyspark_types
 
+from .. import spec as yspec
 from .. import types as ytypes
 from ..exceptions import LoaderConfigError, UnsupportedFeatureError, validation_warning
 from .._dependencies import ensure_dependency
 from .base import BaseLoaderConfig, ConfigurableLoader
-from .common import SpecBuilder
 
 ensure_dependency("pyspark", min_version="3.1.1")
 
@@ -93,9 +93,9 @@ class PySparkLoader(ConfigurableLoader):
     """Load a `YadsSpec` from a `pyspark.sql.types.StructType`.
 
     The loader converts PySpark schemas to yads specifications by building a
-    normalized dictionary representation and delegating spec construction and
-    validation to `SpecBuilder`. It preserves column-level nullability and
-    propagates field metadata when available.
+    normalized dictionary representation and delegating spec construction to
+    `yads.spec.from_dict`. It preserves column-level nullability and propagates
+    field metadata when available.
 
     In "raise" mode, incompatible PySpark types raise `UnsupportedFeatureError`.
     In "coerce" mode, the loader attempts to coerce unsupported types to
@@ -151,7 +151,7 @@ class PySparkLoader(ConfigurableLoader):
             if description:
                 data["description"] = description
 
-            return SpecBuilder(data).build()
+            return yspec.from_dict(data)
 
     # %% ---- Field and type conversion -----------------------------------------------
     def _convert_field(self, field: StructField) -> dict[str, Any]:

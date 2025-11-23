@@ -1,9 +1,9 @@
 """Load a `YadsSpec` from a `polars.Schema`.
 
 This loader converts Polars schemas to yads specifications by building a
-normalized dictionary representation and delegating spec construction and
-validation to `SpecBuilder`. It preserves column-level nullability where
-possible and handles Polars-specific type features.
+normalized dictionary representation and delegating spec construction to
+`yads.spec.from_dict`. It preserves column-level nullability where possible and
+handles Polars-specific type features.
 
 Example:
     >>> import polars as pl
@@ -23,11 +23,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, cast
 
+from .. import spec as yspec
 from .. import types as ytypes
 from ..exceptions import LoaderConfigError, UnsupportedFeatureError, validation_warning
 from .._dependencies import ensure_dependency
 from .base import BaseLoaderConfig, ConfigurableLoader
-from .common import SpecBuilder
 
 ensure_dependency("polars", min_version="1.0.0")
 
@@ -68,8 +68,8 @@ class PolarsLoader(ConfigurableLoader):
     """Load a `YadsSpec` from a `polars.Schema`.
 
     The loader converts Polars schemas to yads specifications by building a
-    normalized dictionary representation and delegating spec construction and
-    validation to `SpecBuilder`.
+    normalized dictionary representation and delegating spec construction to
+    `yads.spec.from_dict`.
 
     In "raise" mode, incompatible Polars types raise `UnsupportedFeatureError`.
     In "coerce" mode, the loader attempts to coerce unsupported types to
@@ -129,7 +129,7 @@ class PolarsLoader(ConfigurableLoader):
             if description:
                 data["description"] = description
 
-            return SpecBuilder(data).build()
+            return yspec.from_dict(data)
 
     # %% ---- Field and type conversion -----------------------------------------------
     def _convert_field(self, field_name: str, dtype: pl.DataType) -> dict[str, Any]:

@@ -28,9 +28,10 @@ repos:
     hooks:
       - id: pyright
         name: pyright
-        entry: uv run --group dev pyright src/
+        entry: uv run --group dev pyright
         language: system
-        pass_filenames: false
+        files: ^src/
+        types: [python]
       - id: validate-yads-spec
         name: latest yads spec is valid
         entry: bash

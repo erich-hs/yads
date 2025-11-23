@@ -19,11 +19,11 @@ sync:
 
 .PHONY: lint
 lint:
-	uvx ruff check .
+	uvx ruff check src/ tests/ ci/
 
 .PHONY: format
 format:
-	uvx ruff format .
+	uvx ruff format src/ tests/ ci/
 
 .PHONY: pre-commit
 pre-commit:
