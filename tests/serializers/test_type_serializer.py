@@ -1,4 +1,8 @@
+import pytest
+
 from yads import spec, types
+from yads.exceptions import TypeDefinitionError
+from yads.loaders import from_yaml_string
 from yads.serializers import TypeSerializer
 
 
@@ -72,3 +76,493 @@ class TestTypeSerializer:
         assert payload["value"]["params"] == {"size": 5}
         assert payload["value"]["element"]["type"] == "tensor"
         assert payload["value"]["element"]["params"]["shape"] == [2, 2]
+
+
+def test_unquoted_null_type_gives_helpful_error():
+    content = """
+name: test_spec
+version: 1
+columns:
+  - name: col1
+    type: null  # This will parse as None, not "null"
+"""
+    with pytest.raises(
+        TypeDefinitionError,
+        match=r"Use quoted \"null\" or the synonym 'void' instead to specify a void type",
+    ):
+        from_yaml_string(content)
+
+
+class TestTypeDeserialization:
+    def _create_minimal_spec_with_type(self, type_def: dict) -> dict:
+        return {
+            "name": "test_spec",
+            "version": 1,
+            "columns": [{"name": "test_column", **type_def}],
+        }
+
+    @pytest.mark.parametrize(
+        "type_def, expected_type, expected_str",
+        [
+            # String types
+            ({"type": "string"}, types.String(), "string"),
+            (
+                {"type": "string", "params": {"length": 255}},
+                types.String(length=255),
+                "string(length=255)",
+            ),
+            # Integer types
+            ({"type": "int8"}, types.Integer(bits=8), "integer(bits=8)"),
+            ({"type": "int16"}, types.Integer(bits=16), "integer(bits=16)"),
+            ({"type": "int32"}, types.Integer(bits=32), "integer(bits=32)"),
+            ({"type": "int64"}, types.Integer(bits=64), "integer(bits=64)"),
+            # Integer unsigned via params
+            (
+                {"type": "int32", "params": {"signed": False}},
+                types.Integer(bits=32, signed=False),
+                "integer(bits=32, signed=False)",
+            ),
+            # Float types
+            ({"type": "float16"}, types.Float(bits=16), "float(bits=16)"),
+            ({"type": "float32"}, types.Float(bits=32), "float(bits=32)"),
+            ({"type": "float64"}, types.Float(bits=64), "float(bits=64)"),
+            # Decimal types
+            ({"type": "decimal"}, types.Decimal(), "decimal"),
+            (
+                {"type": "decimal", "params": {"precision": 10, "scale": 2}},
+                types.Decimal(precision=10, scale=2),
+                "decimal(precision=10, scale=2)",
+            ),
+            (
+                {"type": "decimal", "params": {"precision": 12, "scale": -3}},
+                types.Decimal(precision=12, scale=-3),
+                "decimal(precision=12, scale=-3)",
+            ),
+            (
+                {"type": "decimal", "params": {"bits": 256}},
+                types.Decimal(bits=256),
+                "decimal(bits=256)",
+            ),
+            # Boolean types
+            ({"type": "boolean"}, types.Boolean(), "boolean"),
+            # Binary types
+            ({"type": "binary"}, types.Binary(), "binary"),
+            ({"type": "blob"}, types.Binary(), "binary"),
+            ({"type": "bytes"}, types.Binary(), "binary"),
+            # Temporal types
+            ({"type": "date"}, types.Date(), "date"),
+            ({"type": "date32"}, types.Date(bits=32), "date(bits=32)"),
+            ({"type": "date64"}, types.Date(bits=64), "date(bits=64)"),
+            ({"type": "time"}, types.Time(), "time(unit=ms)"),
+            ({"type": "time32"}, types.Time(bits=32), "time(unit=ms, bits=32)"),
+            (
+                {"type": "time64"},
+                types.Time(bits=64, unit=types.TimeUnit.NS),
+                "time(unit=ns, bits=64)",
+            ),
+            (
+                {"type": "time", "params": {"unit": "s"}},
+                types.Time(unit=types.TimeUnit.S),
+                "time(unit=s)",
+            ),
+            ({"type": "timestamp"}, types.Timestamp(), "timestamp(unit=ns)"),
+            (
+                {"type": "timestamp", "params": {"unit": "s"}},
+                types.Timestamp(unit=types.TimeUnit.S),
+                "timestamp(unit=s)",
+            ),
+            (
+                {"type": "timestamptz"},
+                types.TimestampTZ(),
+                "timestamptz(unit=ns, tz=UTC)",
+            ),
+            (
+                {"type": "timestamptz", "params": {"unit": "s"}},
+                types.TimestampTZ(unit=types.TimeUnit.S),
+                "timestamptz(unit=s, tz=UTC)",
+            ),
+            (
+                {"type": "timestamp_tz"},
+                types.TimestampTZ(),
+                "timestamptz(unit=ns, tz=UTC)",
+            ),
+            ({"type": "timestampltz"}, types.TimestampLTZ(), "timestampltz(unit=ns)"),
+            (
+                {"type": "timestampltz", "params": {"unit": "s"}},
+                types.TimestampLTZ(unit=types.TimeUnit.S),
+                "timestampltz(unit=s)",
+            ),
+            (
+                {"type": "timestamp_ltz"},
+                types.TimestampLTZ(),
+                "timestampltz(unit=ns)",
+            ),
+            ({"type": "timestampntz"}, types.TimestampNTZ(), "timestampntz(unit=ns)"),
+            (
+                {"type": "timestampntz", "params": {"unit": "s"}},
+                types.TimestampNTZ(unit=types.TimeUnit.S),
+                "timestampntz(unit=s)",
+            ),
+            (
+                {"type": "timestamp_ntz"},
+                types.TimestampNTZ(),
+                "timestampntz(unit=ns)",
+            ),
+            ({"type": "duration"}, types.Duration(), "duration(unit=ns)"),
+            (
+                {"type": "duration", "params": {"unit": "s"}},
+                types.Duration(unit=types.TimeUnit.S),
+                "duration(unit=s)",
+            ),
+            # Interval types
+            (
+                {"type": "interval", "params": {"interval_start": "YEAR"}},
+                types.Interval(interval_start=types.IntervalTimeUnit.YEAR),
+                "interval(interval_start=YEAR)",
+            ),
+            (
+                {"type": "interval", "params": {"interval_start": "MONTH"}},
+                types.Interval(interval_start=types.IntervalTimeUnit.MONTH),
+                "interval(interval_start=MONTH)",
+            ),
+            (
+                {"type": "interval", "params": {"interval_start": "DAY"}},
+                types.Interval(interval_start=types.IntervalTimeUnit.DAY),
+                "interval(interval_start=DAY)",
+            ),
+            (
+                {"type": "interval", "params": {"interval_start": "HOUR"}},
+                types.Interval(interval_start=types.IntervalTimeUnit.HOUR),
+                "interval(interval_start=HOUR)",
+            ),
+            (
+                {"type": "interval", "params": {"interval_start": "MINUTE"}},
+                types.Interval(interval_start=types.IntervalTimeUnit.MINUTE),
+                "interval(interval_start=MINUTE)",
+            ),
+            (
+                {"type": "interval", "params": {"interval_start": "SECOND"}},
+                types.Interval(interval_start=types.IntervalTimeUnit.SECOND),
+                "interval(interval_start=SECOND)",
+            ),
+            (
+                {
+                    "type": "interval",
+                    "params": {"interval_start": "YEAR", "interval_end": "MONTH"},
+                },
+                types.Interval(
+                    interval_start=types.IntervalTimeUnit.YEAR,
+                    interval_end=types.IntervalTimeUnit.MONTH,
+                ),
+                "interval(interval_start=YEAR, interval_end=MONTH)",
+            ),
+            (
+                {
+                    "type": "interval",
+                    "params": {"interval_start": "DAY", "interval_end": "SECOND"},
+                },
+                types.Interval(
+                    interval_start=types.IntervalTimeUnit.DAY,
+                    interval_end=types.IntervalTimeUnit.SECOND,
+                ),
+                "interval(interval_start=DAY, interval_end=SECOND)",
+            ),
+            # Complex types
+            ({"type": "json"}, types.JSON(), "json"),
+            # Other complex types have dedicated tests below
+            # Spatial types
+            ({"type": "geometry"}, types.Geometry(), "geometry"),
+            ({"type": "geography"}, types.Geography(), "geography"),
+            (
+                {"type": "geometry", "params": {"srid": 4326}},
+                types.Geometry(srid=4326),
+                "geometry(srid=4326)",
+            ),
+            (
+                {"type": "geography", "params": {"srid": 4326}},
+                types.Geography(srid=4326),
+                "geography(srid=4326)",
+            ),
+            # Other types
+            ({"type": "uuid"}, types.UUID(), "uuid"),
+            ({"type": "void"}, types.Void(), "void"),
+            ({"type": "variant"}, types.Variant(), "variant"),
+        ],
+    )
+    def test_simple_type_deserialization(self, type_def, expected_type, expected_str):
+        spec_dict = self._create_minimal_spec_with_type(type_def)
+        loaded_spec = spec.from_dict(spec_dict)
+
+        column = loaded_spec.columns[0]
+        assert column.type == expected_type
+        assert str(column.type) == expected_str
+
+    @pytest.mark.parametrize(
+        "type_def, expected_element_type",
+        [
+            # Array types
+            ({"type": "array", "element": {"type": "string"}}, types.String()),
+            ({"type": "list", "element": {"type": "int"}}, types.Integer(bits=32)),
+            (
+                {
+                    "type": "array",
+                    "element": {
+                        "type": "decimal",
+                        "params": {"precision": 10, "scale": 2},
+                    },
+                },
+                types.Decimal(precision=10, scale=2),
+            ),
+            # Nested arrays
+            (
+                {
+                    "type": "array",
+                    "element": {"type": "array", "element": {"type": "boolean"}},
+                },
+                types.Array(element=types.Boolean()),
+            ),
+        ],
+    )
+    def test_array_type_deserialization(self, type_def, expected_element_type):
+        spec_dict = self._create_minimal_spec_with_type(type_def)
+        loaded_spec = spec.from_dict(spec_dict)
+
+        column = loaded_spec.columns[0]
+        assert isinstance(column.type, types.Array)
+        assert column.type.element == expected_element_type
+
+    @pytest.mark.parametrize(
+        "type_def, expected_key_type, expected_value_type",
+        [
+            # Map types
+            (
+                {"type": "map", "key": {"type": "string"}, "value": {"type": "int"}},
+                types.String(),
+                types.Integer(bits=32),
+            ),
+            (
+                {
+                    "type": "dictionary",
+                    "key": {"type": "uuid"},
+                    "value": {"type": "double"},
+                },
+                types.UUID(),
+                types.Float(bits=64),
+            ),
+            (
+                {
+                    "type": "map",
+                    "key": {"type": "int"},
+                    "value": {"type": "array", "element": {"type": "string"}},
+                },
+                types.Integer(bits=32),
+                types.Array(element=types.String()),
+            ),
+        ],
+    )
+    def test_map_type_deserialization(
+        self, type_def, expected_key_type, expected_value_type
+    ):
+        spec_dict = self._create_minimal_spec_with_type(type_def)
+        loaded_spec = spec.from_dict(spec_dict)
+
+        column = loaded_spec.columns[0]
+        assert isinstance(column.type, types.Map)
+        assert column.type.key == expected_key_type
+        assert column.type.value == expected_value_type
+
+    def test_array_type_with_size_parameter(self):
+        type_def = {
+            "type": "array",
+            "element": {"type": "string"},
+            "params": {"size": 10},
+        }
+        spec_dict = self._create_minimal_spec_with_type(type_def)
+        loaded_spec = spec.from_dict(spec_dict)
+        column = loaded_spec.columns[0]
+        assert isinstance(column.type, types.Array)
+        assert column.type.element == types.String()
+        assert column.type.size == 10
+        assert str(column.type) == "array<string, size=10>"
+
+    def test_map_type_with_keys_sorted_parameter_true(self):
+        """Test that Map type correctly handles keys_sorted parameter."""
+        type_def = {
+            "type": "map",
+            "key": {"type": "integer"},
+            "value": {"type": "string"},
+            "params": {"keys_sorted": True},
+        }
+        spec_dict = self._create_minimal_spec_with_type(type_def)
+        loaded_spec = spec.from_dict(spec_dict)
+
+        column = loaded_spec.columns[0]
+        assert isinstance(column.type, types.Map)
+        assert column.type.key == types.Integer(bits=32)
+        assert column.type.value == types.String()
+        assert column.type.keys_sorted is True
+        assert str(column.type) == "map<integer(bits=32), string, keys_sorted=True>"
+
+    def test_map_type_with_keys_sorted_parameter_false(self):
+        type_def = {
+            "type": "map",
+            "key": {"type": "integer"},
+            "value": {"type": "string"},
+            "params": {"keys_sorted": False},
+        }
+        spec_dict = self._create_minimal_spec_with_type(type_def)
+        loaded_spec = spec.from_dict(spec_dict)
+
+        column = loaded_spec.columns[0]
+        assert isinstance(column.type, types.Map)
+        assert column.type.key == types.Integer(bits=32)
+        assert column.type.value == types.String()
+        assert column.type.keys_sorted is False
+        assert str(column.type) == "map<integer(bits=32), string>"
+
+    def test_struct_type_deserialization(self):
+        type_def = {
+            "type": "struct",
+            "fields": [
+                {"name": "field1", "type": "string"},
+                {"name": "field2", "type": "int"},
+                {"name": "field3", "type": "boolean"},
+            ],
+        }
+        spec_dict = self._create_minimal_spec_with_type(type_def)
+        loaded_spec = spec.from_dict(spec_dict)
+
+        column = loaded_spec.columns[0]
+        assert isinstance(column.type, types.Struct)
+        assert len(column.type.fields) == 3
+
+        field1, field2, field3 = column.type.fields
+        assert field1.name == "field1"
+        assert field1.type == types.String()
+        assert field2.name == "field2"
+        assert field2.type == types.Integer(bits=32)
+        assert field3.name == "field3"
+        assert field3.type == types.Boolean()
+
+    def test_nested_struct_type_deserialization(self):
+        type_def = {
+            "type": "struct",
+            "fields": [
+                {"name": "simple_field", "type": "string"},
+                {
+                    "name": "nested_struct",
+                    "type": "struct",
+                    "fields": [{"name": "inner_field", "type": "int"}],
+                },
+            ],
+        }
+        spec_dict = self._create_minimal_spec_with_type(type_def)
+        loaded_spec = spec.from_dict(spec_dict)
+
+        column = loaded_spec.columns[0]
+        assert isinstance(column.type, types.Struct)
+        assert len(column.type.fields) == 2
+
+        simple_field, nested_field = column.type.fields
+        assert simple_field.name == "simple_field"
+        assert simple_field.type == types.String()
+
+        assert nested_field.name == "nested_struct"
+        assert isinstance(nested_field.type, types.Struct)
+        assert len(nested_field.type.fields) == 1
+        assert nested_field.type.fields[0].name == "inner_field"
+        assert nested_field.type.fields[0].type == types.Integer(bits=32)
+
+    def test_tensor_type_deserialization(self):
+        """Tensor type loading with element and shape."""
+        type_def = {
+            "type": "tensor",
+            "element": {"type": "int32"},
+            "params": {"shape": [10, 20]},
+        }
+        spec_dict = self._create_minimal_spec_with_type(type_def)
+        loaded_spec = spec.from_dict(spec_dict)
+
+        column = loaded_spec.columns[0]
+        assert isinstance(column.type, types.Tensor)
+        assert column.type.element == types.Integer(bits=32)
+        assert column.type.shape == (10, 20)
+        assert str(column.type) == "tensor<integer(bits=32), shape=[10, 20]>"
+
+    def test_tensor_type_deserialization_float_elements(self):
+        """Tensor type loading with float elements."""
+        type_def = {
+            "type": "tensor",
+            "element": {"type": "float64"},
+            "params": {"shape": [5, 10, 15]},
+        }
+        spec_dict = self._create_minimal_spec_with_type(type_def)
+        loaded_spec = spec.from_dict(spec_dict)
+
+        column = loaded_spec.columns[0]
+        assert isinstance(column.type, types.Tensor)
+        assert column.type.element == types.Float(bits=64)
+        assert column.type.shape == (5, 10, 15)
+        assert str(column.type) == "tensor<float(bits=64), shape=[5, 10, 15]>"
+
+    def test_tensor_type_deserialization_complex_element(self):
+        """Tensor type loading with complex element type."""
+        type_def = {
+            "type": "tensor",
+            "element": {
+                "type": "struct",
+                "fields": [{"name": "value", "type": "string"}],
+            },
+            "params": {"shape": [2, 3]},
+        }
+        spec_dict = self._create_minimal_spec_with_type(type_def)
+        loaded_spec = spec.from_dict(spec_dict)
+
+        column = loaded_spec.columns[0]
+        assert isinstance(column.type, types.Tensor)
+        assert isinstance(column.type.element, types.Struct)
+        assert column.type.shape == (2, 3)
+        assert len(column.type.element.fields) == 1
+        assert column.type.element.fields[0].name == "value"
+        assert column.type.element.fields[0].type == types.String()
+
+    def test_tensor_type_missing_element_raises_error(self):
+        """Tensor type without element raises error."""
+        type_def = {
+            "type": "tensor",
+            "params": {"shape": [10, 20]},
+        }
+        spec_dict = self._create_minimal_spec_with_type(type_def)
+
+        with pytest.raises(
+            TypeDefinitionError, match="Tensor type definition must include 'element'"
+        ):
+            spec.from_dict(spec_dict)
+
+    def test_tensor_type_missing_shape_raises_error(self):
+        """Tensor type without shape raises error."""
+        type_def = {
+            "type": "tensor",
+            "element": {"type": "int32"},
+        }
+        spec_dict = self._create_minimal_spec_with_type(type_def)
+
+        with pytest.raises(
+            TypeDefinitionError, match="Tensor type definition must include 'shape'"
+        ):
+            spec.from_dict(spec_dict)
+
+    def test_tensor_type_invalid_shape_raises_error(self):
+        """Tensor type with invalid shape raises error."""
+        type_def = {
+            "type": "tensor",
+            "element": {"type": "int32"},
+            "params": {"shape": [10, 0, 20]},
+        }
+        spec_dict = self._create_minimal_spec_with_type(type_def)
+
+        with pytest.raises(
+            TypeDefinitionError,
+            match="Tensor 'shape' must contain only positive integers",
+        ):
+            spec.from_dict(spec_dict)
