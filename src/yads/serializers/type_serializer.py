@@ -67,12 +67,14 @@ class TypeSerializer:
             payload["params"] = params
         return payload
 
+    # ---- Serializer registration --------------------------------------------------
     def _register_default_serializers(self) -> None:
         self.register_serializer(ytypes.Array, self._serialize_array)
         self.register_serializer(ytypes.Tensor, self._serialize_tensor)
         self.register_serializer(ytypes.Struct, self._serialize_struct)
         self.register_serializer(ytypes.Map, self._serialize_map)
 
+    # ---- Alias resolution helpers -------------------------------------------------
     def _build_alias_metadata(
         self,
     ) -> tuple[
@@ -83,6 +85,8 @@ class TypeSerializer:
         defaults: dict[type[ytypes.YadsType], dict[str, Any]] = {}
         candidates: dict[type[ytypes.YadsType], list[tuple[str, dict[str, Any]]]] = {}
         for alias, (type_cls, default_params) in self._type_aliases.items():
+            # Track each alias so we can fall back to the first one if no canonical
+            # alias (matching the dataclass name) was provided.
             candidates.setdefault(type_cls, []).append((alias, dict(default_params)))
             canonical_label = type_cls.__name__.lower()
             if alias == canonical_label and type_cls not in canonical:
@@ -101,6 +105,7 @@ class TypeSerializer:
         defaults = self._alias_defaults.get(type_cls, {})
         return alias, defaults
 
+    # ---- Parameter gathering helpers ---------------------------------------------
     def _collect_params(
         self,
         yads_type: ytypes.YadsType,
@@ -124,6 +129,8 @@ class TypeSerializer:
                 continue
             include_param = False
             if name in normalized_alias_defaults:
+                # Alias-provided defaults override dataclass defaults when deciding
+                # whether a parameter is redundant.
                 if normalized_value != normalized_alias_defaults[name]:
                     include_param = True
             elif data_field.default is not MISSING:
@@ -137,6 +144,7 @@ class TypeSerializer:
                 if normalized_value != default_factory_value:
                     include_param = True
             else:
+                # Required field without defaults must be emitted.
                 include_param = True
             if include_param and not self._is_complex_attribute(normalized_value):
                 params[name] = normalized_value
@@ -147,6 +155,8 @@ class TypeSerializer:
             return True
         if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
             sequence_value = cast(Sequence[object], value)
+            # Field sequences are serialized through the field serializer, not as
+            # inline `params` entries, so skip them here.
             return all(isinstance(item, yspec.Field) for item in sequence_value)
         return False
 
@@ -157,6 +167,7 @@ class TypeSerializer:
             return list(cast(tuple[Any, ...], value))
         return value
 
+    # ---- Concrete type serializers -----------------------------------------------
     def _serialize_array(
         self,
         yads_type: ytypes.YadsType,
@@ -280,7 +291,7 @@ class TypeDeserializer:
             type_name=type_name,
         )
 
-    # ---- Helpers -----------------------------------------------------------------
+    # ---- Parser registration helpers ---------------------------------------------
     def _register_default_parsers(self) -> None:
         self.register_parser(ytypes.Interval, self._parse_interval_type)
         self.register_parser(ytypes.Array, self._parse_array_type)
@@ -288,6 +299,7 @@ class TypeDeserializer:
         self.register_parser(ytypes.Map, self._parse_map_type)
         self.register_parser(ytypes.Tensor, self._parse_tensor_type)
 
+    # ---- Generic parsing helpers --------------------------------------------------
     def _type_label(self, type_def: Mapping[str, Any], default: str) -> str:
         raw_label = type_def.get("type")
         if isinstance(raw_label, str) and raw_label:
@@ -326,6 +338,7 @@ class TypeDeserializer:
         for raw_key, raw_value in typed_params.items():
             if not isinstance(raw_key, str):
                 raise TypeDefinitionError("'params' must be a mapping of string keys.")
+            # Keep parameters as provided; type-specific parsers handle validation.
             validated_params[raw_key] = raw_value
 
         merged_params: dict[str, Any] = {**default_params, **validated_params}
@@ -345,6 +358,7 @@ class TypeDeserializer:
             raise TypeDefinitionError(missing_type_message)
         return normalized
 
+    # ---- Concrete type parsers ---------------------------------------------------
     def _parse_interval_type(
         self,
         type_name: str,
@@ -361,6 +375,7 @@ class TypeDeserializer:
             raise TypeDefinitionError(
                 "Interval type definition must include 'interval_start'."
             )
+        # Interval enums expect uppercase strings; normalize as part of parsing.
         final_params["interval_start"] = ytypes.IntervalTimeUnit(
             str(final_params["interval_start"]).upper()
         )
