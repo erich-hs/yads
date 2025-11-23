@@ -3,7 +3,7 @@ import pytest
 from yads import spec, types
 from yads.exceptions import TypeDefinitionError
 from yads.loaders import from_yaml_string
-from yads.serializers import TypeSerializer
+from yads.serializers import TypeDeserializer, TypeSerializer
 
 
 def _make_type_serializer() -> TypeSerializer:
@@ -94,12 +94,25 @@ columns:
 
 
 class TestTypeDeserialization:
-    def _create_minimal_spec_with_type(self, type_def: dict) -> dict:
-        return {
-            "name": "test_spec",
-            "version": 1,
-            "columns": [{"name": "test_column", **type_def}],
-        }
+    def setup_method(self) -> None:
+        self.deserializer = TypeDeserializer()
+
+    def _parse(self, type_def: dict) -> types.YadsType:
+        return self.deserializer.parse(
+            type_def["type"],
+            type_def,
+            field_factory=self._field_factory,
+        )
+
+    def _field_factory(self, field_def: dict) -> spec.Field:
+        return spec.Field(
+            name=field_def["name"],
+            type=self.deserializer.parse(
+                field_def["type"], field_def, field_factory=self._field_factory
+            ),
+            description=field_def.get("description"),
+            metadata=field_def.get("metadata") or {},
+        )
 
     @pytest.mark.parametrize(
         "type_def, expected_type, expected_str",
@@ -290,12 +303,9 @@ class TestTypeDeserialization:
         ],
     )
     def test_simple_type_deserialization(self, type_def, expected_type, expected_str):
-        spec_dict = self._create_minimal_spec_with_type(type_def)
-        loaded_spec = spec.from_dict(spec_dict)
-
-        column = loaded_spec.columns[0]
-        assert column.type == expected_type
-        assert str(column.type) == expected_str
+        parsed_type = self._parse(type_def)
+        assert parsed_type == expected_type
+        assert str(parsed_type) == expected_str
 
     @pytest.mark.parametrize(
         "type_def, expected_element_type",
@@ -324,12 +334,10 @@ class TestTypeDeserialization:
         ],
     )
     def test_array_type_deserialization(self, type_def, expected_element_type):
-        spec_dict = self._create_minimal_spec_with_type(type_def)
-        loaded_spec = spec.from_dict(spec_dict)
+        parsed_type = self._parse(type_def)
 
-        column = loaded_spec.columns[0]
-        assert isinstance(column.type, types.Array)
-        assert column.type.element == expected_element_type
+        assert isinstance(parsed_type, types.Array)
+        assert parsed_type.element == expected_element_type
 
     @pytest.mark.parametrize(
         "type_def, expected_key_type, expected_value_type",
@@ -363,13 +371,11 @@ class TestTypeDeserialization:
     def test_map_type_deserialization(
         self, type_def, expected_key_type, expected_value_type
     ):
-        spec_dict = self._create_minimal_spec_with_type(type_def)
-        loaded_spec = spec.from_dict(spec_dict)
+        parsed_type = self._parse(type_def)
 
-        column = loaded_spec.columns[0]
-        assert isinstance(column.type, types.Map)
-        assert column.type.key == expected_key_type
-        assert column.type.value == expected_value_type
+        assert isinstance(parsed_type, types.Map)
+        assert parsed_type.key == expected_key_type
+        assert parsed_type.value == expected_value_type
 
     def test_array_type_with_size_parameter(self):
         type_def = {
@@ -377,13 +383,12 @@ class TestTypeDeserialization:
             "element": {"type": "string"},
             "params": {"size": 10},
         }
-        spec_dict = self._create_minimal_spec_with_type(type_def)
-        loaded_spec = spec.from_dict(spec_dict)
-        column = loaded_spec.columns[0]
-        assert isinstance(column.type, types.Array)
-        assert column.type.element == types.String()
-        assert column.type.size == 10
-        assert str(column.type) == "array<string, size=10>"
+        parsed_type = self._parse(type_def)
+
+        assert isinstance(parsed_type, types.Array)
+        assert parsed_type.element == types.String()
+        assert parsed_type.size == 10
+        assert str(parsed_type) == "array<string, size=10>"
 
     def test_map_type_with_keys_sorted_parameter_true(self):
         """Test that Map type correctly handles keys_sorted parameter."""
@@ -393,15 +398,13 @@ class TestTypeDeserialization:
             "value": {"type": "string"},
             "params": {"keys_sorted": True},
         }
-        spec_dict = self._create_minimal_spec_with_type(type_def)
-        loaded_spec = spec.from_dict(spec_dict)
+        parsed_type = self._parse(type_def)
 
-        column = loaded_spec.columns[0]
-        assert isinstance(column.type, types.Map)
-        assert column.type.key == types.Integer(bits=32)
-        assert column.type.value == types.String()
-        assert column.type.keys_sorted is True
-        assert str(column.type) == "map<integer(bits=32), string, keys_sorted=True>"
+        assert isinstance(parsed_type, types.Map)
+        assert parsed_type.key == types.Integer(bits=32)
+        assert parsed_type.value == types.String()
+        assert parsed_type.keys_sorted is True
+        assert str(parsed_type) == "map<integer(bits=32), string, keys_sorted=True>"
 
     def test_map_type_with_keys_sorted_parameter_false(self):
         type_def = {
@@ -410,15 +413,13 @@ class TestTypeDeserialization:
             "value": {"type": "string"},
             "params": {"keys_sorted": False},
         }
-        spec_dict = self._create_minimal_spec_with_type(type_def)
-        loaded_spec = spec.from_dict(spec_dict)
+        parsed_type = self._parse(type_def)
 
-        column = loaded_spec.columns[0]
-        assert isinstance(column.type, types.Map)
-        assert column.type.key == types.Integer(bits=32)
-        assert column.type.value == types.String()
-        assert column.type.keys_sorted is False
-        assert str(column.type) == "map<integer(bits=32), string>"
+        assert isinstance(parsed_type, types.Map)
+        assert parsed_type.key == types.Integer(bits=32)
+        assert parsed_type.value == types.String()
+        assert parsed_type.keys_sorted is False
+        assert str(parsed_type) == "map<integer(bits=32), string>"
 
     def test_struct_type_deserialization(self):
         type_def = {
@@ -429,14 +430,12 @@ class TestTypeDeserialization:
                 {"name": "field3", "type": "boolean"},
             ],
         }
-        spec_dict = self._create_minimal_spec_with_type(type_def)
-        loaded_spec = spec.from_dict(spec_dict)
+        parsed_type = self._parse(type_def)
 
-        column = loaded_spec.columns[0]
-        assert isinstance(column.type, types.Struct)
-        assert len(column.type.fields) == 3
+        assert isinstance(parsed_type, types.Struct)
+        assert len(parsed_type.fields) == 3
 
-        field1, field2, field3 = column.type.fields
+        field1, field2, field3 = parsed_type.fields
         assert field1.name == "field1"
         assert field1.type == types.String()
         assert field2.name == "field2"
@@ -456,14 +455,12 @@ class TestTypeDeserialization:
                 },
             ],
         }
-        spec_dict = self._create_minimal_spec_with_type(type_def)
-        loaded_spec = spec.from_dict(spec_dict)
+        parsed_type = self._parse(type_def)
 
-        column = loaded_spec.columns[0]
-        assert isinstance(column.type, types.Struct)
-        assert len(column.type.fields) == 2
+        assert isinstance(parsed_type, types.Struct)
+        assert len(parsed_type.fields) == 2
 
-        simple_field, nested_field = column.type.fields
+        simple_field, nested_field = parsed_type.fields
         assert simple_field.name == "simple_field"
         assert simple_field.type == types.String()
 
@@ -480,14 +477,12 @@ class TestTypeDeserialization:
             "element": {"type": "int32"},
             "params": {"shape": [10, 20]},
         }
-        spec_dict = self._create_minimal_spec_with_type(type_def)
-        loaded_spec = spec.from_dict(spec_dict)
+        parsed_type = self._parse(type_def)
 
-        column = loaded_spec.columns[0]
-        assert isinstance(column.type, types.Tensor)
-        assert column.type.element == types.Integer(bits=32)
-        assert column.type.shape == (10, 20)
-        assert str(column.type) == "tensor<integer(bits=32), shape=[10, 20]>"
+        assert isinstance(parsed_type, types.Tensor)
+        assert parsed_type.element == types.Integer(bits=32)
+        assert parsed_type.shape == (10, 20)
+        assert str(parsed_type) == "tensor<integer(bits=32), shape=[10, 20]>"
 
     def test_tensor_type_deserialization_float_elements(self):
         """Tensor type loading with float elements."""
@@ -496,14 +491,12 @@ class TestTypeDeserialization:
             "element": {"type": "float64"},
             "params": {"shape": [5, 10, 15]},
         }
-        spec_dict = self._create_minimal_spec_with_type(type_def)
-        loaded_spec = spec.from_dict(spec_dict)
+        parsed_type = self._parse(type_def)
 
-        column = loaded_spec.columns[0]
-        assert isinstance(column.type, types.Tensor)
-        assert column.type.element == types.Float(bits=64)
-        assert column.type.shape == (5, 10, 15)
-        assert str(column.type) == "tensor<float(bits=64), shape=[5, 10, 15]>"
+        assert isinstance(parsed_type, types.Tensor)
+        assert parsed_type.element == types.Float(bits=64)
+        assert parsed_type.shape == (5, 10, 15)
+        assert str(parsed_type) == "tensor<float(bits=64), shape=[5, 10, 15]>"
 
     def test_tensor_type_deserialization_complex_element(self):
         """Tensor type loading with complex element type."""
@@ -515,16 +508,14 @@ class TestTypeDeserialization:
             },
             "params": {"shape": [2, 3]},
         }
-        spec_dict = self._create_minimal_spec_with_type(type_def)
-        loaded_spec = spec.from_dict(spec_dict)
+        parsed_type = self._parse(type_def)
 
-        column = loaded_spec.columns[0]
-        assert isinstance(column.type, types.Tensor)
-        assert isinstance(column.type.element, types.Struct)
-        assert column.type.shape == (2, 3)
-        assert len(column.type.element.fields) == 1
-        assert column.type.element.fields[0].name == "value"
-        assert column.type.element.fields[0].type == types.String()
+        assert isinstance(parsed_type, types.Tensor)
+        assert isinstance(parsed_type.element, types.Struct)
+        assert parsed_type.shape == (2, 3)
+        assert len(parsed_type.element.fields) == 1
+        assert parsed_type.element.fields[0].name == "value"
+        assert parsed_type.element.fields[0].type == types.String()
 
     def test_tensor_type_missing_element_raises_error(self):
         """Tensor type without element raises error."""
@@ -532,12 +523,10 @@ class TestTypeDeserialization:
             "type": "tensor",
             "params": {"shape": [10, 20]},
         }
-        spec_dict = self._create_minimal_spec_with_type(type_def)
-
         with pytest.raises(
             TypeDefinitionError, match="Tensor type definition must include 'element'"
         ):
-            spec.from_dict(spec_dict)
+            self._parse(type_def)
 
     def test_tensor_type_missing_shape_raises_error(self):
         """Tensor type without shape raises error."""
@@ -545,12 +534,10 @@ class TestTypeDeserialization:
             "type": "tensor",
             "element": {"type": "int32"},
         }
-        spec_dict = self._create_minimal_spec_with_type(type_def)
-
         with pytest.raises(
             TypeDefinitionError, match="Tensor type definition must include 'shape'"
         ):
-            spec.from_dict(spec_dict)
+            self._parse(type_def)
 
     def test_tensor_type_invalid_shape_raises_error(self):
         """Tensor type with invalid shape raises error."""
@@ -559,10 +546,8 @@ class TestTypeDeserialization:
             "element": {"type": "int32"},
             "params": {"shape": [10, 0, 20]},
         }
-        spec_dict = self._create_minimal_spec_with_type(type_def)
-
         with pytest.raises(
             TypeDefinitionError,
             match="Tensor 'shape' must contain only positive integers",
         ):
-            spec.from_dict(spec_dict)
+            self._parse(type_def)
