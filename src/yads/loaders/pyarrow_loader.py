@@ -29,7 +29,9 @@ from typing import TYPE_CHECKING, Any, Literal, Mapping
 
 from .. import spec as yspec
 from .. import types as ytypes
+from ..constraints import NotNullConstraint
 from ..exceptions import LoaderConfigError, UnsupportedFeatureError, validation_warning
+from ..serializers import ConstraintSerializer, TypeSerializer
 from .._dependencies import ensure_dependency
 from .base import BaseLoaderConfig, ConfigurableLoader
 
@@ -86,6 +88,9 @@ class PyArrowLoader(ConfigurableLoader):
             config: Configuration object. If None, uses default PyArrowLoaderConfig.
         """
         self.config: PyArrowLoaderConfig = config or PyArrowLoaderConfig()
+        self._type_serializer = TypeSerializer()
+        self._type_serializer.bind_field_serializer(self._serialize_field_definition)
+        self._constraint_serializer = ConstraintSerializer()
         super().__init__(self.config)
 
     def load(
@@ -136,30 +141,38 @@ class PyArrowLoader(ConfigurableLoader):
     # %% ---- Field and type conversion -----------------------------------------------
     def _convert_field(self, field: pa.Field) -> dict[str, Any]:
         """Convert an Arrow field to a normalized column definition."""
-        field_meta = self._decode_key_value_metadata(field.metadata)
+        field_model = self._build_field_model(field)
+        return self._serialize_field_definition(field_model)
 
-        # Lift description out of metadata if present
-        description = field_meta.pop("description", None)
-
-        col: dict[str, Any] = {
-            "name": field.name,
-        }
-
-        type_def = self._convert_type(field.type)
-        col.update(type_def)
-
-        if description is not None:
-            col["description"] = description
-        if field_meta:
-            col["metadata"] = field_meta
-
-        # Nullability -> not_null constraint
+    def _build_field_model(self, field: pa.Field) -> yspec.Field:
+        metadata = self._decode_key_value_metadata(field.metadata)
+        description = metadata.pop("description", None)
+        constraints = []
         if field.nullable is False:
-            col["constraints"] = {"not_null": True}
+            constraints.append(NotNullConstraint())
+        return yspec.Field(
+            name=field.name,
+            type=self._convert_type(field.type),
+            description=description,
+            metadata=metadata,
+            constraints=constraints,
+        )
 
-        return col
+    def _serialize_field_definition(self, field: yspec.Field) -> dict[str, Any]:
+        payload: dict[str, Any] = {"name": field.name}
+        payload.update(self._type_serializer.serialize(field.type))
+        if field.description:
+            payload["description"] = field.description
+        if field.metadata:
+            payload["metadata"] = dict(field.metadata)
+        constraints = self._constraint_serializer.serialize_column_constraints(
+            field.constraints
+        )
+        if constraints:
+            payload["constraints"] = constraints
+        return payload
 
-    def _convert_type(self, dtype: pa.DataType) -> dict[str, Any]:
+    def _convert_type(self, dtype: pa.DataType) -> ytypes.YadsType:
         """Convert an Arrow data type to a normalized type definition.
 
         Currently unsupported:
@@ -174,103 +187,86 @@ class PyArrowLoader(ConfigurableLoader):
 
         # Null / Boolean
         if types.is_null(t):
-            return {"type": "void"}
+            return ytypes.Void()
         if types.is_boolean(t):
-            return {"type": "boolean"}
+            return ytypes.Boolean()
 
         # Integers
         if types.is_int8(t):
-            return {"type": "integer", "params": {"bits": 8, "signed": True}}
+            return ytypes.Integer(bits=8, signed=True)
         if types.is_int16(t):
-            return {"type": "integer", "params": {"bits": 16, "signed": True}}
+            return ytypes.Integer(bits=16, signed=True)
         if types.is_int32(t):
-            return {"type": "integer", "params": {"bits": 32, "signed": True}}
+            return ytypes.Integer(bits=32, signed=True)
         if types.is_int64(t):
-            return {"type": "integer", "params": {"bits": 64, "signed": True}}
+            return ytypes.Integer(bits=64, signed=True)
         if types.is_uint8(t):
-            return {"type": "integer", "params": {"bits": 8, "signed": False}}
+            return ytypes.Integer(bits=8, signed=False)
         if types.is_uint16(t):
-            return {"type": "integer", "params": {"bits": 16, "signed": False}}
+            return ytypes.Integer(bits=16, signed=False)
         if types.is_uint32(t):
-            return {"type": "integer", "params": {"bits": 32, "signed": False}}
+            return ytypes.Integer(bits=32, signed=False)
         if types.is_uint64(t):
-            return {"type": "integer", "params": {"bits": 64, "signed": False}}
+            return ytypes.Integer(bits=64, signed=False)
 
         # Floats
         if types.is_float16(t):
-            return {"type": "float", "params": {"bits": 16}}
+            return ytypes.Float(bits=16)
         if types.is_float32(t):
-            return {"type": "float", "params": {"bits": 32}}
+            return ytypes.Float(bits=32)
         if types.is_float64(t):
-            return {"type": "float", "params": {"bits": 64}}
+            return ytypes.Float(bits=64)
 
         # Strings / Binary
         if types.is_string(t):
-            return {"type": "string"}
+            return ytypes.String()
         if getattr(types, "is_large_string", self._type_predicate_default)(t):
-            return {"type": "string"}
+            return ytypes.String()
         if hasattr(types, "is_string_view") and types.is_string_view(
             t
         ):  # Added in pyarrow 16.0.0
-            return {"type": "string"}
+            return ytypes.String()
         if types.is_fixed_size_binary(t):
             # pyarrow.FixedSizeBinaryType exposes byte_width
-            return {
-                "type": "binary",
-                "params": {"length": getattr(t, "byte_width", None)},
-            }
+            return ytypes.Binary(length=getattr(t, "byte_width", None))
         if types.is_binary(t):
-            return {"type": "binary"}
+            return ytypes.Binary()
         if getattr(types, "is_large_binary", self._type_predicate_default)(t):
-            return {"type": "binary"}
+            return ytypes.Binary()
         if hasattr(types, "is_binary_view") and types.is_binary_view(
             t
         ):  # Added in pyarrow 16.0.0
-            return {"type": "binary"}
+            return ytypes.Binary()
 
         # Decimal
         if types.is_decimal128(t):
-            return {
-                "type": "decimal",
-                "params": {
-                    "precision": t.precision,
-                    "scale": t.scale,
-                    "bits": 128,
-                },
-            }
+            return ytypes.Decimal(precision=t.precision, scale=t.scale, bits=128)
         if types.is_decimal256(t):
-            return {
-                "type": "decimal",
-                "params": {
-                    "precision": t.precision,
-                    "scale": t.scale,
-                    "bits": 256,
-                },
-            }
+            return ytypes.Decimal(precision=t.precision, scale=t.scale, bits=256)
 
         # Date / Time / Timestamp / Duration / Interval
         if types.is_date32(t):
-            return {"type": "date", "params": {"bits": 32}}
+            return ytypes.Date(bits=32)
         if types.is_date64(t):
-            return {"type": "date", "params": {"bits": 64}}
+            return ytypes.Date(bits=64)
         if types.is_time32(t):
-            return {"type": "time", "params": {"unit": t.unit, "bits": 32}}
+            return ytypes.Time(unit=self._normalize_time_unit(t.unit), bits=32)
         if types.is_time64(t):
-            return {"type": "time", "params": {"unit": t.unit, "bits": 64}}
+            return ytypes.Time(unit=self._normalize_time_unit(t.unit), bits=64)
         if types.is_timestamp(t):
             unit = t.unit
             tz = getattr(t, "tz", None)
             if tz is None:
-                return {"type": "timestamp", "params": {"unit": unit}}
-            return {"type": "timestamptz", "params": {"unit": unit, "tz": tz}}
+                return ytypes.Timestamp(unit=self._normalize_time_unit(unit))
+            return ytypes.TimestampTZ(
+                unit=self._normalize_time_unit(unit),
+                tz=tz,
+            )
         if types.is_duration(t):
-            return {"type": "duration", "params": {"unit": t.unit}}
+            return ytypes.Duration(unit=self._normalize_time_unit(t.unit))
         # Only M/D/N interval exists in Arrow; default to DAY as start unit
         if getattr(types, "is_interval", self._type_predicate_default)(t):
-            return {
-                "type": "interval",
-                "params": {"interval_start": "DAY"},
-            }
+            return ytypes.Interval(interval_start=ytypes.IntervalTimeUnit.DAY)
 
         # Complex: Array / Struct / Map
         if (
@@ -284,59 +280,49 @@ class PyArrowLoader(ConfigurableLoader):
             )  # Added in pyarrow 16.0.0
         ):
             with self.load_context(field="<array_element>"):
-                elem_def = self._convert_type(t.value_type)
-            return {"type": "array", "element": elem_def}
+                elem_type = self._convert_type(t.value_type)
+            return ytypes.Array(element=elem_type)
 
         if getattr(types, "is_fixed_size_list", self._type_predicate_default)(t):
             with self.load_context(field="<array_element>"):
-                elem_def = self._convert_type(t.value_type)
-            return {"type": "array", "element": elem_def, "params": {"size": t.list_size}}
+                elem_type = self._convert_type(t.value_type)
+            return ytypes.Array(element=elem_type, size=t.list_size)
 
         if types.is_struct(t):
             # t is a StructType; iterate contained pa.Field entries
-            fields: list[dict[str, Any]] = []
+            fields: list[yspec.Field] = []
             for f in t:
                 with self.load_context(field=f.name):
-                    field_def = self._convert_field(f)
-                    fields.append(field_def)
-            return {"type": "struct", "fields": fields}
+                    fields.append(self._build_field_model(f))
+            return ytypes.Struct(fields=fields)
 
         if types.is_map(t):
             with self.load_context(field="<map_key>"):
-                key_def = self._convert_type(t.key_type)
+                key_type = self._convert_type(t.key_type)
             with self.load_context(field="<map_value>"):
-                val_def = self._convert_type(t.item_type)
+                val_type = self._convert_type(t.item_type)
             if t.keys_sorted:
-                return {
-                    "type": "map",
-                    "key": key_def,
-                    "value": val_def,
-                    "params": {"keys_sorted": True},
-                }
-            return {"type": "map", "key": key_def, "value": val_def}
+                return ytypes.Map(key=key_type, value=val_type, keys_sorted=True)
+            return ytypes.Map(key=key_type, value=val_type)
 
         # Canonical extension types supported by checking the typeclass
         # https://arrow.apache.org/docs/format/CanonicalExtensions.html
         if hasattr(pa, "UuidType") and isinstance(
             t, pa.UuidType
         ):  # Added in pyarrow 18.0.0
-            return {"type": "uuid"}
+            return ytypes.UUID()
         if hasattr(pa, "JsonType") and isinstance(
             t, pa.JsonType
         ):  # Added in pyarrow 19.0.0
-            return {"type": "json"}
+            return ytypes.JSON()
         if hasattr(pa, "Bool8Type") and isinstance(
             t, pa.Bool8Type
         ):  # Added in pyarrow 18.0.0
-            return {"type": "boolean"}
+            return ytypes.Boolean()
         if isinstance(t, pa.FixedShapeTensorType):
             with self.load_context(field="<tensor_element>"):
-                element_def = self._convert_type(t.value_type)
-            return {
-                "type": "tensor",
-                "element": element_def,
-                "params": {"shape": list(t.shape)},
-            }
+                element_type = self._convert_type(t.value_type)
+            return ytypes.Tensor(element=element_type, shape=tuple(t.shape))
 
         error_msg = (
             f"PyArrowLoader does not support PyArrow type: '{t}' ({type(t).__name__})"
@@ -352,22 +338,21 @@ class PyArrowLoader(ConfigurableLoader):
                 filename="yads.loaders.pyarrow_loader",
                 module=__name__,
             )
-            return self._get_fallback_type_definition()
+            return self.config.fallback_type
 
         raise UnsupportedFeatureError(f"{error_msg}.")
 
-    def _get_fallback_type_definition(self) -> dict[str, Any]:
-        if isinstance(self.config.fallback_type, ytypes.Binary):
-            binary_type = self.config.fallback_type
-            if binary_type.length is not None:
-                return {"type": "binary", "params": {"length": binary_type.length}}
-            return {"type": "binary"}
-        else:  # String (default)
-            string_type = self.config.fallback_type
-            assert isinstance(string_type, ytypes.String)  # Validated in __post_init__
-            if string_type.length is not None:
-                return {"type": "string", "params": {"length": string_type.length}}
-            return {"type": "string"}
+    @staticmethod
+    def _normalize_time_unit(unit: Any) -> ytypes.TimeUnit:
+        if isinstance(unit, ytypes.TimeUnit):
+            return unit
+        if hasattr(unit, "value"):
+            normalized = getattr(unit, "value")
+        else:
+            normalized = unit
+        if normalized is None:
+            return ytypes.TimeUnit.NS
+        return ytypes.TimeUnit(str(normalized))
 
     # %% ---- Helpers -----------------------------------------------------------------
     @staticmethod
