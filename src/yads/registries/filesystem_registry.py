@@ -28,13 +28,11 @@ Example:
 
 from __future__ import annotations
 
-# pyright: reportUnknownArgumentType=none, reportUnknownMemberType=none
-# pyright: reportUnknownVariableType=none
-
 import logging
 import urllib.parse
 import warnings
-from typing import TYPE_CHECKING, Any
+from dataclasses import replace
+from typing import IO, TYPE_CHECKING, Any, Protocol, cast
 
 import fsspec  # type: ignore[import]
 import yaml
@@ -47,10 +45,23 @@ from ..exceptions import (
     SpecNotFoundError,
 )
 from ..loaders import from_yaml_string
+from ..serializers import SpecSerializer
 from .base import BaseRegistry
 
 if TYPE_CHECKING:
     from ..spec import YadsSpec
+
+
+class FileSystemProtocol(Protocol):
+    """Minimal filesystem protocol used by the registry."""
+
+    def exists(self, path: str, **kwargs: Any) -> bool: ...
+
+    def ls(self, path: str, detail: bool = True, **kwargs: Any) -> list[str]: ...
+
+    def makedirs(self, path: str, exist_ok: bool = False) -> None: ...
+
+    def open(self, path: str, mode: str = "rb", **kwargs: Any) -> IO[str]: ...
 
 
 class FileSystemRegistry(BaseRegistry):
@@ -111,6 +122,7 @@ class FileSystemRegistry(BaseRegistry):
         self,
         base_path: str,
         logger: logging.Logger | None = None,
+        serializer: SpecSerializer | None = None,
         **fsspec_kwargs: Any,
     ):
         """Initialize the FileSystemRegistry.
@@ -118,6 +130,7 @@ class FileSystemRegistry(BaseRegistry):
         Args:
             base_path: Base path for the registry storage.
             logger: Optional logger instance.
+            serializer: Optional spec serializer override used for YAML exports.
             **fsspec_kwargs: Additional fsspec configuration.
         """
         # Initialize logger
@@ -125,7 +138,15 @@ class FileSystemRegistry(BaseRegistry):
 
         # Initialize filesystem
         try:
-            fs_obj, resolved_base_path = fsspec.core.url_to_fs(base_path, **fsspec_kwargs)
+            fs_result = cast(
+                tuple[Any, Any],
+                fsspec.core.url_to_fs(  # pyright: ignore[reportUnknownMemberType]
+                    base_path, **fsspec_kwargs
+                ),
+            )
+            fs_obj_any, resolved_base_path_any = fs_result
+            fs_obj = cast(FileSystemProtocol, fs_obj_any)
+            resolved_base_path = str(resolved_base_path_any)
             # Validate base path exists by attempting to access it
             fs_obj.exists(resolved_base_path)
         except Exception as e:
@@ -133,8 +154,9 @@ class FileSystemRegistry(BaseRegistry):
                 f"Failed to connect to registry at '{base_path}': {e}"
             ) from e
 
-        self.fs = fs_obj
-        self.base_path = resolved_base_path
+        self.fs: FileSystemProtocol = fs_obj
+        self.base_path: str = resolved_base_path
+        self._serializer = serializer or SpecSerializer()
         self.logger.info(f"Initialized FileSystemRegistry at: {self.base_path}")
 
     def register(self, spec: YadsSpec) -> int:
@@ -255,7 +277,7 @@ class FileSystemRegistry(BaseRegistry):
             files = self.fs.ls(versions_dir, detail=False)
 
             # Extract version numbers from filenames
-            versions = []
+            versions: list[int] = []
             for file_path in files:
                 filename = file_path.split("/")[-1]
                 if filename.endswith(".yaml"):
@@ -293,7 +315,6 @@ class FileSystemRegistry(BaseRegistry):
             return False
 
     # Private helper methods
-
     def _validate_spec_name(self, name: str) -> None:
         """Validate that spec name doesn't contain filesystem-unsafe characters.
 
@@ -335,19 +356,13 @@ class FileSystemRegistry(BaseRegistry):
         Returns:
             True if specs are equal (excluding version), False otherwise.
         """
-        # Create copies with same version for comparison
-        # Since YadsSpec is a frozen dataclass, we need to compare field by field
-        return (
-            spec1.name == spec2.name
-            and spec1.yads_spec_version == spec2.yads_spec_version
-            and spec1.columns == spec2.columns
-            and spec1.description == spec2.description
-            and spec1.external == spec2.external
-            and spec1.storage == spec2.storage
-            and spec1.partitioned_by == spec2.partitioned_by
-            and spec1.table_constraints == spec2.table_constraints
-            and spec1.metadata == spec2.metadata
-        )
+        return self._normalized_spec_dict(spec1) == self._normalized_spec_dict(spec2)
+
+    def _normalized_spec_dict(self, spec: YadsSpec) -> dict[str, Any]:
+        """Serialize a spec into a dict suitable for equality checks."""
+        normalized = self._serializer.serialize(spec)
+        normalized["version"] = 0
+        return normalized
 
     def _write_spec(self, encoded_name: str, version: int, spec: YadsSpec) -> None:
         """Write a spec to the registry.
@@ -357,10 +372,7 @@ class FileSystemRegistry(BaseRegistry):
             version: Version number to assign.
             spec: The spec to write.
         """
-        # Serialize spec to YAML
         yaml_content = self._serialize_spec(spec, version)
-
-        # Construct file path
         versions_dir = f"{self.base_path}/{encoded_name}/versions"
         file_path = f"{versions_dir}/{version}.yaml"
 
@@ -402,269 +414,5 @@ class FileSystemRegistry(BaseRegistry):
         Returns:
             YAML string representation.
         """
-        # Create a dictionary representation
-        # We'll manually build this to control the order and formatting
-        spec_dict: dict[str, Any] = {
-            "name": spec.name,
-            "version": version,
-            "yads_spec_version": spec.yads_spec_version,
-        }
-
-        if spec.description:
-            spec_dict["description"] = spec.description
-
-        if spec.external:
-            spec_dict["external"] = spec.external
-
-        if spec.metadata:
-            spec_dict["metadata"] = spec.metadata
-
-        if spec.storage:
-            storage_dict: dict[str, Any] = {}
-            if spec.storage.format:
-                storage_dict["format"] = spec.storage.format
-            if spec.storage.location:
-                storage_dict["location"] = spec.storage.location
-            if spec.storage.tbl_properties:
-                storage_dict["tbl_properties"] = spec.storage.tbl_properties
-            if storage_dict:
-                spec_dict["storage"] = storage_dict
-
-        if spec.partitioned_by:
-            partitions = []
-            for p in spec.partitioned_by:
-                p_dict: dict[str, Any] = {"column": p.column}
-                if p.transform:
-                    p_dict["transform"] = p.transform
-                if p.transform_args:
-                    p_dict["transform_args"] = p.transform_args
-                partitions.append(p_dict)
-            spec_dict["partitioned_by"] = partitions
-
-        if spec.table_constraints:
-            constraints = []
-            for tc in spec.table_constraints:
-                from ..constraints import (
-                    ForeignKeyTableConstraint,
-                    PrimaryKeyTableConstraint,
-                )
-
-                constraint_type = (
-                    tc.__class__.__name__.replace("TableConstraint", "")
-                    .lower()
-                    .replace("primarykey", "primary_key")
-                    .replace("foreignkey", "foreign_key")
-                )
-                c_dict: dict[str, Any] = {
-                    "type": constraint_type,
-                }
-
-                if isinstance(tc, (PrimaryKeyTableConstraint, ForeignKeyTableConstraint)):
-                    if tc.name:
-                        c_dict["name"] = tc.name
-                    c_dict["columns"] = list(tc.columns)
-
-                if isinstance(tc, ForeignKeyTableConstraint) and tc.references:
-                    references_dict: dict[str, Any] = {
-                        "table": tc.references.table,
-                    }
-                    if tc.references.columns:
-                        references_dict["columns"] = list(tc.references.columns)
-                    c_dict["references"] = references_dict
-                constraints.append(c_dict)
-            spec_dict["table_constraints"] = constraints
-
-        # Add columns (simplified - this is complex, but we'll use yaml.dump)
-        # For now, we'll just store the full spec and reconstruct
-        # In practice, for a real implementation, you'd want to serialize
-        # each column properly. For the MVP, let's use a simpler approach:
-        # Load the spec, modify version, dump back to YAML
-
-        # Actually, let's just build a minimal dict and let the loader handle it
-        columns = []
-        for col in spec.columns:
-            col_dict = self._serialize_column(col)
-            columns.append(col_dict)
-
-        spec_dict["columns"] = columns
-
-        return yaml.dump(spec_dict, default_flow_style=False, sort_keys=False)
-
-    def _serialize_column(self, column: Any) -> dict[str, Any]:
-        """Serialize a column to a dictionary."""
-        col_dict = {"name": column.name}
-
-        # Serialize type - if it returns a dict, merge it; if string, set as 'type'
-        type_data = self._serialize_type(column.type)
-        if isinstance(type_data, str):
-            col_dict["type"] = type_data
-        else:
-            # Merge the dict (contains 'type', and possibly 'params', 'element', etc.)
-            col_dict.update(type_data)
-
-        if column.description:
-            col_dict["description"] = column.description
-
-        if column.metadata:
-            col_dict["metadata"] = column.metadata
-
-        if column.constraints:
-            constraints_dict: dict[str, Any] = {}
-            for constraint in column.constraints:
-                constraint_name = constraint.__class__.__name__.replace(
-                    "Constraint", ""
-                ).lower()
-                if constraint_name == "notnull":
-                    constraints_dict["not_null"] = True
-                elif constraint_name == "primarykey":
-                    constraints_dict["primary_key"] = True
-                elif constraint_name == "default":
-                    constraints_dict["default"] = constraint.value
-                elif constraint_name == "identity":
-                    identity_dict: dict[str, Any] = {}
-                    if constraint.always is not None:
-                        identity_dict["always"] = constraint.always
-                    if constraint.start is not None:
-                        identity_dict["start"] = constraint.start
-                    if constraint.increment is not None:
-                        identity_dict["increment"] = constraint.increment
-                    constraints_dict["identity"] = identity_dict
-                elif constraint_name == "foreignkey":
-                    fk_dict: dict[str, Any] = {}
-                    if constraint.name:
-                        fk_dict["name"] = constraint.name
-                    fk_dict["references"] = {"table": constraint.references.table}
-                    if constraint.references.columns:
-                        fk_dict["references"]["columns"] = list(
-                            constraint.references.columns
-                        )
-                    constraints_dict["foreign_key"] = fk_dict
-            if constraints_dict:
-                col_dict["constraints"] = constraints_dict
-
-        if column.generated_as:
-            gen_dict = {"column": column.generated_as.column}
-            if column.generated_as.transform:
-                gen_dict["transform"] = column.generated_as.transform
-            if column.generated_as.transform_args:
-                gen_dict["transform_args"] = column.generated_as.transform_args
-            col_dict["generated_as"] = gen_dict
-
-        return col_dict
-
-    def _serialize_type(self, yads_type: Any) -> dict[str, Any] | str:
-        """Serialize a yads type to dict or string."""
-        # For simple types, return string
-        type_name = yads_type.__class__.__name__.lower()
-
-        # Get the canonical name from TYPE_ALIASES or use the class name
-        from .. import types as ytypes
-
-        # Find canonical name
-        canonical_name = None
-        for alias, (type_class, _) in ytypes.TYPE_ALIASES.items():
-            if type_class == yads_type.__class__:
-                canonical_name = alias
-                break
-
-        if canonical_name is None:
-            canonical_name = type_name
-
-        # Check if type has parameters
-        has_params = False
-        type_dict = {"type": canonical_name}
-        params = {}
-
-        # Add parameters based on type
-        if hasattr(yads_type, "length") and yads_type.length is not None:
-            params["length"] = yads_type.length
-            has_params = True
-        if hasattr(yads_type, "bits") and yads_type.bits is not None:
-            # Only add if not default
-            params["bits"] = yads_type.bits
-            has_params = True
-        if hasattr(yads_type, "signed") and hasattr(yads_type, "bits"):
-            if not yads_type.signed:  # Only add if False
-                params["signed"] = yads_type.signed
-                has_params = True
-        if hasattr(yads_type, "precision") and yads_type.precision is not None:
-            params["precision"] = yads_type.precision
-            has_params = True
-        if hasattr(yads_type, "scale") and yads_type.scale is not None:
-            params["scale"] = yads_type.scale
-            has_params = True
-        if hasattr(yads_type, "unit") and yads_type.unit is not None:
-            params["unit"] = str(yads_type.unit.value)
-            has_params = True
-        if hasattr(yads_type, "tz") and yads_type.tz is not None:
-            params["tz"] = yads_type.tz
-            has_params = True
-        if hasattr(yads_type, "srid") and yads_type.srid is not None:
-            params["srid"] = yads_type.srid
-            has_params = True
-        if hasattr(yads_type, "size") and yads_type.size is not None:
-            params["size"] = yads_type.size
-            has_params = True
-        if hasattr(yads_type, "keys_sorted") and yads_type.keys_sorted:
-            params["keys_sorted"] = yads_type.keys_sorted
-            has_params = True
-        if hasattr(yads_type, "interval_start") and yads_type.interval_start is not None:
-            params["interval_start"] = yads_type.interval_start.value
-            has_params = True
-        if hasattr(yads_type, "interval_end") and yads_type.interval_end is not None:
-            params["interval_end"] = yads_type.interval_end.value
-            has_params = True
-        if hasattr(yads_type, "shape") and yads_type.shape is not None:
-            params["shape"] = list(yads_type.shape)
-            has_params = True
-
-        if params:
-            type_dict["params"] = params
-
-        # Handle complex types
-        if hasattr(yads_type, "element") and yads_type.element is not None:
-            type_dict["element"] = self._serialize_type(yads_type.element)
-            has_params = True
-        if hasattr(yads_type, "key") and yads_type.key is not None:
-            key_data = self._serialize_type(yads_type.key)
-            # Map keys must be dict format, normalize string to dict
-            if isinstance(key_data, str):
-                type_dict["key"] = {"type": key_data}
-            else:
-                type_dict["key"] = key_data
-            has_params = True
-        if hasattr(yads_type, "value") and yads_type.value is not None:
-            value_data = self._serialize_type(yads_type.value)
-            # Map values must be dict format, normalize string to dict
-            if isinstance(value_data, str):
-                type_dict["value"] = {"type": value_data}
-            else:
-                type_dict["value"] = value_data
-            has_params = True
-        if hasattr(yads_type, "fields") and yads_type.fields:
-            fields = []
-            for field in yads_type.fields:
-                field_dict: dict[str, Any] = {
-                    "name": field.name,
-                }
-                field_type_data = self._serialize_type(field.type)
-                if isinstance(field_type_data, dict):
-                    field_dict.update(field_type_data)
-                else:
-                    field_dict["type"] = field_type_data
-                if field.description:
-                    field_dict["description"] = field.description
-                if field.metadata:
-                    field_dict["metadata"] = field.metadata
-                if field.constraints:
-                    # Serialize constraints
-                    pass  # Simplified for now
-                fields.append(field_dict)
-            type_dict["fields"] = fields
-            has_params = True
-
-        # If no params or complex structure, return just the type name
-        if not has_params and len(type_dict) == 1:
-            return canonical_name
-
-        return type_dict
+        serialized_spec = self._serializer.serialize(replace(spec, version=version))
+        return yaml.safe_dump(serialized_spec, sort_keys=False, default_flow_style=False)
