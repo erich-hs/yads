@@ -1,6 +1,10 @@
 import pytest
 
+from dataclasses import dataclass
+from functools import cached_property
+
 from yads.constraints import (
+    ColumnConstraint,
     DefaultConstraint,
     ForeignKeyConstraint,
     ForeignKeyReference,
@@ -9,8 +13,13 @@ from yads.constraints import (
     NotNullConstraint,
     PrimaryKeyConstraint,
     PrimaryKeyTableConstraint,
+    TableConstraint,
 )
-from yads.exceptions import InvalidConstraintError, SpecParsingError
+from yads.exceptions import (
+    InvalidConstraintError,
+    SpecParsingError,
+    SpecSerializationError,
+)
 from yads.serializers import ConstraintDeserializer, ConstraintSerializer
 
 
@@ -61,6 +70,52 @@ class TestConstraintSerializer:
                 "references": {"table": "profiles", "columns": ["id"]},
             },
         ]
+
+    def test_unsupported_column_constraint_raises_error(self):
+        class UnsupportedColumnConstraint(ColumnConstraint):
+            @property
+            def constrained_columns(self):
+                return []
+
+        serializer = ConstraintSerializer()
+        with pytest.raises(SpecSerializationError, match="Unsupported column constraint"):
+            serializer.serialize_column_constraints([UnsupportedColumnConstraint()])
+
+    def test_table_constraints_require_name(self):
+        serializer = ConstraintSerializer()
+        fk = ForeignKeyTableConstraint(
+            columns=["profile_id"],
+            name=None,
+            references=ForeignKeyReference(table="profiles", columns=["id"]),
+        )
+        with pytest.raises(
+            SpecSerializationError,
+            match="Foreign key table constraints require a 'name' to serialize",
+        ):
+            serializer.serialize_table_constraints([fk])
+
+        pk = PrimaryKeyTableConstraint(columns=["id"], name=None)
+        with pytest.raises(
+            SpecSerializationError,
+            match="Primary key table constraints require a 'name' to serialize",
+        ):
+            serializer.serialize_table_constraints([pk])
+
+    def test_unsupported_table_constraint_raises_error(self):
+        @dataclass(frozen=True)
+        class DummyTableConstraint(TableConstraint):
+            columns: list[str]
+
+            @cached_property
+            def constrained_columns(self) -> list[str]:
+                return self.columns
+
+        serializer = ConstraintSerializer()
+        with pytest.raises(
+            SpecSerializationError,
+            match="Unsupported table constraint DummyTableConstraint",
+        ):
+            serializer.serialize_table_constraints([DummyTableConstraint(columns=["id"])])
 
 
 class TestConstraintDeserializerColumnConstraints:
@@ -133,6 +188,22 @@ class TestConstraintDeserializerColumnConstraints:
         assert identity.start == 10
         assert identity.increment == -2
 
+    def test_identity_constraint_type_errors(self):
+        with pytest.raises(
+            InvalidConstraintError, match="'always' must be a boolean when specified"
+        ):
+            self._parse({"identity": {"always": "yes"}})
+
+        with pytest.raises(
+            InvalidConstraintError, match="'start' must be an integer when specified"
+        ):
+            self._parse({"identity": {"start": "zero"}})
+
+        with pytest.raises(
+            InvalidConstraintError, match="'increment' must be an integer when specified"
+        ):
+            self._parse({"identity": {"increment": "up"}})
+
     def test_foreign_key_constraint_deserialization(self):
         constraints = self._parse(
             {
@@ -148,6 +219,19 @@ class TestConstraintDeserializerColumnConstraints:
         assert fk_constraint.name == "fk_test"
         assert fk_constraint.references.table == "other_table"
         assert fk_constraint.references.columns == ["id"]
+
+    def test_foreign_key_constraint_shape_errors(self):
+        with pytest.raises(
+            InvalidConstraintError, match="Foreign key constraint 'name' must be a string"
+        ):
+            self._parse(
+                {"foreign_key": {"name": 1, "references": {"table": "other_table"}}}
+            )
+
+        with pytest.raises(
+            InvalidConstraintError, match="Foreign key 'references' must be a dictionary"
+        ):
+            self._parse({"foreign_key": {"name": "fk", "references": "other_table"}})
 
     def test_constraints_attribute_as_list_raises_error(self):
         with pytest.raises(
@@ -191,6 +275,20 @@ class TestConstraintDeserializerColumnConstraints:
             c for c in constraints if isinstance(c, DefaultConstraint)
         )
         assert default_constraint.value == "test_value"
+
+    def test_register_custom_column_constraint_parser(self):
+        class CustomConstraint(ColumnConstraint):
+            @property
+            def constrained_columns(self):
+                return []
+
+        def _parse_custom(value: object) -> ColumnConstraint:
+            assert value == 42
+            return CustomConstraint()
+
+        self.deserializer.register_column_parser("custom", _parse_custom)
+        constraints = self._parse({"custom": 42})
+        assert any(isinstance(c, CustomConstraint) for c in constraints)
 
 
 class TestConstraintDeserializerTableConstraints:
@@ -257,6 +355,123 @@ class TestConstraintDeserializerTableConstraints:
             match="Table constraint definition must have a 'type'",
         ):
             self._parse([{"name": "test_constraint", "columns": ["col1"]}])
+
+    def test_table_constraints_invalid_container_types(self):
+        with pytest.raises(
+            InvalidConstraintError,
+            match="Table constraints must be provided as a sequence of dictionaries",
+        ):
+            self._parse("not-a-sequence")
+
+        with pytest.raises(
+            InvalidConstraintError, match="Table constraints must be a sequence"
+        ):
+            self._parse({"type": "primary_key"})
+
+        with pytest.raises(
+            InvalidConstraintError,
+            match="Table constraint at index 0 must be a dictionary",
+        ):
+            self._parse([["not", "a", "dict"]])
+
+    def test_table_constraint_column_validation(self):
+        with pytest.raises(
+            InvalidConstraintError,
+            match="'foreign key table constraint' columns must be a list of strings",
+        ):
+            self._parse(
+                [
+                    {
+                        "type": "foreign_key",
+                        "name": "fk_test",
+                        "columns": "col1",
+                        "references": {"table": "other_table"},
+                    }
+                ]
+            )
+
+        with pytest.raises(
+            InvalidConstraintError,
+            match="'primary key table constraint' columns must be a list of strings",
+        ):
+            self._parse([{"type": "primary_key", "name": "pk_test", "columns": [1]}])
+
+    def test_foreign_key_reference_validation(self):
+        with pytest.raises(
+            InvalidConstraintError,
+            match="The 'references' of a foreign key must be a dictionary with a 'table' key",
+        ):
+            self._parse(
+                [
+                    {
+                        "type": "foreign_key",
+                        "name": "fk_test",
+                        "columns": ["col1"],
+                        "references": {},
+                    }
+                ]
+            )
+
+        with pytest.raises(
+            InvalidConstraintError, match="'references.table' must be a string"
+        ):
+            self._parse(
+                [
+                    {
+                        "type": "foreign_key",
+                        "name": "fk_test",
+                        "columns": ["col1"],
+                        "references": {"table": 1},
+                    }
+                ]
+            )
+
+        with pytest.raises(
+            InvalidConstraintError,
+            match="'references.columns' must be a list of strings",
+        ):
+            self._parse(
+                [
+                    {
+                        "type": "foreign_key",
+                        "name": "fk_test",
+                        "columns": ["col1"],
+                        "references": {"table": "other_table", "columns": "id"},
+                    }
+                ]
+            )
+
+        with pytest.raises(
+            InvalidConstraintError,
+            match="'references.columns' must be a list of strings",
+        ):
+            self._parse(
+                [
+                    {
+                        "type": "foreign_key",
+                        "name": "fk_test",
+                        "columns": ["col1"],
+                        "references": {"table": "other_table", "columns": [1]},
+                    }
+                ]
+            )
+
+    def test_register_custom_table_constraint_parser(self):
+        @dataclass(frozen=True)
+        class CustomTableConstraint(TableConstraint):
+            columns: list[str]
+
+            @cached_property
+            def constrained_columns(self) -> list[str]:
+                return self.columns
+
+        def _parse_custom(value: dict[str, object]) -> TableConstraint:
+            assert value == {"type": "custom", "columns": ["c1"]}
+            return CustomTableConstraint(columns=["c1"])
+
+        self.deserializer.register_table_parser("custom", _parse_custom)
+        constraints = self._parse([{"type": "custom", "columns": ["c1"]}])
+        assert any(isinstance(c, CustomTableConstraint) for c in constraints)
 
     def test_foreign_key_references_missing_table_raises_error(self):
         with pytest.raises(

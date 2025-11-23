@@ -8,6 +8,7 @@ from yads.constraints import (
     ForeignKeyTableConstraint,
     NotNullConstraint,
     PrimaryKeyTableConstraint,
+    PrimaryKeyConstraint,
 )
 from yads.exceptions import (
     InvalidConstraintError,
@@ -18,7 +19,8 @@ from yads.exceptions import (
     UnknownTypeError,
 )
 from yads.serializers import SpecDeserializer, SpecSerializer
-from yads.spec import Storage, YadsSpec
+from yads.spec import Field, Column, Storage, TransformedColumnReference, YadsSpec
+import yads.types as ytypes
 
 FIXTURE_DIR = Path(__file__).parent.parent / "fixtures" / "spec"
 VALID_SPEC_DIR = FIXTURE_DIR / "valid"
@@ -111,6 +113,153 @@ class TestSpecSerializerRoundtrip:
         parsed_spec = self.deserializer.deserialize(spec_dict)
 
         assert parsed_spec.to_dict() == spec_dict
+
+
+class TestSpecSerializerFixtureRoundtrip:
+    def setup_method(self) -> None:
+        self.serializer = SpecSerializer()
+        self.deserializer = SpecDeserializer()
+
+    def test_fixtures_roundtrip_and_stay_stable(self, valid_spec_dict):
+        parsed = self.deserializer.deserialize(valid_spec_dict)
+
+        serialized_once = self.serializer.serialize(parsed)
+        reparsed = self.deserializer.deserialize(serialized_once)
+        serialized_twice = self.serializer.serialize(reparsed)
+
+        assert reparsed == parsed
+        assert serialized_twice == serialized_once
+
+
+class TestSpecToDictBehaviors:
+    def test_minimal_spec_to_dict_contains_required_fields_only(self):
+        spec = YadsSpec(
+            name="catalog.db.minimal",
+            version=1,
+            columns=[Column(name="id", type=ytypes.Integer())],
+        )
+
+        assert spec.to_dict() == {
+            "name": "catalog.db.minimal",
+            "version": 1,
+            "yads_spec_version": spec.yads_spec_version,
+            "columns": [{"name": "id", "type": "integer"}],
+        }
+
+    def test_nested_fields_preserve_metadata_and_constraints(self):
+        spec = YadsSpec(
+            name="catalog.db.nested",
+            version=1,
+            columns=[
+                Column(
+                    name="id",
+                    type=ytypes.Integer(),
+                    constraints=[NotNullConstraint()],
+                ),
+                Column(
+                    name="profile",
+                    type=ytypes.Struct(
+                        fields=[
+                            Field(
+                                name="handle",
+                                type=ytypes.String(length=16),
+                                metadata={"source": "app"},
+                            ),
+                            Field(
+                                name="age",
+                                type=ytypes.Integer(),
+                                constraints=[NotNullConstraint()],
+                            ),
+                        ]
+                    ),
+                ),
+            ],
+        )
+
+        serialized = spec.to_dict()
+        reparsed = SpecDeserializer().deserialize(serialized)
+
+        assert reparsed.name == spec.name
+        assert reparsed.version == spec.version
+        assert reparsed.columns[0].constraints == [NotNullConstraint()]
+        assert reparsed.columns[0].name == "id"
+
+        profile_field = next(
+            column for column in serialized["columns"] if column["name"] == "profile"
+        )
+        handle_field = next(
+            field for field in profile_field["fields"] if field["name"] == "handle"
+        )
+        assert handle_field["metadata"] == {"source": "app"}
+
+        age_field = next(
+            field for field in profile_field["fields"] if field["name"] == "age"
+        )
+        assert age_field["constraints"] == {"not_null": True}
+
+        assert SpecSerializer().serialize(reparsed) == serialized
+
+
+class TestSpecSerializerOptionalFields:
+    def test_serializer_emits_optional_fields(self):
+        spec = YadsSpec(
+            name="catalog.db.users",
+            version=2,
+            yads_spec_version="0.0.2",
+            description="Serialized spec with extras",
+            external=True,
+            metadata={"team": "data-eng"},
+            storage=Storage(
+                format="delta",
+                location="s3://bucket/users",
+                tbl_properties={"delta.appendOnly": "true"},
+            ),
+            partitioned_by=[
+                TransformedColumnReference(
+                    column="bucket", transform="mod", transform_args=[16]
+                )
+            ],
+            table_constraints=[
+                PrimaryKeyTableConstraint(columns=["id"], name="pk_users")
+            ],
+            columns=[
+                Column(
+                    name="id",
+                    type=ytypes.Integer(bits=32),
+                    description="identifier",
+                    metadata={"origin": "system"},
+                    constraints=[NotNullConstraint(), PrimaryKeyConstraint()],
+                ),
+                Column(
+                    name="bucket",
+                    type=ytypes.Integer(bits=32),
+                    generated_as=TransformedColumnReference(
+                        column="id", transform="hash", transform_args=[16]
+                    ),
+                ),
+            ],
+        )
+
+        serialized = SpecSerializer().serialize(spec)
+
+        assert serialized["external"] is True
+        assert serialized["description"] == "Serialized spec with extras"
+        assert serialized["metadata"] == {"team": "data-eng"}
+        assert serialized["storage"] == {
+            "format": "delta",
+            "location": "s3://bucket/users",
+            "tbl_properties": {"delta.appendOnly": "true"},
+        }
+        assert serialized["partitioned_by"] == [
+            {"column": "bucket", "transform": "mod", "transform_args": [16]}
+        ]
+        bucket_column = next(c for c in serialized["columns"] if c["name"] == "bucket")
+        assert bucket_column["generated_as"]["transform_args"] == [16]
+        id_column = next(c for c in serialized["columns"] if c["name"] == "id")
+        assert "constraints" in id_column
+        assert serialized["table_constraints"] == [
+            {"type": "primary_key", "name": "pk_users", "columns": ["id"]}
+        ]
 
 
 class TestGeneratedColumnDeserialization:
@@ -206,6 +355,37 @@ class TestStorageDeserialization:
         assert parsed_spec.storage.location == "/path/to/data"
         assert parsed_spec.storage.tbl_properties == {"compression": "snappy"}
 
+    def test_storage_type_validation(self):
+        spec_dict = {
+            "name": "test_spec",
+            "version": 1,
+            "columns": [{"name": "col1", "type": "string"}],
+            "storage": {"format": 123},
+        }
+        with pytest.raises(
+            SpecParsingError, match="'storage.format' must be a string when specified"
+        ):
+            self.deserializer.deserialize(spec_dict)
+
+        spec_dict["storage"] = {"location": 99}
+        with pytest.raises(
+            SpecParsingError, match="'storage.location' must be a string when specified"
+        ):
+            self.deserializer.deserialize(spec_dict)
+
+        spec_dict["storage"] = {"tbl_properties": "bad"}
+        with pytest.raises(
+            SpecParsingError,
+            match="'storage.tbl_properties' must be a mapping of strings",
+        ):
+            self.deserializer.deserialize(spec_dict)
+
+        spec_dict["storage"] = {"tbl_properties": {1: "x"}}
+        with pytest.raises(
+            SpecParsingError, match="must only contain string keys and values"
+        ):
+            self.deserializer.deserialize(spec_dict)
+
     def test_storage_with_unknown_key_raises_error(self):
         spec_dict = {
             "name": "test_spec",
@@ -283,6 +463,50 @@ class TestPartitionDefinitionDeserialization:
         assert second_partition.column == "date_col"
         assert second_partition.transform == "year"
         assert second_partition.transform_args == [2023]
+
+    def test_partitioned_by_rejects_string_and_non_mapping_items(self):
+        base_spec = {
+            "name": "test_spec",
+            "version": 1,
+            "columns": [{"name": "col1", "type": "string"}],
+        }
+        spec_dict = {**base_spec, "partitioned_by": "col1"}
+        with pytest.raises(
+            SpecParsingError, match="'partitioned_by' must be a sequence of mappings"
+        ):
+            self.deserializer.deserialize(spec_dict)
+
+        spec_dict = {**base_spec, "partitioned_by": [123]}
+        with pytest.raises(
+            SpecParsingError, match="Partition definition at index 0 must be a mapping"
+        ):
+            self.deserializer.deserialize(spec_dict)
+
+    def test_partition_reference_type_validation(self):
+        spec_dict = {
+            "name": "test_spec",
+            "version": 1,
+            "columns": [{"name": "col1", "type": "string"}],
+            "partitioned_by": [{"column": 1}],
+        }
+        with pytest.raises(
+            SpecParsingError, match="'column' in partitioned_by item must be a string"
+        ):
+            self.deserializer.deserialize(spec_dict)
+
+        spec_dict["partitioned_by"] = [{"column": "col1", "transform": 5}]
+        with pytest.raises(
+            SpecParsingError,
+            match="'transform' in partitioned_by item must be a string when specified",
+        ):
+            self.deserializer.deserialize(spec_dict)
+
+        spec_dict["partitioned_by"] = [{"column": "col1", "transform_args": "bad_args"}]
+        with pytest.raises(
+            SpecParsingError,
+            match="'transform_args' in partitioned_by item must be provided as a list",
+        ):
+            self.deserializer.deserialize(spec_dict)
 
 
 class TestSpecDeserializerFromDict:
@@ -518,6 +742,11 @@ class TestSpecDeserializerValidationGuards:
             SpecParsingError, match="'version' must be an integer when specified"
         ):
             self.deserializer.deserialize(spec_dict)
+        spec_dict["version"] = 0
+        with pytest.raises(
+            SpecParsingError, match="'version' must be a positive integer"
+        ):
+            self.deserializer.deserialize(spec_dict)
 
     def test_spec_external_must_be_boolean(self):
         spec_dict = self._base_spec()
@@ -539,6 +768,45 @@ class TestSpecDeserializerValidationGuards:
         spec_dict = self._base_spec()
         spec_dict["columns"][0]["generated_as"] = {}
         with pytest.raises(SpecParsingError, match="generation clause"):
+            self.deserializer.deserialize(spec_dict)
+
+    def test_generated_column_requires_mapping(self):
+        spec_dict = self._base_spec()
+        spec_dict["columns"][0]["generated_as"] = "upper"
+        with pytest.raises(
+            SpecParsingError,
+            match="Generated column definition must be a mapping when provided",
+        ):
+            self.deserializer.deserialize(spec_dict)
+
+        spec_dict["columns"][0]["generated_as"] = {
+            "column": "id",
+            "transform": 5,
+        }
+        with pytest.raises(
+            SpecParsingError,
+            match="'transform' in generation clause must be a string",
+        ):
+            self.deserializer.deserialize(spec_dict)
+
+        spec_dict["columns"][0]["generated_as"] = {
+            "column": 3,
+            "transform": "upper",
+        }
+        with pytest.raises(
+            SpecParsingError, match="'column' in generation clause must be a string"
+        ):
+            self.deserializer.deserialize(spec_dict)
+
+        spec_dict["columns"][0]["generated_as"] = {
+            "column": "id",
+            "transform": "upper",
+            "transform_args": "bad",
+        }
+        with pytest.raises(
+            SpecParsingError,
+            match="'transform_args' in generation clause must be provided as a list",
+        ):
             self.deserializer.deserialize(spec_dict)
 
     def test_partitioned_by_mapping_rejected(self):
@@ -578,6 +846,21 @@ class TestSpecDeserializerValidationGuards:
         ):
             self.deserializer.deserialize(spec_dict)
 
+    def test_columns_must_be_sequence_of_mappings(self):
+        spec_dict = self._base_spec()
+        spec_dict["columns"] = "col1"
+        with pytest.raises(
+            SpecParsingError, match="columns definition must be a sequence of mappings"
+        ):
+            self.deserializer.deserialize(spec_dict)
+
+        spec_dict["columns"] = [123]
+        with pytest.raises(
+            SpecParsingError,
+            match="Entry at index 0 in columns definition must be a mapping",
+        ):
+            self.deserializer.deserialize(spec_dict)
+
     def test_type_params_unknown_field_raises_type_definition_error(self):
         spec_dict = self._base_spec()
         spec_dict["columns"][0]["type"] = "integer"
@@ -602,6 +885,19 @@ class TestSpecTopLevelValidation:
         ):
             SpecDeserializer().deserialize(spec_dict)
 
+    def test_metadata_key_must_be_string(self):
+        spec_dict = {
+            "name": "test_spec",
+            "version": 1,
+            "metadata": {1: "bad"},
+            "columns": [{"name": "col1", "type": "string"}],
+        }
+        with pytest.raises(
+            SpecParsingError,
+            match="Metadata keys for spec metadata must be strings",
+        ):
+            SpecDeserializer().deserialize(spec_dict)
+
 
 class TestSpecSemanticValidation:
     def test_validate_columns_duplicate_names(self):
@@ -616,6 +912,24 @@ class TestSpecSemanticValidation:
         with pytest.raises(
             SpecValidationError, match="Duplicate column name found: 'col1'"
         ):
+            SpecDeserializer().deserialize(spec_dict)
+
+    def test_duplicate_constraint_definition_warns(self):
+        spec_dict = {
+            "name": "test_spec",
+            "version": 1,
+            "columns": [
+                {
+                    "name": "id",
+                    "type": "string",
+                    "constraints": {"primary_key": True},
+                }
+            ],
+            "table_constraints": [
+                {"type": "primary_key", "name": "pk_test", "columns": ["id"]}
+            ],
+        }
+        with pytest.warns(UserWarning, match="PrimaryKeyConstraint defined at both"):
             SpecDeserializer().deserialize(spec_dict)
 
     def test_validate_partitions_undefined_column(self):
@@ -670,3 +984,34 @@ class TestSpecSemanticValidation:
 
         assert "Column 'undefined_col'" in str(excinfo.value)
         assert "not found in schema" in str(excinfo.value)
+
+    def test_validate_generated_column_undefined_source(self):
+        spec_dict = {
+            "name": "test_spec",
+            "version": 1,
+            "columns": [
+                {
+                    "name": "gen_col",
+                    "type": "string",
+                    "generated_as": {"column": "missing", "transform": "upper"},
+                }
+            ],
+        }
+        with pytest.raises(
+            SpecValidationError,
+            match="Source column 'missing' for generated column 'gen_col' not found in schema",
+        ):
+            SpecDeserializer().deserialize(spec_dict)
+
+    def test_validate_partitioned_by_undefined_column(self):
+        spec_dict = {
+            "name": "test_spec",
+            "version": 1,
+            "columns": [{"name": "col1", "type": "string"}],
+            "partitioned_by": [{"column": "missing"}],
+        }
+        with pytest.raises(
+            SpecValidationError,
+            match="Partition column 'missing' must be defined as a column in the schema",
+        ):
+            SpecDeserializer().deserialize(spec_dict)

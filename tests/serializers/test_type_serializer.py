@@ -1,9 +1,12 @@
+from dataclasses import dataclass, field
+
 import pytest
 
 from yads import spec, types
-from yads.exceptions import TypeDefinitionError
+from yads.exceptions import SpecSerializationError, TypeDefinitionError
 from yads.loaders import from_yaml_string
 from yads.serializers import TypeDeserializer, TypeSerializer
+from yads.types import YadsType
 
 
 def _make_type_serializer() -> TypeSerializer:
@@ -76,6 +79,48 @@ class TestTypeSerializer:
         assert payload["value"]["params"] == {"size": 5}
         assert payload["value"]["element"]["type"] == "tensor"
         assert payload["value"]["element"]["params"]["shape"] == [2, 2]
+
+    def test_struct_serialization_requires_field_serializer(self):
+        serializer = TypeSerializer(type_aliases={"struct": (types.Struct, {})})
+        struct_type = types.Struct(fields=[spec.Field(name="a", type=types.String())])
+
+        with pytest.raises(
+            SpecSerializationError,
+            match="Struct serialization requires a bound field serializer",
+        ):
+            serializer.serialize(struct_type)
+
+    def test_collect_params_requires_dataclass_type(self):
+        class CustomType(YadsType):
+            pass
+
+        serializer = TypeSerializer(type_aliases={"custom": (CustomType, {})})
+        with pytest.raises(
+            SpecSerializationError,
+            match="Type CustomType must be a dataclass to be serialized",
+        ):
+            serializer.serialize(CustomType())
+
+    def test_collect_params_respects_default_factory(self):
+        @dataclass(frozen=True)
+        class CustomDefaults(YadsType):
+            values: tuple[int, ...] = field(default_factory=lambda: (1, 2))
+
+        serializer = TypeSerializer(type_aliases={"custom": (CustomDefaults, {})})
+        payload = serializer.serialize(CustomDefaults(values=(3, 4)))
+
+        assert payload == {"type": "custom", "params": {"values": [3, 4]}}
+
+    def test_alias_fallback_uses_first_alias_when_no_canonical(self):
+        @dataclass(frozen=True)
+        class WeirdName(YadsType):
+            scale: int = 1
+
+        serializer = TypeSerializer(type_aliases={"alias_one": (WeirdName, {})})
+        payload = serializer.serialize(WeirdName(scale=2))
+
+        assert payload["type"] == "alias_one"
+        assert payload["params"] == {"scale": 2}
 
 
 def test_unquoted_null_type_gives_helpful_error():
@@ -551,3 +596,97 @@ class TestTypeDeserialization:
             match="Tensor 'shape' must contain only positive integers",
         ):
             self._parse(type_def)
+
+    def test_params_must_be_mapping_with_string_keys(self):
+        with pytest.raises(
+            TypeDefinitionError, match="'params' must be a mapping of parameter names"
+        ):
+            self._parse({"type": "integer", "params": "bits=32"})
+
+        with pytest.raises(
+            TypeDefinitionError, match="'params' must be a mapping of string keys"
+        ):
+            self._parse({"type": "integer", "params": {1: 2}})
+
+    def test_array_element_validation(self):
+        with pytest.raises(
+            TypeDefinitionError,
+            match="The 'element' of an array must be a dictionary with a 'type' key",
+        ):
+            self._parse({"type": "array", "element": "string"})
+
+        with pytest.raises(
+            TypeDefinitionError,
+            match="The 'element' definition must include a string 'type' value",
+        ):
+            self._parse({"type": "array", "element": {}})
+
+    def test_struct_field_shape_validation(self):
+        with pytest.raises(
+            TypeDefinitionError, match="Struct 'fields' must be a sequence of objects"
+        ):
+            self._parse({"type": "struct", "fields": "oops"})
+
+        with pytest.raises(
+            TypeDefinitionError, match="Struct field at index 0 must be a dictionary"
+        ):
+            self._parse({"type": "struct", "fields": [1]})
+
+    def test_map_key_value_validation(self):
+        with pytest.raises(
+            TypeDefinitionError,
+            match="Map key definition must be a dictionary that includes 'type'",
+        ):
+            self._parse({"type": "map", "key": "string", "value": {"type": "int"}})
+
+        with pytest.raises(
+            TypeDefinitionError,
+            match="Map value definition must be a dictionary that includes 'type'",
+        ):
+            self._parse({"type": "map", "key": {"type": "string"}, "value": "int"})
+
+        with pytest.raises(
+            TypeDefinitionError, match="Map key definition must include a string 'type'"
+        ):
+            self._parse({"type": "map", "key": {}, "value": {"type": "int"}})
+
+        with pytest.raises(
+            TypeDefinitionError, match="Map value definition must include a string 'type'"
+        ):
+            self._parse({"type": "map", "key": {"type": "string"}, "value": {}})
+
+    def test_tensor_validation_branches(self):
+        with pytest.raises(
+            TypeDefinitionError,
+            match="The 'element' of a tensor must be a dictionary with a 'type' key",
+        ):
+            self._parse({"type": "tensor", "element": "int32", "params": {"shape": [1]}})
+
+        with pytest.raises(
+            TypeDefinitionError,
+            match="Tensor element definition must include a string 'type'",
+        ):
+            self._parse({"type": "tensor", "element": {}, "params": {"shape": [1]}})
+
+        with pytest.raises(
+            TypeDefinitionError, match="Tensor 'shape' must be a list or tuple of ints"
+        ):
+            self._parse(
+                {
+                    "type": "tensor",
+                    "element": {"type": "int32"},
+                    "params": {"shape": "bad"},
+                }
+            )
+
+        with pytest.raises(
+            TypeDefinitionError,
+            match="Tensor 'shape' elements must be integers \\(failed at index 1\\)",
+        ):
+            self._parse(
+                {
+                    "type": "tensor",
+                    "element": {"type": "int32"},
+                    "params": {"shape": [1, "two"]},
+                }
+            )
