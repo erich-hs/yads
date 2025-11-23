@@ -18,8 +18,7 @@ from yads.exceptions import (
     UnknownConstraintError,
     UnknownTypeError,
 )
-from yads.loaders import from_yaml_path, from_yaml_string
-from yads.serializers import SpecSerializer
+from yads.serializers import SpecDeserializer, SpecSerializer
 from yads.spec import Storage, YadsSpec
 
 FIXTURE_DIR = Path(__file__).parent.parent / "fixtures" / "spec"
@@ -111,6 +110,9 @@ class TestSpecSerializer:
 
 
 class TestGeneratedColumnDeserialization:
+    def setup_method(self) -> None:
+        self.deserializer = SpecDeserializer()
+
     def _create_spec_with_generated_column(self, generated_as_def: dict | None) -> dict:
         column_def: dict = {"name": "generated_col", "type": "string"}
         if generated_as_def is not None:
@@ -131,7 +133,7 @@ class TestGeneratedColumnDeserialization:
             SpecParsingError,
             match=r"Missing required key\(s\) in generation clause: column\.",
         ):
-            spec.from_dict(spec_dict)
+            self.deserializer.deserialize(spec_dict)
 
     def test_generation_clause_missing_transform_raises_error(self):
         spec_dict = self._create_spec_with_generated_column({"column": "source_col"})
@@ -139,7 +141,7 @@ class TestGeneratedColumnDeserialization:
             SpecParsingError,
             match=r"Missing required key\(s\) in generation clause: transform\.",
         ):
-            spec.from_dict(spec_dict)
+            self.deserializer.deserialize(spec_dict)
 
     def test_generation_clause_empty_transform_raises_error(self):
         spec_dict = self._create_spec_with_generated_column(
@@ -149,7 +151,7 @@ class TestGeneratedColumnDeserialization:
             SpecParsingError,
             match="'transform' cannot be empty in a generation clause",
         ):
-            spec.from_dict(spec_dict)
+            self.deserializer.deserialize(spec_dict)
 
     def test_generation_clause_unknown_key_raises_error(self):
         spec_dict = self._create_spec_with_generated_column(
@@ -159,7 +161,7 @@ class TestGeneratedColumnDeserialization:
             SpecParsingError,
             match=r"Unknown key\(s\) in generation clause: params\.",
         ):
-            spec.from_dict(spec_dict)
+            self.deserializer.deserialize(spec_dict)
 
     def test_valid_generation_clause_deserialization(self):
         spec_dict = self._create_spec_with_generated_column(
@@ -169,7 +171,7 @@ class TestGeneratedColumnDeserialization:
                 "transform_args": ["arg1"],
             }
         )
-        parsed_spec = spec.from_dict(spec_dict)
+        parsed_spec = self.deserializer.deserialize(spec_dict)
 
         generated_col = parsed_spec.columns[1]
         assert generated_col.generated_as is not None
@@ -179,6 +181,9 @@ class TestGeneratedColumnDeserialization:
 
 
 class TestStorageDeserialization:
+    def setup_method(self) -> None:
+        self.deserializer = SpecDeserializer()
+
     def test_storage_section(self):
         spec_dict = {
             "name": "test_spec",
@@ -190,7 +195,7 @@ class TestStorageDeserialization:
                 "tbl_properties": {"compression": "snappy"},
             },
         }
-        parsed_spec = spec.from_dict(spec_dict)
+        parsed_spec = self.deserializer.deserialize(spec_dict)
 
         assert parsed_spec.storage is not None
         assert parsed_spec.storage.format == "parquet"
@@ -211,10 +216,13 @@ class TestStorageDeserialization:
             SpecParsingError,
             match=r"Unknown key\(s\) in storage definition: invalid_key\.",
         ):
-            spec.from_dict(spec_dict)
+            self.deserializer.deserialize(spec_dict)
 
 
 class TestPartitionDefinitionDeserialization:
+    def setup_method(self) -> None:
+        self.deserializer = SpecDeserializer()
+
     def test_partitioned_by_missing_column_raises_error(self):
         spec_dict = {
             "name": "test_spec",
@@ -226,7 +234,7 @@ class TestPartitionDefinitionDeserialization:
             SpecParsingError,
             match=r"Missing required key\(s\) in partitioned_by item: column\.",
         ):
-            spec.from_dict(spec_dict)
+            self.deserializer.deserialize(spec_dict)
 
     def test_partitioned_by_unknown_key_raises_error(self):
         spec_dict = {
@@ -239,7 +247,7 @@ class TestPartitionDefinitionDeserialization:
             SpecParsingError,
             match=r"Unknown key\(s\) in partitioned_by item: params\.",
         ):
-            spec.from_dict(spec_dict)
+            self.deserializer.deserialize(spec_dict)
 
     def test_partitioned_by_deserialization(self):
         spec_dict = {
@@ -258,7 +266,7 @@ class TestPartitionDefinitionDeserialization:
                 },
             ],
         }
-        parsed_spec = spec.from_dict(spec_dict)
+        parsed_spec = self.deserializer.deserialize(spec_dict)
 
         assert len(parsed_spec.partitioned_by) == 2
 
@@ -275,7 +283,7 @@ class TestPartitionDefinitionDeserialization:
 
 class TestSpecDeserializerFromDict:
     def test_with_valid_spec(self, valid_spec_dict):
-        parsed_spec = spec.from_dict(valid_spec_dict)
+        parsed_spec = SpecDeserializer().deserialize(valid_spec_dict)
         assert isinstance(parsed_spec, YadsSpec)
         assert parsed_spec.name == valid_spec_dict["name"]
 
@@ -283,7 +291,9 @@ class TestSpecDeserializerFromDict:
 class TestSpecDeserializerFullSpec:
     @pytest.fixture(scope="class")
     def parsed_spec(self) -> YadsSpec:
-        return from_yaml_path(VALID_SPEC_DIR / "full_spec.yaml")
+        return SpecDeserializer().deserialize(
+            yaml.safe_load((VALID_SPEC_DIR / "full_spec.yaml").read_text())
+        )
 
     def test_top_level_attributes(self, parsed_spec: YadsSpec):
         assert parsed_spec.name == "catalog.db.full_spec"
@@ -456,10 +466,13 @@ def test_deserialize_invalid_spec_raises_error(spec_path, error_type, error_msg)
     with open(spec_path) as file:
         content = file.read()
     with pytest.raises(error_type, match=error_msg):
-        from_yaml_string(content)
+        SpecDeserializer().deserialize(yaml.safe_load(content))
 
 
 class TestSpecDeserializerValidationGuards:
+    def setup_method(self) -> None:
+        self.deserializer = SpecDeserializer()
+
     def _base_spec(self) -> dict:
         return {
             "name": "test_spec",
@@ -476,7 +489,7 @@ class TestSpecDeserializerValidationGuards:
         spec_dict = self._base_spec()
         spec_dict["name"] = 123
         with pytest.raises(SpecParsingError, match="'name' must be a non-empty string"):
-            spec.from_dict(spec_dict)
+            self.deserializer.deserialize(spec_dict)
 
     def test_spec_metadata_requires_mapping(self):
         spec_dict = self._base_spec()
@@ -484,7 +497,7 @@ class TestSpecDeserializerValidationGuards:
         with pytest.raises(
             SpecParsingError, match="Metadata for spec metadata must be a mapping"
         ):
-            spec.from_dict(spec_dict)
+            self.deserializer.deserialize(spec_dict)
 
     def test_spec_version_rejects_non_integer(self):
         spec_dict = self._base_spec()
@@ -492,7 +505,7 @@ class TestSpecDeserializerValidationGuards:
         with pytest.raises(
             SpecParsingError, match="'version' must be an integer when specified"
         ):
-            spec.from_dict(spec_dict)
+            self.deserializer.deserialize(spec_dict)
 
     def test_spec_version_rejects_boolean(self):
         spec_dict = self._base_spec()
@@ -500,7 +513,7 @@ class TestSpecDeserializerValidationGuards:
         with pytest.raises(
             SpecParsingError, match="'version' must be an integer when specified"
         ):
-            spec.from_dict(spec_dict)
+            self.deserializer.deserialize(spec_dict)
 
     def test_spec_external_must_be_boolean(self):
         spec_dict = self._base_spec()
@@ -508,7 +521,7 @@ class TestSpecDeserializerValidationGuards:
         with pytest.raises(
             SpecParsingError, match="'external' must be a boolean when specified"
         ):
-            spec.from_dict(spec_dict)
+            self.deserializer.deserialize(spec_dict)
 
     def test_spec_yads_version_must_be_string(self):
         spec_dict = self._base_spec()
@@ -516,24 +529,24 @@ class TestSpecDeserializerValidationGuards:
         with pytest.raises(
             SpecParsingError, match="'yads_spec_version' must be a non-empty string"
         ):
-            spec.from_dict(spec_dict)
+            self.deserializer.deserialize(spec_dict)
 
     def test_generated_column_empty_mapping_not_ignored(self):
         spec_dict = self._base_spec()
         spec_dict["columns"][0]["generated_as"] = {}
         with pytest.raises(SpecParsingError, match="generation clause"):
-            spec.from_dict(spec_dict)
+            self.deserializer.deserialize(spec_dict)
 
     def test_partitioned_by_mapping_rejected(self):
         spec_dict = self._base_spec()
         spec_dict["partitioned_by"] = {"column": "id"}
         with pytest.raises(SpecParsingError, match="'partitioned_by' must be a sequence"):
-            spec.from_dict(spec_dict)
+            self.deserializer.deserialize(spec_dict)
 
     def test_storage_empty_mapping_preserved(self):
         spec_dict = self._base_spec()
         spec_dict["storage"] = {}
-        parsed_spec = spec.from_dict(spec_dict)
+        parsed_spec = self.deserializer.deserialize(spec_dict)
         assert parsed_spec.storage == Storage()
 
     def test_storage_invalid_type_raises(self):
@@ -542,7 +555,7 @@ class TestSpecDeserializerValidationGuards:
         with pytest.raises(
             SpecParsingError, match="Storage definition must be a mapping"
         ):
-            spec.from_dict(spec_dict)
+            self.deserializer.deserialize(spec_dict)
 
     def test_unknown_non_string_keys_reported(self):
         spec_dict = self._base_spec()
@@ -550,7 +563,7 @@ class TestSpecDeserializerValidationGuards:
         with pytest.raises(
             SpecParsingError, match="Unknown key\\(s\\) in spec definition: 1"
         ):
-            spec.from_dict(spec_dict)
+            self.deserializer.deserialize(spec_dict)
 
     def test_column_name_must_be_non_empty_string(self):
         spec_dict = self._base_spec()
@@ -559,7 +572,7 @@ class TestSpecDeserializerValidationGuards:
             SpecParsingError,
             match="The 'name' of a column must be a non-empty string",
         ):
-            spec.from_dict(spec_dict)
+            self.deserializer.deserialize(spec_dict)
 
     def test_type_params_unknown_field_raises_type_definition_error(self):
         spec_dict = self._base_spec()
@@ -568,7 +581,7 @@ class TestSpecDeserializerValidationGuards:
         with pytest.raises(
             TypeDefinitionError, match="Failed to instantiate type 'integer'"
         ):
-            spec.from_dict(spec_dict)
+            self.deserializer.deserialize(spec_dict)
 
 
 class TestSpecTopLevelValidation:
@@ -583,7 +596,7 @@ class TestSpecTopLevelValidation:
             SpecParsingError,
             match=r"Unknown key\(s\) in spec definition: foo\.",
         ):
-            spec.from_dict(spec_dict)
+            SpecDeserializer().deserialize(spec_dict)
 
 
 class TestSpecSemanticValidation:
@@ -599,7 +612,7 @@ class TestSpecSemanticValidation:
         with pytest.raises(
             SpecValidationError, match="Duplicate column name found: 'col1'"
         ):
-            spec.from_dict(spec_dict)
+            SpecDeserializer().deserialize(spec_dict)
 
     def test_validate_partitions_undefined_column(self):
         spec_dict = {
@@ -612,7 +625,7 @@ class TestSpecSemanticValidation:
             SpecValidationError,
             match="Partition column 'undefined_col' must be defined as a column in the schema",
         ):
-            spec.from_dict(spec_dict)
+            SpecDeserializer().deserialize(spec_dict)
 
     def test_validate_generated_columns_undefined_source(self):
         spec_dict = {
@@ -633,7 +646,7 @@ class TestSpecSemanticValidation:
             SpecValidationError,
             match="Source column 'undefined_source' for generated column 'generated_col' not found in schema",
         ):
-            spec.from_dict(spec_dict)
+            SpecDeserializer().deserialize(spec_dict)
 
     def test_validate_table_constraints_undefined_column(self):
         spec_dict = {
@@ -649,7 +662,7 @@ class TestSpecSemanticValidation:
             ],
         }
         with pytest.raises(SpecValidationError) as excinfo:
-            spec.from_dict(spec_dict)
+            SpecDeserializer().deserialize(spec_dict)
 
         assert "Column 'undefined_col'" in str(excinfo.value)
         assert "not found in schema" in str(excinfo.value)
