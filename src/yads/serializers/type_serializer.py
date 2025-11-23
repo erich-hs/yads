@@ -14,8 +14,10 @@ from .. import spec as yspec
 FieldFactory = Callable[[dict[str, Any]], yspec.Field]
 FieldSerializer = Callable[[yspec.Field], dict[str, Any]]
 TypeParser = Callable[
-    [str, Mapping[str, Any], TypingMapping[str, Any], FieldFactory],
-    ytypes.YadsType,
+    [str, Mapping[str, Any], TypingMapping[str, Any], FieldFactory], ytypes.YadsType
+]
+TypeSerializeHandler = Callable[
+    [ytypes.YadsType, dict[str, Any], FieldSerializer | None], dict[str, Any]
 ]
 TypeT = TypeVar("TypeT", bound=ytypes.YadsType)
 
@@ -23,53 +25,53 @@ TypeT = TypeVar("TypeT", bound=ytypes.YadsType)
 class TypeSerializer:
     """Serialize `YadsType` instances into dictionary definitions."""
 
-    _COMPLEX_ATTRIBUTE_NAMES = {"element", "fields", "key", "value"}
-
     def __init__(
         self,
         *,
         type_aliases: TypingMapping[str, tuple[type[ytypes.YadsType], dict[str, Any]]]
         | None = None,
-        field_serializer: FieldSerializer | None = None,
     ) -> None:
         self._type_aliases = type_aliases or ytypes.TYPE_ALIASES
         self._canonical_aliases, self._alias_defaults = self._build_alias_metadata()
-        self._field_serializer = field_serializer
+        self._type_serializers: dict[type[ytypes.YadsType], TypeSerializeHandler] = {}
+        self._default_field_serializer: FieldSerializer | None = None
+        self._register_default_serializers()
 
     def bind_field_serializer(self, serializer: FieldSerializer) -> None:
         """Set the callable used to serialize nested `Field` instances."""
-        self._field_serializer = serializer
+        self._default_field_serializer = serializer
 
-    def serialize(self, yads_type: ytypes.YadsType) -> dict[str, Any]:
+    def register_serializer(
+        self,
+        target_type: type[ytypes.YadsType],
+        serializer: TypeSerializeHandler,
+    ) -> None:
+        """Register a serializer callable for a concrete `YadsType` subclass."""
+        self._type_serializers[target_type] = serializer
+
+    def serialize(
+        self,
+        yads_type: ytypes.YadsType,
+        *,
+        field_serializer: FieldSerializer | None = None,
+    ) -> dict[str, Any]:
         """Serialize a `YadsType` into its dictionary representation."""
         type_name, alias_defaults = self._select_alias(yads_type)
         payload: dict[str, Any] = {"type": type_name}
         params = self._collect_params(yads_type, alias_defaults)
-        if params:
+        nested_field_serializer = field_serializer or self._default_field_serializer
+        handler = self._type_serializers.get(type(yads_type))
+        if handler:
+            payload.update(handler(yads_type, params, nested_field_serializer))
+        elif params:
             payload["params"] = params
-        if isinstance(yads_type, ytypes.Array):
-            payload["element"] = self.serialize(yads_type.element)
-        if isinstance(yads_type, ytypes.Tensor):
-            payload["element"] = self.serialize(yads_type.element)
-        if isinstance(yads_type, ytypes.Struct):
-            payload["fields"] = self._serialize_struct_fields(yads_type)
-        if isinstance(yads_type, ytypes.Map):
-            payload["key"] = self.serialize(yads_type.key)
-            payload["value"] = self.serialize(yads_type.value)
         return payload
 
-    def _serialize_struct_fields(
-        self, struct_type: ytypes.Struct
-    ) -> list[dict[str, Any]]:
-        field_serializer = self._field_serializer
-        if field_serializer is None:
-            raise SpecSerializationError(
-                "Struct serialization requires a bound field serializer."
-            )
-        serialized_fields: list[dict[str, Any]] = []
-        for field in struct_type.fields:
-            serialized_fields.append(field_serializer(field))
-        return serialized_fields
+    def _register_default_serializers(self) -> None:
+        self.register_serializer(ytypes.Array, self._serialize_array)
+        self.register_serializer(ytypes.Tensor, self._serialize_tensor)
+        self.register_serializer(ytypes.Struct, self._serialize_struct)
+        self.register_serializer(ytypes.Map, self._serialize_map)
 
     def _build_alias_metadata(
         self,
@@ -116,8 +118,6 @@ class TypeSerializer:
             )
         for data_field in dataclass_fields(cast(type[Any], data_cls)):
             name = data_field.name
-            if name in self._COMPLEX_ATTRIBUTE_NAMES:
-                continue
             value = getattr(yads_type, name)
             normalized_value = self._normalize_param_value(value)
             if normalized_value is None:
@@ -138,9 +138,17 @@ class TypeSerializer:
                     include_param = True
             else:
                 include_param = True
-            if include_param:
+            if include_param and not self._is_complex_attribute(normalized_value):
                 params[name] = normalized_value
         return params
+
+    def _is_complex_attribute(self, value: Any) -> bool:
+        if isinstance(value, ytypes.YadsType):
+            return True
+        if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+            sequence_value = cast(Sequence[object], value)
+            return all(isinstance(item, yspec.Field) for item in sequence_value)
+        return False
 
     def _normalize_param_value(self, value: Any) -> Any:
         if isinstance(value, Enum):
@@ -148,6 +156,69 @@ class TypeSerializer:
         if isinstance(value, tuple):
             return list(cast(tuple[Any, ...], value))
         return value
+
+    def _serialize_array(
+        self,
+        yads_type: ytypes.YadsType,
+        params: dict[str, Any],
+        field_serializer: FieldSerializer | None,
+    ) -> dict[str, Any]:
+        array_type = cast(ytypes.Array, yads_type)
+        payload: dict[str, Any] = {}
+        if params:
+            payload["params"] = params
+        payload["element"] = self.serialize(
+            array_type.element, field_serializer=field_serializer
+        )
+        return payload
+
+    def _serialize_tensor(
+        self,
+        yads_type: ytypes.YadsType,
+        params: dict[str, Any],
+        field_serializer: FieldSerializer | None,
+    ) -> dict[str, Any]:
+        tensor_type = cast(ytypes.Tensor, yads_type)
+        payload: dict[str, Any] = {}
+        if params:
+            payload["params"] = params
+        payload["element"] = self.serialize(
+            tensor_type.element, field_serializer=field_serializer
+        )
+        return payload
+
+    def _serialize_struct(
+        self,
+        yads_type: ytypes.YadsType,
+        params: dict[str, Any],
+        field_serializer: FieldSerializer | None,
+    ) -> dict[str, Any]:
+        if field_serializer is None:
+            raise SpecSerializationError(
+                "Struct serialization requires a bound field serializer."
+            )
+        struct_type = cast(ytypes.Struct, yads_type)
+        payload: dict[str, Any] = {}
+        if params:
+            payload["params"] = params
+        payload["fields"] = [field_serializer(field) for field in struct_type.fields]
+        return payload
+
+    def _serialize_map(
+        self,
+        yads_type: ytypes.YadsType,
+        params: dict[str, Any],
+        field_serializer: FieldSerializer | None,
+    ) -> dict[str, Any]:
+        map_type = cast(ytypes.Map, yads_type)
+        payload: dict[str, Any] = {}
+        if params:
+            payload["params"] = params
+        payload["key"] = self.serialize(map_type.key, field_serializer=field_serializer)
+        payload["value"] = self.serialize(
+            map_type.value, field_serializer=field_serializer
+        )
+        return payload
 
 
 class TypeDeserializer:
@@ -260,6 +331,20 @@ class TypeDeserializer:
         merged_params: dict[str, Any] = {**default_params, **validated_params}
         return merged_params
 
+    def _normalize_nested_type_def(
+        self,
+        value: Any,
+        *,
+        mapping_message: str,
+        missing_type_message: str,
+    ) -> dict[str, Any]:
+        if not isinstance(value, Mapping):
+            raise TypeDefinitionError(mapping_message)
+        normalized = dict(cast(Mapping[str, Any], value))
+        if "type" not in normalized or not isinstance(normalized["type"], str):
+            raise TypeDefinitionError(missing_type_message)
+        return normalized
+
     def _parse_interval_type(
         self,
         type_name: str,
@@ -299,16 +384,15 @@ class TypeDeserializer:
         if "element" not in type_def:
             raise TypeDefinitionError("Array type definition must include 'element'.")
 
-        element_def = type_def["element"]
-        if not isinstance(element_def, Mapping):
-            raise TypeDefinitionError(
+        normalized_element = self._normalize_nested_type_def(
+            type_def["element"],
+            mapping_message=(
                 "The 'element' of an array must be a dictionary with a 'type' key."
-            )
-        if "type" not in element_def or not isinstance(element_def["type"], str):
-            raise TypeDefinitionError(
+            ),
+            missing_type_message=(
                 "The 'element' definition must include a string 'type' value."
-            )
-        normalized_element = dict(cast(Mapping[str, Any], element_def))
+            ),
+        )
         element_type_name = cast(str, normalized_element["type"])
         final_params = self._get_processed_type_params(
             type_name=type_name,
@@ -369,24 +453,18 @@ class TypeDeserializer:
                 "Map type definition must include 'key' and 'value'."
             )
 
-        key_def = type_def["key"]
-        value_def = type_def["value"]
-        if not isinstance(key_def, Mapping):
-            raise TypeDefinitionError(
-                "Map key definition must be a dictionary that includes 'type'."
-            )
-        if not isinstance(value_def, Mapping):
-            raise TypeDefinitionError(
+        key_def_normalized = self._normalize_nested_type_def(
+            type_def["key"],
+            mapping_message="Map key definition must be a dictionary that includes 'type'.",
+            missing_type_message="Map key definition must include a string 'type'.",
+        )
+        value_def_normalized = self._normalize_nested_type_def(
+            type_def["value"],
+            mapping_message=(
                 "Map value definition must be a dictionary that includes 'type'."
-            )
-        if "type" not in key_def or not isinstance(key_def["type"], str):
-            raise TypeDefinitionError("Map key definition must include a string 'type'.")
-        if "type" not in value_def or not isinstance(value_def["type"], str):
-            raise TypeDefinitionError(
-                "Map value definition must include a string 'type'."
-            )
-        key_def_normalized = dict(cast(Mapping[str, Any], key_def))
-        value_def_normalized = dict(cast(Mapping[str, Any], value_def))
+            ),
+            missing_type_message="Map value definition must include a string 'type'.",
+        )
         final_params = self._get_processed_type_params(
             type_name=type_name,
             type_def=type_def,
@@ -421,17 +499,13 @@ class TypeDeserializer:
         if "element" not in type_def:
             raise TypeDefinitionError("Tensor type definition must include 'element'.")
 
-        element_def = type_def["element"]
-        if not isinstance(element_def, Mapping):
-            raise TypeDefinitionError(
+        element_def = self._normalize_nested_type_def(
+            type_def["element"],
+            mapping_message=(
                 "The 'element' of a tensor must be a dictionary with a 'type' key."
-            )
-        if "type" not in element_def or not isinstance(element_def["type"], str):
-            raise TypeDefinitionError(
-                "Tensor element definition must include a string 'type'."
-            )
-
-        element_def = dict(cast(Mapping[str, Any], element_def))
+            ),
+            missing_type_message="Tensor element definition must include a string 'type'.",
+        )
         element_type_name = cast(str, element_def["type"])
         final_params = self._get_processed_type_params(
             type_name=type_name,

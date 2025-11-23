@@ -24,7 +24,6 @@ class SpecSerializer:
     ) -> None:
         self._type_serializer = type_serializer or TypeSerializer()
         self._constraint_serializer = constraint_serializer or ConstraintSerializer()
-        self._type_serializer.bind_field_serializer(self._serialize_field_definition)
 
     def serialize(self, spec: yspec.YadsSpec) -> dict[str, Any]:
         """Serialize the provided spec into a dictionary."""
@@ -66,7 +65,9 @@ class SpecSerializer:
 
     def _serialize_field_definition(self, field: yspec.Field) -> dict[str, Any]:
         field_dict: dict[str, Any] = {"name": field.name}
-        type_payload = self._type_serializer.serialize(field.type)
+        type_payload = self._type_serializer.serialize(
+            field.type, field_serializer=self._serialize_field_definition
+        )
         field_dict.update(type_payload)
         if field.description:
             field_dict["description"] = field.description
