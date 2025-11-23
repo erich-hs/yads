@@ -2,6 +2,9 @@
 
 <p align="center">
   <img src="https://github.com/erich-hs/yads/actions/workflows/ci.yml/badge.svg" alt="CI">
+  <a href="https://codecov.io/github/erich-hs/yads" > 
+  <img src="https://codecov.io/github/erich-hs/yads/graph/badge.svg?token=GWO1S0YAZ3"/> 
+  </a>
   <img src="https://badge.fury.io/py/yads.svg" alt="PyPI version">
   <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License">
