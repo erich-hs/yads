@@ -32,7 +32,7 @@ import logging
 import urllib.parse
 import warnings
 from dataclasses import replace
-from typing import IO, TYPE_CHECKING, Any, Callable, Protocol, cast
+from typing import IO, TYPE_CHECKING, Any, Protocol, cast
 
 import fsspec  # type: ignore[import]
 import yaml
@@ -62,11 +62,6 @@ class FileSystemProtocol(Protocol):
     def makedirs(self, path: str, exist_ok: bool = False) -> None: ...
 
     def open(self, path: str, mode: str = "rb", **kwargs: Any) -> IO[str]: ...
-
-
-_UrlToFs = Callable[..., tuple[Any, str]]
-_fsspec_core = cast(Any, fsspec.core)
-_url_to_fs: _UrlToFs = cast(_UrlToFs, _fsspec_core.url_to_fs)
 
 
 class FileSystemRegistry(BaseRegistry):
@@ -143,7 +138,13 @@ class FileSystemRegistry(BaseRegistry):
 
         # Initialize filesystem
         try:
-            fs_obj_any, resolved_base_path_any = _url_to_fs(base_path, **fsspec_kwargs)
+            fs_result = cast(
+                tuple[Any, Any],
+                fsspec.core.url_to_fs(  # pyright: ignore[reportUnknownMemberType]
+                    base_path, **fsspec_kwargs
+                ),
+            )
+            fs_obj_any, resolved_base_path_any = fs_result
             fs_obj = cast(FileSystemProtocol, fs_obj_any)
             resolved_base_path = str(resolved_base_path_any)
             # Validate base path exists by attempting to access it
