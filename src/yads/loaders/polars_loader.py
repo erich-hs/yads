@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 from .. import spec as yspec
 from .. import types as ytypes
 from ..exceptions import LoaderConfigError, UnsupportedFeatureError, validation_warning
+from ..serializers import ConstraintSerializer, TypeSerializer
 from .._dependencies import ensure_dependency
 from .base import BaseLoaderConfig, ConfigurableLoader
 
@@ -87,6 +88,9 @@ class PolarsLoader(ConfigurableLoader):
             config: Configuration object. If None, uses default PolarsLoaderConfig.
         """
         self.config: PolarsLoaderConfig = config or PolarsLoaderConfig()
+        self._type_serializer = TypeSerializer()
+        self._type_serializer.bind_field_serializer(self._serialize_field_definition)
+        self._constraint_serializer = ConstraintSerializer()
         super().__init__(self.config)
 
     def load(
@@ -133,95 +137,83 @@ class PolarsLoader(ConfigurableLoader):
 
     # %% ---- Field and type conversion -----------------------------------------------
     def _convert_field(self, field_name: str, dtype: pl.DataType) -> dict[str, Any]:
-        """Convert a Polars field to a normalized column definition.
+        """Convert a Polars field to a normalized column definition."""
+        field_model = self._build_field_model(field_name, dtype)
+        return self._serialize_field_definition(field_model)
 
-        Args:
-            field_name: Name of the field.
-            dtype: Polars data type for the field.
+    def _build_field_model(self, field_name: str, dtype: pl.DataType) -> yspec.Field:
+        return yspec.Field(name=field_name, type=self._convert_type(dtype))
 
-        Returns:
-            Dictionary representation of the column definition.
-        """
-        col: dict[str, Any] = {"name": field_name}
+    def _serialize_field_definition(self, field: yspec.Field) -> dict[str, Any]:
+        payload: dict[str, Any] = {"name": field.name}
+        payload.update(self._type_serializer.serialize(field.type))
+        constraints = self._constraint_serializer.serialize_column_constraints(
+            field.constraints
+        )
+        if constraints:
+            payload["constraints"] = constraints
+        if field.metadata:
+            payload["metadata"] = dict(field.metadata)
+        if field.description:
+            payload["description"] = field.description
+        return payload
 
-        type_def = self._convert_type(dtype)
-        col.update(type_def)
-
-        # Polars Schema doesn't track nullability, so all fields are nullable
-        # by default. No not_null constraint is added.
-
-        return col
-
-    def _convert_type(self, dtype: pl.DataType) -> dict[str, Any]:
-        """Convert a Polars data type to a normalized type definition.
-
-        Maps Polars types to yads types according to the type mapping strategy.
-
-        Currently unsupported:
-            - pl.Categorical
-            - pl.Enum
-        """
-        # Primitive types - check against type classes
+    def _convert_type(self, dtype: pl.DataType) -> ytypes.YadsType:
+        """Convert a Polars data type to a `YadsType`."""
         if dtype is pl.Null or isinstance(dtype, pl.Null):
-            return {"type": "void"}
+            return ytypes.Void()
         if dtype is pl.Boolean or isinstance(dtype, pl.Boolean):
-            return {"type": "boolean"}
+            return ytypes.Boolean()
         if dtype is pl.Int8 or isinstance(dtype, pl.Int8):
-            return {"type": "integer", "params": {"bits": 8, "signed": True}}
+            return ytypes.Integer(bits=8, signed=True)
         if dtype is pl.Int16 or isinstance(dtype, pl.Int16):
-            return {"type": "integer", "params": {"bits": 16, "signed": True}}
+            return ytypes.Integer(bits=16, signed=True)
         if dtype is pl.Int32 or isinstance(dtype, pl.Int32):
-            return {"type": "integer", "params": {"bits": 32, "signed": True}}
+            return ytypes.Integer(bits=32, signed=True)
         if dtype is pl.Int64 or isinstance(dtype, pl.Int64):
-            return {"type": "integer", "params": {"bits": 64, "signed": True}}
+            return ytypes.Integer(bits=64, signed=True)
         if dtype is pl.UInt8 or isinstance(dtype, pl.UInt8):
-            return {"type": "integer", "params": {"bits": 8, "signed": False}}
+            return ytypes.Integer(bits=8, signed=False)
         if dtype is pl.UInt16 or isinstance(dtype, pl.UInt16):
-            return {"type": "integer", "params": {"bits": 16, "signed": False}}
+            return ytypes.Integer(bits=16, signed=False)
         if dtype is pl.UInt32 or isinstance(dtype, pl.UInt32):
-            return {"type": "integer", "params": {"bits": 32, "signed": False}}
+            return ytypes.Integer(bits=32, signed=False)
         if dtype is pl.UInt64 or isinstance(dtype, pl.UInt64):
-            return {"type": "integer", "params": {"bits": 64, "signed": False}}
+            return ytypes.Integer(bits=64, signed=False)
         if dtype is pl.Float32 or isinstance(dtype, pl.Float32):
-            return {"type": "float", "params": {"bits": 32}}
+            return ytypes.Float(bits=32)
         if dtype is pl.Float64 or isinstance(dtype, pl.Float64):
-            return {"type": "float", "params": {"bits": 64}}
+            return ytypes.Float(bits=64)
         if (
             dtype is pl.String
             or dtype is pl.Utf8
             or isinstance(dtype, (pl.String, pl.Utf8))
         ):
-            return {"type": "string"}
+            return ytypes.String()
         if dtype is pl.Binary or isinstance(dtype, pl.Binary):
-            return {"type": "binary"}
+            return ytypes.Binary()
         if dtype is pl.Date or isinstance(dtype, pl.Date):
-            return {"type": "date", "params": {"bits": 32}}
+            return ytypes.Date(bits=32)
         if dtype is pl.Time or isinstance(dtype, pl.Time):
-            # Polars Time is always nanoseconds
-            return {"type": "time", "params": {"unit": "ns", "bits": 64}}
+            return ytypes.Time(unit=ytypes.TimeUnit.NS, bits=64)
 
-        # Check for parameterized types using isinstance
         if isinstance(dtype, pl.Duration):
-            time_unit = self._extract_duration_unit(dtype)
-            return {"type": "duration", "params": {"unit": time_unit}}
+            time_unit = self._normalize_time_unit(self._extract_duration_unit(dtype))
+            return ytypes.Duration(unit=time_unit)
 
         if isinstance(dtype, pl.Datetime):
-            time_unit = self._extract_datetime_unit(dtype)
+            time_unit = self._normalize_time_unit(self._extract_datetime_unit(dtype))
             time_zone = self._extract_datetime_timezone(dtype)
-
             if time_zone is None:
-                return {"type": "timestamp", "params": {"unit": time_unit}}
-            return {"type": "timestamptz", "params": {"unit": time_unit, "tz": time_zone}}
+                return ytypes.Timestamp(unit=time_unit)
+            return ytypes.TimestampTZ(unit=time_unit, tz=time_zone)
 
         if isinstance(dtype, pl.Decimal):
             precision = getattr(dtype, "precision", None)
             scale = getattr(dtype, "scale", None)
-            params: dict[str, Any] = {}
-            if precision is not None:
-                params["precision"] = precision
-            if scale is not None:
-                params["scale"] = scale
-            return {"type": "decimal", "params": params}
+            if precision is not None and scale is not None:
+                return ytypes.Decimal(precision=precision, scale=scale)
+            return ytypes.Decimal()
 
         if isinstance(dtype, pl.List):
             inner_type = getattr(dtype, "inner", None)
@@ -230,15 +222,13 @@ class PolarsLoader(ConfigurableLoader):
                     f"Cannot extract inner type from List type: {dtype} "
                     f"for '{self._current_field_name or '<unknown>'}'"
                 )
-
             with self.load_context(field="<array_element>"):
-                elem_def = self._convert_type(inner_type)
-            return {"type": "array", "element": elem_def}
+                element_type = self._convert_type(inner_type)
+            return ytypes.Array(element=element_type)
 
         if isinstance(dtype, pl.Array):
             inner_type = getattr(dtype, "inner", None)
             shape = cast(ArrayShapeSequence | int | None, getattr(dtype, "shape", None))
-
             if inner_type is None:
                 raise UnsupportedFeatureError(
                     f"Cannot extract inner type from Array type: {dtype} "
@@ -246,19 +236,15 @@ class PolarsLoader(ConfigurableLoader):
                 )
 
             if shape is None:
-                # No shape information, treat as variable-length array
                 with self.load_context(field="<array_element>"):
-                    elem_def = self._convert_type(inner_type)
-                return {"type": "array", "element": elem_def}
+                    element_type = self._convert_type(inner_type)
+                return ytypes.Array(element=element_type)
 
-            # Convert shape to tuple if it's not already
             if isinstance(shape, (list, tuple)):
                 shape_tuple: tuple[int, ...] = tuple(shape)
             else:
                 shape_tuple = (shape,)
 
-            # For multi-dimensional arrays, extract the base element type
-            # by unwrapping nested Array types
             base_inner_type = inner_type
             while isinstance(base_inner_type, pl.Array):
                 base_inner_type = getattr(base_inner_type, "inner", None)
@@ -269,22 +255,11 @@ class PolarsLoader(ConfigurableLoader):
                     )
 
             with self.load_context(field="<array_element>"):
-                elem_def = self._convert_type(base_inner_type)
+                element_type = self._convert_type(base_inner_type)
 
-            # If shape is 1D, use Array with size parameter
             if len(shape_tuple) == 1:
-                return {
-                    "type": "array",
-                    "element": elem_def,
-                    "params": {"size": shape_tuple[0]},
-                }
-
-            # Multi-dimensional shape -> Tensor
-            return {
-                "type": "tensor",
-                "element": elem_def,
-                "params": {"shape": shape_tuple},
-            }
+                return ytypes.Array(element=element_type, size=shape_tuple[0])
+            return ytypes.Tensor(element=element_type, shape=shape_tuple)
 
         if isinstance(dtype, pl.Struct):
             fields_list = getattr(dtype, "fields", None)
@@ -294,26 +269,21 @@ class PolarsLoader(ConfigurableLoader):
                     f"for '{self._current_field_name or '<unknown>'}'"
                 )
 
-            fields: list[dict[str, Any]] = []
+            fields: list[yspec.Field] = []
             for pl_field in fields_list:
                 field_name = getattr(pl_field, "name", None)
                 field_dtype = getattr(pl_field, "dtype", None)
-
                 if field_name is None or field_dtype is None:
                     raise UnsupportedFeatureError(
-                        f"Cannot extract field name or dtype from Struct field: "
-                        f"{pl_field} for '{self._current_field_name or '<unknown>'}'"
+                        f"Cannot extract field name or dtype from Struct field: {pl_field} "
+                        f"for '{self._current_field_name or '<unknown>'}'"
                     )
-
                 with self.load_context(field=field_name):
-                    field_def = self._convert_field(field_name, field_dtype)
-                    fields.append(field_def)
+                    fields.append(self._build_field_model(field_name, field_dtype))
+            return ytypes.Struct(fields=fields)
 
-            return {"type": "struct", "fields": fields}
-
-        if hasattr(pl, "Object"):
-            if dtype is pl.Object or isinstance(dtype, pl.Object):
-                return {"type": "variant"}
+        if hasattr(pl, "Object") and (dtype is pl.Object or isinstance(dtype, pl.Object)):
+            return ytypes.Variant()
 
         if hasattr(pl, "Categorical") and isinstance(dtype, pl.Categorical):
             error_msg = (
@@ -338,7 +308,7 @@ class PolarsLoader(ConfigurableLoader):
         )
         return self._handle_unsupported_type(error_msg)
 
-    def _handle_unsupported_type(self, error_msg: str) -> dict[str, Any]:
+    def _handle_unsupported_type(self, error_msg: str) -> ytypes.YadsType:
         """Handle unsupported types based on mode configuration."""
         if self.config.mode == "coerce":
             if self.config.fallback_type is None:
@@ -354,25 +324,19 @@ class PolarsLoader(ConfigurableLoader):
                 filename="yads.loaders.polars_loader",
                 module=__name__,
             )
-            return self._get_fallback_type_definition()
+            return self.config.fallback_type
 
         raise UnsupportedFeatureError(f"{error_msg}.")
 
-    def _get_fallback_type_definition(self) -> dict[str, Any]:
-        """Get the fallback type definition based on config."""
-        if isinstance(self.config.fallback_type, ytypes.Binary):
-            binary_type = self.config.fallback_type
-            if binary_type.length is not None:
-                return {"type": "binary", "params": {"length": binary_type.length}}
-            return {"type": "binary"}
-        else:  # String (default)
-            string_type = self.config.fallback_type
-            assert isinstance(string_type, ytypes.String)  # Validated in __post_init__
-            if string_type.length is not None:
-                return {"type": "string", "params": {"length": string_type.length}}
-            return {"type": "string"}
-
     # %% ---- Helpers -----------------------------------------------------------------
+    @staticmethod
+    def _normalize_time_unit(unit: Any) -> ytypes.TimeUnit:
+        if isinstance(unit, ytypes.TimeUnit):
+            return unit
+        if unit is None:
+            return ytypes.TimeUnit.NS
+        return ytypes.TimeUnit(str(unit))
+
     @staticmethod
     def _extract_duration_unit(dtype: pl.DataType) -> str:
         time_unit = getattr(dtype, "time_unit", None)
