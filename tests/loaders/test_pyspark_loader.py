@@ -211,6 +211,22 @@ class TestPySparkLoaderTypeConversion:
             assert column.type.interval_end is None
 
     @pytest.mark.skipif(
+        not HAS_YEAR_MONTH_INTERVAL_TYPE,
+        reason="YearMonthIntervalType not available"
+    )
+    def test_year_month_interval_with_missing_end_field_defaults_to_start(self):
+        dtype = YearMonthIntervalType(0, 1)
+        dtype.endField = None  # type: ignore[union-attr]
+        schema = StructType([StructField("col1", dtype, nullable=True)])  # type: ignore[arg-type]
+        loader = PySparkLoader()
+        spec = loader.load(schema, name="test_spec", version=1)
+
+        column = spec.columns[0]
+        assert isinstance(column.type, Interval)
+        assert column.type.interval_start.value == "YEAR"
+        assert column.type.interval_end is None
+
+    @pytest.mark.skipif(
         not HAS_DAY_TIME_INTERVAL_TYPE,
         reason="DayTimeIntervalType not available"
     )
@@ -245,6 +261,22 @@ class TestPySparkLoaderTypeConversion:
             assert column.type.interval_end.value == expected_interval_end
         else:
             assert column.type.interval_end is None
+
+    @pytest.mark.skipif(
+        not HAS_DAY_TIME_INTERVAL_TYPE,
+        reason="DayTimeIntervalType not available"
+    )
+    def test_day_time_interval_with_missing_end_field_defaults_to_start(self):
+        dtype = DayTimeIntervalType(1, 3)
+        dtype.endField = None  # type: ignore[union-attr]
+        schema = StructType([StructField("col1", dtype, nullable=True)])  # type: ignore[arg-type]
+        loader = PySparkLoader()
+        spec = loader.load(schema, name="test_spec", version=1)
+
+        column = spec.columns[0]
+        assert isinstance(column.type, Interval)
+        assert column.type.interval_start.value == "HOUR"
+        assert column.type.interval_end is None
 
     @pytest.mark.parametrize(
         "pyspark_type, expected_element_type",
@@ -783,6 +815,21 @@ class TestPySparkLoaderWithConfig:
         loader = PySparkLoader(config)
         assert loader.config.mode == "raise"
         assert loader.config.fallback_type == Binary()
+
+    @pytest.mark.skipif(
+        not HAS_CALENDAR_INTERVAL_TYPE, reason="CalendarIntervalType not available"
+    )
+    def test_coercion_mode_without_fallback_requires_explicit_type(self):
+        config = PySparkLoaderConfig(mode="coerce", fallback_type=None)
+        loader = PySparkLoader(config)
+        schema = StructType(
+            [StructField("interval_col", CalendarIntervalType(), nullable=True)]
+        )
+
+        with pytest.raises(
+            UnsupportedFeatureError, match="Specify a fallback_type to enable coercion"
+        ):
+            loader.load(schema, name="test", version=1)
 
     @pytest.mark.skipif(
         not HAS_CALENDAR_INTERVAL_TYPE, reason="CalendarIntervalType not available"
