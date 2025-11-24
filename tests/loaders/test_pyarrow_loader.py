@@ -42,6 +42,9 @@ class TestPyArrowLoaderTypeConversion:
             # Null / Boolean
             (pa.null(), Void()),
             (pa.bool_(), Boolean()),
+        ] + (
+            [(pa.bool8(), Boolean())] if hasattr(pa, "bool8") else []
+        ) + [
             
             # Integers
             (pa.int8(), Integer(bits=8, signed=True)),
@@ -442,6 +445,18 @@ class TestPyArrowLoaderMetadata:
             "bytes_key": "bytes_value",
         }
 
+    def test_metadata_with_invalid_utf8_bytes(self):
+        field_metadata = {
+            b"\xffdescription": b"\xffA field with invalid encoding",
+        }
+        schema = pa.schema([pa.field("test_col", pa.string(), metadata=field_metadata)])
+        loader = PyArrowLoader()
+        spec = loader.load(schema, name="test_spec", version=1)
+
+        column = spec.columns[0]
+        assert column.description == "A field with invalid encoding"
+        assert column.metadata == {}
+
     def test_schema_with_no_metadata(self):
         schema = pa.schema(
             [
@@ -492,6 +507,13 @@ class TestPyArrowLoaderSchema:
         assert spec.version == 1
         assert spec.description is None
 
+    def test_schema_with_description(self):
+        schema = pa.schema([pa.field("id", pa.int32())])
+        loader = PyArrowLoader()
+        spec = loader.load(schema, name="test", version=1, description="Example schema")
+
+        assert spec.description == "Example schema"
+
     def test_empty_schema(self):
         schema = pa.schema([])
         loader = PyArrowLoader()
@@ -500,6 +522,23 @@ class TestPyArrowLoaderSchema:
         assert spec.name == "empty"
         assert spec.version == 1
         assert len(spec.columns) == 0
+
+
+class TestPyArrowLoaderHelpers:
+    def test_normalize_time_unit_passes_through_yads_enum(self):
+        assert PyArrowLoader._normalize_time_unit(TimeUnit.MS) == TimeUnit.MS
+
+    def test_normalize_time_unit_handles_value_attribute(self):
+        class FakeUnit:
+            value = "us"
+
+        assert PyArrowLoader._normalize_time_unit(FakeUnit()) == TimeUnit.US
+
+    def test_normalize_time_unit_defaults_to_ns(self):
+        assert PyArrowLoader._normalize_time_unit(None) == TimeUnit.NS
+
+    def test_type_predicate_default_returns_false(self):
+        assert PyArrowLoader._type_predicate_default(pa.int32()) is False
 
 
 # %% Unsupported types and error handling

@@ -82,6 +82,16 @@ class TestPolarsLoaderTypeConversion:
         assert column.type == expected_yads_type
         assert column.is_nullable is True  # Polars Schema doesn't track nullability
 
+    def test_decimal_without_explicit_scale_defaults(self):
+        """Decimals without an explicit scale should fall back to generic Decimal."""
+        schema = pl.Schema({"col1": pl.Decimal(precision=38, scale=None)})
+        loader = PolarsLoader()
+        spec = loader.load(schema, name="test_spec", version=1)
+
+        column = spec.columns[0]
+        assert column.name == "col1"
+        assert column.type == Decimal()
+
     @pytest.mark.parametrize(
         "pl_type, expected_yads_type",
         [
@@ -676,3 +686,25 @@ class TestPolarsLoaderWithConfig:
 
         normal_string_field = next(f for f in struct_fields if f.name == "normal_string")
         assert isinstance(normal_string_field.type, String)  # preserved
+
+
+class TestPolarsLoaderHelpers:
+    def test_normalize_time_unit_passthrough(self):
+        assert PolarsLoader._normalize_time_unit(TimeUnit.MS) == TimeUnit.MS
+
+    def test_normalize_time_unit_defaults_to_ns(self):
+        assert PolarsLoader._normalize_time_unit(None) == TimeUnit.NS
+
+    def test_extract_duration_unit_without_attribute_defaults_to_ns(self):
+        class DummyDuration:
+            time_unit = None
+
+        assert PolarsLoader._extract_duration_unit(DummyDuration()) == "ns"
+
+    def test_extract_datetime_helpers_handle_missing_values(self):
+        class DummyDatetime:
+            time_unit = None
+            time_zone = None
+
+        assert PolarsLoader._extract_datetime_unit(DummyDatetime()) == "ns"
+        assert PolarsLoader._extract_datetime_timezone(DummyDatetime()) is None
