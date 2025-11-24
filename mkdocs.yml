@@ -2,7 +2,15 @@ site_name: yads
 site_description: Canonical schema specs plus friendly converters.
 repo_url: https://github.com/erich-hs/yads
 theme:
-  name: mkdocs
+  name: material
+  features:
+    - navigation.instant
+    - navigation.sections
+    - content.code.copy
+  palette:
+    - scheme: default
+      primary: blue
+      accent: cyan
 markdown_extensions:
   - admonition
   - pymdownx.details
