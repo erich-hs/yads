@@ -1,7 +1,6 @@
 [data-md-color-scheme="slate"] {
   /* Deep black background */
   --md-default-bg-color: #0b0c10;
-  --md-default-bg-color--light: #15171e; /* Slightly lighter for inputs/panels */
 
   /* Make the header match the page background */
   --md-primary-fg-color: #0b0c10;
@@ -30,4 +29,20 @@
 [data-md-color-scheme="default"] .md-typeset h6 {
   color: #000000;
   font-weight: 700;
+}
+
+/* Ensure active nav items remain visible without background pills */
+.md-nav__item .md-nav__link--active,
+.md-nav__item .md-nav__link:focus-visible {
+  font-weight: 600;
+}
+
+[data-md-color-scheme="default"] .md-nav__item .md-nav__link--active,
+[data-md-color-scheme="default"] .md-nav__item .md-nav__link:focus-visible {
+  color: #015c78;
+}
+
+[data-md-color-scheme="slate"] .md-nav__item .md-nav__link--active,
+[data-md-color-scheme="slate"] .md-nav__item .md-nav__link:focus-visible {
+  color: #71d9ff;
 }
