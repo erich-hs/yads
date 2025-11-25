@@ -46,3 +46,9 @@
 [data-md-color-scheme="slate"] .md-nav__item .md-nav__link:focus-visible {
   color: #71d9ff;
 }
+
+/* Code block tweaks */
+.md-typeset pre code,
+.md-typeset pre {
+  border-radius: 6px;
+}
