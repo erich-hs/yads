@@ -1,27 +1,33 @@
-/* Target ONLY the "slate" (dark) scheme. 
-   This leaves the "default" (light) scheme completely untouched.
-*/
 [data-md-color-scheme="slate"] {
-  /* Deep black background to match Zensical */
-  --md-default-bg-color: #0b0c10; 
+  /* Deep black background */
+  --md-default-bg-color: #0b0c10;
   --md-default-bg-color--light: #15171e; /* Slightly lighter for inputs/panels */
-  
+
   /* Make the header match the page background */
   --md-primary-fg-color: #0b0c10;
   --md-primary-bg-color: #ffffff; /* Text color in header */
   
-  /* Adjust the sidebar background to match */
-  --md-footer-bg-color:  #0b0c10;
-  
-  /* Optional: Tweaking code blocks to be slightly distinct from the pure black bg */
+  /* Tweaking code blocks to be slightly distinct from the pure black bg */
   --md-code-bg-color: #15171e;
 }
 
-/* Optional: Add a subtle highlight to the active sidebar item 
-   (Only applied in dark mode to maintain the aesthetic)
-*/
-[data-md-color-scheme="slate"] .md-nav__item .md-nav__link--active {
-  background: rgba(255, 255, 255, 0.05);
-  font-weight: bold;
-  color: var(--md-accent-fg-color);
+/* Heading colors per theme */
+[data-md-color-scheme="slate"] .md-typeset h1,
+[data-md-color-scheme="slate"] .md-typeset h2,
+[data-md-color-scheme="slate"] .md-typeset h3,
+[data-md-color-scheme="slate"] .md-typeset h4,
+[data-md-color-scheme="slate"] .md-typeset h5,
+[data-md-color-scheme="slate"] .md-typeset h6 {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+[data-md-color-scheme="default"] .md-typeset h1,
+[data-md-color-scheme="default"] .md-typeset h2,
+[data-md-color-scheme="default"] .md-typeset h3,
+[data-md-color-scheme="default"] .md-typeset h4,
+[data-md-color-scheme="default"] .md-typeset h5,
+[data-md-color-scheme="default"] .md-typeset h6 {
+  color: #000000;
+  font-weight: 700;
 }
