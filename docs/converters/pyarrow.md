@@ -1,4 +1,4 @@
-# PyArrow converter
+# PyArrow Converter
 
 Converters bridge a validated `YadsSpec` into runtime schemas. Each converter
 focuses on one target so you can reason about limitations or dependency needs
@@ -12,9 +12,9 @@ whether unsupported constructs should raise or degrade gracefully.
 
 ```python
 import pyarrow as pa
+import yads.types as ytypes
 from yads.converters import PyArrowConverter
 from yads.spec import Column, YadsSpec
-import yads.types as ytypes
 
 spec = YadsSpec(
     name="catalog.db.table",
@@ -27,7 +27,7 @@ spec = YadsSpec(
 
 schema = PyArrowConverter().convert(spec)
 assert schema == pa.schema([
-    pa.field("id", pa.int64(), nullable=False),
+    pa.field("id", pa.int64(), nullable=True),
     pa.field("name", pa.string(), nullable=True),
 ])
 ```
