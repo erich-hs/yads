@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from .base import ExampleBlockRequest, ExampleDefinition
+from ..base import ExampleBlockRequest, ExampleDefinition
 
 
 def _pyarrow_schema_example() -> None:
+    import yads.types as ytypes
+    from yads.spec import Column, YadsSpec
     from yads.constraints import NotNullConstraint
     from yads.converters import PyArrowConverter
-    from yads.spec import Column, YadsSpec
-    import yads.types as ytypes
 
     spec = YadsSpec(
         name="catalog.crm.customers",

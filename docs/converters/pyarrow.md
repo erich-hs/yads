@@ -13,10 +13,10 @@ below prints the resulting schema for the canonical customers spec:
 
 <!-- BEGIN:example pyarrow-converter-basic code -->
 ```python
+import yads.types as ytypes
+from yads.spec import Column, YadsSpec
 from yads.constraints import NotNullConstraint
 from yads.converters import PyArrowConverter
-from yads.spec import Column, YadsSpec
-import yads.types as ytypes
 
 spec = YadsSpec(
     name="catalog.crm.customers",
