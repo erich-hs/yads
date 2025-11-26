@@ -13,7 +13,6 @@ below prints the resulting schema for the canonical customers spec:
 
 <!-- BEGIN:example pyarrow-converter-basic code -->
 ```python
-import yaml
 import yads.types as ytypes
 from yads.spec import Column, YadsSpec
 from yads.constraints import NotNullConstraint

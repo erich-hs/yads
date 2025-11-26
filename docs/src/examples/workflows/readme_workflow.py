@@ -5,8 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import yads
+import warnings
 
 from ..base import ExampleBlockRequest, ExampleDefinition
+
+warnings.filterwarnings("ignore")
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 SPEC_REFERENCE = "docs/src/specs/customers.yaml"
