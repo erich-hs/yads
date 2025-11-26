@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Literal, Mapping
+from typing import Callable, Literal
 
 ExampleCallable = Callable[[], None]
 ExampleBlockSource = Literal["callable", "stdout", "literal"]
@@ -17,7 +17,7 @@ class ExampleBlockRequest:
     language: str
     source: ExampleBlockSource
     text: str | None = None
-    step: str | None = None
+    callable: ExampleCallable | None = None
 
 
 @dataclass(frozen=True)
@@ -25,12 +25,4 @@ class ExampleDefinition:
     """An executable example that can populate documentation snippets."""
 
     example_id: str
-    callables: Mapping[str, ExampleCallable]
     blocks: tuple[ExampleBlockRequest, ...]
-
-    def __post_init__(self) -> None:
-        normalized = dict(self.callables)
-        if not normalized:
-            msg = "ExampleDefinition requires at least one callable."
-            raise ValueError(msg)
-        object.__setattr__(self, "callables", normalized)

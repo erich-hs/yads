@@ -36,7 +36,7 @@ class RenderedBlock:
 class ExampleRunner:
     def __init__(self, definition: ExampleDefinition) -> None:
         self.definition: ExampleDefinition = definition
-        self._stdout: dict[str, str] = {}
+        self._stdout: dict[ExampleCallable, str] = {}
 
     def render(self, request: ExampleBlockRequest) -> RenderedBlock:
         content = self._render_content(request)
@@ -49,11 +49,11 @@ class ExampleRunner:
 
     def _render_content(self, request: ExampleBlockRequest) -> str:
         if request.source == "callable":
-            _, func = self._resolve_callable(request)
+            func = self._require_callable(request)
             return self._callable_source(func)
         if request.source == "stdout":
-            step, func = self._resolve_callable(request)
-            return self._stdout_output(step, func)
+            func = self._require_callable(request)
+            return self._stdout_output(func)
         if request.source == "literal":
             if request.text is None:
                 msg = (
@@ -65,8 +65,8 @@ class ExampleRunner:
         msg = f"Unsupported example block source: {request.source}"
         raise ValueError(msg)
 
-    def _stdout_output(self, step: str, func: ExampleCallable) -> str:
-        if step not in self._stdout:
+    def _stdout_output(self, func: ExampleCallable) -> str:
+        if func not in self._stdout:
             buffer = io.StringIO()
             try:
                 with redirect_stdout(buffer):
@@ -74,8 +74,8 @@ class ExampleRunner:
             except Exception as exc:  # pragma: no cover - surfaced to user
                 example_id = self.definition.example_id
                 raise RuntimeError(f"Failed to execute example '{example_id}'.") from exc
-            self._stdout[step] = buffer.getvalue().rstrip()
-        return self._stdout[step]
+            self._stdout[func] = buffer.getvalue().rstrip()
+        return self._stdout[func]
 
     @staticmethod
     def _callable_source(func: ExampleCallable) -> str:
@@ -87,30 +87,15 @@ class ExampleRunner:
             raise ValueError("Example callable must contain a body.") from None
         return textwrap.dedent(body).rstrip()
 
-    def _resolve_callable(
-        self, request: ExampleBlockRequest
-    ) -> tuple[str, ExampleCallable]:
-        callables: Mapping[str, ExampleCallable] = self.definition.callables
-        if request.step is None:
-            if len(callables) != 1:
-                msg = (
-                    f"Example '{self.definition.example_id}' block '{request.slug}' "
-                    "must specify a step."
-                )
-                raise ValueError(msg)
-            step_name = next(iter(callables))
-        else:
-            step_name = request.step
-        try:
-            func = callables[step_name]
-        except KeyError:
-            example_id = self.definition.example_id
+    def _require_callable(self, request: ExampleBlockRequest) -> ExampleCallable:
+        func = request.callable
+        if func is None:
             msg = (
-                f"Example '{example_id}' block '{request.slug}' references unknown "
-                f"step '{step_name}'."
+                f"Example '{self.definition.example_id}' block '{request.slug}' "
+                "requires a callable."
             )
-            raise KeyError(msg)
-        return step_name, func
+            raise ValueError(msg)
+        return func
 
 
 def discover_examples() -> Mapping[str, ExampleDefinition]:

@@ -9,7 +9,7 @@ import yads
 from ..base import ExampleBlockRequest, ExampleDefinition
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-SPEC_REFERENCE = "registry/specs/customers.yaml"
+SPEC_REFERENCE = "docs/specs/customers.yaml"
 SPEC_FILE_PATH = PROJECT_ROOT / SPEC_REFERENCE
 
 spec = yads.from_yaml(SPEC_FILE_PATH)
@@ -21,7 +21,7 @@ spec_with_file_path = f"# {SPEC_REFERENCE}\n{SPEC_FILE_PATH.read_text().strip()}
 def _load_spec_step() -> None:
     import yads
 
-    spec = yads.from_yaml("registry/specs/customers.yaml")
+    spec = yads.from_yaml("docs/specs/customers.yaml")
 
     # Generate a Pydantic BaseModel
     Customers = yads.to_pydantic(spec, model_name="Customers")
@@ -30,7 +30,7 @@ def _load_spec_step() -> None:
     print(list(Customers.model_fields.keys()))
 
 
-def _validate_record_step() -> None:
+def _pydantic_model_step() -> None:
     from datetime import datetime, timezone
 
     record = Customers(
@@ -70,14 +70,6 @@ def _pyarrow_schema_step() -> None:
 
 EXAMPLE = ExampleDefinition(
     example_id="readme-workflow",
-    callables={
-        "load-spec": _load_spec_step,
-        "validate-record": _validate_record_step,
-        "spark-sql": _spark_sql_step,
-        "duckdb-sql": _duckdb_sql_step,
-        "polars-schema": _polars_schema_step,
-        "pyarrow-schema": _pyarrow_schema_step,
-    },
     blocks=(
         ExampleBlockRequest(
             slug="spec-yaml",
@@ -89,73 +81,73 @@ EXAMPLE = ExampleDefinition(
             slug="load-spec-code",
             language="python",
             source="callable",
-            step="load-spec",
+            callable=_load_spec_step,
         ),
         ExampleBlockRequest(
             slug="load-spec-output",
             language="text",
             source="stdout",
-            step="load-spec",
+            callable=_load_spec_step,
         ),
         ExampleBlockRequest(
-            slug="validate-record-code",
+            slug="pydantic-model-code",
             language="python",
             source="callable",
-            step="validate-record",
+            callable=_pydantic_model_step,
         ),
         ExampleBlockRequest(
-            slug="validate-record-output",
+            slug="pydantic-model-output",
             language="text",
             source="stdout",
-            step="validate-record",
+            callable=_pydantic_model_step,
         ),
         ExampleBlockRequest(
             slug="spark-sql-code",
             language="python",
             source="callable",
-            step="spark-sql",
+            callable=_spark_sql_step,
         ),
         ExampleBlockRequest(
             slug="spark-sql-output",
             language="sql",
             source="stdout",
-            step="spark-sql",
+            callable=_spark_sql_step,
         ),
         ExampleBlockRequest(
             slug="duckdb-sql-code",
             language="python",
             source="callable",
-            step="duckdb-sql",
+            callable=_duckdb_sql_step,
         ),
         ExampleBlockRequest(
             slug="duckdb-sql-output",
             language="sql",
             source="stdout",
-            step="duckdb-sql",
+            callable=_duckdb_sql_step,
         ),
         ExampleBlockRequest(
             slug="polars-code",
             language="python",
             source="callable",
-            step="polars-schema",
+            callable=_polars_schema_step,
         ),
         ExampleBlockRequest(
             slug="polars-output",
             language="text",
             source="stdout",
-            step="polars-schema",
+            callable=_polars_schema_step,
         ),
         ExampleBlockRequest(
             slug="pyarrow-code",
             language="python",
             source="callable",
-            step="pyarrow-schema",
+            callable=_pyarrow_schema_step,
         ),
         ExampleBlockRequest(
             slug="pyarrow-output",
             language="text",
             source="stdout",
-            step="pyarrow-schema",
+            callable=_pyarrow_schema_step,
         ),
     ),
 )
