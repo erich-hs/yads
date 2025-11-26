@@ -197,61 +197,101 @@ tags: list<item: string>
 ### Configurable conversions
 
 The canonical yads spec is immutable, but conversions can be customized with configuration options.
+<!-- BEGIN:example minimal-configurable-conversion spark-config-code -->
 ```python
 import yads
 
 spec = yads.from_yaml("docs/src/specs/customers.yaml")
-ddl_min = yads.to_sql(spec, dialect="spark", include_columns={"id", "email"}, pretty=True)
+ddl_min = yads.to_sql(
+    spec,
+    dialect="spark",
+    include_columns={"id", "email"},
+    pretty=True,
+)
 
 print(ddl_min)
 ```
+<!-- END:example minimal-configurable-conversion spark-config-code -->
+<!-- BEGIN:example minimal-configurable-conversion spark-config-output -->
 ```sql
 CREATE TABLE catalog.crm.customers (
   id BIGINT NOT NULL,
   email STRING
 )
 ```
+<!-- END:example minimal-configurable-conversion spark-config-output -->
 
 Column overrides can be used to apply custom validation to specific columns, or to supersede default conversions.
+<!-- BEGIN:example minimal-configurable-conversion column-override-code -->
 ```python
 from pydantic import Field
 
 def email_override(field, conv):
     # Enforce example.com domain with a regex pattern
-    return str, Field(pattern=r"^.+@example\\.com$")
+    return str, Field(pattern=r"^.+@example\.com$")
 
 Model = yads.to_pydantic(spec, column_overrides={"email": email_override})
 
 try:
-    Model(id=1, email="user@other.com")
+    Model(
+        id=1,
+        email="user@other.com",
+        created_at="2024-01-01T00:00:00+00:00",
+        spend="42.50",
+        tags=["beta"],
+    )
 except Exception as e:
     print(type(e).__name__ + ":\n" + str(e))
 ```
+<!-- END:example minimal-configurable-conversion column-override-code -->
+<!-- BEGIN:example minimal-configurable-conversion column-override-output -->
 ```text
 ValidationError:
 1 validation error for catalog_crm_customers
 email
-  String should match pattern '^.+@example\\.com$' [type=string_pattern_mismatch, input_value='user@other.com', input_type=str]
+  String should match pattern '^.+@example\.com$' [type=string_pattern_mismatch, input_value='user@other.com', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.12/v/string_pattern_mismatch
 ```
+<!-- END:example minimal-configurable-conversion column-override-output -->
 
 ### Round-trip conversions
 
 `yads` attempts to preserve the complete representation of data schemas across conversions. The following example demonstrates a round-trip from a PyArrow schema to a yads spec, then to a DuckDB DDL and PySpark schema, while preserving metadata and column constraints.
 
+<!-- BEGIN:example minimal-roundtrip-conversion pyarrow-code -->
 ```python
 import yads
 import pyarrow as pa
 
 schema = pa.schema([
-    pa.field("id", pa.int64(), nullable=False, metadata={"description": "Customer ID"}),
-    pa.field("name", pa.string(), metadata={"description": "Customer preferred name"}),
-    pa.field("email", pa.string(), metadata={"description": "Customer email address"}),
-    pa.field("created_at", pa.timestamp('ns', tz='UTC'), metadata={"description": "Record creation timestamp"}),
+    pa.field(
+        "id",
+        pa.int64(),
+        nullable=False,
+        metadata={"description": "Customer ID"},
+    ),
+    pa.field(
+        "name",
+        pa.string(),
+        metadata={"description": "Customer preferred name"},
+    ),
+    pa.field(
+        "email",
+        pa.string(),
+        metadata={"description": "Customer email address"},
+    ),
+    pa.field(
+        "created_at",
+        pa.timestamp("ns", tz="UTC"),
+        metadata={"description": "Customer creation timestamp"},
+    ),
 ])
 
 spec = yads.from_pyarrow(schema, name="catalog.crm.customers", version=1)
 print(spec)
 ```
+<!-- END:example minimal-roundtrip-conversion pyarrow-code -->
+<!-- BEGIN:example minimal-roundtrip-conversion pyarrow-output -->
 ```text
 spec catalog.crm.customers(version=1)(
   columns=[
@@ -271,13 +311,17 @@ spec catalog.crm.customers(version=1)(
   ]
 )
 ```
+<!-- END:example minimal-roundtrip-conversion pyarrow-output -->
 
 Nullability and metadata are preserved as long as the target format supports them.
 
+<!-- BEGIN:example minimal-roundtrip-conversion duckdb-code -->
 ```python
 duckdb_ddl = yads.to_sql(spec, dialect="duckdb", pretty=True)
 print(duckdb_ddl)
 ```
+<!-- END:example minimal-roundtrip-conversion duckdb-code -->
+<!-- BEGIN:example minimal-roundtrip-conversion duckdb-output -->
 ```sql
 CREATE TABLE catalog.crm.customers (
   id BIGINT NOT NULL,
@@ -286,12 +330,16 @@ CREATE TABLE catalog.crm.customers (
   created_at TIMESTAMPTZ
 )
 ```
+<!-- END:example minimal-roundtrip-conversion duckdb-output -->
+<!-- BEGIN:example minimal-roundtrip-conversion pyspark-code -->
 ```python
 pyspark_schema = yads.to_pyspark(spec)
 for field in pyspark_schema.fields:
     print(f"{field.name}, {field.dataType}, {field.nullable=}")
     print(f"{field.metadata=}\n")
 ```
+<!-- END:example minimal-roundtrip-conversion pyspark-code -->
+<!-- BEGIN:example minimal-roundtrip-conversion pyspark-output -->
 ```text
 id, LongType(), field.nullable=False
 field.metadata={'description': 'Customer ID'}
@@ -305,6 +353,7 @@ field.metadata={'description': 'Customer email address'}
 created_at, TimestampType(), field.nullable=True
 field.metadata={'description': 'Customer creation timestamp'}
 ```
+<!-- END:example minimal-roundtrip-conversion pyspark-output -->
 
 ## Design Philosophy
 
