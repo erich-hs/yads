@@ -28,6 +28,8 @@ markdown_extensions:
   - pymdownx.superfences
   - toc:
       permalink: true
+exclude:
+  - "src/**"
 plugins:
   - search
   - mkdocstrings:

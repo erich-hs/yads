@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 if __name__ == "__main__" and (__package__ is None or __package__ == ""):
-    raise SystemExit("Run as a module: `python -m docs.scripts.sync_examples <FILES...>`")
+    raise SystemExit(
+        "Run as a module: `python -m docs.src.scripts.sync_examples <FILES...>`"
+    )
 
 import argparse
 import importlib
@@ -100,7 +102,7 @@ class ExampleRunner:
 
 def discover_examples() -> Mapping[str, ExampleDefinition]:
     discovered: dict[str, ExampleDefinition] = {}
-    package = importlib.import_module("docs.examples")
+    package = importlib.import_module("docs.src.examples")
     for module_info in pkgutil.walk_packages(package.__path__, package.__name__ + "."):
         module_name = module_info.name
         last = module_name.rsplit(".", 1)[-1]

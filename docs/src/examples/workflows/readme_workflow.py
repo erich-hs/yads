@@ -8,9 +8,9 @@ import yads
 
 from ..base import ExampleBlockRequest, ExampleDefinition
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-SPEC_REFERENCE = "docs/specs/customers.yaml"
-SPEC_FILE_PATH = PROJECT_ROOT / SPEC_REFERENCE
+REPO_ROOT = Path(__file__).resolve().parents[4]
+SPEC_REFERENCE = "docs/src/specs/customers.yaml"
+SPEC_FILE_PATH = REPO_ROOT / SPEC_REFERENCE
 
 spec = yads.from_yaml(SPEC_FILE_PATH)
 Customers = yads.to_pydantic(spec, model_name="Customers")
@@ -21,7 +21,7 @@ spec_with_file_path = f"# {SPEC_REFERENCE}\n{SPEC_FILE_PATH.read_text().strip()}
 def _load_spec_step() -> None:
     import yads
 
-    spec = yads.from_yaml("docs/specs/customers.yaml")
+    spec = yads.from_yaml("docs/src/specs/customers.yaml")
 
     # Generate a Pydantic BaseModel
     Customers = yads.to_pydantic(spec, model_name="Customers")

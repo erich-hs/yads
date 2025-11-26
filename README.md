@@ -56,7 +56,7 @@ The latest `yads` specification JSON schema is available [here](./spec/yads_spec
 
 <!-- BEGIN:example readme-workflow spec-yaml -->
 ```yaml
-# registry/specs/customers.yaml
+# docs/src/specs/customers.yaml
 name: catalog.crm.customers
 version: 1
 yads_spec_version: 0.0.2
@@ -81,11 +81,12 @@ columns:
 ```
 <!-- END:example readme-workflow spec-yaml -->
 
-Load a yads spec (from a YAML string, file-like object, or path)
+Load a yads spec and generate a Pydantic `BaseModel`
+<!-- BEGIN:example readme-workflow load-spec-code -->
 ```python
 import yads
 
-spec = yads.from_yaml("registry/specs/customers.yaml")
+spec = yads.from_yaml("docs/src/specs/customers.yaml")
 
 # Generate a Pydantic BaseModel
 Customers = yads.to_pydantic(spec, model_name="Customers")
@@ -93,12 +94,16 @@ Customers = yads.to_pydantic(spec, model_name="Customers")
 print(Customers)
 print(list(Customers.model_fields.keys()))
 ```
+<!-- END:example readme-workflow load-spec-code -->
+<!-- BEGIN:example readme-workflow load-spec-output -->
 ```text
 <class 'yads.converters.pydantic_converter.Customers'>
 ['id', 'email', 'created_at', 'spend', 'tags']
 ```
+<!-- END:example readme-workflow load-spec-output -->
 
-Validate an incoming record with Pydantic
+To validate and serialize data
+<!-- BEGIN:example readme-workflow pydantic-model-code -->
 ```python
 from datetime import datetime, timezone
 
@@ -112,28 +117,21 @@ record = Customers(
 
 print(record.model_dump())
 ```
-```stdout
+<!-- END:example readme-workflow pydantic-model-code -->
+<!-- BEGIN:example readme-workflow pydantic-model-output -->
+```text
 {'id': 123, 'email': 'alice@example.com', 'created_at': datetime.datetime(2024, 5, 1, 12, 0, tzinfo=datetime.timezone.utc), 'spend': Decimal('42.50'), 'tags': ['vip', 'beta']}
 ```
+<!-- END:example readme-workflow pydantic-model-output -->
 
 Emit DDL for multiple SQL dialects from the same spec
+<!-- BEGIN:example readme-workflow spark-sql-code -->
 ```python
 spark_ddl = yads.to_sql(spec, dialect="spark", pretty=True)
 print(spark_ddl)
 ```
-```sql
-CREATE TABLE catalog.crm.customers (
-  id BIGINT NOT NULL,
-  email TEXT,
-  created_at TIMESTAMPTZ,
-  spend DECIMAL(10, 2),
-  tags TEXT[]
-)
-```
-```python
-duckdb_ddl = yads.to_sql(spec, dialect="duckdb", pretty=True)
-print(duckdb_ddl)
-```
+<!-- END:example readme-workflow spark-sql-code -->
+<!-- BEGIN:example readme-workflow spark-sql-output -->
 ```sql
 CREATE TABLE catalog.crm.customers (
   id BIGINT NOT NULL,
@@ -143,16 +141,39 @@ CREATE TABLE catalog.crm.customers (
   tags ARRAY<STRING>
 )
 ```
+<!-- END:example readme-workflow spark-sql-output -->
+<!-- BEGIN:example readme-workflow duckdb-sql-code -->
+```python
+duckdb_ddl = yads.to_sql(spec, dialect="duckdb", pretty=True)
+print(duckdb_ddl)
+```
+<!-- END:example readme-workflow duckdb-sql-code -->
+<!-- BEGIN:example readme-workflow duckdb-sql-output -->
+```sql
+CREATE TABLE catalog.crm.customers (
+  id BIGINT NOT NULL,
+  email TEXT,
+  created_at TIMESTAMPTZ,
+  spend DECIMAL(10, 2),
+  tags TEXT[]
+)
+```
+<!-- END:example readme-workflow duckdb-sql-output -->
 
 Create a Polars DataFrame schema
+<!-- BEGIN:example readme-workflow polars-code -->
 ```python
 import yads
+
 pl_schema = yads.to_polars(spec)
 print(pl_schema)
 ```
+<!-- END:example readme-workflow polars-code -->
+<!-- BEGIN:example readme-workflow polars-output -->
 ```text
 Schema({'id': Int64, 'email': String, 'created_at': Datetime(time_unit='ns', time_zone='UTC'), 'spend': Decimal(precision=10, scale=2), 'tags': List(String)})
 ```
+<!-- END:example readme-workflow polars-output -->
 Create a PyArrow schema with constraint preservation
 <!-- BEGIN:example readme-workflow pyarrow-code -->
 ```python
@@ -179,7 +200,7 @@ The canonical yads spec is immutable, but conversions can be customized with con
 ```python
 import yads
 
-spec = yads.from_yaml("registry/specs/customers.yaml")
+spec = yads.from_yaml("docs/src/specs/customers.yaml")
 ddl_min = yads.to_sql(spec, dialect="spark", include_columns={"id", "email"}, pretty=True)
 
 print(ddl_min)

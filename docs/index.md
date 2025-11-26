@@ -32,7 +32,7 @@ uv add yads[pyarrow]  # include the PyArrow converter helpers
    `yads.to_pydantic` to move between runtimes without rewriting schema logic.
 
 ```yaml
-# docs/specs/customers.yaml
+# docs/src/specs/customers.yaml
 name: catalog.crm.customers
 version: 1
 yads_spec_version: 0.0.2
@@ -53,7 +53,7 @@ columns:
 ```python
 import yads
 
-spec = yads.from_yaml("docs/specs/customers.yaml")
+spec = yads.from_yaml("docs/src/specs/customers.yaml")
 pyd_model = yads.to_pydantic(spec, model_name="Customer")
 arrow_schema = yads.to_pyarrow(spec)
 ```
