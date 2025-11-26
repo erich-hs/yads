@@ -54,6 +54,7 @@ Typical workflows start with an expressive yads specification that can then be u
 
 The latest `yads` specification JSON schema is available [here](./spec/yads_spec_latest.json).
 
+<!-- BEGIN:example readme-workflow spec-yaml -->
 ```yaml
 # registry/specs/customers.yaml
 name: catalog.crm.customers
@@ -78,6 +79,7 @@ columns:
     element:
       type: string
 ```
+<!-- END:example readme-workflow spec-yaml -->
 
 Load a yads spec (from a YAML string, file-like object, or path)
 ```python
@@ -152,11 +154,15 @@ print(pl_schema)
 Schema({'id': Int64, 'email': String, 'created_at': Datetime(time_unit='ns', time_zone='UTC'), 'spend': Decimal(precision=10, scale=2), 'tags': List(String)})
 ```
 Create a PyArrow schema with constraint preservation
+<!-- BEGIN:example readme-workflow pyarrow-code -->
 ```python
 import yads
+
 pa_schema = yads.to_pyarrow(spec)
 print(pa_schema)
 ```
+<!-- END:example readme-workflow pyarrow-code -->
+<!-- BEGIN:example readme-workflow pyarrow-output -->
 ```text
 id: int64 not null
 email: string
@@ -165,6 +171,7 @@ spend: decimal128(10, 2)
 tags: list<item: string>
   child 0, item: string
 ```
+<!-- END:example readme-workflow pyarrow-output -->
 
 ### Configurable conversions
 
