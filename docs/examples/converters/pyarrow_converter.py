@@ -36,7 +36,7 @@ def _pyarrow_schema_example() -> None:
 
 EXAMPLE = ExampleDefinition(
     example_id="pyarrow-converter-basic",
-    callable=_pyarrow_schema_example,
+    callables={"schema": _pyarrow_schema_example},
     blocks=(
         ExampleBlockRequest(slug="code", language="python", source="callable"),
         ExampleBlockRequest(slug="output", language="text", source="stdout"),
