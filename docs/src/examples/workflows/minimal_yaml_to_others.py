@@ -1,5 +1,3 @@
-"""Executable README workflow snippets."""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -72,7 +70,7 @@ def _pyarrow_schema_step() -> None:
 
 
 EXAMPLE = ExampleDefinition(
-    example_id="readme-workflow",
+    example_id="minimal-yaml-to-others",
     blocks=(
         ExampleBlockRequest(
             slug="spec-yaml",

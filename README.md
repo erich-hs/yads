@@ -54,7 +54,7 @@ Typical workflows start with an expressive yads specification that can then be u
 
 The latest `yads` specification JSON schema is available [here](./spec/yads_spec_latest.json).
 
-<!-- BEGIN:example readme-workflow spec-yaml -->
+<!-- BEGIN:example minimal-yaml-to-others spec-yaml -->
 ```yaml
 # docs/src/specs/customers.yaml
 name: catalog.crm.customers
@@ -79,10 +79,10 @@ columns:
     element:
       type: string
 ```
-<!-- END:example readme-workflow spec-yaml -->
+<!-- END:example minimal-yaml-to-others spec-yaml -->
 
 Load a yads spec and generate a Pydantic `BaseModel`
-<!-- BEGIN:example readme-workflow load-spec-code -->
+<!-- BEGIN:example minimal-yaml-to-others load-spec-code -->
 ```python
 import yads
 
@@ -94,16 +94,16 @@ Customers = yads.to_pydantic(spec, model_name="Customers")
 print(Customers)
 print(list(Customers.model_fields.keys()))
 ```
-<!-- END:example readme-workflow load-spec-code -->
-<!-- BEGIN:example readme-workflow load-spec-output -->
+<!-- END:example minimal-yaml-to-others load-spec-code -->
+<!-- BEGIN:example minimal-yaml-to-others load-spec-output -->
 ```text
 <class 'yads.converters.pydantic_converter.Customers'>
 ['id', 'email', 'created_at', 'spend', 'tags']
 ```
-<!-- END:example readme-workflow load-spec-output -->
+<!-- END:example minimal-yaml-to-others load-spec-output -->
 
 To validate and serialize data
-<!-- BEGIN:example readme-workflow pydantic-model-code -->
+<!-- BEGIN:example minimal-yaml-to-others pydantic-model-code -->
 ```python
 from datetime import datetime, timezone
 
@@ -117,21 +117,21 @@ record = Customers(
 
 print(record.model_dump())
 ```
-<!-- END:example readme-workflow pydantic-model-code -->
-<!-- BEGIN:example readme-workflow pydantic-model-output -->
+<!-- END:example minimal-yaml-to-others pydantic-model-code -->
+<!-- BEGIN:example minimal-yaml-to-others pydantic-model-output -->
 ```text
 {'id': 123, 'email': 'alice@example.com', 'created_at': datetime.datetime(2024, 5, 1, 12, 0, tzinfo=datetime.timezone.utc), 'spend': Decimal('42.50'), 'tags': ['vip', 'beta']}
 ```
-<!-- END:example readme-workflow pydantic-model-output -->
+<!-- END:example minimal-yaml-to-others pydantic-model-output -->
 
 Emit DDL for multiple SQL dialects from the same spec
-<!-- BEGIN:example readme-workflow spark-sql-code -->
+<!-- BEGIN:example minimal-yaml-to-others spark-sql-code -->
 ```python
 spark_ddl = yads.to_sql(spec, dialect="spark", pretty=True)
 print(spark_ddl)
 ```
-<!-- END:example readme-workflow spark-sql-code -->
-<!-- BEGIN:example readme-workflow spark-sql-output -->
+<!-- END:example minimal-yaml-to-others spark-sql-code -->
+<!-- BEGIN:example minimal-yaml-to-others spark-sql-output -->
 ```sql
 CREATE TABLE catalog.crm.customers (
   id BIGINT NOT NULL,
@@ -141,14 +141,14 @@ CREATE TABLE catalog.crm.customers (
   tags ARRAY<STRING>
 )
 ```
-<!-- END:example readme-workflow spark-sql-output -->
-<!-- BEGIN:example readme-workflow duckdb-sql-code -->
+<!-- END:example minimal-yaml-to-others spark-sql-output -->
+<!-- BEGIN:example minimal-yaml-to-others duckdb-sql-code -->
 ```python
 duckdb_ddl = yads.to_sql(spec, dialect="duckdb", pretty=True)
 print(duckdb_ddl)
 ```
-<!-- END:example readme-workflow duckdb-sql-code -->
-<!-- BEGIN:example readme-workflow duckdb-sql-output -->
+<!-- END:example minimal-yaml-to-others duckdb-sql-code -->
+<!-- BEGIN:example minimal-yaml-to-others duckdb-sql-output -->
 ```sql
 CREATE TABLE catalog.crm.customers (
   id BIGINT NOT NULL,
@@ -158,32 +158,32 @@ CREATE TABLE catalog.crm.customers (
   tags TEXT[]
 )
 ```
-<!-- END:example readme-workflow duckdb-sql-output -->
+<!-- END:example minimal-yaml-to-others duckdb-sql-output -->
 
 Create a Polars DataFrame schema
-<!-- BEGIN:example readme-workflow polars-code -->
+<!-- BEGIN:example minimal-yaml-to-others polars-code -->
 ```python
 import yads
 
 pl_schema = yads.to_polars(spec)
 print(pl_schema)
 ```
-<!-- END:example readme-workflow polars-code -->
-<!-- BEGIN:example readme-workflow polars-output -->
+<!-- END:example minimal-yaml-to-others polars-code -->
+<!-- BEGIN:example minimal-yaml-to-others polars-output -->
 ```text
 Schema({'id': Int64, 'email': String, 'created_at': Datetime(time_unit='ns', time_zone='UTC'), 'spend': Decimal(precision=10, scale=2), 'tags': List(String)})
 ```
-<!-- END:example readme-workflow polars-output -->
+<!-- END:example minimal-yaml-to-others polars-output -->
 Create a PyArrow schema with constraint preservation
-<!-- BEGIN:example readme-workflow pyarrow-code -->
+<!-- BEGIN:example minimal-yaml-to-others pyarrow-code -->
 ```python
 import yads
 
 pa_schema = yads.to_pyarrow(spec)
 print(pa_schema)
 ```
-<!-- END:example readme-workflow pyarrow-code -->
-<!-- BEGIN:example readme-workflow pyarrow-output -->
+<!-- END:example minimal-yaml-to-others pyarrow-code -->
+<!-- BEGIN:example minimal-yaml-to-others pyarrow-output -->
 ```text
 id: int64 not null
 email: string
@@ -192,7 +192,7 @@ spend: decimal128(10, 2)
 tags: list<item: string>
   child 0, item: string
 ```
-<!-- END:example readme-workflow pyarrow-output -->
+<!-- END:example minimal-yaml-to-others pyarrow-output -->
 
 ### Configurable conversions
 
