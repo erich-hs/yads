@@ -5,9 +5,17 @@
   /* Make the header match the page background */
   --md-primary-fg-color: #0b0c10;
   --md-primary-bg-color: #ffffff; /* Text color in header */
+
+  /* Ensure body links remain legible */
+  --md-typeset-a-color: #71d9ff;
   
   /* Tweaking code blocks to be slightly distinct from the pure black bg */
   --md-code-bg-color: #15171e;
+}
+
+[data-md-color-scheme="slate"] .md-typeset a:hover,
+[data-md-color-scheme="slate"] .md-typeset a:focus {
+  color: #9fe7ff;
 }
 
 /* Heading colors per theme */

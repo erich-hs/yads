@@ -9,6 +9,7 @@ with the canonical schema.
 ```python
 from decimal import Decimal
 from pprint import pprint
+
 import yads.types as ytypes
 from yads.spec import Column, YadsSpec
 from yads.constraints import NotNullConstraint
@@ -24,7 +25,7 @@ spec = YadsSpec(
             constraints=[NotNullConstraint()],
         ),
         Column(name="email", type=ytypes.String()),
-        Column(name="created_at", type=ytypes.TimestampTZ(tz="UTC")),
+        Column(name="created_at", type=ytypes.Timestamp()),
         Column(
             name="spend",
             type=ytypes.Decimal(precision=10, scale=2),
@@ -46,7 +47,7 @@ pprint(alice.model_dump())
 <!-- END:example pydantic-converter-basic code -->
 <!-- BEGIN:example pydantic-converter-basic output -->
 ```text
-{'created_at': datetime.datetime(2024, 1, 2, 15, 4, 5, tzinfo=datetime.timezone.utc),
+{'created_at': datetime.datetime(2024, 1, 2, 15, 4, 5, tzinfo=TzInfo(0)),
  'email': 'alice@example.com',
  'id': 1,
  'spend': Decimal('12.34'),

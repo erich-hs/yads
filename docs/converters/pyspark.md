@@ -8,6 +8,7 @@ unsupported constructs.
 <!-- BEGIN:example pyspark-converter-basic code -->
 ```python
 from pprint import pprint
+
 import yads.types as ytypes
 from yads.spec import Column, YadsSpec
 from yads.constraints import NotNullConstraint
@@ -38,10 +39,7 @@ pprint(schema.jsonValue())
 <!-- END:example pyspark-converter-basic code -->
 <!-- BEGIN:example pyspark-converter-basic output -->
 ```text
-{'fields': [{'metadata': {},
-             'name': 'id',
-             'nullable': False,
-             'type': 'long'},
+{'fields': [{'metadata': {}, 'name': 'id', 'nullable': False, 'type': 'long'},
             {'metadata': {},
              'name': 'email',
              'nullable': True,
@@ -53,7 +51,7 @@ pprint(schema.jsonValue())
             {'metadata': {},
              'name': 'spend',
              'nullable': True,
-             'type': {'precision': 10, 'scale': 2, 'type': 'decimal'}},
+             'type': 'decimal(10,2)'},
             {'metadata': {},
              'name': 'tags',
              'nullable': True,

@@ -8,6 +8,7 @@ logical types.
 <!-- BEGIN:example polars-converter-basic code -->
 ```python
 from pprint import pprint
+
 import yads.types as ytypes
 from yads.spec import Column, YadsSpec
 from yads.constraints import NotNullConstraint
@@ -38,11 +39,11 @@ pprint(dict(schema))
 <!-- END:example polars-converter-basic code -->
 <!-- BEGIN:example polars-converter-basic output -->
 ```text
-{'created_at': Datetime(time_unit='us', time_zone='UTC'),
+{'created_at': Datetime(time_unit='ns', time_zone='UTC'),
  'email': String,
  'id': Int64,
  'spend': Decimal(precision=10, scale=2),
- 'tags': List(inner=String)}
+ 'tags': List(String)}
 ```
 <!-- END:example polars-converter-basic output -->
 
