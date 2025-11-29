@@ -180,6 +180,40 @@ Keep branches focused on a single change. Merge early and often to minimize conf
 
 We use "Squash and merge" for all pull requests. This creates a single commit on `main` per feature, keeping history easy to navigate. The PR title becomes the commit message, which is why conventional commit format matters for release notes.
 
+## Documentation
+
+Docs ship with MkDocs Material (`mkdocs.yml`) and MkDocStrings, so every public symbol needs an up-to-date Google-style docstring. Preview the site with:
+
+```bash
+uv run --group dev mkdocs serve
+```
+
+Reusable snippets live in `docs/src/examples/` as `EXAMPLE` definitions and you can reference them inside Markdown with `<!-- BEGIN/END:example ... -->` markers:
+
+```markdown
+<!-- BEGIN:example example-name code -->
+\```python
+# example code here
+\```
+<!-- END:example example-name code -->
+<!-- BEGIN:example example-name output -->
+\```text
+# expected output here
+\```
+<!-- END:example example-name output -->
+```
+
+Keep the examples authoritative and let the sync script rewrite the doc blocks.
+
+It's a good idea to refresh snippets when making changes that may affect public examples. You can use the following make targets for that:
+
+```bash
+make sync-examples FILE=docs/converters/pyarrow.md
+make sync-examples-all
+```
+
+Treat generated example regions as read-only and note the sync command you ran in your PR description.
+
 ## Releasing new versions
 
 Maintainers handle releases. The process uses [Release Drafter](https://github.com/release-drafter/release-drafter) to automatically generate release notes from pull request titles. For complete release procedures, see [RELEASE.md](.github/RELEASE.md).
