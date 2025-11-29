@@ -1,4 +1,4 @@
-# SQL Converters
+# SQLConverter
 
 `SQLConverter` combines the AST generator (`SQLGlotConverter`) with optional
 validators to emit reproducible CREATE TABLE statements. Dialect shortcuts such
@@ -58,7 +58,3 @@ CREATE TABLE catalog.crm.customers (
 ::: yads.converters.sql.sql_converter.SparkSQLConverter
 
 ::: yads.converters.sql.sql_converter.DuckdbSQLConverter
-
-::: yads.converters.sql.ast_converter.SQLGlotConverter
-
-::: yads.converters.sql.ast_converter.SQLGlotConverterConfig

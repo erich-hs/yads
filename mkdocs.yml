@@ -43,11 +43,15 @@ plugins:
             show_symbol_type_heading: true
             show_symbol_type_toc: true
 nav:
-  - Home: index.md
-  - Converters:
-      - Overview: converters/index.md
-      - PyArrow: converters/pyarrow.md
-      - Pydantic: converters/pydantic.md
-      - Polars: converters/polars.md
-      - PySpark: converters/pyspark.md
-      - SQL: converters/sql.md
+  - yads:
+    - Overview:
+      - index.md
+    - Converters:
+      - converters/index.md
+      - converters/pyarrow.md
+      - converters/pydantic.md
+      - converters/polars.md
+      - converters/pyspark.md
+      - SQL:
+        - converters/sql/sqlglot.md
+        - converters/sql/sql.md
