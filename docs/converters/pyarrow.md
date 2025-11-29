@@ -1,15 +1,10 @@
 # PyArrow Converter
 
-Converters bridge a validated `YadsSpec` into runtime schemas. Each converter
-focuses on one target so you can reason about limitations or dependency needs
-without surprise interactions. The PyArrow converter ships in the core package,
-and you simply add the `pyarrow` extra when you want a strongly typed schema for
-downstream tooling.
-
-`PyArrowConverter` turns a spec into a `pyarrow.Schema`. It supports field
-filtering, column overrides, and multiple coercion strategies so you can decide
-whether unsupported constructs should raise or degrade gracefully. The example
-below prints the resulting schema for the canonical customers spec:
+`PyArrowConverter` turns a validated `YadsSpec` into a `pyarrow.Schema` and
+respects the same include/exclude filters available on every converter. Use it
+directly or through `yads.to_pyarrow` whenever you need a deterministic schema
+object for downstream Arrow consumers. The snippet below prints the schema for
+the canonical `customers` spec.
 
 <!-- BEGIN:example pyarrow-converter-basic code -->
 ```python
@@ -53,19 +48,11 @@ tags: list<item: string>
 <!-- END:example pyarrow-converter-basic output -->
 
 !!! tip
-    Install PyArrow before running conversions: `uv sync --group pyarrow`. The
-    converter raises `yads.exceptions.DependencyMissingError` when the optional
-    dependency is not available.
+    Install one of the supported versions of PyArrow to use this converter with `uv add yads[pyarrow]`
 
 ::: yads.converters.pyarrow_converter.PyArrowConverter
-    options:
-      show_root_heading: false
-
-## Configuration
 
 `PyArrowConverterConfig` offers fine grained control over string/list sizing,
 column overrides, and fallback coercions for unsupported logical types.
 
 ::: yads.converters.pyarrow_converter.PyArrowConverterConfig
-    options:
-      show_root_heading: false
