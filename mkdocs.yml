@@ -28,8 +28,6 @@ markdown_extensions:
   - pymdownx.superfences
   - toc:
       permalink: true
-exclude:
-  - "src/**"
 plugins:
   - search
   - mkdocstrings:
@@ -38,7 +36,18 @@ plugins:
           setup_commands:
             - import sys
             - sys.path.insert(0, "src")
+          options:
+            docstring_style: google
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
 nav:
   - Home: index.md
   - Converters:
+      - Overview: converters/index.md
       - PyArrow: converters/pyarrow.md
+      - Pydantic: converters/pydantic.md
+      - Polars: converters/polars.md
+      - PySpark: converters/pyspark.md
+      - SQL: converters/sql.md
