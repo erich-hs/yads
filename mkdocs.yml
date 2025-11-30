@@ -5,7 +5,11 @@ theme:
   name: material
   features:
     - navigation.instant
-    - navigation.sections
+    - navigation.instant.prefetch
+    - navigation.indexes
+    - navigation.tracking
+    - navigation.path
+    - navigation.top
     - content.code.copy
   palette:
     - scheme: default
@@ -43,15 +47,14 @@ plugins:
             show_symbol_type_heading: true
             show_symbol_type_toc: true
 nav:
-  - yads:
-    - Overview:
-      - index.md
-    - Converters:
-      - converters/index.md
-      - converters/pyarrow.md
-      - converters/pydantic.md
-      - converters/polars.md
-      - converters/pyspark.md
-      - SQL:
-        - converters/sql/sqlglot.md
-        - converters/sql/sql.md
+  - Getting Started:
+    - index.md
+  - Converters:
+    - converters/index.md
+    - converters/pyarrow.md
+    - converters/pydantic.md
+    - converters/polars.md
+    - converters/pyspark.md
+    - SQL:
+      - converters/sql/sqlglot.md
+      - converters/sql/sql.md
