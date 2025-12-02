@@ -1,8 +1,7 @@
 # Converters
 
-Converters turn a validated `YadsSpec` into runtime-specific schemas or models
-without rewriting column metadata. Each converter shares the same filtering,
-override, and warning controls so you can move between runtimes with predictable
+Converters turn a validated `YadsSpec` into runtime-specific schemas or models.
+Each converter shares the same filtering, override, and warning controls so you can move between runtimes with predictable
 behavior. The table below lists the built-in targets plus the wrapper that
 orchestrates each conversion.
 

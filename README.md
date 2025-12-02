@@ -2,15 +2,14 @@
 
 <p align="center">
   <img src="https://github.com/erich-hs/yads/actions/workflows/ci.yml/badge.svg" alt="CI">
-  <a href="https://codecov.io/github/erich-hs/yads" > 
-  <img src="https://codecov.io/github/erich-hs/yads/graph/badge.svg?token=GWO1S0YAZ3"/> 
-  </a>
+  <a href="https://codecov.io/github/erich-hs/yads"> 
+    <img src="https://codecov.io/github/erich-hs/yads/graph/badge.svg?token=GWO1S0YAZ3" /></a>
   <img src="https://badge.fury.io/py/yads.svg" alt="PyPI version">
   <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License">
 </p>
 
-`yads` is a canonical, typed data specification to solve schema management across your data stack. Define a schema once; load and convert it deterministically across formats with minimal loss of semantics.
+`yads` is a canonical, typed data specification to solve schema management across your data stack. Define a schema once; load and convert it deterministically between formats with minimal loss of semantics.
 
 ## Installation
 
@@ -263,29 +262,31 @@ email
 import yads
 import pyarrow as pa
 
-schema = pa.schema([
-    pa.field(
-        "id",
-        pa.int64(),
-        nullable=False,
-        metadata={"description": "Customer ID"},
-    ),
-    pa.field(
-        "name",
-        pa.string(),
-        metadata={"description": "Customer preferred name"},
-    ),
-    pa.field(
-        "email",
-        pa.string(),
-        metadata={"description": "Customer email address"},
-    ),
-    pa.field(
-        "created_at",
-        pa.timestamp("ns", tz="UTC"),
-        metadata={"description": "Customer creation timestamp"},
-    ),
-])
+schema = pa.schema(
+    [
+        pa.field(
+            "id",
+            pa.int64(),
+            nullable=False,
+            metadata={"description": "Customer ID"},
+        ),
+        pa.field(
+            "name",
+            pa.string(),
+            metadata={"description": "Customer preferred name"},
+        ),
+        pa.field(
+            "email",
+            pa.string(),
+            metadata={"description": "Customer email address"},
+        ),
+        pa.field(
+            "created_at",
+            pa.timestamp("ns", tz="UTC"),
+            metadata={"description": "Customer creation timestamp"},
+        ),
+    ]
+)
 
 spec = yads.from_pyarrow(schema, name="catalog.crm.customers", version=1)
 print(spec)
