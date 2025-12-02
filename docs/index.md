@@ -31,18 +31,29 @@ columns:
 <!-- END:example concise-yaml-to-others spec-yaml -->
 === "Polars"
     <!-- BEGIN:example concise-yaml-to-others polars-code -->
+    ```python
+    import yads
+    
+    spec = yads.from_yaml("docs/src/specs/submissions.yaml")
+    submissions_schema = yads.to_polars(spec)
+    
+    print(submissions_schema)
+    ```
     <!-- END:example concise-yaml-to-others polars-code -->
     <!-- BEGIN:example concise-yaml-to-others polars-output -->
+    ```text
+    Schema({'submission_id': Int64, 'completion_percent': Decimal(precision=5, scale=2), 'time_taken_seconds': Int32, 'submitted_at': Datetime(time_unit='ns', time_zone='UTC')})
+    ```
     <!-- END:example concise-yaml-to-others polars-output -->
 
 === "PyArrow"
     <!-- BEGIN:example concise-yaml-to-others pyarrow-code -->
     ```python
     import yads
-
+    
     spec = yads.from_yaml("docs/src/specs/submissions.yaml")
     submissions_schema = yads.to_pyarrow(spec)
-
+    
     print(submissions_schema)
     ```
     <!-- END:example concise-yaml-to-others pyarrow-code -->
@@ -60,10 +71,10 @@ columns:
     ```python
     import json
     import yads
-
+    
     spec = yads.from_yaml("docs/src/specs/submissions.yaml")
     Submission = yads.to_pydantic(spec, model_name="Submission")
-
+    
     print(json.dumps(Submission.model_json_schema(), indent=2))
     ```
     <!-- END:example concise-yaml-to-others pydantic-code -->

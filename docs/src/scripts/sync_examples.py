@@ -22,9 +22,9 @@ from typing import Iterable, Mapping, Sequence
 from ..examples import ExampleBlockRequest, ExampleDefinition, ExampleCallable
 
 MARKER_PATTERN = re.compile(
-    r"<!-- BEGIN:example (?P<example_id>[\w\-]+) (?P<slug>[\w\-]+) -->\n?"
+    r"(?P<indent>[ \t]*)<!-- BEGIN:example (?P<example_id>[\w\-]+) (?P<slug>[\w\-]+) -->\n?"
     r"(?P<body>.*?)"
-    r"<!-- END:example (?P=example_id) (?P=slug) -->",
+    r"(?P=indent)<!-- END:example (?P=example_id) (?P=slug) -->",
     re.DOTALL,
 )
 
@@ -158,13 +158,16 @@ def render_blocks(
     return blocks
 
 
-def format_block(block: RenderedBlock) -> str:
+def format_block(block: RenderedBlock, indent: str = "") -> str:
     content = block.content
-    return (
+    rendered = (
         f"<!-- BEGIN:example {block.example_id} {block.slug} -->\n"
         f"```{block.language}\n{content}\n```\n"
         f"<!-- END:example {block.example_id} {block.slug} -->"
     )
+    if not indent:
+        return rendered
+    return textwrap.indent(rendered, prefix=indent, predicate=lambda _line: True)
 
 
 def update_file(path: Path, blocks: Mapping[tuple[str, str], RenderedBlock]) -> bool:
@@ -173,11 +176,12 @@ def update_file(path: Path, blocks: Mapping[tuple[str, str], RenderedBlock]) -> 
     def _replace(match: re.Match[str]) -> str:
         example_id = match.group("example_id")
         slug = match.group("slug")
+        indent = match.group("indent") or ""
         key = (example_id, slug)
         if key not in blocks:
             msg = f"No rendered block for example '{example_id}' slug '{slug}'"
             raise KeyError(msg)
-        replacement = format_block(blocks[key])
+        replacement = format_block(blocks[key], indent=indent)
         return replacement
 
     updated, count = MARKER_PATTERN.subn(_replace, text)
