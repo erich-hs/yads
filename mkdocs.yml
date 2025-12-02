@@ -11,6 +11,7 @@ theme:
     - navigation.path
     - navigation.top
     - content.code.copy
+    - toc.follow
   palette:
     - scheme: default
       primary: white
@@ -30,6 +31,8 @@ markdown_extensions:
   - admonition
   - pymdownx.details
   - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
   - toc:
       permalink: true
 plugins:
@@ -49,12 +52,26 @@ plugins:
 nav:
   - Getting Started:
     - index.md
+  - Specification:
+    - spec/index.md
+    - spec/spec.md
+    - spec/types.md
+    - spec/constraints.md
+  - Loaders:
+    - loaders/index.md
+    - loaders/pyarrow.md
+    - loaders/polars.md
+    - loaders/pyspark.md
+    - loaders/yaml.md
   - Converters:
     - converters/index.md
     - converters/pyarrow.md
-    - converters/pydantic.md
     - converters/polars.md
     - converters/pyspark.md
+    - converters/pydantic.md
     - SQL:
       - converters/sql/sqlglot.md
       - converters/sql/sql.md
+  - Registries:
+    - registries/index.md
+    - registries/filesystem.md
