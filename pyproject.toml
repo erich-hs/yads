@@ -30,11 +30,8 @@ dev = [
     "types-pyyaml>=6.0.12.20250516",
 ]
 docs = [
-    "click==8.2.1", # Pinning click due to https://github.com/mkdocs/mkdocs/issues/4032
-    "mkdocs==1.5.3",
-    "mkdocs-material>=9.5.18",
-    "mkdocstrings>=0.28.3",
-    "mkdocstrings-python>=1.16.12",
+    "mkdocstrings-python>=2.0.1",
+    "zensical>=0.0.11",
 ]
 gcs = [
     "fsspec[gcs]>=2023.1.0",
