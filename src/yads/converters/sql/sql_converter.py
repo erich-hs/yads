@@ -71,18 +71,6 @@ class SQLConverter(BaseConverter[Any]):
 
     The SQL converter accepts dialect-specific options via **kwargs in the convert()
     method, which are passed to the AST's sql() method for SQL generation.
-
-    Example:
-        >>> from yads.converters.sql import SQLConverter, SQLConverterConfig, AstValidator
-        >>> from yads.converters.sql.validators.ast_validation_rules import DisallowType
-        >>>
-        >>> # Create converter with custom validation
-        >>> config = SQLConverterConfig(
-        ...     dialect="spark",
-        ...     ast_validator=AstValidator(rules=[DisallowType(...)]),
-        ... )
-        >>> converter = SQLConverter(config)
-        >>> ddl = converter.convert(spec, pretty=True, mode="raise")
     """
 
     def __init__(self, config: SQLConverterConfig | None = None):
@@ -135,13 +123,6 @@ class SQLConverter(BaseConverter[Any]):
         Raises:
             ValidationRuleError: In raise mode when unsupported features are detected.
             ConversionError: When the underlying conversion process fails.
-
-        Example:
-            >>> from yads.converters.sql import SQLGlotConverter, SQLGlotConverterConfig
-            >>> ast_converter = SQLGlotConverter(SQLGlotConverterConfig(if_not_exists=True))
-            >>> config = SQLConverterConfig(ast_converter=ast_converter)
-            >>> converter = SQLConverter(config)
-            >>> ddl = converter.convert(spec, pretty=True)
         """
         from .ast_converter import SQLGlotConverter
 
