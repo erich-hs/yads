@@ -30,16 +30,27 @@ def _spec_to_pyarrow_step() -> None:
 
 def _spec_to_polars_step() -> None:
     import yads
+    from pprint import pprint
 
     spec = yads.from_yaml("docs/src/specs/submissions.yaml")
     submissions_schema = yads.to_polars(spec)
 
-    print(submissions_schema)
+    pprint(submissions_schema, width=120)
+
+
+def _spec_to_pyspark_step() -> None:
+    import yads
+    import json
+
+    spec = yads.from_yaml("docs/src/specs/submissions.yaml")
+    submissions_schema = yads.to_pyspark(spec)
+
+    print(json.dumps(submissions_schema.jsonValue(), indent=2))
 
 
 def _spec_to_pydantic_step() -> None:
-    import json
     import yads
+    import json
 
     spec = yads.from_yaml("docs/src/specs/submissions.yaml")
     Submission = yads.to_pydantic(spec, model_name="Submission")
@@ -47,8 +58,17 @@ def _spec_to_pydantic_step() -> None:
     print(json.dumps(Submission.model_json_schema(), indent=2))
 
 
+def _spec_to_sql_step() -> None:
+    import yads
+
+    spec = yads.from_yaml("docs/src/specs/submissions.yaml")
+    spark_ddl = yads.to_sql(spec, dialect="spark", pretty=True)
+
+    print(spark_ddl)
+
+
 EXAMPLE = ExampleDefinition(
-    example_id="concise-yaml-to-others",
+    example_id="submissions-yaml-to-others",
     blocks=(
         ExampleBlockRequest(
             slug="spec-yaml",
@@ -81,6 +101,18 @@ EXAMPLE = ExampleDefinition(
             callable=_spec_to_polars_step,
         ),
         ExampleBlockRequest(
+            slug="pyspark-code",
+            language="python",
+            source="callable",
+            callable=_spec_to_pyspark_step,
+        ),
+        ExampleBlockRequest(
+            slug="pyspark-output",
+            language="text",
+            source="stdout",
+            callable=_spec_to_pyspark_step,
+        ),
+        ExampleBlockRequest(
             slug="pydantic-code",
             language="python",
             source="callable",
@@ -91,6 +123,18 @@ EXAMPLE = ExampleDefinition(
             language="text",
             source="stdout",
             callable=_spec_to_pydantic_step,
+        ),
+        ExampleBlockRequest(
+            slug="sql-code",
+            language="python",
+            source="callable",
+            callable=_spec_to_sql_step,
+        ),
+        ExampleBlockRequest(
+            slug="sql-output",
+            language="sql",
+            source="stdout",
+            callable=_spec_to_sql_step,
         ),
     ),
 )

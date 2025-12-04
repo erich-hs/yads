@@ -1,8 +1,15 @@
-# yads
+# `yads`
 
-`yads` is a canonical, typed data [specification](spec/index.md) to solve schema management across your data stack. Define a schema once; load and convert it deterministically between formats with minimal loss of semantics.
+Is an expressive, canonical data [specification](spec/index.md) to solve schema management throughout your data stack. Used for, among other things:
 
-<!-- BEGIN:example concise-yaml-to-others spec-yaml -->
+* Transpiling schemas between data formats.
+* Managing a canonical schema registry.
+* Validating data with schema-on-read enforcement.
+* Simplifying interoperability across heterogeneous data pipelines.
+
+All while preserving logical [types](spec/types.md), [constraints](spec/constraints.md), and metadata for minimal loss of semantics.
+
+<!-- BEGIN:example submissions-yaml-to-others spec-yaml -->
 ```yaml
 # docs/src/specs/submissions.yaml
 name: prod.assessments.submissions
@@ -28,26 +35,10 @@ columns:
     params:
       tz: UTC
 ```
-<!-- END:example concise-yaml-to-others spec-yaml -->
-=== "Polars"
-    <!-- BEGIN:example concise-yaml-to-others polars-code -->
-    ```python
-    import yads
-    
-    spec = yads.from_yaml("docs/src/specs/submissions.yaml")
-    submissions_schema = yads.to_polars(spec)
-    
-    print(submissions_schema)
-    ```
-    <!-- END:example concise-yaml-to-others polars-code -->
-    <!-- BEGIN:example concise-yaml-to-others polars-output -->
-    ```text
-    Schema({'submission_id': Int64, 'completion_percent': Decimal(precision=5, scale=2), 'time_taken_seconds': Int32, 'submitted_at': Datetime(time_unit='ns', time_zone='UTC')})
-    ```
-    <!-- END:example concise-yaml-to-others polars-output -->
+<!-- END:example submissions-yaml-to-others spec-yaml -->
 
 === "PyArrow"
-    <!-- BEGIN:example concise-yaml-to-others pyarrow-code -->
+    <!-- BEGIN:example submissions-yaml-to-others pyarrow-code -->
     ```python
     import yads
     
@@ -56,29 +47,96 @@ columns:
     
     print(submissions_schema)
     ```
-    <!-- END:example concise-yaml-to-others pyarrow-code -->
-    <!-- BEGIN:example concise-yaml-to-others pyarrow-output -->
+    <!-- END:example submissions-yaml-to-others pyarrow-code -->
+    <!-- BEGIN:example submissions-yaml-to-others pyarrow-output -->
     ```text
     submission_id: int64 not null
     completion_percent: decimal128(5, 2)
     time_taken_seconds: int32
     submitted_at: timestamp[ns, tz=UTC]
     ```
-    <!-- END:example concise-yaml-to-others pyarrow-output -->
+    <!-- END:example submissions-yaml-to-others pyarrow-output -->
+
+=== "Polars"
+    <!-- BEGIN:example submissions-yaml-to-others polars-code -->
+    ```python
+    import yads
+    from pprint import pprint
+    
+    spec = yads.from_yaml("docs/src/specs/submissions.yaml")
+    submissions_schema = yads.to_polars(spec)
+    
+    pprint(submissions_schema, width=120)
+    ```
+    <!-- END:example submissions-yaml-to-others polars-code -->
+    <!-- BEGIN:example submissions-yaml-to-others polars-output -->
+    ```text
+    Schema([('submission_id', Int64),
+            ('completion_percent', Decimal(precision=5, scale=2)),
+            ('time_taken_seconds', Int32),
+            ('submitted_at', Datetime(time_unit='ns', time_zone='UTC'))])
+    ```
+    <!-- END:example submissions-yaml-to-others polars-output -->
+
+=== "PySpark"
+    <!-- BEGIN:example submissions-yaml-to-others pyspark-code -->
+    ```python
+    import yads
+    import json
+    
+    spec = yads.from_yaml("docs/src/specs/submissions.yaml")
+    submissions_schema = yads.to_pyspark(spec)
+    
+    print(json.dumps(submissions_schema.jsonValue(), indent=2))
+    ```
+    <!-- END:example submissions-yaml-to-others pyspark-code -->
+    <!-- BEGIN:example submissions-yaml-to-others pyspark-output -->
+    ```text
+    {
+      "type": "struct",
+      "fields": [
+        {
+          "name": "submission_id",
+          "type": "long",
+          "nullable": false,
+          "metadata": {}
+        },
+        {
+          "name": "completion_percent",
+          "type": "decimal(5,2)",
+          "nullable": true,
+          "metadata": {}
+        },
+        {
+          "name": "time_taken_seconds",
+          "type": "integer",
+          "nullable": true,
+          "metadata": {}
+        },
+        {
+          "name": "submitted_at",
+          "type": "timestamp",
+          "nullable": true,
+          "metadata": {}
+        }
+      ]
+    }
+    ```
+    <!-- END:example submissions-yaml-to-others pyspark-output -->
 
 === "Pydantic"
-    <!-- BEGIN:example concise-yaml-to-others pydantic-code -->
+    <!-- BEGIN:example submissions-yaml-to-others pydantic-code -->
     ```python
-    import json
     import yads
+    import json
     
     spec = yads.from_yaml("docs/src/specs/submissions.yaml")
     Submission = yads.to_pydantic(spec, model_name="Submission")
     
     print(json.dumps(Submission.model_json_schema(), indent=2))
     ```
-    <!-- END:example concise-yaml-to-others pydantic-code -->
-    <!-- BEGIN:example concise-yaml-to-others pydantic-output -->
+    <!-- END:example submissions-yaml-to-others pydantic-code -->
+    <!-- BEGIN:example submissions-yaml-to-others pydantic-output -->
     ```text
     {
       "properties": {
@@ -142,23 +200,55 @@ columns:
       "type": "object"
     }
     ```
-    <!-- END:example concise-yaml-to-others pydantic-output -->
+    <!-- END:example submissions-yaml-to-others pydantic-output -->
 
-## Why yads?
-
-- **Single source of truth** – Ship one spec that downstream tools can trust.
-- **Typed by default** – Logical types carry rich semantics, constraints, and metadata so conversion between formats stay faithful to the intent of the model.
-- **Deterministic conversion** – Potentially lossy changes are never applied implicitly. Types with no value-preserving representation fail fast with clear errors and extension guidance.
+=== "SQL"
+    <!-- BEGIN:example submissions-yaml-to-others sql-code -->
+    ```python
+    import yads
+    
+    spec = yads.from_yaml("docs/src/specs/submissions.yaml")
+    spark_ddl = yads.to_sql(spec, dialect="spark", pretty=True)
+    
+    print(spark_ddl)
+    ```
+    <!-- END:example submissions-yaml-to-others sql-code -->
+    <!-- BEGIN:example submissions-yaml-to-others sql-output -->
+    ```sql
+    CREATE TABLE prod.assessments.submissions (
+      submission_id BIGINT PRIMARY KEY NOT NULL,
+      completion_percent DECIMAL(5, 2) DEFAULT 0.0,
+      time_taken_seconds INT,
+      submitted_at TIMESTAMP
+    )
+    ```
+    <!-- END:example submissions-yaml-to-others sql-output -->
 
 ## Install
 
-Use `uv` (preferred) or pip. Optional dependency extras pull in the converter
-you need.
+`yads` Python API is available on PyPI. Install with `pip` or `uv`:
 
-```bash
-uv add yads
-uv add yads[pyarrow]  # include the PyArrow converter helpers
-```
+=== "uv"
+    ```bash
+    uv add yads
+    ```
+    Optionally, install dependencies for your target formats:
+
+    ```bash
+    uv add yads[pyarrow]
+    ```
+
+=== "pip"
+    ```bash
+    pip install yads
+    ```
+    Optionally, install dependencies for your target formats:
+
+    ```bash
+    pip install yads[pyarrow]
+    ```
+
+Check the [converters documentation](converters/index.md) for install instructions and supported versions of optional depencies.
 
 ## Typical workflow
 
