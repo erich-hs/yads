@@ -1,62 +1,8 @@
-[data-md-color-scheme="slate"] {
-  /* Deep black background */
-  --md-default-bg-color: #0b0c10;
-
-  /* Make the header match the page background */
-  --md-primary-fg-color: #0b0c10;
-  --md-primary-bg-color: #ffffff; /* Text color in header */
-
-  /* Ensure body links remain legible */
-  --md-typeset-a-color: #71d9ff;
-  
-  /* Tweaking code blocks to be slightly distinct from the pure black bg */
-  --md-code-bg-color: #15171e;
+/* Slightly tighten Roboto body copy within Material's md-typeset wrapper */
+:root {
+  --md-typeset-line-height: 1.55;
 }
 
-[data-md-color-scheme="slate"] .md-typeset a:hover,
-[data-md-color-scheme="slate"] .md-typeset a:focus {
-  color: #9fe7ff;
-}
-
-/* Heading colors per theme */
-[data-md-color-scheme="slate"] .md-typeset h1,
-[data-md-color-scheme="slate"] .md-typeset h2,
-[data-md-color-scheme="slate"] .md-typeset h3,
-[data-md-color-scheme="slate"] .md-typeset h4,
-[data-md-color-scheme="slate"] .md-typeset h5,
-[data-md-color-scheme="slate"] .md-typeset h6 {
-  color: #ffffff;
-  font-weight: 700;
-}
-
-[data-md-color-scheme="default"] .md-typeset h1,
-[data-md-color-scheme="default"] .md-typeset h2,
-[data-md-color-scheme="default"] .md-typeset h3,
-[data-md-color-scheme="default"] .md-typeset h4,
-[data-md-color-scheme="default"] .md-typeset h5,
-[data-md-color-scheme="default"] .md-typeset h6 {
-  color: #000000;
-  font-weight: 700;
-}
-
-/* Ensure active nav items remain visible without background pills */
-.md-nav__item .md-nav__link--active,
-.md-nav__item .md-nav__link:focus-visible {
-  font-weight: 600;
-}
-
-[data-md-color-scheme="default"] .md-nav__item .md-nav__link--active,
-[data-md-color-scheme="default"] .md-nav__item .md-nav__link:focus-visible {
-  color: #015c78;
-}
-
-[data-md-color-scheme="slate"] .md-nav__item .md-nav__link--active,
-[data-md-color-scheme="slate"] .md-nav__item .md-nav__link:focus-visible {
-  color: #71d9ff;
-}
-
-/* Code block tweaks */
-.md-typeset pre code,
-.md-typeset pre {
-  border-radius: 6px;
+.md-typeset {
+  line-height: var(--md-typeset-line-height);
 }

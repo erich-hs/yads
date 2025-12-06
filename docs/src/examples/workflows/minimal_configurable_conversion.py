@@ -12,6 +12,10 @@ SPEC_FILE = REPO_ROOT / SPEC_REFERENCE
 
 spec = yads.from_yaml(SPEC_FILE)
 
+# pyright: reportUnknownArgumentType=none, reportUnknownMemberType=none
+# pyright: reportUnknownVariableType=none, reportUnknownParameterType=none
+# pyright: reportMissingImports=none, reportMissingParameterType=none
+
 
 def _spark_subset_code() -> None:
     import yads

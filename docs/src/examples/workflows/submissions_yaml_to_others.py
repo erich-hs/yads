@@ -18,6 +18,9 @@ Submission = yads.to_pydantic(spec, model_name="Submission")
 
 spec_with_file_path = f"# {SPEC_REFERENCE}\n{SPEC_FILE_PATH.read_text().strip()}"
 
+# pyright: reportUnknownArgumentType=none, reportUnknownMemberType=none
+# pyright: reportUnknownVariableType=none
+
 
 def _spec_to_pyarrow_step() -> None:
     import yads

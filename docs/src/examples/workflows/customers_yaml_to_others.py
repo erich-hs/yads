@@ -18,6 +18,9 @@ Customers = yads.to_pydantic(spec, model_name="Customers")
 
 spec_with_file_path = f"# {SPEC_REFERENCE}\n{SPEC_FILE_PATH.read_text().strip()}"
 
+# pyright: reportUnknownArgumentType=none, reportUnknownMemberType=none
+# pyright: reportUnknownVariableType=none
+
 
 def _load_spec_step() -> None:
     import yads

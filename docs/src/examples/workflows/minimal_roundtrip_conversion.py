@@ -5,6 +5,9 @@ import yads
 
 from ..base import ExampleBlockRequest, ExampleDefinition
 
+# pyright: reportUnknownArgumentType=none, reportUnknownMemberType=none
+# pyright: reportUnknownVariableType=none, reportMissingImports=none
+
 ROUNDTRIP_SCHEMA = pa.schema(
     [
         pa.field(
