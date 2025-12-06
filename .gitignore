@@ -24,3 +24,6 @@ htmlcov/
 .vscode/
 SPECIFICATION.md
 TODO.md
+
+# Docs build
+site/
