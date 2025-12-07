@@ -1,0 +1,30 @@
+name: prod.assessments.submissions_det
+version: 1
+yads_spec_version: 0.0.2
+columns:
+- name: submission_id
+  type: integer
+  params:
+    bits: 64
+  description: Submissions unique identifier.
+  constraints:
+    primary_key: true
+    not_null: true
+- name: completion_percent
+  type: decimal
+  params:
+    precision: 5
+    scale: 2
+  description: Assessment completion percentage.
+  constraints:
+    default: 0.0
+- name: time_taken_seconds
+  type: integer
+  description: Time taken submitting this assessment in seconds.
+- name: submitted_at
+  type: timestamptz
+  description: Timestamp in UTC when submitted.
+description: Assessments submissions details.
+metadata:
+  owner: data-team
+  sensitive: false

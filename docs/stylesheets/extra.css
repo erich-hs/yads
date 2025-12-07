@@ -1,6 +1,6 @@
 /* Slightly tighten Roboto body copy within Material's md-typeset wrapper */
 :root {
-  --md-typeset-line-height: 1.55;
+  --md-typeset-line-height: 1.6;
 }
 
 .md-typeset {
