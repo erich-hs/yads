@@ -1,3 +1,6 @@
+---
+icon: "lucide/file-text"
+---
 # YadsSpec
 
 ::: yads.spec.YadsSpec

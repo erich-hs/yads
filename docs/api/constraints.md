@@ -1,3 +1,6 @@
+---
+icon: "lucide/shield-check"
+---
 # Constraints
 
 ## Column Constraints

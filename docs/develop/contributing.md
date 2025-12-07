@@ -1,8 +1,8 @@
 ---
-hide:
-    - navigation
+title: "Contributing"
+icon: "lucide/hand-heart"
 ---
-# Contributing to yads
+# Contributing to `yads`
 
 We welcome contributions to `yads`! Whether you're fixing a bug, adding a feature, or improving documentation, your help is appreciated. This guide will walk you through the contribution process.
 

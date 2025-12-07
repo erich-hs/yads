@@ -1,3 +1,7 @@
+---
+icon: "lucide/type"
+---
+
 # Types
 
 ::: yads.types.YadsType

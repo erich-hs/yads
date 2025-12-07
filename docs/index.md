@@ -1,17 +1,16 @@
 ---
-title: "Introduction"
+icon: "lucide/book-open"
 ---
-
 # What is `yads`?
 
-`yads` is expressive, canonical data [specification](spec/index.md) to solve schema management throughout your data stack. Used for, among other things:
+`yads` is an expressive, canonical data [specification](intro/specification.md) to solve schema management throughout your data stack. Used for, among other things:
 
 * Transpiling schemas between data formats.
 * Managing a canonical schema registry.
 * Validating data with schema-on-read enforcement.
 * Simplifying interoperability across heterogeneous data pipelines.
 
-All while preserving logical [types](spec/types.md), [constraints](spec/constraints.md), and metadata for minimal loss of semantics.
+All while preserving logical [types](api/types.md), [constraints](api/constraints.md), and metadata for minimal loss of semantics.
 
 <!-- BEGIN:example submissions-yaml-to-others spec-yaml -->
 ```yaml
@@ -230,4 +229,4 @@ columns:
 
 `yads` is an Open Source project under the Apache 2.0 license. We welcome feedback and contributions to help shape the specification for the data community.
 
-Visit the [GitHub repository](https://github.com/erich-hs/yads) and the [Contributors Guide](contributing/contributing.md) to get involved.
+Visit the [GitHub repository](https://github.com/erich-hs/yads) and the [Contributors Guide](develop/contributing.md) to get involved.

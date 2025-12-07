@@ -1,3 +1,6 @@
+---
+icon: "lucide/arrow-big-right-dash"
+---
 # Converters
 
 Converters turn a validated `YadsSpec` into runtime-specific schemas or models.

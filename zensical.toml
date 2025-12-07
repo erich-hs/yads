@@ -8,42 +8,44 @@ Copyright &copy; 2025 Erich Silva
 """
 
 nav = [
+    "index.md",
     {"Introduction" = [
-        {"About" = "index.md"},
-        {"Getting Started" = "introduction/getting_started.md"}
+        "intro/quick_start.md",
+        "intro/specification.md",
     ]},
     {"API Reference" = [
-        {"Specification" = [
-            "spec/index.md",
-            "spec/spec.md",
-            "spec/types.md",
-            "spec/constraints.md"
-        ]},
+        "api/spec.md",
+        "api/types.md",
+        "api/constraints.md",
         {"Loaders" = [
-            "loaders/index.md",
-            "loaders/pyarrow.md",
-            "loaders/polars.md",
-            "loaders/pyspark.md",
-            "loaders/yaml.md"
+            "api/loaders/index.md",
+            "api/loaders/pyarrow.md",
+            "api/loaders/polars.md",
+            "api/loaders/pyspark.md",
+            "api/loaders/yaml.md",
         ]},
         {"Converters" = [
-            "converters/index.md",
-            "converters/pyarrow.md",
-            "converters/polars.md",
-            "converters/pyspark.md",
-            "converters/pydantic.md",
+            "api/converters/index.md",
+            "api/converters/pyarrow.md",
+            "api/converters/polars.md",
+            "api/converters/pyspark.md",
+            "api/converters/pydantic.md",
             {"SQL" = [
-                "converters/sql/sqlglot.md",
-                "converters/sql/sql.md"
+                "api/converters/sql/sqlglot.md",
+                "api/converters/sql/sql.md",
             ]}
         ]},
         {"Registries" = [
-            "registries/index.md",
-            "registries/filesystem.md"
+            "api/registries/index.md",
+            "api/registries/filesystem.md",
         ]}
     ]},
-    {"Contributors Guide" = [
-        "contributing/index.md"
+    {"Development" = [
+        {"Examples" = [
+            "develop/examples/index.md",
+        ]},
+        "develop/extending.md",
+        "develop/contributing.md",
     ]}  
 ]
 
@@ -86,7 +88,7 @@ features = [
     "header.autohide",
 
     # https://zensical.org/docs/setup/footer/#navigation
-    # "navigation.footer",
+    "navigation.footer",
 
     # https://zensical.org/docs/setup/navigation/#section-index-pages
     "navigation.indexes",
@@ -101,17 +103,17 @@ features = [
     "navigation.path",
 
     # https://zensical.org/docs/setup/navigation/#navigation-sections
-    # "navigation.sections",
+    "navigation.sections",
 
     "navigation.indexes",
 
     # "navigation.expand",
 
     # https://zensical.org/docs/setup/navigation/#navigation-tabs
-    "navigation.tabs",
+    # "navigation.tabs",
 
     # https://zensical.org/docs/setup/navigation/#sticky-navigation-tabs
-    "navigation.tabs.sticky",
+    # "navigation.tabs.sticky",
 
     # https://zensical.org/docs/setup/navigation/#back-to-top-button
     "navigation.top",
@@ -143,8 +145,8 @@ primary = "light blue"
 accent = "orange"
 
 
-#[project.theme.icon]
-#logo = "lucide/smile"
+[project.theme.icon]
+logo = "lucide/book-text"
 #repo = "lucide/smile"
 
 #[[project.extra.social]]

@@ -1,6 +1,7 @@
 ---
 icon: "lucide/zap"
 ---
+# Quick Start
 
 ## Install `yads`
 
@@ -28,5 +29,16 @@ icon: "lucide/zap"
 
 Check the [converters documentation](converters/index.md) for install instructions and supported versions of optional depencies.
 
-## Authoring schemas
+## Author a schema
 
+Typical workflows start with a `yads` [spec](specification.md) authored in YAML format, [loaded](../api/loaders/index.md) from a known, typed source, or constructed from [core objects](../api/spec.md).
+
+=== "From a `yads.yaml` file"
+
+=== "From core objects"
+
+=== "From a typed source"
+
+## Convert to a target format
+
+## Register the `yads` spec
