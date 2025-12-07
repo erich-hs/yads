@@ -122,17 +122,14 @@ Typical workflows start with a `yads` [spec](specification.md) authored in YAML 
     from yads.constraints import (
         PrimaryKeyConstraint,
         NotNullConstraint,
-        DefaultConstraint
+        DefaultConstraint,
     )
     
     spec = yspec.YadsSpec(
         name="prod.assessments.submissions",
         version=1,
         description="Assessments submissions details.",
-        metadata={
-            "owner": "data-team",
-            "sensitive": False
-        },
+        metadata={"owner": "data-team", "sensitive": False},
         columns=[
             yspec.Column(
                 name="submission_id",
@@ -149,14 +146,14 @@ Typical workflows start with a `yads` [spec](specification.md) authored in YAML 
             yspec.Column(
                 name="time_taken_seconds",
                 type=ytypes.Integer(bits=32),
-                description="Time taken submitting this assessment in seconds."
+                description="Time taken submitting this assessment in seconds.",
             ),
             yspec.Column(
                 name="submitted_at",
                 type=ytypes.TimestampTZ(tz="UTC"),
-                description="Timestamp in UTC when submitted."
-            )
-        ]
+                description="Timestamp in UTC when submitted.",
+            ),
+        ],
     )
     
     print(spec)

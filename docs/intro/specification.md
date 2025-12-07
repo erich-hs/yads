@@ -763,7 +763,7 @@ columns:
     value:
       type: "double"
     description: "A map from string to double."
-
+  
   - name: "c_json"
     type: "json"
     description: "A JSON column."

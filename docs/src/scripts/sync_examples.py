@@ -213,10 +213,17 @@ def parse_args() -> argparse.Namespace:
             "when present)"
         ),
     )
+    parser.add_argument(
+        "--ignore",
+        action="append",
+        type=Path,
+        help="Paths to skip when syncing (defaults skip docs/develop/contributing.md).",
+    )
     return parser.parse_args()
 
 
 MARKDOWN_SUFFIXES = {".md", ".mdx"}
+DEFAULT_IGNORES = [Path("docs/develop/contributing.md")]
 
 
 def _iter_example_module_paths() -> list[tuple[str, Path]]:
@@ -327,6 +334,11 @@ def _collect_requested_blocks(paths: Iterable[Path]) -> list[tuple[str, str]]:
     return requested
 
 
+def _filter_ignored_paths(paths: Iterable[Path], ignored: Iterable[Path]) -> list[Path]:
+    ignored_resolved = {path.resolve() for path in ignored}
+    return [path for path in paths if path.resolve() not in ignored_resolved]
+
+
 def main() -> None:
     args = parse_args()
     targets: list[Path] = []
@@ -345,6 +357,10 @@ def main() -> None:
                 raise FileNotFoundError(msg)
             targets.extend(_expand_targets([root]))
     targets = _deduplicate_paths(targets)
+    ignored_paths = list(DEFAULT_IGNORES)
+    if args.ignore:
+        ignored_paths.extend(args.ignore)
+    targets = _filter_ignored_paths(targets, ignored_paths)
     if not targets:
         raise SystemExit("Provide at least one file/directory or pass --all.")
 
