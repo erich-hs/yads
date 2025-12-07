@@ -49,7 +49,7 @@ nav = [
     ]}  
 ]
 
-extra_css = ["stylesheets/extra.css"]
+# extra_css = ["stylesheets/extra.css"]
 
 [project.theme]
 
@@ -58,8 +58,8 @@ extra_css = ["stylesheets/extra.css"]
 
 language = "en"
 
-font.text = "Roboto"
-font.code = "Roboto Mono"
+# font.text = "Roboto"
+# font.code = "Roboto Mono"
 
 features = [
 

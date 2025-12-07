@@ -33,7 +33,7 @@ You can author and interact with the canonical `yads` specification primarily th
 
 Check the [converters documentation](converters/index.md) for install instructions and supported versions of optional depencies.
 
-## Author a schema
+## Author a spec
 
 Typical workflows start with a `yads` [spec](specification.md) authored in YAML format or using the [Python core API](../api/spec.md).
 
@@ -390,7 +390,7 @@ Turn your `spec` into typed schemas for your target formats.
 !!! tip
     Check the complete [converters API reference](../api/converters/index.md) for all available converters and advanced customization options.
 
-## Register the `yads` spec
+## Register the spec
 
 Use a `yads` [registry](../api/registries/index.md) to version your `spec`.
 
