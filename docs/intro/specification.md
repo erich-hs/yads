@@ -11,285 +11,359 @@ well-typed, and friendly to downstream converters.
 !!! note "Current spec format"
     Target `yads_spec_version`: `0.0.2`
 
-## Authoring essentials
-- Start from a complete YAML map; top-level unknown keys are rejected.
-- Keep required fields (`name`, `version`, `yads_spec_version`, `columns`) front
-  and center.
-- Prefer concise descriptions and deterministic defaults—surface intent through
-  constraints and generated columns.
-- Use lower-case types for readability; the schema is case-insensitive.
+## Use this page when
+- Authoring a new table manifest or updating an existing one.
+- Reviewing specs before registry submission or deployment.
+- Translating a spec into another system and need to confirm fields or types.
 
-## Top-level shape
-The document is a single YAML object with these sections:
-- Identity and bookkeeping: `name`, `version`, `yads_spec_version`, `description`,
-  `external`, `metadata`.
-- Physical layout: `storage`, `partitioned_by`.
-- Integrity: `table_constraints`.
-- Columns: ordered list of column definitions in `columns`.
+## Document anatomy
+All specs are a single YAML object. Unknown keys fail validation, so keep the
+layout consistent. The checklist below mirrors `yads`' validation order.
 
-## Attributes
-Each attribute below lists intent, requirements, and common patterns. Tables
-capture the exact field semantics; each section includes a collapsible YAML
-example with quoted strings.
+### Required header
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | Yes | Fully-qualified identifier `[catalog].[database].[table]`. |
+| `version` | integer | Yes | Monotonic registry version, starting at `1`. |
+| `yads_spec_version` | string | Yes | Spec format version used to validate the document. |
+| `columns` | array | Yes | Ordered list of column definitions. |
 
-### name
-- Fully qualified identifier: `[catalog].[database].[table]`. Keep stable across
-  revisions; avoid whitespace or quoting.
-- Required: Yes
+### Identity and metadata
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `description` | string | No | Short summary of table intent. |
+| `external` | boolean | No | Emit `CREATE EXTERNAL` for compatible converters. |
+| `metadata` | map | No | Arbitrary ownership, tags, or sensitivity info. |
 
-| Parameter | Description | Type | Required | Default |
-| --- | --- | --- | --- | --- |
-| name | Fully qualified table identifier. | string | Yes | — |
-
-??? example "Example YAML"
+??? example "Minimal identity block"
     ```yaml
-    name: "catalog.db.table_name"
-    ```
-
-### version
-- Integer that increments with every published change; the registry owns this
-  number. Use `1` for the first publication, then bump monotonically.
-- Required: Yes
-
-| Parameter | Description | Type | Required | Default |
-| --- | --- | --- | --- | --- |
-| version | Registry-assigned monotonic version. | integer | Yes | — |
-
-??? example "Example YAML"
-    ```yaml
+    name: catalog.db.table_name
     version: 3
-    ```
-
-### yads_spec_version
-- Tracks the spec format version used to validate the file.
-- Required: Yes
-
-| Parameter | Description | Type | Required | Default |
-| --- | --- | --- | --- | --- |
-| yads_spec_version | Specification format version string. | string | Yes | — |
-
-??? example "Example YAML"
-    ```yaml
-    yads_spec_version: "0.0.2"
-    ```
-
-### description
-- Free-form summary of the table. Aim for one sentence.
-- Required: No
-
-| Parameter | Description | Type | Required | Default |
-| --- | --- | --- | --- | --- |
-| description | Human-readable table description. | string | No | — |
-
-??? example "Example YAML"
-    ```yaml
-    description: "Customer transaction facts."
-    ```
-
-### external
-- When `true`, SQL DDL converters emit `CREATE EXTERNAL`.
-- Required: No
-
-| Parameter | Description | Type | Required | Default |
-| --- | --- | --- | --- | --- |
-| external | Emit external table DDL. | boolean | No | false |
-
-??? example "Example YAML"
-    ```yaml
-    external: true
-    ```
-
-### metadata
-- Arbitrary key/value map for ownership, tags, sensitivity flags, etc.
-- Required: No
-
-| Parameter | Description | Type | Required | Default |
-| --- | --- | --- | --- | --- |
-| metadata | Free-form metadata map. | object | No | — |
-
-??? example "Example YAML"
-    ```yaml
+    yads_spec_version: 0.0.2
+    description: Customer transaction facts.
+    
     metadata:
-      owner: "data-team"
-      sensitivity: "internal"
+      owner: data-team
+      sensitivity: internal
     ```
 
-### storage
-- Describes physical storage; omit entirely for logical-only definitions. No
-  additional keys allowed.
-- Required: No
+### Storage layout
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `storage.format` | string | No | Engine or file format such as `parquet`, `iceberg`, `orc`, `csv`. |
+| `storage.location` | string | No | URI or path for the table root. |
+| `storage.tbl_properties` | map | No | Engine-specific key/value properties. |
 
-| Parameter | Description | Type | Required | Default |
-| --- | --- | --- | --- | --- |
-| format | Engine/storage format (`parquet`, `iceberg`, `orc`, `csv`, …). | string | No | — |
-| location | Path or URI to the table root. | string | No | — |
-| tbl_properties | Key/value map for table properties. | object | No | — |
-
-??? example "Example YAML"
+??? example "Storage block"
     ```yaml
     storage:
-      format: "parquet"
-      location: "/data/warehouse/customers"
+      format: parquet
+      location: /data/warehouse/customers
       tbl_properties:
-        write_compression: "snappy"
+        write_compression: snappy
     ```
 
-### partitioned_by
-- Ordered list of partition expressions. Order matters for many engines.
-- Required: No
+### Partitioning
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `partitioned_by[].column` | string | Yes | Column backing the partition. |
+| `partitioned_by[].transform` | string | No | Transform name (`month`, `year`, `truncate`, `bucket`, ...). |
+| `partitioned_by[].transform_args` | array | No | Unnamed arguments passed to the transform. |
 
-| Parameter | Description | Type | Required | Default |
-| --- | --- | --- | --- | --- |
-| column | Source column name. | string | Yes | — |
-| transform | Transform applied to the column (`month`, `year`, `truncate`, `bucket`, …). | string | No | — |
-| transform_args | Unnamed arguments passed to the transform. | array | No | — |
-
-??? example "Example YAML"
+??? example "Partition definitions"
     ```yaml
     partitioned_by:
-      - column: "event_date"
-        transform: "month"
-      - column: "country_code"
-        transform: "truncate"
+      - column: event_date
+        transform: month
+      - column: country_code
+        transform: truncate
         transform_args: [2]
     ```
 
-### table_constraints
-- Table-level constraints for composite keys.
-- Required: No
+### Table constraints
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `table_constraints[].type` | string | Yes | `primary_key` or `foreign_key`. |
+| `table_constraints[].name` | string | Yes | Stable constraint identifier. |
+| `table_constraints[].columns` | array(string) | Yes | Participating columns. |
+| `table_constraints[].references.table` | string | Foreign keys | Referenced table. |
+| `table_constraints[].references.columns` | array(string) | No | Referenced columns (defaults to matching columns). |
 
-| Parameter | Description | Type | Required | Default |
-| --- | --- | --- | --- | --- |
-| type | Constraint type: `primary_key` or `foreign_key`. | string | Yes | — |
-| name | Constraint identifier. | string | Yes | — |
-| columns | Columns participating in the constraint. | array(string) | Yes | — |
-| references.table | Referenced table (foreign keys only). | string | Foreign keys | — |
-| references.columns | Referenced columns. | array(string) | No | — |
-
-??? example "Example YAML"
+??? example "Composite constraints"
     ```yaml
     table_constraints:
-      - type: "primary_key"
-        name: "pk_orders"
-        columns: ["order_id", "order_date"]
-      - type: "foreign_key"
-        name: "fk_customer"
-        columns: ["customer_id"]
+      - type: primary_key
+        name: pk_orders
+        columns: [order_id, order_date]
+      - type: foreign_key
+        name: fk_customer
+        columns: [customer_id]
         references:
-          table: "dim_customers"
-          columns: ["id"]
+          table: dim_customers
+          columns: [id]
     ```
 
-### columns
-- Ordered column definitions combining types, constraints, generated expressions,
-  and metadata. Avoid additional keys; the schema is strict.
-- Required: Yes
+## Column reference
 
-| Parameter | Description | Type | Required | Default |
-| --- | --- | --- | --- | --- |
-| name | Column name. | string | Yes | — |
-| type | Data type token (case-insensitive). Strings, integers, floats, decimals, booleans, binary, temporal, complex (`array`, `struct`, `map`, `json`, `geometry`, `geography`, `uuid`, `variant`, `void`/`null`, `tensor`). | string | Yes | — |
-| params | Type-specific parameters (see below). | object | No | — |
-| element | Nested type for arrays/tensors. | type_spec | No | — |
-| fields | Struct fields (array of columns). | array(column) | No | — |
-| key | Map key type. | type_spec | No | — |
-| value | Map value type. | type_spec | No | — |
-| description | Column description. | string | No | — |
-| constraints | Column-level constraints. | object | No | — |
-| generated_as | Generated column definition. | object | No | — |
-| metadata | Free-form column metadata. | object | No | — |
+Each entry in `columns` captures a single field plus metadata. The spec is strict:
+unrecognized keys within a column block cause validation failures.
 
-#### Type parameters (`params`)
+### Column fields
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | Yes | Column identifier. |
+| `type` | string | Yes | Case-insensitive token from the [type catalog](#type-catalog). |
+| `params` | map | No | Type-specific arguments (length, precision, tz, ...). |
+| `element` | column | Arrays or tensors | Nested type for arrays or tensors. |
+| `fields` | array(column) | Structs | Ordered struct fields. |
+| `key` | column | Maps | Map key type. |
+| `value` | column | Maps | Map value type. |
+| `description` | string | No | Field summary. |
+| `constraints` | map | No | See [column constraints](#column-constraints). |
+| `generated_as` | map | No | See [generated columns](#generated-columns). |
+| `metadata` | map | No | Arbitrary per-column metadata. |
 
-| Parameter | Description | Type | Required | Default |
-| --- | --- | --- | --- | --- |
-| length | String/binary length. | integer | No | — |
-| bits | Bit width for integer aliases (8, 16, 32, 64, 128, 256). | integer | No | — |
-| signed | Signedness when `bits` is used. | boolean | No | true |
-| precision | Decimal precision. | integer | No | — |
-| scale | Decimal scale (may be negative). | integer | No | — |
-| unit | Temporal precision unit (`s`, `ms`, `us`, `ns`). | string | No | — |
-| tz | IANA timezone for `timestamptz`. | string | No | — |
-| size | Max array length for fixed-size arrays. | integer | No | — |
-| keys_sorted | Whether map keys are sorted. | boolean | No | false |
-| interval_start | Interval lower unit (`year`, `month`, `day`, `hour`, `minute`, `second`). | string | No | — |
-| interval_end | Interval upper unit (`year`, `month`, `day`, `hour`, `minute`, `second`). | string | No | — |
-| shape | Fixed dimensions for tensors. | array(integer) | No | — |
-
-#### Column constraints (`constraints`)
-
-| Parameter | Description | Type | Required | Default |
-| --- | --- | --- | --- | --- |
-| not_null | Column cannot be null. | boolean | No | — |
-| primary_key | Column is a single-column primary key (prefer table-level for composites). | boolean | No | — |
-| identity.always | Identity value always generated. | boolean | No | true |
-| identity.start | Starting value for identity. | integer | No | — |
-| identity.increment | Increment for identity. | integer | No | — |
-| foreign_key.name | Foreign key constraint name. | string | No | — |
-| foreign_key.references.table | Referenced table. | string | Foreign keys | — |
-| foreign_key.references.columns | Referenced columns. | array(string) | No | — |
-| default | Literal default value. | any | No | — |
-
-#### Generated columns (`generated_as`)
-
-| Parameter | Description | Type | Required | Default |
-| --- | --- | --- | --- | --- |
-| column | Source column for derivation. | string | Yes | — |
-| transform | Transform name (`upper`, `cast`, `month`, etc.). | string | No | — |
-| transform_args | Extra arguments for the transform. | array | No | — |
-
-??? example "Example: basic columns"
+??? example "Column entry"
     ```yaml
     columns:
-      - name: "customer_id"
-        type: "bigint"
+      - name: customer_id
+        type: bigint
+        description: Surrogate primary key.
         constraints:
-          not_null: true
           primary_key: true
-      - name: "email"
-        type: "string"
-        params:
-          length: 320
-        constraints:
           not_null: true
-    ```
-
-??? example "Example: generated and defaults"
-    ```yaml
-    columns:
-      - name: "created_at"
-        type: "timestamp"
+      - name: created_at
+        type: timestamptz
+        params:
+          tz: UTC
         constraints:
-          default: "CURRENT_TIMESTAMP"
-      - name: "created_date"
-        type: "date"
+          default: CURRENT_TIMESTAMP
+      - name: created_date
+        type: date
         generated_as:
-          column: "created_at"
-          transform: "cast"
-          transform_args: ["date"]
+          column: created_at
+          transform: cast
+          transform_args: [date]
     ```
 
-??? example "Example: complex types"
+### Column constraints
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `not_null` | boolean | No | Disallow nulls. |
+| `primary_key` | boolean | No | Declare a single-column primary key (prefer table-level blocks for composites). |
+| `default` | literal | No | Literal default consumed by downstream systems. |
+| `identity.always` | boolean | No | Whether identity is always generated (`true` default). |
+| `identity.start` | integer | No | Starting value for identity sequences. |
+| `identity.increment` | integer | No | Step for identity sequences. |
+| `foreign_key.name` | string | No | Column-level foreign key name. |
+| `foreign_key.references.table` | string | Foreign keys | Referenced table. |
+| `foreign_key.references.columns` | array(string) | No | Referenced column names. |
+
+### Generated columns
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `column` | string | Yes | Source column supplying values. |
+| `transform` | string | No | Transform name (`upper`, `month`, `cast`, ...). |
+| `transform_args` | array | No | Extra positional arguments. |
+
+## Type catalog
+
+Type tokens are lower-case by convention but case-insensitive. Each table below
+represents the keys accepted under `params` for a column entry. Additional keys
+(such as `element` or `fields`) are called out in their sections.
+
+### Scalar types
+
+#### `string`
+UTF-8 text with optional fixed length.
+
+| Parameter | Description | Type | Required | Default |
+| --- | --- | --- | --- | --- |
+| `length` | Maximum characters allowed. | integer | No | Unlimited |
+
+??? example "string"
     ```yaml
-    columns:
-      - name: "tags"
-        type: "array"
-        element:
-          type: "string"
-        params:
-          size: 10
-      - name: "attributes"
-        type: "struct"
-        fields:
-          - name: "status"
-            type: "string"
-          - name: "score"
-            type: "double"
-      - name: "metrics"
-        type: "tensor"
-        params:
-          shape: [3, 3]
+    - name: email
+      type: string
+      params:
+        length: 320
     ```
+
+#### `binary`
+Byte arrays or VARBINARY columns.
+
+| Parameter | Description | Type | Required | Default |
+| --- | --- | --- | --- | --- |
+| `length` | Maximum number of bytes. | integer | No | Unlimited |
+
+#### `boolean`
+True/false values. No additional parameters.
+
+#### `integer`
+Signed or unsigned whole numbers. Aliases include `tinyint`, `smallint`,
+`int`, `bigint`, `int8`, `uint32`, etc.
+
+| Parameter | Description | Type | Required | Default |
+| --- | --- | --- | --- | --- |
+| `bits` | Bit width (`8`, `16`, `32`, `64`). | integer | No | Target default |
+| `signed` | Include negative values. | boolean | No | true |
+
+#### `float`
+IEEE floating point numbers.
+
+| Parameter | Description | Type | Required | Default |
+| --- | --- | --- | --- | --- |
+| `bits` | Bit width (`16`, `32`, `64`). | integer | No | Target default |
+
+#### `decimal`
+Exact precision decimals.
+
+| Parameter | Description | Type | Required | Default |
+| --- | --- | --- | --- | --- |
+| `precision` | Total digits. | integer | Precision & scale together | — |
+| `scale` | Digits to the right of the decimal point (can be negative). | integer | Precision & scale together | — |
+| `bits` | Storage width (`128` or `256`). | integer | No | Target default |
+
+??? example "decimal"
+    ```yaml
+    - name: completion_percent
+      type: decimal
+      params:
+        precision: 5
+        scale: 2
+    ```
+
+### Temporal types
+
+#### `date`
+Calendar date.
+
+| Parameter | Description | Type | Required | Default |
+| --- | --- | --- | --- | --- |
+| `bits` | Logical width (`32` or `64`). | integer | No | 32 |
+
+#### `time`
+Wall-clock time with fractional precision.
+
+| Parameter | Description | Type | Required | Default |
+| --- | --- | --- | --- | --- |
+| `unit` | Granularity `s`, `ms`, `us`, `ns`. | string | No | `ms` |
+| `bits` | Storage width (`32` or `64`). | integer | No | Target default |
+
+#### `timestamp`
+Timezone-naive timestamp.
+
+| Parameter | Description | Type | Required | Default |
+| --- | --- | --- | --- | --- |
+| `unit` | Granularity `s`, `ms`, `us`, `ns`. | string | No | `ns` |
+
+#### `timestamptz`
+Timestamp with explicit timezone.
+
+| Parameter | Description | Type | Required | Default |
+| --- | --- | --- | --- | --- |
+| `unit` | Granularity `s`, `ms`, `us`, `ns`. | string | No | `ns` |
+| `tz` | IANA timezone name. | string | Yes | `UTC` |
+
+#### `timestampltz`
+Timestamp interpreted in the session's timezone.
+
+| Parameter | Description | Type | Required | Default |
+| --- | --- | --- | --- | --- |
+| `unit` | Granularity `s`, `ms`, `us`, `ns`. | string | No | `ns` |
+
+#### `timestampntz`
+Timestamp with explicit "no timezone" semantics.
+
+| Parameter | Description | Type | Required | Default |
+| --- | --- | --- | --- | --- |
+| `unit` | Granularity `s`, `ms`, `us`, `ns`. | string | No | `ns` |
+
+#### `duration`
+Elapsed amount of time.
+
+| Parameter | Description | Type | Required | Default |
+| --- | --- | --- | --- | --- |
+| `unit` | Granularity `s`, `ms`, `us`, `ns`. | string | No | `ns` |
+
+#### `interval`
+SQL-style intervals bounded by start and optional end units.
+
+| Parameter | Description | Type | Required | Default |
+| --- | --- | --- | --- | --- |
+| `interval_start` | Most significant unit (`YEAR`, `MONTH`, `DAY`, `HOUR`, `MINUTE`, `SECOND`). | string | Yes | — |
+| `interval_end` | Least significant unit. Must be same category as `interval_start`. | string | No | Single-unit interval |
+
+??? example "interval"
+    ```yaml
+    - name: contract_term
+      type: interval
+      params:
+        interval_start: YEAR
+        interval_end: MONTH
+    ```
+
+### Collection types
+
+#### `array`
+Ordered list of values sharing the same element type.
+
+| Parameter | Description | Type | Required | Default |
+| --- | --- | --- | --- | --- |
+| `element` | Nested type definition. | column | Yes | — |
+| `params.size` | Max array length for fixed-size arrays. | integer | No | Unlimited |
+
+#### `struct`
+Named grouping of heterogenous fields.
+
+| Parameter | Description | Type | Required | Default |
+| --- | --- | --- | --- | --- |
+| `fields` | Ordered list of embedded column definitions. | array(column) | Yes | — |
+
+#### `map`
+Key/value pairs.
+
+| Parameter | Description | Type | Required | Default |
+| --- | --- | --- | --- | --- |
+| `key` | Type definition for map keys. | column | Yes | — |
+| `value` | Type definition for map values. | column | Yes | — |
+| `params.keys_sorted` | Whether keys are guaranteed sorted. | boolean | No | false |
+
+#### `tensor`
+Multi-dimensional numeric data.
+
+| Parameter | Description | Type | Required | Default |
+| --- | --- | --- | --- | --- |
+| `element` | Base type for tensor entries. | column | Yes | — |
+| `params.shape` | Positive integers describing each dimension. | array(integer) | Yes | — |
+
+### Semi-structured, spatial, and identifiers
+
+#### `json`
+Semi-structured JSON payload. No additional parameters.
+
+#### `variant`
+Union-style semi-structured payload. No additional parameters.
+
+#### `uuid`
+128-bit identifiers formatted as canonical UUID strings.
+
+#### `void`
+Represents `NULL` or placeholder fields.
+
+#### `geometry`
+Planar geometry column.
+
+| Parameter | Description | Type | Required | Default |
+| --- | --- | --- | --- | --- |
+| `srid` | Spatial reference identifier. | integer or string | No | — |
+
+#### `geography`
+Spherical geometry column.
+
+| Parameter | Description | Type | Required | Default |
+| --- | --- | --- | --- | --- |
+| `srid` | Spatial reference identifier. | integer or string | No | — |
 
 ## Complete spec example
 
@@ -492,7 +566,7 @@ columns:
     value:
       type: "double"
     description: "A map from string to double."
-  
+
   - name: "c_json"
     type: "json"
     description: "A JSON column."
