@@ -22,7 +22,6 @@ htmlcov/
 .local_dev/
 .cursor/
 .vscode/
-SPECIFICATION.md
 TODO.md
 
 # Docs build
