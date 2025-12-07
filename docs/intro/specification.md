@@ -23,12 +23,12 @@ The [specification JSON schema](https://github.com/erich-hs/yads/blob/main/spec/
 
 ??? example "Required header example"
     ```yaml
-    name: catalog.db.table_name
+    name: "catalog.db.table_name"
     version: 3
-    yads_spec_version: 0.0.2
+    yads_spec_version: "0.0.2"
     columns:
-      - name: id
-        type: bigint
+      - name: "id"
+        type: "bigint"
     ```
 
 ### Identity and metadata
@@ -40,11 +40,11 @@ The [specification JSON schema](https://github.com/erich-hs/yads/blob/main/spec/
 
 ??? example "Identity and metadata example"
     ```yaml
-    description: Customer transaction facts.
+    description: "Customer transaction facts."
     external: true
     metadata:
-      owner: data-team
-      sensitivity: internal
+      owner: "data-team"
+      sensitivity: "internal"
     ```
 
 ### Storage layout
@@ -57,10 +57,10 @@ The [specification JSON schema](https://github.com/erich-hs/yads/blob/main/spec/
 ??? example "Storage block"
     ```yaml
     storage:
-      format: parquet
-      location: /data/warehouse/customers
+      format: "parquet"
+      location: "/data/warehouse/customers"
       tbl_properties:
-        write_compression: snappy
+        write_compression: "snappy"
     ```
 
 ### Partitioning
@@ -73,10 +73,10 @@ The [specification JSON schema](https://github.com/erich-hs/yads/blob/main/spec/
 ??? example "Partition definitions"
     ```yaml
     partitioned_by:
-      - column: event_date
-        transform: month
-      - column: country_code
-        transform: truncate
+      - column: "event_date"
+        transform: "month"
+      - column: "country_code"
+        transform: "truncate"
         transform_args: [2]
     ```
 
@@ -92,15 +92,15 @@ The [specification JSON schema](https://github.com/erich-hs/yads/blob/main/spec/
 ??? example "Composite constraints"
     ```yaml
     table_constraints:
-      - type: primary_key
-        name: pk_orders
-        columns: [order_id, order_date]
-      - type: foreign_key
-        name: fk_customer
-        columns: [customer_id]
+      - type: "primary_key"
+        name: "pk_orders"
+        columns: ["order_id", "order_date"]
+      - type: "foreign_key"
+        name: "fk_customer"
+        columns: ["customer_id"]
         references:
-          table: dim_customers
-          columns: [id]
+          table: "dim_customers"
+          columns: ["id"]
     ```
 
 ## Column reference
@@ -126,24 +126,24 @@ unrecognized keys within a column block cause validation failures.
 ??? example "Column entry"
     ```yaml
     columns:
-      - name: customer_id
-        type: bigint
-        description: Surrogate primary key.
+      - name: "customer_id"
+        type: "bigint"
+        description: "Surrogate primary key."
         constraints:
           primary_key: true
           not_null: true
-      - name: created_at
-        type: timestamptz
+      - name: "created_at"
+        type: "timestamptz"
         params:
-          tz: UTC
+          tz: "UTC"
         constraints:
-          default: CURRENT_TIMESTAMP
-      - name: created_date
-        type: date
+          default: "CURRENT_TIMESTAMP"
+      - name: "created_date"
+        type: "date"
         generated_as:
-          column: created_at
-          transform: cast
-          transform_args: [date]
+          column: "created_at"
+          transform: "cast"
+          transform_args: ["date"]
     ```
 
 ### Column constraints
@@ -161,8 +161,8 @@ unrecognized keys within a column block cause validation failures.
 
 ??? example "Column constraints"
     ```yaml
-    - name: submission_id
-      type: bigint
+    - name: "submission_id"
+      type: "bigint"
       constraints:
         primary_key: true
         not_null: true
@@ -180,12 +180,12 @@ unrecognized keys within a column block cause validation failures.
 
 ??? example "Generated column"
     ```yaml
-    - name: created_date
-      type: date
+    - name: "created_date"
+      type: "date"
       generated_as:
-        column: created_at
-        transform: cast
-        transform_args: [date]
+        column: "created_at"
+        transform: "cast"
+        transform_args: ["date"]
     ```
 
 ## Type catalog
@@ -205,8 +205,8 @@ UTF-8 text with optional fixed length.
 
 ??? example "string"
     ```yaml
-    - name: email
-      type: string
+    - name: "email"
+      type: "string"
       params:
         length: 320
     ```
@@ -220,8 +220,8 @@ Byte arrays or VARBINARY columns.
 
 ??? example "binary"
     ```yaml
-    - name: payload
-      type: binary
+    - name: "payload"
+      type: "binary"
       params:
         length: 16
     ```
@@ -231,8 +231,8 @@ True/false values. No additional parameters.
 
 ??? example "boolean"
     ```yaml
-    - name: is_active
-      type: boolean
+    - name: "is_active"
+      type: "boolean"
     ```
 
 #### [`integer`](../api/types.md#yads.types.Integer)
@@ -246,8 +246,8 @@ Signed or unsigned whole numbers. Aliases include `tinyint`, `smallint`,
 
 ??? example "integer"
     ```yaml
-    - name: partition_bucket
-      type: int
+    - name: "partition_bucket"
+      type: "int"
       params:
         bits: 32
         signed: false
@@ -262,8 +262,8 @@ IEEE floating point numbers.
 
 ??? example "float"
     ```yaml
-    - name: confidence
-      type: float
+    - name: "confidence"
+      type: "float"
       params:
         bits: 32
     ```
@@ -279,8 +279,8 @@ Exact precision decimals.
 
 ??? example "decimal"
     ```yaml
-    - name: completion_percent
-      type: decimal
+    - name: "completion_percent"
+      type: "decimal"
       params:
         precision: 5
         scale: 2
@@ -297,8 +297,8 @@ Calendar date.
 
 ??? example "date"
     ```yaml
-    - name: invoice_date
-      type: date
+    - name: "invoice_date"
+      type: "date"
       params:
         bits: 64
     ```
@@ -313,10 +313,10 @@ Wall-clock time with fractional precision.
 
 ??? example "time"
     ```yaml
-    - name: alarm_time
-      type: time
+    - name: "alarm_time"
+      type: "time"
       params:
-        unit: us
+        unit: "us"
         bits: 64
     ```
 
@@ -329,10 +329,10 @@ Timezone-naive timestamp.
 
 ??? example "timestamp"
     ```yaml
-    - name: processed_at
-      type: timestamp
+    - name: "processed_at"
+      type: "timestamp"
       params:
-        unit: ms
+        unit: "ms"
     ```
 
 #### [`timestamptz`](../api/types.md#yads.types.TimestampTZ)
@@ -345,10 +345,10 @@ Timestamp with explicit timezone.
 
 ??? example "timestamptz"
     ```yaml
-    - name: submitted_at
-      type: timestamptz
+    - name: "submitted_at"
+      type: "timestamptz"
       params:
-        tz: UTC
+        tz: "UTC"
     ```
 
 #### [`timestampltz`](../api/types.md#yads.types.TimestampLTZ)
@@ -360,10 +360,10 @@ Timestamp interpreted in the session's timezone.
 
 ??? example "timestampltz"
     ```yaml
-    - name: user_created_at
-      type: timestampltz
+    - name: "user_created_at"
+      type: "timestampltz"
       params:
-        unit: us
+        unit: "us"
     ```
 
 #### [`timestampntz`](../api/types.md#yads.types.TimestampNTZ)
@@ -375,10 +375,10 @@ Timestamp with explicit "no timezone" semantics.
 
 ??? example "timestampntz"
     ```yaml
-    - name: materialized_at
-      type: timestampntz
+    - name: "materialized_at"
+      type: "timestampntz"
       params:
-        unit: s
+        unit: "s"
     ```
 
 #### [`duration`](../api/types.md#yads.types.Duration)
@@ -390,10 +390,10 @@ Elapsed amount of time.
 
 ??? example "duration"
     ```yaml
-    - name: session_length
-      type: duration
+    - name: "session_length"
+      type: "duration"
       params:
-        unit: ms
+        unit: "ms"
     ```
 
 #### [`interval`](../api/types.md#yads.types.Interval)
@@ -406,11 +406,11 @@ SQL-style intervals bounded by start and optional end units.
 
 ??? example "interval"
     ```yaml
-    - name: contract_term
-      type: interval
+    - name: "contract_term"
+      type: "interval"
       params:
-        interval_start: YEAR
-        interval_end: MONTH
+        interval_start: "YEAR"
+        interval_end: "MONTH"
     ```
 
 ### Collection types
@@ -425,10 +425,10 @@ Ordered list of values sharing the same element type.
 
 ??? example "array"
     ```yaml
-    - name: tags
-      type: array
+    - name: "tags"
+      type: "array"
       element:
-        type: string
+        type: "string"
       params:
         size: 10
     ```
@@ -442,15 +442,15 @@ Named grouping of heterogenous fields.
 
 ??? example "struct"
     ```yaml
-    - name: address
-      type: struct
+    - name: "address"
+      type: "struct"
       fields:
-        - name: street
-          type: string
-        - name: city
-          type: string
-        - name: postal_code
-          type: string
+        - name: "street"
+          type: "string"
+        - name: "city"
+          type: "string"
+        - name: "postal_code"
+          type: "string"
     ```
 
 #### [`map`](../api/types.md#yads.types.Map)
@@ -464,12 +464,12 @@ Key/value pairs.
 
 ??? example "map"
     ```yaml
-    - name: attributes
-      type: map
+    - name: "attributes"
+      type: "map"
       key:
-        type: string
+        type: "string"
       value:
-        type: variant
+        type: "variant"
       params:
         keys_sorted: true
     ```
@@ -484,10 +484,10 @@ Multi-dimensional numeric data.
 
 ??? example "tensor"
     ```yaml
-    - name: embedding
-      type: tensor
+    - name: "embedding"
+      type: "tensor"
       element:
-        type: float
+        type: "float"
       params:
         shape: [3, 128]
     ```
@@ -499,8 +499,8 @@ Semi-structured JSON payload. No additional parameters.
 
 ??? example "json"
     ```yaml
-    - name: event_payload
-      type: json
+    - name: "event_payload"
+      type: "json"
     ```
 
 #### [`variant`](../api/types.md#yads.types.Variant)
@@ -508,8 +508,8 @@ Union-style semi-structured payload. No additional parameters.
 
 ??? example "variant"
     ```yaml
-    - name: document
-      type: variant
+    - name: "document"
+      type: "variant"
     ```
 
 #### [`uuid`](../api/types.md#yads.types.UUID)
@@ -517,8 +517,8 @@ Union-style semi-structured payload. No additional parameters.
 
 ??? example "uuid"
     ```yaml
-    - name: record_uuid
-      type: uuid
+    - name: "record_uuid"
+      type: "uuid"
       constraints:
         not_null: true
     ```
@@ -528,8 +528,8 @@ Represents `NULL` or placeholder fields.
 
 ??? example "void"
     ```yaml
-    - name: reserved
-      type: void
+    - name: "reserved"
+      type: "void"
     ```
 
 #### [`geometry`](../api/types.md#yads.types.Geometry)
@@ -541,8 +541,8 @@ Planar geometry column.
 
 ??? example "geometry"
     ```yaml
-    - name: parcel_shape
-      type: geometry
+    - name: "parcel_shape"
+      type: "geometry"
       params:
         srid: 4326
     ```
@@ -556,8 +556,8 @@ Spherical geometry column.
 
 ??? example "geography"
     ```yaml
-    - name: customer_location
-      type: geography
+    - name: "customer_location"
+      type: "geography"
       params:
         srid: 4326
     ```

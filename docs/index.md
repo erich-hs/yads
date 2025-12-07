@@ -15,28 +15,28 @@ All while preserving logical [types](api/types.md), [constraints](api/constraint
 <!-- BEGIN:example submissions-yaml-to-others spec-yaml -->
 ```yaml
 # docs/src/specs/submissions.yaml
-name: prod.assessments.submissions
+name: "prod.assessments.submissions"
 version: 1
-yads_spec_version: 0.0.2
+yads_spec_version: "0.0.2"
 columns:
-  - name: submission_id
-    type: bigint
+  - name: "submission_id"
+    type: "bigint"
     constraints:
       primary_key: true
       not_null: true
-  - name: completion_percent
-    type: decimal
+  - name: "completion_percent"
+    type: "decimal"
     params:
       precision: 5
       scale: 2
     constraints:
       default: 0.00
-  - name: time_taken_seconds
-    type: integer
-  - name: submitted_at
-    type: timestamptz
+  - name: "time_taken_seconds"
+    type: "integer"
+  - name: "submitted_at"
+    type: "timestamptz"
     params:
-      tz: UTC
+      tz: "UTC"
 ```
 <!-- END:example submissions-yaml-to-others spec-yaml -->
 

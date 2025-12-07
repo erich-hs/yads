@@ -41,43 +41,45 @@ Typical workflows start with a `yads` [spec](specification.md) authored in YAML 
     <!-- BEGIN:example submissions-quickstart spec-yaml -->
     ```yaml
     # docs/src/specs/submissions_det.yaml
-    name: prod.assessments.submissions_det
+    name: "prod.assessments.submissions_det"
     version: 1
-    yads_spec_version: 0.0.2
-    description: Assessments submissions details.
+    yads_spec_version: "0.0.2"
+    description: "Assessments submissions details."
     
     metadata:
-      owner: data-team
+      owner: "data-team"
       sensitive: false
     
     columns:
-      - name: submission_id
-        type: bigint
-        description: Submissions unique identifier.
+      - name: "submission_id"
+        type: "bigint"
+        description: "Submissions unique identifier."
         constraints:
           primary_key: true
           not_null: true
     
-      - name: completion_percent
-        type: decimal
-        description: Assessment completion percentage.
+      - name: "completion_percent"
+        type: "decimal"
+        description: "Assessment completion percentage."
         params:
           precision: 5
           scale: 2
         constraints:
           default: 0.00
     
-      - name: time_taken_seconds
-        type: integer
-        description: Time taken submitting this assessment in seconds.
+      - name: "time_taken_seconds"
+        type: "integer"
+        description: "Time taken submitting this assessment in seconds."
     
-      - name: submitted_at
-        type: timestamptz
-        description: Timestamp in UTC when submitted.
+      - name: "submitted_at"
+        type: "timestamptz"
+        description: "Timestamp in UTC when submitted."
         params:
-          tz: UTC
+          tz: "UTC"
     ```
     <!-- END:example submissions-quickstart spec-yaml -->
+    !!! tip
+        Check the [Specification](specification.md) section for a detailed authoring guide of your spec in YAML.
     <!-- BEGIN:example submissions-quickstart spec-from-yaml -->
     ```python
     import yads

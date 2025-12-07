@@ -56,27 +56,27 @@ The latest `yads` specification JSON schema is available [here](./spec/yads_spec
 <!-- BEGIN:example minimal-yaml-to-others spec-yaml -->
 ```yaml
 # docs/src/specs/customers.yaml
-name: catalog.crm.customers
+name: "catalog.crm.customers"
 version: 1
-yads_spec_version: 0.0.2
+yads_spec_version: "0.0.2"
 columns:
-  - name: id
-    type: bigint
+  - name: "id"
+    type: "bigint"
     constraints:
       not_null: true
-  - name: email
-    type: string
-  - name: created_at
-    type: timestamptz
-  - name: spend
-    type: decimal
+  - name: "email"
+    type: "string"
+  - name: "created_at"
+    type: "timestamptz"
+  - name: "spend"
+    type: "decimal"
     params:
       precision: 10
       scale: 2
-  - name: tags
-    type: array
+  - name: "tags"
+    type: "array"
     element:
-      type: string
+      type: "string"
 ```
 <!-- END:example minimal-yaml-to-others spec-yaml -->
 
