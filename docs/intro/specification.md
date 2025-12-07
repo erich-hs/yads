@@ -11,14 +11,7 @@ well-typed, and friendly to downstream converters.
 !!! note "Current spec format"
     Target `yads_spec_version`: `0.0.2`
 
-## Use this page when
-- Authoring a new table manifest or updating an existing one.
-- Reviewing specs before registry submission or deployment.
-- Translating a spec into another system and need to confirm fields or types.
-
-## Document anatomy
-All specs are a single YAML object. Unknown keys fail validation, so keep the
-layout consistent. The checklist below mirrors `yads`' validation order.
+The [specification JSON schema](https://github.com/erich-hs/yads/blob/main/spec/yads_spec_v0.0.2.json) is available in the GitHub repo.
 
 ### Required header
 | Field | Type | Required | Description |
@@ -28,6 +21,16 @@ layout consistent. The checklist below mirrors `yads`' validation order.
 | `yads_spec_version` | string | Yes | Spec format version used to validate the document. |
 | `columns` | array | Yes | Ordered list of column definitions. |
 
+??? example "Required header example"
+    ```yaml
+    name: catalog.db.table_name
+    version: 3
+    yads_spec_version: 0.0.2
+    columns:
+      - name: id
+        type: bigint
+    ```
+
 ### Identity and metadata
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -35,13 +38,10 @@ layout consistent. The checklist below mirrors `yads`' validation order.
 | `external` | boolean | No | Emit `CREATE EXTERNAL` for compatible converters. |
 | `metadata` | map | No | Arbitrary ownership, tags, or sensitivity info. |
 
-??? example "Minimal identity block"
+??? example "Identity and metadata example"
     ```yaml
-    name: catalog.db.table_name
-    version: 3
-    yads_spec_version: 0.0.2
     description: Customer transaction facts.
-    
+    external: true
     metadata:
       owner: data-team
       sensitivity: internal
@@ -159,12 +159,34 @@ unrecognized keys within a column block cause validation failures.
 | `foreign_key.references.table` | string | Foreign keys | Referenced table. |
 | `foreign_key.references.columns` | array(string) | No | Referenced column names. |
 
+??? example "Column constraints"
+    ```yaml
+    - name: submission_id
+      type: bigint
+      constraints:
+        primary_key: true
+        not_null: true
+        identity:
+          start: 1
+          increment: 1
+    ```
+
 ### Generated columns
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `column` | string | Yes | Source column supplying values. |
 | `transform` | string | No | Transform name (`upper`, `month`, `cast`, ...). |
 | `transform_args` | array | No | Extra positional arguments. |
+
+??? example "Generated column"
+    ```yaml
+    - name: created_date
+      type: date
+      generated_as:
+        column: created_at
+        transform: cast
+        transform_args: [date]
+    ```
 
 ## Type catalog
 
@@ -174,7 +196,7 @@ represents the keys accepted under `params` for a column entry. Additional keys
 
 ### Scalar types
 
-#### `string`
+#### [`string`](../api/types.md#yads.types.String)
 UTF-8 text with optional fixed length.
 
 | Parameter | Description | Type | Required | Default |
@@ -189,17 +211,31 @@ UTF-8 text with optional fixed length.
         length: 320
     ```
 
-#### `binary`
+#### [`binary`](../api/types.md#yads.types.Binary)
 Byte arrays or VARBINARY columns.
 
 | Parameter | Description | Type | Required | Default |
 | --- | --- | --- | --- | --- |
 | `length` | Maximum number of bytes. | integer | No | Unlimited |
 
-#### `boolean`
+??? example "binary"
+    ```yaml
+    - name: payload
+      type: binary
+      params:
+        length: 16
+    ```
+
+#### [`boolean`](../api/types.md#yads.types.Boolean)
 True/false values. No additional parameters.
 
-#### `integer`
+??? example "boolean"
+    ```yaml
+    - name: is_active
+      type: boolean
+    ```
+
+#### [`integer`](../api/types.md#yads.types.Integer)
 Signed or unsigned whole numbers. Aliases include `tinyint`, `smallint`,
 `int`, `bigint`, `int8`, `uint32`, etc.
 
@@ -208,14 +244,31 @@ Signed or unsigned whole numbers. Aliases include `tinyint`, `smallint`,
 | `bits` | Bit width (`8`, `16`, `32`, `64`). | integer | No | Target default |
 | `signed` | Include negative values. | boolean | No | true |
 
-#### `float`
+??? example "integer"
+    ```yaml
+    - name: partition_bucket
+      type: int
+      params:
+        bits: 32
+        signed: false
+    ```
+
+#### [`float`](../api/types.md#yads.types.Float)
 IEEE floating point numbers.
 
 | Parameter | Description | Type | Required | Default |
 | --- | --- | --- | --- | --- |
 | `bits` | Bit width (`16`, `32`, `64`). | integer | No | Target default |
 
-#### `decimal`
+??? example "float"
+    ```yaml
+    - name: confidence
+      type: float
+      params:
+        bits: 32
+    ```
+
+#### [`decimal`](../api/types.md#yads.types.Decimal)
 Exact precision decimals.
 
 | Parameter | Description | Type | Required | Default |
@@ -235,14 +288,22 @@ Exact precision decimals.
 
 ### Temporal types
 
-#### `date`
+#### [`date`](../api/types.md#yads.types.Date)
 Calendar date.
 
 | Parameter | Description | Type | Required | Default |
 | --- | --- | --- | --- | --- |
 | `bits` | Logical width (`32` or `64`). | integer | No | 32 |
 
-#### `time`
+??? example "date"
+    ```yaml
+    - name: invoice_date
+      type: date
+      params:
+        bits: 64
+    ```
+
+#### [`time`](../api/types.md#yads.types.Time)
 Wall-clock time with fractional precision.
 
 | Parameter | Description | Type | Required | Default |
@@ -250,14 +311,31 @@ Wall-clock time with fractional precision.
 | `unit` | Granularity `s`, `ms`, `us`, `ns`. | string | No | `ms` |
 | `bits` | Storage width (`32` or `64`). | integer | No | Target default |
 
-#### `timestamp`
+??? example "time"
+    ```yaml
+    - name: alarm_time
+      type: time
+      params:
+        unit: us
+        bits: 64
+    ```
+
+#### [`timestamp`](../api/types.md#yads.types.Timestamp)
 Timezone-naive timestamp.
 
 | Parameter | Description | Type | Required | Default |
 | --- | --- | --- | --- | --- |
 | `unit` | Granularity `s`, `ms`, `us`, `ns`. | string | No | `ns` |
 
-#### `timestamptz`
+??? example "timestamp"
+    ```yaml
+    - name: processed_at
+      type: timestamp
+      params:
+        unit: ms
+    ```
+
+#### [`timestamptz`](../api/types.md#yads.types.TimestampTZ)
 Timestamp with explicit timezone.
 
 | Parameter | Description | Type | Required | Default |
@@ -265,28 +343,60 @@ Timestamp with explicit timezone.
 | `unit` | Granularity `s`, `ms`, `us`, `ns`. | string | No | `ns` |
 | `tz` | IANA timezone name. | string | Yes | `UTC` |
 
-#### `timestampltz`
+??? example "timestamptz"
+    ```yaml
+    - name: submitted_at
+      type: timestamptz
+      params:
+        tz: UTC
+    ```
+
+#### [`timestampltz`](../api/types.md#yads.types.TimestampLTZ)
 Timestamp interpreted in the session's timezone.
 
 | Parameter | Description | Type | Required | Default |
 | --- | --- | --- | --- | --- |
 | `unit` | Granularity `s`, `ms`, `us`, `ns`. | string | No | `ns` |
 
-#### `timestampntz`
+??? example "timestampltz"
+    ```yaml
+    - name: user_created_at
+      type: timestampltz
+      params:
+        unit: us
+    ```
+
+#### [`timestampntz`](../api/types.md#yads.types.TimestampNTZ)
 Timestamp with explicit "no timezone" semantics.
 
 | Parameter | Description | Type | Required | Default |
 | --- | --- | --- | --- | --- |
 | `unit` | Granularity `s`, `ms`, `us`, `ns`. | string | No | `ns` |
 
-#### `duration`
+??? example "timestampntz"
+    ```yaml
+    - name: materialized_at
+      type: timestampntz
+      params:
+        unit: s
+    ```
+
+#### [`duration`](../api/types.md#yads.types.Duration)
 Elapsed amount of time.
 
 | Parameter | Description | Type | Required | Default |
 | --- | --- | --- | --- | --- |
 | `unit` | Granularity `s`, `ms`, `us`, `ns`. | string | No | `ns` |
 
-#### `interval`
+??? example "duration"
+    ```yaml
+    - name: session_length
+      type: duration
+      params:
+        unit: ms
+    ```
+
+#### [`interval`](../api/types.md#yads.types.Interval)
 SQL-style intervals bounded by start and optional end units.
 
 | Parameter | Description | Type | Required | Default |
@@ -305,7 +415,7 @@ SQL-style intervals bounded by start and optional end units.
 
 ### Collection types
 
-#### `array`
+#### [`array`](../api/types.md#yads.types.Array)
 Ordered list of values sharing the same element type.
 
 | Parameter | Description | Type | Required | Default |
@@ -313,14 +423,37 @@ Ordered list of values sharing the same element type.
 | `element` | Nested type definition. | column | Yes | — |
 | `params.size` | Max array length for fixed-size arrays. | integer | No | Unlimited |
 
-#### `struct`
+??? example "array"
+    ```yaml
+    - name: tags
+      type: array
+      element:
+        type: string
+      params:
+        size: 10
+    ```
+
+#### [`struct`](../api/types.md#yads.types.Struct)
 Named grouping of heterogenous fields.
 
 | Parameter | Description | Type | Required | Default |
 | --- | --- | --- | --- | --- |
 | `fields` | Ordered list of embedded column definitions. | array(column) | Yes | — |
 
-#### `map`
+??? example "struct"
+    ```yaml
+    - name: address
+      type: struct
+      fields:
+        - name: street
+          type: string
+        - name: city
+          type: string
+        - name: postal_code
+          type: string
+    ```
+
+#### [`map`](../api/types.md#yads.types.Map)
 Key/value pairs.
 
 | Parameter | Description | Type | Required | Default |
@@ -329,7 +462,19 @@ Key/value pairs.
 | `value` | Type definition for map values. | column | Yes | — |
 | `params.keys_sorted` | Whether keys are guaranteed sorted. | boolean | No | false |
 
-#### `tensor`
+??? example "map"
+    ```yaml
+    - name: attributes
+      type: map
+      key:
+        type: string
+      value:
+        type: variant
+      params:
+        keys_sorted: true
+    ```
+
+#### [`tensor`](../api/types.md#yads.types.Tensor)
 Multi-dimensional numeric data.
 
 | Parameter | Description | Type | Required | Default |
@@ -337,33 +482,85 @@ Multi-dimensional numeric data.
 | `element` | Base type for tensor entries. | column | Yes | — |
 | `params.shape` | Positive integers describing each dimension. | array(integer) | Yes | — |
 
+??? example "tensor"
+    ```yaml
+    - name: embedding
+      type: tensor
+      element:
+        type: float
+      params:
+        shape: [3, 128]
+    ```
+
 ### Semi-structured, spatial, and identifiers
 
-#### `json`
+#### [`json`](../api/types.md#yads.types.JSON)
 Semi-structured JSON payload. No additional parameters.
 
-#### `variant`
+??? example "json"
+    ```yaml
+    - name: event_payload
+      type: json
+    ```
+
+#### [`variant`](../api/types.md#yads.types.Variant)
 Union-style semi-structured payload. No additional parameters.
 
-#### `uuid`
+??? example "variant"
+    ```yaml
+    - name: document
+      type: variant
+    ```
+
+#### [`uuid`](../api/types.md#yads.types.UUID)
 128-bit identifiers formatted as canonical UUID strings.
 
-#### `void`
+??? example "uuid"
+    ```yaml
+    - name: record_uuid
+      type: uuid
+      constraints:
+        not_null: true
+    ```
+
+#### [`void`](../api/types.md#yads.types.Void)
 Represents `NULL` or placeholder fields.
 
-#### `geometry`
+??? example "void"
+    ```yaml
+    - name: reserved
+      type: void
+    ```
+
+#### [`geometry`](../api/types.md#yads.types.Geometry)
 Planar geometry column.
 
 | Parameter | Description | Type | Required | Default |
 | --- | --- | --- | --- | --- |
 | `srid` | Spatial reference identifier. | integer or string | No | — |
 
-#### `geography`
+??? example "geometry"
+    ```yaml
+    - name: parcel_shape
+      type: geometry
+      params:
+        srid: 4326
+    ```
+
+#### [`geography`](../api/types.md#yads.types.Geography)
 Spherical geometry column.
 
 | Parameter | Description | Type | Required | Default |
 | --- | --- | --- | --- | --- |
 | `srid` | Spatial reference identifier. | integer or string | No | — |
+
+??? example "geography"
+    ```yaml
+    - name: customer_location
+      type: geography
+      params:
+        srid: 4326
+    ```
 
 ## Complete spec example
 
