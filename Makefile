@@ -107,11 +107,11 @@ sync-examples:
 		echo "Usage: make sync-examples FILE=docs/converters/pyarrow.md"; \
 		exit 1; \
 	fi
-	uv run --group dev python -m docs.src.scripts.sync_examples "$(FILE)"
+	uv run --all-groups python -m docs.src.scripts.sync_examples "$(FILE)"
 
 .PHONY: sync-examples-all
 sync-examples-all:
-	uv run --group dev python -m docs.src.scripts.sync_examples --all
+	uv run --all-groups python -m docs.src.scripts.sync_examples --all
 
 # Help
 .PHONY: help
