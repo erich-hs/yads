@@ -1,5 +1,5 @@
 [project]
-site_name = "yads Documentation"
+site_name = "yads User Guide"
 site_description = "Canonical data specification for data platforms."
 site_author = "Erich Silva"
 #site_url = "https://www.example.com/"
@@ -8,37 +8,43 @@ Copyright &copy; 2025 Erich Silva
 """
 
 nav = [
-  {"Home" = [
-     "index.md"
-  ]},
-  {"Specification" = [
-     "spec/index.md",
-     "spec/spec.md",
-     "spec/types.md",
-     "spec/constraints.md"
-  ]},
-  {"Loaders" = [
-     "loaders/index.md",
-     "loaders/pyarrow.md",
-     "loaders/polars.md",
-     "loaders/pyspark.md",
-     "loaders/yaml.md"
-  ]},
-  {"Converters" = [
-     "converters/index.md",
-     "converters/pyarrow.md",
-     "converters/polars.md",
-     "converters/pyspark.md",
-     "converters/pydantic.md",
-     {"SQL" = [
-        "converters/sql/sqlglot.md",
-        "converters/sql/sql.md"
-     ]}
-  ]},
-  {"Registries" = [
-     "registries/index.md",
-     "registries/filesystem.md"
-  ]}
+    {"Introduction" = [
+        {"About" = "index.md"},
+        {"Getting Started" = "introduction/getting_started.md"}
+    ]},
+    {"API Reference" = [
+        {"Specification" = [
+            "spec/index.md",
+            "spec/spec.md",
+            "spec/types.md",
+            "spec/constraints.md"
+        ]},
+        {"Loaders" = [
+            "loaders/index.md",
+            "loaders/pyarrow.md",
+            "loaders/polars.md",
+            "loaders/pyspark.md",
+            "loaders/yaml.md"
+        ]},
+        {"Converters" = [
+            "converters/index.md",
+            "converters/pyarrow.md",
+            "converters/polars.md",
+            "converters/pyspark.md",
+            "converters/pydantic.md",
+            {"SQL" = [
+                "converters/sql/sqlglot.md",
+                "converters/sql/sql.md"
+            ]}
+        ]},
+        {"Registries" = [
+            "registries/index.md",
+            "registries/filesystem.md"
+        ]}
+    ]},
+    {"Contributors Guide" = [
+        "contributing/index.md"
+    ]}  
 ]
 
 extra_css = ["stylesheets/extra.css"]
@@ -98,6 +104,8 @@ features = [
     # "navigation.sections",
 
     "navigation.indexes",
+
+    # "navigation.expand",
 
     # https://zensical.org/docs/setup/navigation/#navigation-tabs
     "navigation.tabs",

@@ -1,6 +1,10 @@
-# `yads`
+---
+title: "Introduction"
+---
 
-An expressive, canonical data [specification](spec/index.md) to solve schema management throughout your data stack. Used for, among other things:
+# What is `yads`?
+
+`yads` is expressive, canonical data [specification](spec/index.md) to solve schema management throughout your data stack. Used for, among other things:
 
 * Transpiling schemas between data formats.
 * Managing a canonical schema registry.
@@ -224,29 +228,6 @@ columns:
     ```
     <!-- END:example submissions-yaml-to-others sql-output -->
 
-## Install
+`yads` is an Open Source project under the Apache 2.0 license. We welcome feedback and contributions to help shape the specification for the data community.
 
-`yads` Python API is available on PyPI. Install with `pip` or `uv`:
-
-=== "uv"
-    ```bash
-    uv add yads
-    ```
-    Optionally, install dependencies for your target formats:
-
-    ```bash
-    uv add yads[pyarrow]
-    ```
-
-=== "pip"
-    ```bash
-    pip install yads
-    ```
-    Optionally, install dependencies for your target formats:
-
-    ```bash
-    pip install yads[pyarrow]
-    ```
-
-Check the [converters documentation](converters/index.md) for install instructions and supported versions of optional depencies.
-
+Visit the [GitHub repository](https://github.com/erich-hs/yads) and the [Contributors Guide](contributing/contributing.md) to get involved.
