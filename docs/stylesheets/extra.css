@@ -1,8 +1,81 @@
 /* Slightly tighten Roboto body copy within Material's md-typeset wrapper */
 :root {
-  --md-typeset-line-height: 1.6;
+  --md-typeset-line-height: 1.8;
 }
 
 .md-typeset {
   line-height: var(--md-typeset-line-height);
+}
+
+[data-md-color-scheme="default"] {
+  --yads-table-border: rgba(16, 42, 66, 0.1);
+  --yads-table-stripe: rgba(16, 42, 66, 0.04);
+  --yads-table-hover: rgba(16, 42, 66, 0.08);
+  --yads-table-shadow: rgba(16, 42, 66, 0.12);
+  --yads-table-header: rgba(16, 42, 66, 0.06);
+  --yads-table-caption: rgba(16, 42, 66, 0.6);
+}
+
+[data-md-color-scheme="slate"] {
+  --yads-table-border: rgba(255, 255, 255, 0.12);
+  --yads-table-stripe: rgba(255, 255, 255, 0.03);
+  --yads-table-hover: rgba(255, 255, 255, 0.07);
+  --yads-table-shadow: rgba(0, 0, 0, 0.35);
+  --yads-table-header: rgba(255, 255, 255, 0.04);
+  --yads-table-caption: rgba(255, 255, 255, 0.7);
+}
+
+.md-typeset .md-typeset__table {
+  border: none;
+  border-radius: 0;
+  overflow: auto;
+  background: none;
+  margin: 1.2rem 0;
+}
+
+.md-typeset table:not([class]) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0;
+  border: 1px solid var(--yads-table-border);
+  background: var(--md-default-bg-color);
+  border-radius: 0;
+  overflow: hidden;
+}
+
+.md-typeset table:not([class]) thead {
+  background: var(--yads-table-header);
+}
+
+.md-typeset table:not([class]) th,
+.md-typeset table:not([class]) td {
+  padding: 0.75rem 0.95rem;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--yads-table-border);
+}
+
+.md-typeset table:not([class]) th {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+
+.md-typeset table:not([class]) tbody tr:nth-child(even) td {
+  background: var(--yads-table-stripe);
+}
+
+.md-typeset table:not([class]) tbody tr:hover td {
+  background: var(--yads-table-hover);
+}
+
+.md-typeset table:not([class]) tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.md-typeset table:not([class]) caption {
+  padding: 0.75rem 0.95rem;
+  caption-side: bottom;
+  color: var(--yads-table-caption);
+  font-size: 0.92rem;
 }
