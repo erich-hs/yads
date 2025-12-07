@@ -14,14 +14,17 @@ well-typed, and friendly to downstream converters.
 The [specification JSON schema](https://github.com/erich-hs/yads/blob/main/spec/yads_spec_v0.0.2.json) is available in the GitHub repo.
 
 ### Required header
+
+Top-level named parameters describing the spec.
+
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `name` | string | Yes | Fully-qualified identifier `[catalog].[database].[table]`. |
 | `version` | integer | Yes | Monotonic registry version, starting at `1`. |
-| `yads_spec_version` | string | Yes | Spec format version used to validate the document. |
+| `yads_spec_version` | string | No | Spec format version used to validate the document. When not specified, the loader will default to the current version of the specification. |
 | `columns` | array | Yes | Ordered list of column definitions. |
 
-??? example "Required header example"
+???+ example "Required header example"
     ```yaml
     name: "catalog.db.table_name"
     version: 3
@@ -32,13 +35,16 @@ The [specification JSON schema](https://github.com/erich-hs/yads/blob/main/spec/
     ```
 
 ### Identity and metadata
+
+Optional top-level named parameters.
+
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `description` | string | No | Short summary of table intent. |
-| `external` | boolean | No | Emit `CREATE EXTERNAL` for compatible converters. |
-| `metadata` | map | No | Arbitrary ownership, tags, or sensitivity info. |
+| `external` | boolean | No | Emit `CREATE EXTERNAL` for compatible converters when True. Defaults to `false`. |
+| `metadata` | map | No | Arbitrary container for metadata in a dictionary format. |
 
-??? example "Identity and metadata example"
+???+ example "Identity and metadata example"
     ```yaml
     description: "Customer transaction facts."
     external: true
@@ -48,13 +54,16 @@ The [specification JSON schema](https://github.com/erich-hs/yads/blob/main/spec/
     ```
 
 ### Storage layout
+
+Optional top-level block for storage-related metadata.
+
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `storage.format` | string | No | Engine or file format such as `parquet`, `iceberg`, `orc`, `csv`. |
+| `storage.format` | string | No | Storage file format such as `parquet`, `iceberg`, `orc`, `csv`. |
 | `storage.location` | string | No | URI or path for the table root. |
 | `storage.tbl_properties` | map | No | Engine-specific key/value properties. |
 
-??? example "Storage block"
+???+ example "Storage block"
     ```yaml
     storage:
       format: "parquet"
@@ -64,13 +73,16 @@ The [specification JSON schema](https://github.com/erich-hs/yads/blob/main/spec/
     ```
 
 ### Partitioning
+
+Optional top-level block for physical table partition information.
+
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `partitioned_by[].column` | string | Yes | Column backing the partition. |
+| `partitioned_by[].column` | string | Yes | Column backing the partition. Required when the `partitioned_by` block is defined. |
 | `partitioned_by[].transform` | string | No | Transform name (`month`, `year`, `truncate`, `bucket`, ...). |
 | `partitioned_by[].transform_args` | array | No | Unnamed arguments passed to the transform. |
 
-??? example "Partition definitions"
+???+ example "Partition definitions"
     ```yaml
     partitioned_by:
       - column: "event_date"
@@ -81,15 +93,18 @@ The [specification JSON schema](https://github.com/erich-hs/yads/blob/main/spec/
     ```
 
 ### Table constraints
+
+Optional top-level block for Primary Key and Foreign Key table constraints.
+
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `table_constraints[].type` | string | Yes | `primary_key` or `foreign_key`. |
-| `table_constraints[].name` | string | Yes | Stable constraint identifier. |
-| `table_constraints[].columns` | array(string) | Yes | Participating columns. |
-| `table_constraints[].references.table` | string | Foreign keys | Referenced table. |
-| `table_constraints[].references.columns` | array(string) | No | Referenced columns (defaults to matching columns). |
+| `table_constraints[].type` | string | Yes | `primary_key` or `foreign_key`. Required when the `table_constraints` block is defined. |
+| `table_constraints[].name` | string | Yes | Stable constraint identifier. Required when the `table_constraints` block is defined. |
+| `table_constraints[].columns` | array(string) | Yes | Participating columns. Required when the `table_constraints` block is defined. |
+| `table_constraints[].references.table` | string | Foreign keys | Referenced table. Required for `foreign_key` table constraints. |
+| `table_constraints[].references.columns` | array(string) | No | Referenced columns on `foreign_key` table constraints. Defaults to matching columns when not specified. |
 
-??? example "Composite constraints"
+???+ example "Composite constraints"
     ```yaml
     table_constraints:
       - type: "primary_key"
@@ -118,12 +133,12 @@ unrecognized keys within a column block cause validation failures.
 | `fields` | array(column) | Structs | Ordered struct fields. |
 | `key` | column | Maps | Map key type. |
 | `value` | column | Maps | Map value type. |
-| `description` | string | No | Field summary. |
+| `description` | string | No | Text-form field or column description. |
 | `constraints` | map | No | See [column constraints](#column-constraints). |
 | `generated_as` | map | No | See [generated columns](#generated-columns). |
 | `metadata` | map | No | Arbitrary per-column metadata. |
 
-??? example "Column entry"
+???+ example "Column entry"
     ```yaml
     columns:
       - name: "customer_id"
@@ -152,14 +167,14 @@ unrecognized keys within a column block cause validation failures.
 | `not_null` | boolean | No | Disallow nulls. |
 | `primary_key` | boolean | No | Declare a single-column primary key (prefer table-level blocks for composites). |
 | `default` | literal | No | Literal default consumed by downstream systems. |
-| `identity.always` | boolean | No | Whether identity is always generated (`true` default). |
 | `identity.start` | integer | No | Starting value for identity sequences. |
 | `identity.increment` | integer | No | Step for identity sequences. |
+| `identity.always` | boolean | No | Whether identity is always generated. Defaults to `true` when an `identity` constraint is defined. |
 | `foreign_key.name` | string | No | Column-level foreign key name. |
-| `foreign_key.references.table` | string | Foreign keys | Referenced table. |
-| `foreign_key.references.columns` | array(string) | No | Referenced column names. |
+| `foreign_key.references.table` | string | Foreign keys | Referenced foreign key table name. |
+| `foreign_key.references.columns` | array(string) | No | Referenced foreign key column names. |
 
-??? example "Column constraints"
+???+ example "Column constraints"
     ```yaml
     - name: "submission_id"
       type: "bigint"
@@ -178,7 +193,7 @@ unrecognized keys within a column block cause validation failures.
 | `transform` | string | No | Transform name (`upper`, `month`, `cast`, ...). |
 | `transform_args` | array | No | Extra positional arguments. |
 
-??? example "Generated column"
+???+ example "Generated column"
     ```yaml
     - name: "created_date"
       type: "date"
@@ -203,7 +218,7 @@ UTF-8 text with optional fixed length.
 | --- | --- | --- | --- | --- |
 | `length` | Maximum characters allowed. | integer | No | Unlimited |
 
-??? example "string"
+???+ example "string"
     ```yaml
     - name: "email"
       type: "string"
@@ -218,7 +233,7 @@ Byte arrays or VARBINARY columns.
 | --- | --- | --- | --- | --- |
 | `length` | Maximum number of bytes. | integer | No | Unlimited |
 
-??? example "binary"
+???+ example "binary"
     ```yaml
     - name: "payload"
       type: "binary"
@@ -229,7 +244,7 @@ Byte arrays or VARBINARY columns.
 #### [`boolean`](../api/types.md#yads.types.Boolean)
 True/false values. No additional parameters.
 
-??? example "boolean"
+???+ example "boolean"
     ```yaml
     - name: "is_active"
       type: "boolean"
@@ -244,7 +259,7 @@ Signed or unsigned whole numbers. Aliases include `tinyint`, `smallint`,
 | `bits` | Bit width (`8`, `16`, `32`, `64`). | integer | No | Target default |
 | `signed` | Include negative values. | boolean | No | true |
 
-??? example "integer"
+???+ example "integer"
     ```yaml
     - name: "partition_bucket"
       type: "int"
@@ -260,7 +275,7 @@ IEEE floating point numbers.
 | --- | --- | --- | --- | --- |
 | `bits` | Bit width (`16`, `32`, `64`). | integer | No | Target default |
 
-??? example "float"
+???+ example "float"
     ```yaml
     - name: "confidence"
       type: "float"
@@ -277,7 +292,7 @@ Exact precision decimals.
 | `scale` | Digits to the right of the decimal point (can be negative). | integer | Precision & scale together | — |
 | `bits` | Storage width (`128` or `256`). | integer | No | Target default |
 
-??? example "decimal"
+???+ example "decimal"
     ```yaml
     - name: "completion_percent"
       type: "decimal"
@@ -295,7 +310,7 @@ Calendar date.
 | --- | --- | --- | --- | --- |
 | `bits` | Logical width (`32` or `64`). | integer | No | 32 |
 
-??? example "date"
+???+ example "date"
     ```yaml
     - name: "invoice_date"
       type: "date"
@@ -311,7 +326,7 @@ Wall-clock time with fractional precision.
 | `unit` | Granularity `s`, `ms`, `us`, `ns`. | string | No | `ms` |
 | `bits` | Storage width (`32` or `64`). | integer | No | Target default |
 
-??? example "time"
+???+ example "time"
     ```yaml
     - name: "alarm_time"
       type: "time"
@@ -327,7 +342,7 @@ Timezone-naive timestamp.
 | --- | --- | --- | --- | --- |
 | `unit` | Granularity `s`, `ms`, `us`, `ns`. | string | No | `ns` |
 
-??? example "timestamp"
+???+ example "timestamp"
     ```yaml
     - name: "processed_at"
       type: "timestamp"
@@ -343,7 +358,7 @@ Timestamp with explicit timezone.
 | `unit` | Granularity `s`, `ms`, `us`, `ns`. | string | No | `ns` |
 | `tz` | IANA timezone name. | string | Yes | `UTC` |
 
-??? example "timestamptz"
+???+ example "timestamptz"
     ```yaml
     - name: "submitted_at"
       type: "timestamptz"
@@ -358,7 +373,7 @@ Timestamp interpreted in the session's timezone.
 | --- | --- | --- | --- | --- |
 | `unit` | Granularity `s`, `ms`, `us`, `ns`. | string | No | `ns` |
 
-??? example "timestampltz"
+???+ example "timestampltz"
     ```yaml
     - name: "user_created_at"
       type: "timestampltz"
@@ -373,7 +388,7 @@ Timestamp with explicit "no timezone" semantics.
 | --- | --- | --- | --- | --- |
 | `unit` | Granularity `s`, `ms`, `us`, `ns`. | string | No | `ns` |
 
-??? example "timestampntz"
+???+ example "timestampntz"
     ```yaml
     - name: "materialized_at"
       type: "timestampntz"
@@ -388,7 +403,7 @@ Elapsed amount of time.
 | --- | --- | --- | --- | --- |
 | `unit` | Granularity `s`, `ms`, `us`, `ns`. | string | No | `ns` |
 
-??? example "duration"
+???+ example "duration"
     ```yaml
     - name: "session_length"
       type: "duration"
@@ -401,10 +416,10 @@ SQL-style intervals bounded by start and optional end units.
 
 | Parameter | Description | Type | Required | Default |
 | --- | --- | --- | --- | --- |
-| `interval_start` | Most significant unit (`YEAR`, `MONTH`, `DAY`, `HOUR`, `MINUTE`, `SECOND`). | string | Yes | — |
+| `interval_start` | Most significant unit. Year-Month: [`YEAR`, `MONTH`], or Day-Time: [`DAY`, `HOUR`, `MINUTE`, `SECOND`]. | string | Yes | — |
 | `interval_end` | Least significant unit. Must be same category as `interval_start`. | string | No | Single-unit interval |
 
-??? example "interval"
+???+ example "interval"
     ```yaml
     - name: "contract_term"
       type: "interval"
@@ -420,10 +435,10 @@ Ordered list of values sharing the same element type.
 
 | Parameter | Description | Type | Required | Default |
 | --- | --- | --- | --- | --- |
-| `element` | Nested type definition. | column | Yes | — |
+| `element` | Nested type definition. | [column](#column-reference) | Yes | — |
 | `params.size` | Max array length for fixed-size arrays. | integer | No | Unlimited |
 
-??? example "array"
+???+ example "array"
     ```yaml
     - name: "tags"
       type: "array"
@@ -438,9 +453,9 @@ Named grouping of heterogenous fields.
 
 | Parameter | Description | Type | Required | Default |
 | --- | --- | --- | --- | --- |
-| `fields` | Ordered list of embedded column definitions. | array(column) | Yes | — |
+| `fields` | Ordered list of embedded column definitions. | array([column](#column-reference)) | Yes | — |
 
-??? example "struct"
+???+ example "struct"
     ```yaml
     - name: "address"
       type: "struct"
@@ -458,11 +473,11 @@ Key/value pairs.
 
 | Parameter | Description | Type | Required | Default |
 | --- | --- | --- | --- | --- |
-| `key` | Type definition for map keys. | column | Yes | — |
-| `value` | Type definition for map values. | column | Yes | — |
+| `key` | Type definition for map keys. | [column](#column-reference) | Yes | — |
+| `value` | Type definition for map values. | [column](#column-reference) | Yes | — |
 | `params.keys_sorted` | Whether keys are guaranteed sorted. | boolean | No | false |
 
-??? example "map"
+???+ example "map"
     ```yaml
     - name: "attributes"
       type: "map"
@@ -479,10 +494,10 @@ Multi-dimensional numeric data.
 
 | Parameter | Description | Type | Required | Default |
 | --- | --- | --- | --- | --- |
-| `element` | Base type for tensor entries. | column | Yes | — |
+| `element` | Base type for tensor entries. | [column](#column-reference) | Yes | — |
 | `params.shape` | Positive integers describing each dimension. | array(integer) | Yes | — |
 
-??? example "tensor"
+???+ example "tensor"
     ```yaml
     - name: "embedding"
       type: "tensor"
@@ -497,7 +512,7 @@ Multi-dimensional numeric data.
 #### [`json`](../api/types.md#yads.types.JSON)
 Semi-structured JSON payload. No additional parameters.
 
-??? example "json"
+???+ example "json"
     ```yaml
     - name: "event_payload"
       type: "json"
@@ -506,7 +521,7 @@ Semi-structured JSON payload. No additional parameters.
 #### [`variant`](../api/types.md#yads.types.Variant)
 Union-style semi-structured payload. No additional parameters.
 
-??? example "variant"
+???+ example "variant"
     ```yaml
     - name: "document"
       type: "variant"
@@ -515,7 +530,7 @@ Union-style semi-structured payload. No additional parameters.
 #### [`uuid`](../api/types.md#yads.types.UUID)
 128-bit identifiers formatted as canonical UUID strings.
 
-??? example "uuid"
+???+ example "uuid"
     ```yaml
     - name: "record_uuid"
       type: "uuid"
@@ -526,7 +541,7 @@ Union-style semi-structured payload. No additional parameters.
 #### [`void`](../api/types.md#yads.types.Void)
 Represents `NULL` or placeholder fields.
 
-??? example "void"
+???+ example "void"
     ```yaml
     - name: "reserved"
       type: "void"
@@ -539,7 +554,7 @@ Planar geometry column.
 | --- | --- | --- | --- | --- |
 | `srid` | Spatial reference identifier. | integer or string | No | — |
 
-??? example "geometry"
+???+ example "geometry"
     ```yaml
     - name: "parcel_shape"
       type: "geometry"
@@ -554,7 +569,7 @@ Spherical geometry column.
 | --- | --- | --- | --- | --- |
 | `srid` | Spatial reference identifier. | integer or string | No | — |
 
-??? example "geography"
+???+ example "geography"
     ```yaml
     - name: "customer_location"
       type: "geography"
