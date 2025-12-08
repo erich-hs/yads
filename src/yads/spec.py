@@ -1,34 +1,4 @@
-"""Core data structures for the canonical yads specification.
-
-Example:
-    >>> from yads.constraints import NotNullConstraint
-    >>> import yads.types as ytypes
-    >>>
-    >>> # Define table columns
-    >>> columns = [
-    ...     Column(name="id", type=ytypes.Integer(), constraints=[NotNullConstraint()]),
-    ...     Column(name="name", type=ytypes.String(length=100))
-    ... ]
-    >>>
-    >>> # Constraints may also be specified on nested fields (e.g., in Struct)
-    >>> address_type = ytypes.Struct(fields=[
-    ...     Field(name="street", type=ytypes.String(), constraints=[NotNullConstraint()]),
-    ...     Field(name="city", type=ytypes.String()),
-    ... ])
-    >>>
-    >>> # Create a complete spec
-    >>> spec = YadsSpec(
-    ...     name="users",
-    ...     version=1,
-    ...     columns=columns,
-    ...     description="User information table"
-    ... )
-    >>>
-    >>> # Use with converters
-    >>> from yads.converters import SparkSQLConverter
-    >>> converter = SparkSQLConverter()
-    >>> ddl = converter.convert(spec)
-"""
+"""Core data structures for the canonical yads specification."""
 
 from __future__ import annotations
 
@@ -96,10 +66,8 @@ class TransformedColumnReference:
     """A reference to a column with an optional transformation function.
 
     Used in:
-    - Partitioning definitions to transform column values before partitioning.
-    - Generated columns to define computed expressions.
-
-    Common transformations include bucketing, truncating, and date part extraction.
+        - Partitioning definitions to transform column values before partitioning.
+        - Generated columns to define computed expressions.
     """
 
     column: str
@@ -121,26 +89,6 @@ class Field:
 
     Field is the base class for all named data elements in yads. It represents
     individual data fields with their types, constraints, and optional metadata.
-
-    Example:
-        >>> import yads.types as ytypes
-        >>> from yads.constraints import NotNullConstraint
-        >>>
-        >>> # Simple field for use in complex types
-        >>> field = Field(name="username", type=ytypes.String())
-        >>> field.is_nullable
-        True
-        >>>
-        >>> # Field with metadata and constraints
-        >>> field = Field(
-        ...     name="user_id",
-        ...     type=ytypes.Integer(bits=64),
-        ...     description="Unique identifier for the user",
-        ...     metadata={"source": "user_service"},
-        ...     constraints=[NotNullConstraint()],
-        ... )
-        >>> field.is_nullable
-        False
     """
 
     name: str
@@ -156,7 +104,7 @@ class Field:
 
     @cached_property
     def is_nullable(self) -> bool:
-        """True if this field allows NULL values (no NOT NULL constraint)."""
+        """True if this field allows NULL values."""
         return not any(isinstance(c, NotNullConstraint) for c in self.constraints)
 
     @cached_property
@@ -196,29 +144,6 @@ class Column(Field):
 
     Column extends Field to represent database table columns specifically.
     It adds support for generated column definitions.
-
-    Example:
-        >>> from yads.constraints import NotNullConstraint, DefaultConstraint
-        >>> import yads.types as ytypes
-        >>>
-        >>> # Simple column
-        >>> column = Column(name="username", type=ytypes.String())
-        >>>
-        >>> # Column with constraints and metadata
-        >>> column = Column(
-        ...     name="user_id",
-        ...     type=ytypes.Integer(bits=64),
-        ...     constraints=[NotNullConstraint()],
-        ...     description="Unique identifier for the user",
-        ...     metadata={"source": "user_service"}
-        ... )
-        >>>
-        >>> # Generated column
-        >>> column = Column(
-        ...     name="order_year",
-        ...     type=ytypes.Integer(),
-        ...     generated_as=TransformedColumnReference(column="order_date", transform="year")
-        ... )
     """
 
     generated_as: TransformedColumnReference | None = None
@@ -286,7 +211,7 @@ class YadsSpec:
         yads_spec_version: Version of the yads specification format itself.
         columns: List of Column objects defining the table structure.
         description: Optional human-readable description of the table.
-        external: Whether to generate CREATE EXTERNAL TABLE statements.
+        external: Whether to generate `CREATE EXTERNAL TABLE` statements.
         storage: Storage configuration including format and properties.
         partitioned_by: List of partition columns.
         table_constraints: List of table-level constraints (e.g., composite keys).
@@ -296,43 +221,6 @@ class YadsSpec:
         SpecValidationError: If the spec contains validation errors such as
                              duplicate column names, undefined partition columns,
                              or invalid constraint references.
-
-    Example:
-        >>> from yads.constraints import NotNullConstraint, PrimaryKeyConstraint
-        >>> import yads.types as ytypes
-        >>>
-        >>> # Create a simple spec
-        >>> spec = YadsSpec(
-        ...     name="users",
-        ...     version=1,
-        ...     description="User information table",
-        ...     columns=[
-        ...         Column(
-        ...             name="id",
-        ...             type=ytypes.Integer(),
-        ...             constraints=[NotNullConstraint(), PrimaryKeyConstraint()]
-        ...         ),
-        ...         Column(
-        ...             name="email",
-        ...             type=ytypes.String(length=255),
-        ...             constraints=[NotNullConstraint()]
-        ...         ),
-        ...         Column(name="name", type=ytypes.String())
-        ...     ]
-        ... )
-        >>>
-        >>> # Access spec properties
-        >>> print(f"Spec: {spec.name} v{spec.version}")
-        Spec: users v1
-        >>> print(f"Columns: {len(spec.columns)}")
-        Columns: 3
-        >>> print(f"Column names: {spec.column_names}")
-        Column names: {'id', 'email', 'name'}
-
-        >>> # Use with converters
-        >>> from yads.converters import SparkSQLConverter
-        >>> converter = SparkSQLConverter()
-        >>> ddl = converter.convert(spec)
     """
 
     name: str
