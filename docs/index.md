@@ -18,12 +18,14 @@ All while preserving logical [types](api/types.md), [constraints](api/constraint
 name: "prod.assessments.submissions"
 version: 1
 yads_spec_version: "0.0.2"
+
 columns:
   - name: "submission_id"
     type: "bigint"
     constraints:
       primary_key: true
       not_null: true
+
   - name: "completion_percent"
     type: "decimal"
     params:
@@ -31,8 +33,10 @@ columns:
       scale: 2
     constraints:
       default: 0.00
+
   - name: "time_taken_seconds"
     type: "integer"
+
   - name: "submitted_at"
     type: "timestamptz"
     params:

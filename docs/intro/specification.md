@@ -147,12 +147,12 @@ unrecognized keys within a column block cause validation failures.
         constraints:
           primary_key: true
           not_null: true
+
       - name: "created_at"
         type: "timestamptz"
         params:
           tz: "UTC"
-        constraints:
-          default: "CURRENT_TIMESTAMP"
+
       - name: "created_date"
         type: "date"
         generated_as:
