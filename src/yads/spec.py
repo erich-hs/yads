@@ -15,8 +15,15 @@ from .types import YadsType
 YADS_SPEC_VERSION = "0.0.2"
 
 
-def from_dict(data: Mapping[str, Any]) -> "YadsSpec":
-    """Build a `YadsSpec` from a normalized dictionary."""
+def from_dict(data: Mapping[str, Any]) -> YadsSpec:
+    """Build a `YadsSpec` from a normalized dictionary.
+
+    Args:
+        data: Canonical spec dictionary to deserialize.
+
+    Returns:
+        A fully validated `YadsSpec` instance.
+    """
     from .serializers.spec_serializer import SpecDeserializer
 
     return SpecDeserializer().deserialize(data)
@@ -63,11 +70,12 @@ def _empty_table_constraints() -> list[TableConstraint]:
 
 @dataclass(frozen=True)
 class TransformedColumnReference:
-    """A reference to a column with an optional transformation function.
+    """Reference to a column with an optional transformation.
 
-    Used in:
-        - Partitioning definitions to transform column values before partitioning.
-        - Generated columns to define computed expressions.
+    Args:
+        column: Name of the referenced column.
+        transform: Transformation function applied to the column, if any.
+        transform_args: Arguments passed to the transformation.
     """
 
     column: str
@@ -85,10 +93,14 @@ class TransformedColumnReference:
 
 @dataclass(frozen=True)
 class Field:
-    """A named and typed data field, representing a field in a complex type.
+    """A named, typed data field with optional constraints.
 
-    Field is the base class for all named data elements in yads. It represents
-    individual data fields with their types, constraints, and optional metadata.
+    Args:
+        name: Field identifier.
+        type: Logical yads type of the field.
+        description: Optional human-friendly description.
+        metadata: Arbitrary key-value metadata for consumers.
+        constraints: Column-level constraints such as nullability or checks.
     """
 
     name: str
@@ -140,10 +152,15 @@ class Field:
 
 @dataclass(frozen=True)
 class Column(Field):
-    """A table column with optional generation logic.
+    """Table column extending `Field` with generation support.
 
-    Column extends Field to represent database table columns specifically.
-    It adds support for generated column definitions.
+    Args:
+        name: Column name.
+        type: Logical yads type of the column.
+        description: Optional human-friendly description.
+        metadata: Arbitrary key-value metadata for consumers.
+        constraints: Column-level constraints such as nullability or checks.
+        generated_as: Optional expression defining a generated/computed column.
     """
 
     generated_as: TransformedColumnReference | None = None
@@ -174,9 +191,12 @@ class Column(Field):
 
 @dataclass(frozen=True)
 class Storage:
-    """Defines the physical storage properties of a table.
+    """Physical storage properties for a table.
 
-    Includes file format, location, and format-specific properties.
+    Args:
+        format: Storage format (e.g., "parquet", "delta").
+        location: Optional URI/path to the stored data.
+        tbl_properties: Format-specific storage properties.
     """
 
     format: str | None = None

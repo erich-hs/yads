@@ -126,16 +126,22 @@ Remember to:
 
 ### Testing your changes
 
-Tests are organized by module in the `tests/` directory. Write tests that are clear and comprehensive. Use descriptive names that explain what behavior is being verified.
+`yads` has a comprehensive test suite that is organized by module in the `tests/` directory. Write tests that are clear and comprehensive. Use descriptive names that explain what behavior is being verified.
 
-`yads` tests compatibility with multiple versions of optional dependencies (PySpark, PyArrow, Pydantic, Polars). You can test specific dependency versions locally:
+Use the Make targets to run unit tests:
+```bash
+make test
+make test-cov
+```
+
+`yads` also tests compatibility with multiple versions of optional dependencies (PySpark, PyArrow, Pydantic, Polars). You can test specific dependency versions locally:
 
 ```bash
 make test-dependency DEP=pyspark VER=3.5.3
 make test-integration DIALECT=spark
 ```
 
-See the [CI README](ci/README.md) for details on dependency testing and integration tests.
+See the [CI README](https://github.com/erich-hs/yads/blob/main/ci/README.md) for details on dependency testing and integration tests.
 
 ### Submitting your work
 
@@ -220,7 +226,7 @@ Treat generated example regions as read-only and note the sync command you ran i
 
 ## Releasing new versions
 
-Maintainers handle releases. The process uses [Release Drafter](https://github.com/release-drafter/release-drafter) to automatically generate release notes from pull request titles. For complete release procedures, see [RELEASE.md](.github/RELEASE.md).
+Maintainers handle releases. The process uses [Release Drafter](https://github.com/release-drafter/release-drafter) to automatically generate release notes from pull request titles. For complete release procedures, see [RELEASE.md](https://github.com/erich-hs/yads/blob/main/.github/RELEASE.md).
 
 Contributors don't need to worry about versions or releases - just focus on your code changes.
 

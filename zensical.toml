@@ -147,11 +147,11 @@ accent = "orange"
 
 [project.theme.icon]
 logo = "lucide/book-text"
-#repo = "lucide/smile"
+repo = "lucide/smile"
 
-#[[project.extra.social]]
-#icon = "fontawesome/brands/github"
-#link = "https://github.com/user/repo"
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/erich-hs/yads"
 
 [project.markdown_extensions.admonition]
 [project.markdown_extensions.pymdownx.details]

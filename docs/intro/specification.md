@@ -42,7 +42,7 @@ Optional top-level named parameters.
 | --- | --- | --- | --- |
 | `description` | string | No | Short summary of table intent. |
 | `external` | boolean | No | Emit `CREATE EXTERNAL` for compatible converters when True. Defaults to `false`. |
-| `metadata` | map | No | Arbitrary container for metadata in a dictionary format. |
+| `metadata` | map | No | Arbitrary container for metadata as key-value pairs. |
 
 ???+ example "Identity and metadata example"
     ```yaml
