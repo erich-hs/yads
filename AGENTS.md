@@ -13,6 +13,7 @@
 ## Coding standards
 - Follow PEP 8 with a 90-character limit. Maintain strict typing (Pyright `strict`); prefer `TypedDict`, `Protocol`, and dataclasses over raw dicts. Fix all type errors and missing imports.
 - Add Google-style docstrings for any user-facing function/class/module; keep internal helpers self-documenting. Use explicit imports for `spec`/`types` to avoid collisions.
+- When adding code snipets as examples in Google-style docstrings, use the code in backticks so they are renderd as code blocks.
 - Keep code deterministic and semantics-preserving per the design philosophy; surface explicit warnings/errors for lossy conversions.
 
 ## Testing expectations

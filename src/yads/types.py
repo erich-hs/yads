@@ -1,24 +1,4 @@
-"""Canonical type system for yads specifications.
-
-The type system is designed to be expressive and database-agnostic, while providing
-sufficient detail for accurate conversion to specific SQL dialects and data processing
-frameworks.
-
-Example:
-    >>> import yads.types as ytypes
-    >>> from yads.spec import Field
-    >>>
-    >>> # Create basic types
-    >>> name_type = ytypes.String(length=100)
-    >>> age_type = ytypes.Integer(bits=32)
-    >>>
-    >>> # Create complex types
-    >>> address_type = ytypes.Struct(fields=[
-    ...     Field(name="street", type=ytypes.String()),
-    ...     Field(name="city", type=ytypes.String()),
-    ...     Field(name="zip", type=ytypes.String(length=10))
-    ... ])
-"""
+"""Canonical type system for yads specifications."""
 
 from __future__ import annotations
 
@@ -128,7 +108,7 @@ class Integer(YadsType):
     """Integer type with optional bit-width and signedness specification.
 
     Represents whole numbers. Bit-width controls representable range; `signed`
-    controls whether negative values are allowed.
+    controls whether the integer is signed.
 
     Args:
         bits: Number of bits for the integer. Must be 8, 16, 32, or 64.
@@ -283,8 +263,7 @@ class Date(YadsType):
 
     Args:
         bits: Storage width for logical date. One of `32` or `64`. Defaults
-            to `32`. This flag primarily affects non-SQL targets such as
-            PyArrow.
+            to `32`.
     """
 
     bits: int | None = None
@@ -529,9 +508,10 @@ class Interval(YadsType):
         interval_end: The ending (least significant) time unit. If None,
                      represents a single-unit interval.
 
+
     The start and end units must belong to the same category:
-    - Year-Month: YEAR, MONTH
-    - Day-Time: DAY, HOUR, MINUTE, SECOND
+        - Year-Month: `YEAR`, `MONTH`
+        - Day-Time: `DAY`, `HOUR`, `MINUTE`, `SECOND`
 
     Raises:
         TypeDefinitionError: If start and end units are from different categories,
@@ -611,14 +591,16 @@ class Array(YadsType):
             array is variable-length.
 
     Example:
-        >>> # Array of strings
-        >>> Array(element=String())
+        ```python
+        # Array of strings
+        Array(element=String())
 
-        >>> # Fixed-size array of integers
-        >>> Array(element=Integer(bits=32), size=10)
+        # Fixed-size array of integers
+        Array(element=Integer(bits=32), size=10)
 
-        >>> # Nested array (array of arrays)
-        >>> Array(element=Array(element=String()))
+        # Nested array (array of arrays)
+        Array(element=Array(element=String()))
+        ```
     """
 
     element: YadsType
@@ -640,21 +622,23 @@ class Struct(YadsType):
         fields: List of Field objects defining the structure's schema.
 
     Example:
-        >>> from yads.spec import Field
-        >>>
-        >>> # Address structure
-        >>> address_type = Struct(fields=[
-        ...     Field(name="street", type=String()),
-        ...     Field(name="city", type=String()),
-        ...     Field(name="postal_code", type=String(length=10))
-        ... ])
+        ```python
+        from yads.spec import Field
 
-        >>> # Nested structures
-        >>> person_type = Struct(fields=[
-        ...     Field(name="name", type=String()),
-        ...     Field(name="age", type=Integer()),
-        ...     Field(name="address", type=address_type)
-        ... ])
+        # Address structure
+        address_type = Struct(fields=[
+            Field(name="street", type=String()),
+            Field(name="city", type=String()),
+            Field(name="postal_code", type=String(length=10))
+        ])
+
+        # Nested structures
+        person_type = Struct(fields=[
+            Field(name="name", type=String()),
+            Field(name="age", type=Integer()),
+            Field(name="address", type=address_type)
+        ])
+        ```
     """
 
     fields: list[Field]
@@ -678,14 +662,16 @@ class Map(YadsType):
         keys_sorted: Whether the map has sorted keys. Defaults to False.
 
     Example:
-        >>> # String-to-string mapping
-        >>> Map(key=String(), value=String())
+        ```python
+        # String-to-string mapping
+        Map(key=String(), value=String())
 
-        >>> # String-to-integer mapping
-        >>> Map(key=String(), value=Integer())
+        # String-to-integer mapping
+        Map(key=String(), value=Integer())
 
-        >>> # Complex value types
-        >>> Map(key=String(), value=Array(element=String()))
+        # Complex value types
+        Map(key=String(), value=Array(element=String()))
+        ```
     """
 
     key: YadsType
@@ -768,14 +754,16 @@ class Tensor(YadsType):
         TypeDefinitionError: If shape is empty or contains non-positive integers.
 
     Example:
-        >>> # 2D tensor of integers
-        >>> Tensor(element=Integer(), shape=[10, 20])
+        ```python
+        # 2D tensor of integers
+        Tensor(element=Integer(), shape=[10, 20])
 
-        >>> # 3D tensor of floats
-        >>> Tensor(element=Float(bits=32), shape=[5, 10, 15])
+        # 3D tensor of floats
+        Tensor(element=Float(bits=32), shape=[5, 10, 15])
 
-        >>> # Use in field definition
-        >>> Field(name="image_data", type=Tensor(element=Float(bits=32), shape=[224, 224, 3]))
+        # Use in field definition
+        Field(name="image_data", type=Tensor(element=Float(bits=32), shape=[224, 224, 3]))
+        ```
     """
 
     element: YadsType

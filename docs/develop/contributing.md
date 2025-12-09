@@ -192,10 +192,10 @@ We use "Squash and merge" for all pull requests. This creates a single commit on
 
 ## Documentation
 
-Docs ship with MkDocs Material (`mkdocs.yml`) and MkDocStrings, so every public symbol needs an up-to-date Google-style docstring. Preview the site with:
+Docs are built with Zensical (from the creators of MkDocs Material) and are configured via the `zensical.toml` file. API reference documentation is automatically parsed by the `mkdocstrings` extension, so every public symbol needs an up-to-date Google-style docstring. Preview the site with:
 
 ```bash
-uv run --group dev mkdocs serve
+uv run --group dev zensical serve
 ```
 
 Reusable snippets live in `docs/src/examples/` as `EXAMPLE` definitions and you can reference them inside Markdown with `<!-- BEGIN/END:example ... -->` markers:
