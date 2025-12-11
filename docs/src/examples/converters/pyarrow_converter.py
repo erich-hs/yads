@@ -12,6 +12,10 @@ from yads.spec import Column
 
 from ..base import ExampleBlockRequest, ExampleDefinition
 
+# pyright: reportUnknownArgumentType=none, reportUnknownMemberType=none
+# pyright: reportUnknownVariableType=none, reportUnknownParameterType=none
+# pyright: reportMissingParameterType=none
+
 warnings.filterwarnings("ignore")
 
 spec = yads.from_yaml("docs/src/specs/submissions.yaml")
