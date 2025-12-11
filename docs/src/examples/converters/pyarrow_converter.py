@@ -25,7 +25,7 @@ spec_with_variant = replace(
 )
 
 
-def _pyarrow_schema_example() -> None:
+def _pyarrow_converter_example() -> None:
     import yads
 
     spec = yads.from_yaml("docs/src/specs/submissions.yaml")
@@ -108,16 +108,16 @@ EXAMPLE = ExampleDefinition(
     example_id="pyarrow-converter-basic",
     blocks=(
         ExampleBlockRequest(
-            slug="code",
+            slug="convert-example-code",
             language="python",
             source="callable",
-            callable=_pyarrow_schema_example,
+            callable=_pyarrow_converter_example,
         ),
         ExampleBlockRequest(
-            slug="output",
+            slug="convert-example-output",
             language="text",
             source="stdout",
-            callable=_pyarrow_schema_example,
+            callable=_pyarrow_converter_example,
         ),
         ExampleBlockRequest(
             slug="spec-print-code",
@@ -193,7 +193,3 @@ EXAMPLE = ExampleDefinition(
         ),
     ),
 )
-
-
-if __name__ == "__main__":
-    _pyarrow_schema_example()

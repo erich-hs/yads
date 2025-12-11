@@ -5,6 +5,24 @@ icon: "lucide/arrow-big-right-dash"
 
 Convert a canonical `YadsSpec` to runtime schema objects for multiple formats.
 
+<!-- BEGIN:example pyarrow-converter-basic convert-example-code -->
+```python
+import yads
+
+spec = yads.from_yaml("docs/src/specs/submissions.yaml")
+schema = yads.to_pyarrow(spec)
+print(schema)
+```
+<!-- END:example pyarrow-converter-basic convert-example-code -->
+<!-- BEGIN:example pyarrow-converter-basic convert-example-output -->
+```text
+submission_id: int64 not null
+completion_percent: decimal128(5, 2)
+time_taken_seconds: int32
+submitted_at: timestamp[ns, tz=UTC]
+```
+<!-- END:example pyarrow-converter-basic convert-example-output -->
+
 The following sections outline the high level-entry points functions available in `yads`. You can refer to the dedicated converter documentation for their complete API reference with more customization options.
 
 === "uv"
