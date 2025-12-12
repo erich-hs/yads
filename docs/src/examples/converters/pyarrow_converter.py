@@ -25,6 +25,17 @@ spec_with_variant = replace(
 )
 
 
+def _pyarrow_converter_lowlevel_example() -> None:
+    import yads
+    from yads.converters import PyArrowConverter, PyArrowConverterConfig
+
+    spec = yads.from_yaml("docs/src/specs/submissions.yaml")
+
+    converter = PyArrowConverter(PyArrowConverterConfig(mode="coerce"))
+    schema = converter.convert(spec)
+    print(schema)
+
+
 def _pyarrow_converter_example() -> None:
     import yads
 
@@ -118,6 +129,18 @@ EXAMPLE = ExampleDefinition(
             language="text",
             source="stdout",
             callable=_pyarrow_converter_example,
+        ),
+        ExampleBlockRequest(
+            slug="convert-example-lowlevel-code",
+            language="python",
+            source="callable",
+            callable=_pyarrow_converter_lowlevel_example,
+        ),
+        ExampleBlockRequest(
+            slug="convert-example-lowlevel-output",
+            language="text",
+            source="stdout",
+            callable=_pyarrow_converter_lowlevel_example,
         ),
         ExampleBlockRequest(
             slug="spec-print-code",

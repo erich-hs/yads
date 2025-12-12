@@ -6,33 +6,14 @@ from ..base import ExampleBlockRequest, ExampleDefinition
 
 
 def _polars_schema_example() -> None:
+    import yads
+    from yads.converters import PolarsConverter, PolarsConverterConfig
     from pprint import pprint
 
-    import yads.types as ytypes
-    from yads.spec import Column, YadsSpec
-    from yads.constraints import NotNullConstraint
-    from yads.converters import PolarsConverter
+    spec = yads.from_yaml("docs/src/specs/submissions.yaml")
 
-    spec = YadsSpec(
-        name="catalog.crm.customers",
-        version=1,
-        columns=[
-            Column(
-                name="id",
-                type=ytypes.Integer(bits=64),
-                constraints=[NotNullConstraint()],
-            ),
-            Column(name="email", type=ytypes.String()),
-            Column(name="created_at", type=ytypes.TimestampTZ(tz="UTC")),
-            Column(
-                name="spend",
-                type=ytypes.Decimal(precision=10, scale=2),
-            ),
-            Column(name="tags", type=ytypes.Array(element=ytypes.String())),
-        ],
-    )
-
-    schema = PolarsConverter().convert(spec)
+    converter = PolarsConverter(PolarsConverterConfig(mode="coerce"))
+    schema = converter.convert(spec)
     pprint(dict(schema))
 
 

@@ -2,38 +2,23 @@
 
 from __future__ import annotations
 
+import warnings
+
 from ..base import ExampleBlockRequest, ExampleDefinition
+
+warnings.simplefilter("ignore")
 
 
 def _pyspark_schema_example() -> None:
-    from pprint import pprint
+    import yads
+    from yads.converters import PySparkConverter, PySparkConverterConfig
+    import json
 
-    import yads.types as ytypes
-    from yads.spec import Column, YadsSpec
-    from yads.constraints import NotNullConstraint
-    from yads.converters import PySparkConverter
+    spec = yads.from_yaml("docs/src/specs/submissions.yaml")
 
-    spec = YadsSpec(
-        name="catalog.crm.customers",
-        version=1,
-        columns=[
-            Column(
-                name="id",
-                type=ytypes.Integer(bits=64),
-                constraints=[NotNullConstraint()],
-            ),
-            Column(name="email", type=ytypes.String()),
-            Column(name="created_at", type=ytypes.TimestampTZ(tz="UTC")),
-            Column(
-                name="spend",
-                type=ytypes.Decimal(precision=10, scale=2),
-            ),
-            Column(name="tags", type=ytypes.Array(element=ytypes.String())),
-        ],
-    )
-
-    schema = PySparkConverter().convert(spec)
-    pprint(schema.jsonValue())
+    converter = PySparkConverter(PySparkConverterConfig(mode="coerce"))
+    schema = converter.convert(spec)
+    print(json.dumps(schema.jsonValue(), indent=2))
 
 
 EXAMPLE = ExampleDefinition(

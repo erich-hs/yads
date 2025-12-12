@@ -7,56 +7,85 @@ with the canonical schema.
 
 <!-- BEGIN:example pydantic-converter-basic code -->
 ```python
-from decimal import Decimal
-from pprint import pprint
+import yads
+from yads.converters import PydanticConverter, PydanticConverterConfig
+import json
 
-import yads.types as ytypes
-from yads.spec import Column, YadsSpec
-from yads.constraints import NotNullConstraint
-from yads.converters import PydanticConverter
+spec = yads.from_yaml("docs/src/specs/submissions.yaml")
 
-spec = YadsSpec(
-    name="catalog.crm.customers",
-    version=1,
-    columns=[
-        Column(
-            name="id",
-            type=ytypes.Integer(bits=64),
-            constraints=[NotNullConstraint()],
-        ),
-        Column(name="email", type=ytypes.String()),
-        Column(name="created_at", type=ytypes.Timestamp()),
-        Column(
-            name="spend",
-            type=ytypes.Decimal(precision=10, scale=2),
-        ),
-        Column(name="tags", type=ytypes.Array(element=ytypes.String())),
-    ],
-)
-
-Customer = PydanticConverter().convert(spec)
-alice = Customer(
-    id=1,
-    email="alice@example.com",
-    created_at="2024-01-02T15:04:05Z",
-    spend=Decimal("12.34"),
-    tags=["vip", "beta"],
-)
-pprint(alice.model_dump())
+converter = PydanticConverter(PydanticConverterConfig(mode="coerce"))
+Submission = converter.convert(spec)
+print(json.dumps(Submission.model_json_schema(), indent=2))
 ```
 <!-- END:example pydantic-converter-basic code -->
 <!-- BEGIN:example pydantic-converter-basic output -->
 ```text
-{'created_at': datetime.datetime(2024, 1, 2, 15, 4, 5, tzinfo=TzInfo(0)),
- 'email': 'alice@example.com',
- 'id': 1,
- 'spend': Decimal('12.34'),
- 'tags': ['vip', 'beta']}
+{
+  "properties": {
+    "submission_id": {
+      "maximum": 9223372036854775807,
+      "minimum": -9223372036854775808,
+      "title": "Submission Id",
+      "type": "integer",
+      "yads": {
+        "primary_key": true
+      }
+    },
+    "completion_percent": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,3}|(?=[\\d.]{1,6}0*$)\\d{0,3}\\.\\d{0,2}0*$)",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": 0.0,
+      "title": "Completion Percent"
+    },
+    "time_taken_seconds": {
+      "anyOf": [
+        {
+          "maximum": 2147483647,
+          "minimum": -2147483648,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Time Taken Seconds"
+    },
+    "submitted_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Submitted At"
+    }
+  },
+  "required": [
+    "submission_id",
+    "time_taken_seconds",
+    "submitted_at"
+  ],
+  "title": "prod_assessments_submissions",
+  "type": "object"
+}
 ```
 <!-- END:example pydantic-converter-basic output -->
 
-!!! tip
-    Install one of the supported versions of Pydantic to use this converter with `uv add yads[pydantic]`
+!!! info
+    Install one of the supported versions of Pydantic to use this converter with `uv add 'yads[pydantic]'`
 
 ::: yads.converters.pydantic_converter.PydanticConverter
 

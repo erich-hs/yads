@@ -6,23 +6,26 @@ directly or through `yads.to_pyarrow` whenever you need a deterministic schema
 object for downstream Arrow consumers. The snippet below loads the shared
 `submissions` spec from YAML and prints the resulting schema.
 
-<!-- BEGIN:example pyarrow-converter-basic code -->
+<!-- BEGIN:example pyarrow-converter-basic convert-example-lowlevel-code -->
 ```python
 import yads
+from yads.converters import PyArrowConverter, PyArrowConverterConfig
 
 spec = yads.from_yaml("docs/src/specs/submissions.yaml")
-schema = yads.to_pyarrow(spec)
+
+converter = PyArrowConverter(PyArrowConverterConfig(mode="coerce"))
+schema = converter.convert(spec)
 print(schema)
 ```
-<!-- END:example pyarrow-converter-basic code -->
-<!-- BEGIN:example pyarrow-converter-basic output -->
+<!-- END:example pyarrow-converter-basic convert-example-lowlevel-code -->
+<!-- BEGIN:example pyarrow-converter-basic convert-example-lowlevel-output -->
 ```text
 submission_id: int64 not null
 completion_percent: decimal128(5, 2)
 time_taken_seconds: int32
 submitted_at: timestamp[ns, tz=UTC]
 ```
-<!-- END:example pyarrow-converter-basic output -->
+<!-- END:example pyarrow-converter-basic convert-example-lowlevel-output -->
 
 !!! info
     Install one of the supported versions of PyArrow to use this converter with

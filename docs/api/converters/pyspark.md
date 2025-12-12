@@ -7,63 +7,53 @@ unsupported constructs.
 
 <!-- BEGIN:example pyspark-converter-basic code -->
 ```python
-from pprint import pprint
+import yads
+from yads.converters import PySparkConverter, PySparkConverterConfig
+import json
 
-import yads.types as ytypes
-from yads.spec import Column, YadsSpec
-from yads.constraints import NotNullConstraint
-from yads.converters import PySparkConverter
+spec = yads.from_yaml("docs/src/specs/submissions.yaml")
 
-spec = YadsSpec(
-    name="catalog.crm.customers",
-    version=1,
-    columns=[
-        Column(
-            name="id",
-            type=ytypes.Integer(bits=64),
-            constraints=[NotNullConstraint()],
-        ),
-        Column(name="email", type=ytypes.String()),
-        Column(name="created_at", type=ytypes.TimestampTZ(tz="UTC")),
-        Column(
-            name="spend",
-            type=ytypes.Decimal(precision=10, scale=2),
-        ),
-        Column(name="tags", type=ytypes.Array(element=ytypes.String())),
-    ],
-)
-
-schema = PySparkConverter().convert(spec)
-pprint(schema.jsonValue())
+converter = PySparkConverter(PySparkConverterConfig(mode="coerce"))
+schema = converter.convert(spec)
+print(json.dumps(schema.jsonValue(), indent=2))
 ```
 <!-- END:example pyspark-converter-basic code -->
 <!-- BEGIN:example pyspark-converter-basic output -->
 ```text
-{'fields': [{'metadata': {}, 'name': 'id', 'nullable': False, 'type': 'long'},
-            {'metadata': {},
-             'name': 'email',
-             'nullable': True,
-             'type': 'string'},
-            {'metadata': {},
-             'name': 'created_at',
-             'nullable': True,
-             'type': 'timestamp'},
-            {'metadata': {},
-             'name': 'spend',
-             'nullable': True,
-             'type': 'decimal(10,2)'},
-            {'metadata': {},
-             'name': 'tags',
-             'nullable': True,
-             'type': {'containsNull': True,
-                      'elementType': 'string',
-                      'type': 'array'}}],
- 'type': 'struct'}
+{
+  "type": "struct",
+  "fields": [
+    {
+      "name": "submission_id",
+      "type": "long",
+      "nullable": false,
+      "metadata": {}
+    },
+    {
+      "name": "completion_percent",
+      "type": "decimal(5,2)",
+      "nullable": true,
+      "metadata": {}
+    },
+    {
+      "name": "time_taken_seconds",
+      "type": "integer",
+      "nullable": true,
+      "metadata": {}
+    },
+    {
+      "name": "submitted_at",
+      "type": "timestamp",
+      "nullable": true,
+      "metadata": {}
+    }
+  ]
+}
 ```
 <!-- END:example pyspark-converter-basic output -->
 
-!!! tip
-    Install one of the supported versions of PySpark to use this converter with `uv add yads[pyspark]`
+!!! info
+    Install one of the supported versions of PySpark to use this converter with `uv add 'yads[pyspark]'`
 
 ::: yads.converters.pyspark_converter.PySparkConverter
 
