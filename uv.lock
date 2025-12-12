@@ -3201,6 +3201,9 @@ docs = [
     { name = "mkdocstrings-python" },
     { name = "zensical" },
 ]
+fs = [
+    { name = "fsspec" },
+]
 gcs = [
     { name = "fsspec", extra = ["gcs"] },
 ]
@@ -3242,6 +3245,7 @@ docs = [
     { name = "mkdocstrings-python", specifier = ">=2.0.1" },
     { name = "zensical", specifier = ">=0.0.11" },
 ]
+fs = [{ name = "fsspec", specifier = ">=2023.1.0" }]
 gcs = [{ name = "fsspec", extras = ["gcs"], specifier = ">=2023.1.0" }]
 polars = [{ name = "polars", specifier = ">=1.0.0,<1.35.0" }]
 pyarrow = [{ name = "pyarrow", specifier = ">=15.0.0,<22.0.0" }]

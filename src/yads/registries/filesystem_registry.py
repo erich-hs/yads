@@ -1,30 +1,4 @@
-"""FileSystem-based registry implementation using fsspec.
-
-This module provides a filesystem registry for yads specifications that works
-across local filesystems, S3, GCS, and Azure Blob Storage.
-
-Example:
-    >>> from yads.registries import FileSystemRegistry
-    >>> import yads
-    >>>
-    >>> # Local filesystem
-    >>> registry = FileSystemRegistry("/path/to/registry")
-    >>>
-    >>> # S3 (requires yads[s3])
-    >>> registry = FileSystemRegistry("s3://bucket/registry/")
-    >>>
-    >>> # Register a spec
-    >>> spec = yads.from_yaml("specs/customers.yaml")
-    >>> version = registry.register(spec)
-    >>> print(f"Registered as version {version}")
-    >>>
-    >>> # Retrieve latest version
-    >>> latest = registry.get("catalog.crm.customers")
-    >>> print(f"Latest version: {latest.version}")
-    >>>
-    >>> # Retrieve specific version
-    >>> v1 = registry.get("catalog.crm.customers", version=1)
-"""
+"""FileSystem-based registry implementation using fsspec."""
 
 from __future__ import annotations
 
@@ -100,19 +74,21 @@ class FileSystemRegistry(BaseRegistry):
         RegistryConnectionError: If the base path is invalid or inaccessible.
 
     Example:
-        >>> # Local registry
-        >>> registry = FileSystemRegistry("/data/specs")
-        >>>
-        >>> # S3 with specific profile
-        >>> registry = FileSystemRegistry(
-        ...     "s3://my-bucket/schemas/",
-        ...     profile="production"
-        ... )
-        >>>
-        >>> # With custom logger
-        >>> import logging
-        >>> logger = logging.getLogger("my_app.registry")
-        >>> registry = FileSystemRegistry("/data/specs", logger=logger)
+        ```python
+        # Local registry
+        registry = FileSystemRegistry("/data/specs")
+
+        # S3 with specific profile
+        registry = FileSystemRegistry(
+            "s3://my-bucket/schemas/",
+            profile="production"
+        )
+
+        # With custom logger
+        import logging
+        logger = logging.getLogger("my_app.registry")
+        registry = FileSystemRegistry("/data/specs", logger=logger)
+        ```
     """
 
     # Characters not allowed in spec names (filesystem-unsafe)
@@ -172,7 +148,7 @@ class FileSystemRegistry(BaseRegistry):
             The assigned or existing version number.
 
         Raises:
-            InvalidSpecNameError: If spec.name contains invalid characters.
+            InvalidSpecNameError: If `spec.name` contains invalid characters.
             RegistryError: If registration fails.
         """
         # Validate spec name
