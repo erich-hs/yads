@@ -109,6 +109,29 @@ SQL support layers a converter stack:
 YadsSpec -> SQLGlotConverter (AST) -> AstValidator (optional) -> SQLConverter.sql()
 ```
 
+```mermaid
+flowchart TD
+    BaseConverter["BaseConverter<br/>column filters, mode, overrides"]
+        --> SQLGlotConverter["SQLGlotConverter<br/>builds dialect-agnostic AST"]
+    SQLGlotConverter --> SQLConverter["SQLConverter<br/>orchestrates AST -> SQL"]
+    SQLConverter -->|optional| AstValidator["AstValidator<br/>rules adjust/guard AST"]
+    AstValidator --> SQLConverter
+    SQLConverter --> Spark["SparkSQLConverter<br/>dialect='spark'"]
+    SQLConverter --> Duckdb["DuckdbSQLConverter<br/>dialect='duckdb'"]
+    SQLConverter --> New["NewSQLConverter<br/>dialect='your-dialect'"]
+    Spark --> SQLString["CREATE TABLE ..."]
+    Duckdb --> SQLString
+    New --> SQLString
+```
+
+How it flows:
+
+- `SQLGlotConverter` subclasses `BaseConverter` and emits a neutral `sqlglot` AST.
+- `SQLConverter` keeps the mode in sync, optionally runs an `AstValidator`, and calls
+  `.sql(dialect=..., **kwargs)` to format DDL.
+- Dialect classes (Spark, DuckDB, or your own) subclass `SQLConverter` and inject
+  validator rules plus any AST converter config needed for that dialect.
+
 `SQLConverter` handles mode propagation and column filters. `SQLGlotConverter`
 produces a dialect-agnostic `sqlglot` AST, and `AstValidator` applies
 dialect-specific rules before rendering.
