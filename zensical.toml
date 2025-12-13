@@ -48,83 +48,35 @@ nav = [
         "develop/contributing.md",
     ]}  
 ]
-
 extra_css = ["stylesheets/extra.css"]
 
 [project.theme]
-
-# - https://zensical.org/docs/setup/logo-and-icons/#favicon
-#favicon = "images/favicon.png"
-
+logo = "assets/texel_logo_squared_azure_no_bg_1000x1000.png"
+favicon = "assets/texel_logo_squared_azure_no_bg_1000x1000.png"
 language = "en"
 
-# font.text = "Roboto"
-# font.code = "Roboto Mono"
-
 features = [
-
-    # https://zensical.org/docs/setup/header/#announcement-bar
-    "announce.dismiss",
-
-    # https://zensical.org/docs/authoring/code-blocks/#code-annotations
-    "content.code.annotate",
-
-    # https://zensical.org/docs/authoring/code-blocks/#code-copy-button
-    "content.code.copy",
-
-    # https://zensical.org/docs/authoring/code-blocks/#code-selection-button
-    "content.code.select",
-
-    # https://zensical.org/docs/authoring/footnotes/#footnote-tooltips
-    "content.footnote.tooltips",
-
-    # https://zensical.org/docs/authoring/content-tabs/#linked-content-tabs
-    "content.tabs.link",
-
-    # https://zensical.org/docs/authoring/tooltips/#improved-tooltips
-    "content.tooltips",
-
-    # https://zensical.org/docs/setup/header/#automatic-hiding
     "header.autohide",
-
-    # https://zensical.org/docs/setup/footer/#navigation
+    "announce.dismiss",
+    "content.code.annotate",
+    "content.code.copy",
+    "content.code.select",
+    "content.footnote.tooltips",
+    "content.tabs.link",
+    "content.tooltips",
     "navigation.footer",
-
-    # https://zensical.org/docs/setup/navigation/#section-index-pages
     "navigation.indexes",
-
-    # https://zensical.org/docs/setup/navigation/#instant-navigation
     "navigation.instant",
-
-    # https://zensical.org/docs/setup/navigation/#instant-prefetching
     "navigation.instant.prefetch",
-
-    # https://zensical.org/docs/setup/navigation/#navigation-path
     "navigation.path",
-
-    # https://zensical.org/docs/setup/navigation/#navigation-sections
     "navigation.sections",
-
     "navigation.indexes",
-
     # "navigation.expand",
-
-    # https://zensical.org/docs/setup/navigation/#navigation-tabs
     # "navigation.tabs",
-
-    # https://zensical.org/docs/setup/navigation/#sticky-navigation-tabs
     # "navigation.tabs.sticky",
-
-    # https://zensical.org/docs/setup/navigation/#back-to-top-button
     "navigation.top",
-
-    # https://zensical.org/docs/setup/navigation/#anchor-tracking
     "navigation.tracking",
-
-    # https://zensical.org/docs/setup/search/#search-highlighting
     "search.highlight",
-
-    # https://zensical.org/docs/setup/navigation/#anchor-following
     "toc.follow",
 ]
 
@@ -134,7 +86,7 @@ scheme = "default"
 toggle.icon = "lucide/sun"
 toggle.name = "Switch to dark mode"
 primary = "blue"
-accent = "orange"
+accent = "amber"
 
 [[project.theme.palette]]
 media = "(prefers-color-scheme: dark)"
@@ -142,11 +94,10 @@ scheme = "slate"
 toggle.icon = "lucide/moon"
 toggle.name = "Switch to light mode"
 primary = "light blue"
-accent = "orange"
+accent = "yellow"
 
 
 [project.theme.icon]
-logo = "lucide/book-text"
 repo = "lucide/smile"
 
 [[project.extra.social]]
@@ -156,6 +107,9 @@ link = "https://github.com/erich-hs/yads"
 [project.markdown_extensions.admonition]
 [project.markdown_extensions.pymdownx.details]
 [project.markdown_extensions.pymdownx.superfences]
+custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" }
+]
 [project.markdown_extensions.pymdownx.tabbed]
 alternate_style = true
 [project.markdown_extensions.toc]

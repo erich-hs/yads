@@ -4,35 +4,36 @@ icon: "lucide/code"
 ---
 # Extending `yads`
 
-`yads` is intentionally small at the edges: converters map canonical specs to runtime
-schemas, SQL converters wrap `sqlglot` for dialect-specific DDL, and loaders ingest
-new sources into a `YadsSpec`. The patterns below keep extensions predictable and
-deterministic.
+`yads` keeps its edges intentionally small. Converters map canonical specs to runtime
+schemas, SQL converters lean on `sqlglot` for dialect-specific DDL, and loaders ingest
+new sources into a `YadsSpec`. This page explains the patterns that make extensions
+behave consistently.
 
 ## Extension map
 
 - **Writing a Core Converter**: Subclass [`BaseConverter`](../api/converters/index.md)
-  for new runtime schemas or serializations.
-- **Writing a SQL Converter**: Compose [`SQLConverter`](../api/converters/sql/sql.md)
-  with an AST converter and optional validators for new dialects.
-- **Writing a Loader**: Build on [`ConfigurableLoader`](../api/loaders/index.md) to
-  parse new inputs into a `YadsSpec`.
+  when you need to emit a new runtime schema or serialization.
+- **Writing a SQL Converter**: Combine [`SQLConverter`](../api/converters/sql/sql.md)
+  with an AST converter and optional validators to support a new dialect.
+- **Writing a Loader**: Extend [`ConfigurableLoader`](../api/loaders/index.md) to parse
+  new inputs into a `YadsSpec`.
 
 ## Writing a Core Converter
 
-`BaseConverter` gives you column filtering, per-call mode overrides, and an
-orchestrated conversion flow. Most built-in converters follow the same skeleton.
+`BaseConverter` handles column filtering, per-call mode overrides, and the conversion
+lifecycle. Built-in converters largely follow the same outline, which keeps behavior
+predictable.
 
 ### Shape configuration
 
-Start with a frozen dataclass extending `BaseConverterConfig` to add any knobs you
-need (fallback types, target-specific toggles, etc.). The base fields already cover:
+Define a frozen dataclass that extends `BaseConverterConfig` to add any hooks you need
+(fallback types, target toggles, and so on). The base fields already cover:
 
 - `mode`: `"raise"` or `"coerce"` for unsupported features.
 - `ignore_columns` / `include_columns`: scope the output.
 - `column_overrides`: callables keyed by column name.
 
-### Conversion flow
+### Conversion process
 
 Implement `convert` and `_convert_field_default`. The base class handles filters and
 overrides; you focus on mapping a `Field` to your target type.
@@ -77,7 +78,7 @@ class NewCoreConverter(BaseConverter[dict[str, str]]):
         return {"name": field.name, "type": coerced}
 ```
 
-Notes:
+Guidance:
 
 - Wrap conversions with `conversion_context(field=...)` to enrich warnings with the
   field name.
@@ -88,8 +89,7 @@ Notes:
 
 ### Per-column overrides
 
-Overrides are resolved before `_convert_field_default`, which makes targeted tweaks
-simple:
+Overrides run before `_convert_field_default`, so targeted tweaks stay isolated:
 
 ```python
 def timestamp_override(field, conv):
@@ -124,7 +124,7 @@ flowchart TD
     New --> SQLString
 ```
 
-How it flows:
+How the pieces fit together:
 
 - `SQLGlotConverter` subclasses `BaseConverter` and emits a neutral `sqlglot` AST.
 - `SQLConverter` keeps the mode in sync, optionally runs an `AstValidator`, and calls
@@ -165,7 +165,7 @@ class NewSQLConverter(SQLConverter):
         super().__init__(config)
 ```
 
-Tuning options:
+Configuration choices:
 
 - `SQLGlotConverterConfig` (pass as `ast_converter_config`) controls `if_not_exists`,
   `or_replace`, catalog/database suppression, and `fallback_type`.
@@ -227,11 +227,11 @@ class NewLoader(ConfigurableLoader):
         raise UnsupportedFeatureError(f"Unsupported dtype for column '{name}'.")
 ```
 
-Keep loaders deterministic and explicit about lossy conversions. When exposing a new
-loader via the public API, mirror existing helpers in `yads.loaders.__init__` and add
-tests under `tests/` to lock in behavior.
+Keep loaders deterministic and explicit about any lossy conversions. When exposing a
+new loader via the public API, mirror existing helpers in `yads.loaders.__init__` and
+add tests under `tests/` to lock in behavior.
 
-## Validate and ship
+## Before you send a PR
 
 - Add unit tests that cover coercion warnings and failure paths for your extension.
 - Run `make test` and `make lint` locally; add integration tests when touching SQL or
