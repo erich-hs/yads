@@ -1,16 +1,4 @@
-"""SQL converters orchestrating AST conversion and SQL generation.
-
-This module contains high-level SQL converters that:
-- Build an Abstract Syntax Tree (AST) from a `YadsSpec` using an AST converter
-- Optionally validate/adjust the AST using AST validation rules
-- Serialize the final AST to a SQL string for a target dialect
-
-Supported SQL dialects:
-- Spark
-- DuckDB
-
-Other SQL dialects can be extended via the `SQLConverter` class.
-"""
+"""SQL converters orchestrating AST conversion and SQL generation."""
 
 from __future__ import annotations
 
@@ -66,11 +54,11 @@ class SQLConverter(BaseConverter[Any]):
     """Base class for SQL DDL generation.
 
     The converter composes:
-    - An AST converter that transforms YadsSpec to dialect-agnostic AST.
-    - An optional AST validator that enforces or adjusts dialect compatibility.
+        - An `AstConverter` that transforms `YadsSpec` to dialect-agnostic AST.
+        - An optional `AstValidator` that enforces or adjusts dialect compatibility.
 
-    The SQL converter accepts dialect-specific options via **kwargs in the convert()
-    method, which are passed to the AST's sql() method for SQL generation.
+    The `SQLConverter` accepts dialect-specific options via **kwargs in the `convert()`
+    method, which are passed to the AST's `sql()` method for SQL generation.
     """
 
     def __init__(self, config: SQLConverterConfig | None = None):
@@ -109,9 +97,9 @@ class SQLConverter(BaseConverter[Any]):
         Args:
             spec: The yads specification as a `YadsSpec` object.
             mode: Optional validation mode override for this call. When not
-                provided, the converter's configured mode is used. If provided:
-                - "raise": Raise on any unsupported features.
-                - "coerce": Apply adjustments to produce a valid AST and emit warnings.
+                provided, the converter's configured mode is used.
+                `raise`: Raise on any unsupported features.
+                `coerce`: Apply adjustments to produce a valid AST and emit warnings.
             **kwargs: Additional options for SQL DDL string serialization.
                       Available options depend on the AST converter implementation.
                       For a `SQLGlotConverter`, see sqlglot's documentation for supported
@@ -159,15 +147,14 @@ class SparkSQLConverter(SQLConverter):
     """Spark SQL converter with built-in validation rules.
 
     This converter is preconfigured for Spark SQL with:
-    - dialect="spark"
-    - Built-in validation rules:
-      - Disallow unsigned integers → replace with signed integers
-      - Disallow JSON → replace with STRING
-      - Disallow GEOMETRY → replace with STRING
-      - Disallow GEOGRAPHY → replace with STRING
-      - Disallow UUID → replace with STRING
-      - Disallow negative scale decimal → replace with a sum of the absolute value of the scale and the precision, with a scale of 0
-      - Disallow fixed length binary → replace with BINARY
+        - dialect="spark"
+        - Disallow unsigned integers → replace with signed integers
+        - Disallow JSON → replace with STRING
+        - Disallow GEOMETRY → replace with STRING
+        - Disallow GEOGRAPHY → replace with STRING
+        - Disallow UUID → replace with STRING
+        - Disallow negative scale decimal → replace with a sum of the absolute value of the scale and the precision, with a scale of 0
+        - Disallow fixed length binary → replace with BINARY
     """
 
     @requires_dependency("sqlglot", import_name="sqlglot.expressions")
@@ -236,16 +223,15 @@ class DuckdbSQLConverter(SQLConverter):
     """DuckDB SQL converter with built-in validation rules.
 
     This converter is preconfigured for DuckDB with:
-    - dialect="duckdb"
-    - Built-in validation rules:
-      - Disallow TimestampLTZ → replace with TimestampTZ
-      - Disallow VOID → replace with STRING
-      - Disallow GEOGRAPHY → replace with STRING
-      - Disallow parametrized GEOMETRY → strip parameters
-      - Disallow VARIANT → replace with STRING
-      - Disallow column-level IDENTITY → remove constraint
-      - Disallow NULLS FIRST in table-level PRIMARY KEY constraints → remove NULLS FIRST
-      - Disallow fixed length binary → replace with BLOB
+        - dialect="duckdb"
+        - Disallow TimestampLTZ → replace with TimestampTZ
+        - Disallow VOID → replace with STRING
+        - Disallow GEOGRAPHY → replace with STRING
+        - Disallow parametrized GEOMETRY → strip parameters
+        - Disallow VARIANT → replace with STRING
+        - Disallow column-level IDENTITY → remove constraint
+        - Disallow NULLS FIRST in table-level PRIMARY KEY constraints → remove NULLS FIRST
+        - Disallow fixed length binary → replace with BLOB
     """
 
     @requires_dependency("sqlglot", import_name="sqlglot.expressions")
@@ -258,9 +244,9 @@ class DuckdbSQLConverter(SQLConverter):
         """Initialize DuckdbSQLConverter with built-in DuckDB-specific settings.
 
         Args:
-            mode: Conversion mode. "raise" will raise exceptions on unsupported features,
-                  "coerce" will attempt to coerce unsupported features to supported ones
-                  with warnings. Defaults to "coerce".
+            mode: Conversion mode. `raise` will raise exceptions on unsupported features,
+                  `coerce` will attempt to coerce unsupported features to supported ones
+                  with warnings. Defaults to `coerce`.
         """
         from sqlglot.expressions import DataType
         from .validators.ast_validator import AstValidator

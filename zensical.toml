@@ -31,8 +31,8 @@ nav = [
             "api/converters/pyspark.md",
             "api/converters/pydantic.md",
             {"SQL" = [
-                "api/converters/sql/sqlglot.md",
                 "api/converters/sql/sql.md",
+                "api/converters/sql/sqlglot.md",
             ]}
         ]},
         {"Registries" = [
