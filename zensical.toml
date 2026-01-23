@@ -80,6 +80,13 @@ features = [
     "toc.follow",
 ]
 
+# Palette toggle for automatic mode
+[[project.theme.palette]]
+media = "(prefers-color-scheme)"
+toggle.icon = "lucide/sun-moon"
+toggle.name = "Switch to light mode"
+
+# Palette toggle for light mode
 [[project.theme.palette]]
 media = "(prefers-color-scheme: light)"
 scheme = "default"
@@ -88,11 +95,12 @@ toggle.name = "Switch to dark mode"
 primary = "blue"
 accent = "amber"
 
+# Palette toggle for dark mode
 [[project.theme.palette]]
 media = "(prefers-color-scheme: dark)"
 scheme = "slate"
 toggle.icon = "lucide/moon"
-toggle.name = "Switch to light mode"
+toggle.name = "Switch to system preference"
 primary = "light blue"
 accent = "yellow"
 
