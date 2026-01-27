@@ -3,6 +3,8 @@ site_name = "yads User Guide"
 site_description = "Canonical data specification for data platforms."
 site_author = "Erich Silva"
 #site_url = "https://www.example.com/"
+repo_url = "https://github.com/erich-hs/yads"
+repo_name = "texel-sh/yads"
 copyright = """
 Copyright &copy; 2025 Erich Silva
 """
@@ -92,8 +94,8 @@ media = "(prefers-color-scheme: light)"
 scheme = "default"
 toggle.icon = "lucide/sun"
 toggle.name = "Switch to dark mode"
-primary = "blue"
-accent = "amber"
+primary = "orange"
+accent = "blue"
 
 # Palette toggle for dark mode
 [[project.theme.palette]]
@@ -101,12 +103,12 @@ media = "(prefers-color-scheme: dark)"
 scheme = "slate"
 toggle.icon = "lucide/moon"
 toggle.name = "Switch to system preference"
-primary = "light blue"
-accent = "yellow"
+primary = "orange"
+accent = "light blue"
 
 
 [project.theme.icon]
-repo = "lucide/smile"
+repo = "fontawesome/brands/git-alt"
 
 [[project.extra.social]]
 icon = "fontawesome/brands/github"
