@@ -20,6 +20,7 @@ htmlcov/
 .venv
 
 # Local development
+.DS_Store
 .local_dev/
 .cursor/
 .vscode/
