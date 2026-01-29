@@ -100,6 +100,14 @@ clean-all:  # Clean all build artifacts and caches.
 	rm -rf .mypy_cache .ruff_cache dist
 
 # Documentation Commands
+.PHONY: docs-build
+docs-build:
+	uv run --group docs zensical build
+
+.PHONY: docs-serve
+docs-serve:
+	uv run --group docs zensical serve
+
 .PHONY: sync-examples
 sync-examples:
 	@if [ -z "$(FILE)" ]; then \
@@ -153,6 +161,8 @@ help:
 	@echo "  make clean-all        Remove all build artifacts and caches"
 	@echo ""
 	@echo "Documentation Commands:"
+	@echo "  make docs-build       Build the documentation"
+	@echo "  make docs-serve       Serve the documentation"
 	@echo "  make sync-examples FILE=<markdown>"
 	@echo "                        Sync code blocks for a single docs file"
 	@echo "  make sync-examples-all"
