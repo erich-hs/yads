@@ -10,6 +10,7 @@ wheels/
 .ruff_cache/
 .mypy_cache/
 .pytest_cache/
+.uv-cache/
 htmlcov/
 .coverage
 .coverage.*
