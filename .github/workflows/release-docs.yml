@@ -51,11 +51,17 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: docs-site
-          path: docs/site
+          path: docs/site-temp
+
+      - name: Prepare subfolder structure
+        run: |
+          mkdir -p docs/deploy/yads
+          mv docs/site-temp/* docs/deploy/yads/
+          echo "/ /yads 301" > docs/deploy/_redirects # redirect for docs.texel.sh/
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy docs/site --project-name=yads-docs
+          command: pages deploy docs/deploy --project-name=yads-docs
