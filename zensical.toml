@@ -1,5 +1,5 @@
 [project]
-site_name = "yads User Guide"
+site_name = "yads user guide"
 site_description = "Canonical data specification for data platforms."
 site_author = "Erich Silva"
 site_dir = "docs/site"
