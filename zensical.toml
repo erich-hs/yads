@@ -44,9 +44,9 @@ nav = [
         ]}
     ]},
     {"Development" = [
-        {"Examples" = [
-            "develop/examples/index.md",
-        ]},
+        # {"Examples" = [
+        #     "develop/examples/index.md",
+        # ]},
         "develop/extending.md",
         "develop/contributing.md",
     ]}  
@@ -113,7 +113,16 @@ repo = "fontawesome/brands/git-alt"
 
 [[project.extra.social]]
 icon = "fontawesome/brands/github"
-link = "https://github.com/erich-hs/yads"
+link = "https://github.com/texel-sh"
+
+[[project.extra.social]]
+icon = "fontawesome/brands/x-twitter"
+link = "https://x.com/texel_sh"
+
+[[project.extra.social]]
+icon = "fontawesome/brands/linkedin"
+link = "https://linkedin.com/company/texel-sh"
+
 
 [project.markdown_extensions.admonition]
 [project.markdown_extensions.pymdownx.details]
