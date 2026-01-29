@@ -2,7 +2,7 @@
 title: Specification
 icon: lucide/book-text
 ---
-# `yads` Specification
+# yads Specification
 
 This page is the practical authoring guide for the `yads` YAML specification. Use
 it while drafting or reviewing specs so every table definition is predictable,

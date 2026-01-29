@@ -2,7 +2,7 @@
 title: "Extending"
 icon: "lucide/code"
 ---
-# Extending `yads`
+# Extending yads
 
 `yads` keeps its edges intentionally small. Converters map canonical specs to runtime
 schemas, SQL converters lean on `sqlglot` for dialect-specific DDL, and loaders ingest

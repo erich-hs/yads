@@ -7,22 +7,70 @@
   line-height: var(--md-typeset-line-height);
 }
 
+/* ============================================
+   Custom Texel Brand Colors
+   ============================================ */
+
+/* Light theme overrides */
 [data-md-color-scheme="default"] {
-  --yads-table-border: rgba(16, 42, 66, 0.1);
-  --yads-table-stripe: rgba(16, 42, 66, 0.04);
-  --yads-table-hover: rgba(16, 42, 66, 0.08);
-  --yads-table-shadow: rgba(16, 42, 66, 0.12);
-  --yads-table-header: rgba(16, 42, 66, 0.06);
-  --yads-table-caption: rgba(16, 42, 66, 0.6);
+  --md-default-bg-color: #f6f7fb;
+  --md-default-fg-color: #0b1220;
+  --md-default-fg-color--light: rgba(11, 18, 32, 0.54);
+  --md-default-fg-color--lighter: rgba(11, 18, 32, 0.32);
+  --md-default-fg-color--lightest: rgba(11, 18, 32, 0.07);
+  --yads-table-border: rgba(11, 18, 32, 0.1);
+  --yads-table-stripe: rgba(11, 18, 32, 0.04);
+  --yads-table-hover: rgba(11, 18, 32, 0.08);
+  --yads-table-shadow: rgba(11, 18, 32, 0.12);
+  --yads-table-header: rgba(11, 18, 32, 0.06);
+  --yads-table-caption: rgba(11, 18, 32, 0.6);
 }
 
+/* Dark theme overrides - slate uses hue-based colors */
 [data-md-color-scheme="slate"] {
-  --yads-table-border: rgba(255, 255, 255, 0.12);
-  --yads-table-stripe: rgba(255, 255, 255, 0.03);
-  --yads-table-hover: rgba(255, 255, 255, 0.07);
+  --md-hue: 222;
+  --md-default-bg-color: #070b14;
+  --md-default-fg-color: #f6f7fb;
+  --md-default-fg-color--light: rgba(246, 247, 251, 0.62);
+  --md-default-fg-color--lighter: rgba(246, 247, 251, 0.32);
+  --md-default-fg-color--lightest: rgba(246, 247, 251, 0.12);
+  --md-code-bg-color: #0d1321;
+  --md-code-fg-color: #e2e8f0;
+  --md-typeset-color: #f6f7fb;
+  --yads-table-border: rgba(246, 247, 251, 0.12);
+  --yads-table-stripe: rgba(246, 247, 251, 0.03);
+  --yads-table-hover: rgba(246, 247, 251, 0.07);
   --yads-table-shadow: rgba(0, 0, 0, 0.35);
-  --yads-table-header: rgba(255, 255, 255, 0.04);
-  --yads-table-caption: rgba(255, 255, 255, 0.7);
+  --yads-table-header: rgba(246, 247, 251, 0.04);
+  --yads-table-caption: rgba(246, 247, 251, 0.7);
+}
+
+/* Ensure text colors are applied in slate mode */
+[data-md-color-scheme="slate"] .md-typeset {
+  color: #f6f7fb;
+}
+
+[data-md-color-scheme="slate"] .md-nav {
+  --md-nav-item-fg-color: rgba(246, 247, 251, 0.62);
+  --md-nav-item-fg-color--active: #f6f7fb;
+}
+
+[data-md-color-scheme="slate"] .md-sidebar {
+  background-color: #070b14;
+}
+
+/* ============================================
+   JetBrains Mono for Headers
+   ============================================ */
+
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4,
+.md-typeset h5,
+.md-typeset h6 {
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 600;
 }
 
 .md-typeset .md-typeset__table {

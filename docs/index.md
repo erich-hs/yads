@@ -1,7 +1,7 @@
 ---
 icon: "lucide/book-open"
 ---
-# What is `yads`?
+# What is yads?
 
 `yads` is an expressive, canonical data [specification](intro/specification.md) to solve schema management throughout your data stack. Used for, among other things:
 

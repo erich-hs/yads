@@ -1,4 +1,4 @@
 ---
 icon: "lucide/flask-conical"
 ---
-# Example use-cases for `yads`
+# Example use-cases for yads
