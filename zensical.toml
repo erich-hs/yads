@@ -4,7 +4,7 @@ site_description = "Canonical data specification for data platforms."
 site_author = "Erich Silva"
 site_dir = "docs/site"
 site_url = "https://docs.texel.sh/yads/"
-repo_url = "https://github.com/erich-hs/yads"
+repo_url = "https://github.com/texel-sh/yads"
 repo_name = "texel-sh/yads"
 copyright = """
 Copyright &copy; 2025 Erich Silva
