@@ -78,23 +78,23 @@ def from_dict(data: dict[str, Any]) -> YadsSpec:
         A validated immutable `YadsSpec` instance.
 
     Example:
-        >>> data = {
-        ...     "name": "users",
-        ...     "version": 1,
-        ...     "columns": [
-        ...         {
-        ...             "name": "id",
-        ...             "type": "integer",
-        ...         },
-        ...         {
-        ...             "name": "email",
-        ...             "type": "string",
-        ...         }
-        ...     ]
-        ... }
-        >>> spec = from_dict(data)
-        >>> print(f"Loaded spec: {spec.name} v{spec.version}")
-        Loaded spec: users v1
+        ```python
+        data = {
+            "name": "users",
+            "version": 1,
+            "columns": [
+                {
+                    "name": "id",
+                    "type": "integer",
+                },
+                {
+                    "name": "email",
+                    "type": "string",
+                }
+            ]
+        }
+        spec = from_dict(data)
+        ```
     """
     return DictLoader().load(data)
 
@@ -107,21 +107,6 @@ def from_yaml_string(content: str) -> YadsSpec:
 
     Returns:
         A validated immutable `YadsSpec` instance.
-
-    Example:
-        >>> content = \"""
-        ... name: users
-        ... version: 1
-        ... yads_spec_version: 0.0.2
-        ... columns:
-        ...   - name: id
-        ...     type: integer
-        ...   - name: email
-        ...     type: string
-        ... \"""
-        >>> spec = from_yaml_string(content)
-        >>> print(f"Loaded spec: {spec.name} v{spec.version}")
-        Loaded spec: users v1
     """
     return YamlLoader().load(content)
 
@@ -138,11 +123,6 @@ def from_yaml_path(path: str | Path, *, encoding: str = "utf-8") -> YadsSpec:
 
     Raises:
         FileNotFoundError: If the file does not exist.
-
-    Example:
-        >>> spec = from_yaml_path("specs/users.yaml")
-        >>> print(f"Loaded spec: {spec.name} v{spec.version}")
-        Loaded spec: users v1
     """
     text = Path(path).read_text(encoding=encoding)
     return YamlLoader().load(text)
@@ -159,12 +139,6 @@ def from_yaml_stream(stream: IO[str] | IO[bytes], *, encoding: str = "utf-8") ->
 
     Returns:
         A validated immutable `YadsSpec` instance.
-
-    Example:
-        >>> with open("specs/users.yaml", "r") as f:
-        ...     spec = from_yaml_stream(f)
-        >>> print(f"Loaded spec: {spec.name} v{spec.version}")
-        Loaded spec: users v1
     """
     raw = stream.read()
     text = raw.decode(encoding) if isinstance(raw, (bytes, bytearray)) else raw
@@ -187,11 +161,6 @@ def from_yaml(
 
     Returns:
         A validated immutable `YadsSpec` instance.
-
-    Example:
-        >>> spec = from_yaml("specs/users.yaml")
-        >>> print(f"Loaded spec: {spec.name} v{spec.version}")
-        Loaded spec: users v1
     """
     if hasattr(source, "read"):
         return from_yaml_stream(cast(IO[str] | IO[bytes], source), encoding=encoding)
@@ -225,12 +194,14 @@ def from_pyarrow(
         A validated immutable `YadsSpec` instance.
 
     Example:
-        >>> import pyarrow as pa
-        >>> schema = pa.schema([
-        ...     pa.field("id", pa.int64()),
-        ...     pa.field("name", pa.string()),
-        ... ])
-        >>> spec = from_pyarrow(schema, name="users", version=1)
+        ```python
+        import pyarrow as pa
+        schema = pa.schema([
+            pa.field("id", pa.int64()),
+            pa.field("name", pa.string()),
+        ])
+        spec = from_pyarrow(schema, name="users", version=1)
+        ```
     """
     from . import pyarrow_loader  # type: ignore
 
@@ -266,12 +237,14 @@ def from_pyspark(
         A validated immutable `YadsSpec` instance.
 
     Example:
-        >>> from pyspark.sql.types import StructType, StructField, LongType, StringType
-        >>> schema = StructType([
-        ...     StructField("id", LongType(), nullable=False),
-        ...     StructField("name", StringType(), nullable=True),
-        ... ])
-        >>> spec = from_pyspark(schema, name="users", version=1)
+        ```python
+        from pyspark.sql.types import StructType, StructField, LongType, StringType
+        schema = StructType([
+            StructField("id", LongType(), nullable=False),
+            StructField("name", StringType(), nullable=True),
+        ])
+        spec = from_pyspark(schema, name="users", version=1)
+        ```
     """
     from . import pyspark_loader  # type: ignore
 
@@ -307,9 +280,11 @@ def from_polars(
         A validated immutable `YadsSpec` instance.
 
     Example:
-        >>> import polars as pl
-        >>> schema = pl.Schema({"id": pl.Int64, "name": pl.Utf8})
-        >>> spec = from_polars(schema, name="users", version=1)
+        ```python
+        import polars as pl
+        schema = pl.Schema({"id": pl.Int64, "name": pl.Utf8})
+        spec = from_polars(schema, name="users", version=1)
+        ```
     """
     from . import polars_loader  # type: ignore
 

@@ -185,11 +185,13 @@ class BaseConverter(Generic[T], ABC):
         custom column override functions.
 
         The method uses the template method pattern with several hook methods
-        that subclasses can override to customize behavior:
-        - `_format_type_for_display`: Customize how types appear in warnings
-        - `_emit_warning`: Customize warning emission
-        - `_get_fallback_type`: Customize fallback type resolution
-        - `_generate_error_message`: Customize error message generation
+        that subclasses can override to customize behavior.
+
+        Hook that subclasses can override:
+            - `_format_type_for_display`: Customize how types appear in warnings
+            - `_emit_warning`: Customize warning emission
+            - `_get_fallback_type`: Customize fallback type resolution
+            - `_generate_error_message`: Customize error message generation
 
         Args:
             yads_type: The yads type that is not supported. Can be None if

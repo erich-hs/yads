@@ -4,6 +4,7 @@ This module defines the `PyArrowConverter`, responsible for producing a
 `pyarrow.Schema` from yads' canonical `YadsSpec`.
 
 Example:
+    >>> import pyarrow as pa
     >>> import yads.types as ytypes
     >>> from yads.spec import Column, YadsSpec
     >>> from yads.converters import PyArrowConverter
@@ -17,7 +18,10 @@ Example:
     ... )
     >>> pa_schema = PyArrowConverter().convert(spec)
     >>> pa_schema.names
-    ['id', 'name']
+    >>> assert schema == pa.schema([
+    ...     pa.field("id", pa.int64(), nullable=True),
+    ...     pa.field("name", pa.string(), nullable=True),
+    ... ])
 """
 
 from __future__ import annotations

@@ -133,13 +133,6 @@ class SQLGlotConverter(BaseConverter[Any], AstConverter):
     complex nested types, constraints, generated columns, partitioning transforms,
     and storage properties. It serves as the core engine for all SQL DDL generation
     in yads.
-
-    Example:
-        >>> converter = SQLGlotConverter()
-        >>> ast = converter.convert(spec, if_not_exists=True)
-        >>> print(type(ast))
-        <class 'sqlglot.expressions.Create'>
-        >>> sql = ast.sql(dialect="spark")
     """
 
     def __init__(self, config: SQLGlotConverterConfig | None = None) -> None:
@@ -195,15 +188,6 @@ class SQLGlotConverter(BaseConverter[Any], AstConverter):
             sqlglot `exp.Create` expression representing a CREATE TABLE statement.
             The AST includes table schema, constraints, properties, and metadata
             from the yads spec.
-
-        Example:
-            >>> config = SQLGlotConverterConfig(if_not_exists=True)
-            >>> converter = SQLGlotConverter(config)
-            >>> ast = converter.convert(spec)
-            >>> print(type(ast))
-            <class 'sqlglot.expressions.Create'>
-            >>> print(ast.sql(dialect="spark"))
-            CREATE TABLE IF NOT EXISTS ...
         """
         from sqlglot import exp
 

@@ -1,36 +1,4 @@
-"""Constraint definitions for table-level and column-level data validation.
-
-Example:
-    >>> from yads.constraints import (
-    ...     NotNullConstraint,
-    ...     PrimaryKeyConstraint,
-    ...     ForeignKeyReference,
-    ...     ForeignKeyConstraint,
-    ... )
-    >>> from yads.spec import Field
-    >>> import yads.types as ytypes
-    >>>
-    >>> # Column with multiple constraints
-    >>> user_id_field = Field(
-    ...     name="user_id",
-    ...     type=ytypes.Integer(),
-    ...     constraints=[
-    ...         NotNullConstraint(),
-    ...         PrimaryKeyConstraint()
-    ...     ]
-    ... )
-    >>>
-    >>> # Foreign key constraint
-    >>> order_user_field = Field(
-    ...     name="user_id",
-    ...     type=ytypes.Integer(),
-    ...     constraints=[
-    ...         ForeignKeyConstraint(
-    ...             references=ForeignKeyReference(table="users", columns=["id"])
-    ...         )
-    ...     ]
-    ... )
-"""
+"""Constraint definitions for table-level and column-level data validation."""
 
 from __future__ import annotations
 
@@ -118,20 +86,22 @@ class ForeignKeyConstraint(ColumnConstraint):
     """Column-level foreign key constraint.
 
     Args:
-        references: The ForeignKeyReference specifying the target table and columns.
+        references: The `ForeignKeyReference` specifying the target table and columns.
         name: Optional name for the constraint.
 
     Example:
-        >>> # Simple foreign key to users table
-        >>> ForeignKeyConstraint(
-        ...     references=ForeignKeyReference(table="users")
-        ... )
+        ```python
+        # Simple foreign key to users table
+        ForeignKeyConstraint(
+            references=ForeignKeyReference(table="users")
+        )
 
-        >>> # Named foreign key with specific column
-        >>> ForeignKeyConstraint(
-        ...     name="fk_order_customer",
-        ...     references=ForeignKeyReference(table="customers", columns=["id"])
-        ... )
+        # Named foreign key with specific column
+        ForeignKeyConstraint(
+            name="fk_order_customer",
+            references=ForeignKeyReference(table="customers", columns=["id"])
+        )
+        ```
     """
 
     references: ForeignKeyReference
@@ -195,14 +165,16 @@ class PrimaryKeyTableConstraint(TableConstraint):
         InvalidConstraintError: If columns list is empty.
 
     Example:
-        >>> # Composite primary key
-        >>> PrimaryKeyTableConstraint(
-        ...     columns=["order_id", "line_number"],
-        ...     name="pk_order_lines"
-        ... )
+        ```python
+        # Composite primary key
+        PrimaryKeyTableConstraint(
+            columns=["order_id", "line_number"],
+            name="pk_order_lines"
+        )
 
-        >>> # Simple composite key without name
-        >>> PrimaryKeyTableConstraint(columns=["year", "month", "category"])
+        # Simple composite key without name
+        PrimaryKeyTableConstraint(columns=["year", "month", "category"])
+        ```
     """
 
     columns: list[str]
@@ -249,15 +221,17 @@ class ForeignKeyTableConstraint(TableConstraint):
                               columns doesn't match the referenced columns.
 
     Example:
-        >>> # Composite foreign key
-        >>> ForeignKeyTableConstraint(
-        ...     columns=["customer_id", "customer_region"],
-        ...     references=ForeignKeyReference(
-        ...         table="customers",
-        ...         columns=["id", "region"]
-        ...     ),
-        ...     name="fk_order_customer"
-        ... )
+        ```python
+        # Composite foreign key
+        ForeignKeyTableConstraint(
+            columns=["customer_id", "customer_region"],
+            references=ForeignKeyReference(
+                table="customers",
+                columns=["id", "region"]
+            ),
+            name="fk_order_customer"
+        )
+        ```
     """
 
     columns: list[str]

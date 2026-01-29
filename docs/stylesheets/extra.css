@@ -1,0 +1,152 @@
+/* Slightly tighten Roboto body copy within Material's md-typeset wrapper */
+:root {
+  --md-typeset-line-height: 1.8;
+}
+
+.md-typeset {
+  line-height: var(--md-typeset-line-height);
+}
+
+/* ============================================
+   Custom Texel Brand Colors
+   ============================================ */
+
+/* Light theme overrides */
+[data-md-color-scheme="default"] {
+  --md-default-bg-color: #f6f7fb;
+  --md-default-fg-color: #0b1220;
+  --md-default-fg-color--light: rgba(11, 18, 32, 0.54);
+  --md-default-fg-color--lighter: rgba(11, 18, 32, 0.32);
+  --md-default-fg-color--lightest: rgba(11, 18, 32, 0.07);
+  --yads-table-border: rgba(11, 18, 32, 0.1);
+  --yads-table-stripe: rgba(11, 18, 32, 0.04);
+  --yads-table-hover: rgba(11, 18, 32, 0.08);
+  --yads-table-shadow: rgba(11, 18, 32, 0.12);
+  --yads-table-header: rgba(11, 18, 32, 0.06);
+  --yads-table-caption: rgba(11, 18, 32, 0.6);
+  --md-code-bg-color: rgba(11, 18, 32, 0.04);
+}
+
+/* Dark theme overrides - slate uses hue-based colors */
+[data-md-color-scheme="slate"] {
+  --md-hue: 222;
+  --md-default-bg-color: #070b14;
+  --md-default-fg-color: #f6f7fb;
+  --md-default-fg-color--light: rgba(246, 247, 251, 0.62);
+  --md-default-fg-color--lighter: rgba(246, 247, 251, 0.32);
+  --md-default-fg-color--lightest: rgba(246, 247, 251, 0.12);
+  --md-code-bg-color: rgba(246, 247, 251, 0.03);
+  --md-code-fg-color: #e2e8f0;
+  --md-typeset-color: #f6f7fb;
+  --yads-table-border: rgba(246, 247, 251, 0.12);
+  --yads-table-stripe: rgba(246, 247, 251, 0.03);
+  --yads-table-hover: rgba(246, 247, 251, 0.07);
+  --yads-table-shadow: rgba(0, 0, 0, 0.35);
+  --yads-table-header: rgba(246, 247, 251, 0.04);
+  --yads-table-caption: rgba(246, 247, 251, 0.7);
+}
+
+/* Ensure text colors are applied in slate mode */
+[data-md-color-scheme="slate"] .md-typeset {
+  color: #f6f7fb;
+}
+
+[data-md-color-scheme="slate"] .md-nav {
+  --md-nav-item-fg-color: rgba(246, 247, 251, 0.62);
+  --md-nav-item-fg-color--active: #f6f7fb;
+}
+
+[data-md-color-scheme="slate"] .md-sidebar {
+  background-color: #070b14;
+}
+
+/* ============================================
+   Header Background
+   ============================================ */
+
+[data-md-color-scheme="default"] .md-header {
+  background-color: rgba(246, 247, 251, 0.8);
+}
+
+[data-md-color-scheme="slate"] .md-header {
+  background-color: rgba(7, 11, 20, 0.8);
+}
+
+/* ============================================
+   JetBrains Mono for Headers
+   ============================================ */
+
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4,
+.md-typeset h5,
+.md-typeset h6 {
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 600;
+}
+
+.md-typeset .md-typeset__table {
+  border: none;
+  border-radius: 0;
+  overflow: auto;
+  background: none;
+  margin: 1.2rem 0;
+}
+
+.md-typeset table:not([class]) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0;
+  border: 1px solid var(--yads-table-border);
+  background: var(--md-default-bg-color);
+  border-radius: 0;
+  overflow: hidden;
+}
+
+.md-typeset table:not([class]) thead {
+  background: var(--yads-table-header);
+}
+
+.md-typeset table:not([class]) th,
+.md-typeset table:not([class]) td {
+  padding: 0.75rem 0.95rem;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--yads-table-border);
+}
+
+.md-typeset table:not([class]) th {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+
+.md-typeset table:not([class]) tbody tr:nth-child(even) td {
+  background: var(--yads-table-stripe);
+}
+
+.md-typeset table:not([class]) tbody tr:hover td {
+  background: var(--yads-table-hover);
+}
+
+.md-typeset table:not([class]) tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.md-typeset table:not([class]) caption {
+  padding: 0.75rem 0.95rem;
+  caption-side: bottom;
+  color: var(--yads-table-caption);
+  font-size: 0.92rem;
+}
+
+/* ============================================
+   JetBrains Mono for Header & Footer
+   ============================================ */
+
+.md-header__topic,
+.md-footer__title,
+.md-footer__direction {
+  font-family: "JetBrains Mono", monospace;
+}

@@ -3,7 +3,7 @@ from __future__ import annotations
 # pyright: reportUnsupportedDunderAll=none
 
 
-from typing import Any, Callable, Literal, Mapping, TYPE_CHECKING, cast
+from typing import Any, Callable, Literal, Mapping, TYPE_CHECKING, TypeAlias, cast
 
 from ..spec import Field as SpecField, YadsSpec
 from .._dependencies import requires_dependency
@@ -33,14 +33,17 @@ if TYPE_CHECKING:
         DuckdbSQLConverter,
     )
 
-    # Column override type aliases (type checking only)
-    PyArrowColumnOverride = Callable[[SpecField, PyArrowConverter], Any]
-    PydanticColumnOverride = Callable[
-        [SpecField, PydanticConverter], tuple[Any, FieldInfo]
-    ]
-    PySparkColumnOverride = Callable[[SpecField, PySparkConverter], StructField]
-    PolarsColumnOverride = Callable[[SpecField, PolarsConverter], pl.Field]
-    SQLGlotColumnOverride = Callable[[SpecField, SQLGlotConverter], exp.ColumnDef]
+PyArrowColumnOverride: TypeAlias = Callable[[SpecField, "PyArrowConverter"], Any]
+PydanticColumnOverride: TypeAlias = Callable[
+    [SpecField, "PydanticConverter"], tuple[Any, "FieldInfo"]
+]
+PySparkColumnOverride: TypeAlias = Callable[
+    [SpecField, "PySparkConverter"], "StructField"
+]
+PolarsColumnOverride: TypeAlias = Callable[[SpecField, "PolarsConverter"], "pl.Field"]
+SQLGlotColumnOverride: TypeAlias = Callable[
+    [SpecField, "SQLGlotConverter"], "exp.ColumnDef"
+]
 
 
 def __getattr__(name: str):

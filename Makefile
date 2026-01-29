@@ -3,6 +3,7 @@
 # Default target: show help
 .DEFAULT_GOAL := help
 
+# Setup Commands
 .PHONY: install
 install:
 	uv sync --frozen --group dev
@@ -17,6 +18,7 @@ install-all:
 sync:
 	uv sync --group dev
 
+# Development Commands
 .PHONY: lint
 lint:
 	uvx ruff check src/ tests/ ci/
@@ -29,6 +31,7 @@ format:
 pre-commit:
 	uv run --group dev pre-commit run --all-files
 
+# Testing Commands
 .PHONY: test
 test:
 	uv run --all-groups pytest
@@ -37,6 +40,7 @@ test:
 test-cov:
 	uv run --all-groups pytest --cov=src --cov-branch --cov-report=html
 
+# Dependency Testing Commands
 .PHONY: test-dependency
 test-dependency:  # Test compatibility across different versions of a specific optional dependency.
 	@if [ -z "$(DEP)" ] || [ -z "$(VER)" ]; then \
@@ -61,6 +65,7 @@ test-dependency-all:  # Test compatibility across all versions of a specific opt
 		docker run --rm yads-test:latest $(DEP) "$$ver" || exit 1; \
 	done
 
+# Integration Testing Commands
 .PHONY: test-integration
 test-integration:  # Run integration tests for a specific SQL dialect.
 	@if [ -z "$(DIALECT)" ]; then \
@@ -76,11 +81,13 @@ test-integration:  # Run integration tests for a specific SQL dialect.
 test-integration-all:  # Run integration tests for all SQL dialects.
 	cd ci/integration-tests && ./scripts/run-integration.sh
 
+# Build Commands
 .PHONY: build
 build:
 	uv build
 	@ls -lh dist/
 
+# Cleanup Commands
 .PHONY: clean
 clean:  # Clean test artifacts and caches.
 	rm -rf .coverage htmlcov .pytest_cache
@@ -92,6 +99,29 @@ clean-all:  # Clean all build artifacts and caches.
 	$(MAKE) clean
 	rm -rf .mypy_cache .ruff_cache dist
 
+# Documentation Commands
+.PHONY: docs-build
+docs-build:
+	uv run --group docs zensical build
+
+.PHONY: docs-serve
+docs-serve:
+	uv run --group docs zensical serve
+
+.PHONY: sync-examples
+sync-examples:
+	@if [ -z "$(FILE)" ]; then \
+		echo "Error: FILE must be specified"; \
+		echo "Usage: make sync-examples FILE=docs/converters/pyarrow.md"; \
+		exit 1; \
+	fi
+	uv run --all-groups python -m docs.src.scripts.sync_examples "$(FILE)"
+
+.PHONY: sync-examples-all
+sync-examples-all:
+	uv run --all-groups python -m docs.src.scripts.sync_examples --all
+
+# Help
 .PHONY: help
 help:
 	@echo "yads Makefile Commands"
@@ -129,3 +159,11 @@ help:
 	@echo "Cleanup Commands:"
 	@echo "  make clean            Remove test artifacts and caches"
 	@echo "  make clean-all        Remove all build artifacts and caches"
+	@echo ""
+	@echo "Documentation Commands:"
+	@echo "  make docs-build       Build the documentation"
+	@echo "  make docs-serve       Serve the documentation"
+	@echo "  make sync-examples FILE=<markdown>"
+	@echo "                        Sync code blocks for a single docs file"
+	@echo "  make sync-examples-all"
+	@echo "                        Sync code blocks across all docs"

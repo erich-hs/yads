@@ -1,0 +1,26 @@
+name: "catalog.crm.customers"
+version: 1
+yads_spec_version: "0.0.2"
+
+columns:
+  - name: "id"
+    type: "bigint"
+    constraints:
+      not_null: true
+
+  - name: "email"
+    type: "string"
+
+  - name: "created_at"
+    type: "timestamptz"
+
+  - name: "spend"
+    type: "decimal"
+    params:
+      precision: 10
+      scale: 2
+
+  - name: "tags"
+    type: "array"
+    element:
+      type: "string"

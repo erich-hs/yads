@@ -7,11 +7,9 @@ on:
       - refactor
     paths-ignore:
       - '**.md'
-      - 'docs/**'
   pull_request:
     paths-ignore:
       - '**.md'
-      - 'docs/**'
   workflow_dispatch:
 
 permissions:
@@ -167,3 +165,27 @@ jobs:
             -e UV_LINK_MODE=copy \
             -v "$(pwd)/ci/integration-tests/scripts:/workspace/ci/integration-tests/scripts:ro" \
             yads-integration-${{ matrix.dialect }}:latest
+
+  docs-build:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: uv sync --group docs
+
+      - name: Build documentation
+        run: uv run zensical build --clean

@@ -29,6 +29,13 @@ dev = [
     "ruff>=0.12.3",
     "types-pyyaml>=6.0.12.20250516",
 ]
+docs = [
+    "mkdocstrings-python>=2.0.1",
+    "zensical>=0.0.17",
+]
+fs = [
+    "fsspec>=2023.1.0",
+]
 gcs = [
     "fsspec[gcs]>=2023.1.0",
 ]
