@@ -140,3 +140,13 @@
   color: var(--yads-table-caption);
   font-size: 0.92rem;
 }
+
+/* ============================================
+   JetBrains Mono for Header & Footer
+   ============================================ */
+
+.md-header__topic,
+.md-footer__title,
+.md-footer__direction {
+  font-family: "JetBrains Mono", monospace;
+}
