@@ -1,12 +1,13 @@
-<h1 style="text-align: center;"><strong>yads</strong></h1>
+![yads](./docs/assets/yads_banner_320x90.png)
 
 <p align="center">
   <a href="https://texel.sh">
     <img src="https://img.shields.io/badge/made_by-texel-2f6bff.svg?style=flat&amp;logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyBpZD0iZXBDVWFUUWdOY3cxIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB2aWV3Qm94PSIwIDAgMjQgMjQiIHNoYXBlLXJlbmRlcmluZz0iZ2VvbWV0cmljUHJlY2lzaW9uIiB0ZXh0LXJlbmRlcmluZz0iZ2VvbWV0cmljUHJlY2lzaW9uIiBwcm9qZWN0LWlkPSJhZDllMzEyOGRmZTY0M2FiYjMzZGM2NDBjYjk3NmVhOSIgZXhwb3J0LWlkPSJiNmViYTNiM2RhN2U0NWFmODdiY2U3Yzg4OGYwM2ZiMCIgY2FjaGVkPSJmYWxzZSIgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0Ij48cGF0aCBkPSJNMjIxLjgyNTg4LDUzLjc2NTA5bC0uMjM5NDgsMTQ5Ljc2Nzc1TDc4LjE3NDEzLDI0Ni42OTk0NUw3OC40MTM2MSw5Ni45MzE3TDIyMS44MjU4OCw1My43NjUwOVpNMTM1LjkyMjIsMTM5LjU3MjE1bC0zMy41NjY2NCw3NC45NzE1N2w2Mi4yMDEyLTUzLjY1MTM0TDE5OC4xMjM0LDg1LjkyMDgxbC02Mi4yMDEyLDUzLjY1MTM0WiIgdHJhbnNmb3JtPSJtYXRyaXgoMC4xMTY5MyAwIDAgMC4xMTY5MyAtNS41Mzk1MDEgLTUuNTY2NjU5KSIgZmlsbD0iIzJmNmJmZiIvPjwvc3ZnPg0K" /></a>
-  <img src="https://github.com/erich-hs/yads/actions/workflows/ci.yml/badge.svg" alt="CI">
+  <a href="https://docs.texel.sh/yads/intro/quick_start/">
+    <img src="https://img.shields.io/badge/docs-quickstart-f6f7fb" /></a>
   <a href="https://codecov.io/github/erich-hs/yads"> 
     <img src="https://codecov.io/github/erich-hs/yads/graph/badge.svg?token=GWO1S0YAZ3" /></a>
-  <img src="https://badge.fury.io/py/yads.svg" alt="PyPI version">
+  <img src="https://github.com/erich-hs/yads/actions/workflows/ci.yml/badge.svg" alt="CI">
   <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+">
 </p>
 
