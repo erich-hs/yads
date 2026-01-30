@@ -1,4 +1,4 @@
-![yads](./docs/assets/yads_banner_320x90.png)
+![yads](./docs/assets/yads_banner_120x120.png)
 
 <p align="center">
   <a href="https://texel.sh">
