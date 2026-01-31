@@ -78,7 +78,7 @@ git pull origin main
 
 ### 2. Review draft release
 
-Navigate to the [releases page](https://github.com/erich-hs/yads/releases) and locate the draft release created by Release Drafter. Review the auto-generated changelog and edit as needed. Note the suggested version number.
+Navigate to the [releases page](https://github.com/texel-sh/yads/releases) and locate the draft release created by Release Drafter. Review the auto-generated changelog and edit as needed. Note the suggested version number.
 
 ### 3. Determine version
 
@@ -116,7 +116,7 @@ git push origin main
 
 ### 7. Test release (optional)
 
-Go to the [release workflow](https://github.com/erich-hs/yads/actions/workflows/release-python.yml), click "Run workflow", select `main` branch, enable "Dry run", and trigger.
+Go to the [release workflow](https://github.com/texel-sh/yads/actions/workflows/release-python.yml), click "Run workflow", select `main` branch, enable "Dry run", and trigger.
 
 Dry-run will build and validate but not publish. Review the logs before proceeding.
 
@@ -138,7 +138,7 @@ pip install --upgrade yads
 python -c "import yads; print(yads.__version__)"
 ```
 
-Verify the [GitHub release](https://github.com/erich-hs/yads/releases) is published and the tag exists:
+Verify the [GitHub release](https://github.com/texel-sh/yads/releases) is published and the tag exists:
 
 ```bash
 git fetch --tags
@@ -230,11 +230,11 @@ make build
 
 **Cancel in-progress release**
 
-Navigate to [GitHub Actions](https://github.com/erich-hs/yads/actions), find the running workflow, and click "Cancel workflow". If PyPI publish succeeded, you cannot unpublish—release a new version instead. Delete created tags if needed.
+Navigate to [GitHub Actions](https://github.com/texel-sh/yads/actions), find the running workflow, and click "Cancel workflow". If PyPI publish succeeded, you cannot unpublish—release a new version instead. Delete created tags if needed.
 
 ## Additional Resources
 
-View all releases: https://github.com/erich-hs/yads/releases
+View all releases: https://github.com/texel-sh/yads/releases
 
 Compare versions:
 

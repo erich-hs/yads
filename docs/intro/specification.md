@@ -11,7 +11,7 @@ well-typed, and friendly to downstream converters.
 !!! note "Current spec format"
     Target `yads_spec_version`: `0.0.2`
 
-The [specification JSON schema](https://github.com/erich-hs/yads/blob/main/spec/yads_spec_v0.0.2.json) is available in the GitHub repo.
+The [specification JSON schema](https://github.com/texel-sh/yads/blob/main/spec/yads_spec_latest.json) is available in the GitHub repo.
 
 ### Required header
 
