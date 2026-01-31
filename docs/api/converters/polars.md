@@ -1,9 +1,6 @@
 # Polars Converter
 
-`PolarsConverter` turns a `YadsSpec` into a `pl.Schema` so lazy or eager
-pipelines can validate columns before collecting data. It honors the same
-include/exclude filters as other converters and exposes overrides for unsupported
-logical types.
+`PolarsConverter` turns a canonical `YadsSpec` into a `pl.Schema`.
 
 <!-- BEGIN:example polars-converter-basic code -->
 ```python

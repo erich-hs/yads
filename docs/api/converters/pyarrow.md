@@ -1,10 +1,6 @@
 # PyArrow Converter
 
-`PyArrowConverter` turns a validated `YadsSpec` into a `pyarrow.Schema` and
-respects the same include/exclude filters available on every converter. Use it
-directly or through `yads.to_pyarrow` whenever you need a deterministic schema
-object for downstream Arrow consumers. The snippet below loads the shared
-`submissions` spec from YAML and prints the resulting schema.
+`PyArrowConverter` turns a canonical `YadsSpec` into a `pyarrow.Schema`.
 
 <!-- BEGIN:example pyarrow-converter-basic convert-example-lowlevel-code -->
 ```python

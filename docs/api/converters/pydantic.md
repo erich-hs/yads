@@ -1,9 +1,7 @@
 # Pydantic Converter
 
-`PydanticConverter` builds runtime `BaseModel` classes directly from a validated
-`YadsSpec`. It honors include/exclude filters, column overrides, and lets you
-name or configure the generated class so request/response payloads stay aligned
-with the canonical schema.
+`PydanticConverter` builds runtime `BaseModel` classes directly from a canonical
+`YadsSpec`.
 
 <!-- BEGIN:example pydantic-converter-basic code -->
 ```python
