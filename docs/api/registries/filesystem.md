@@ -1,6 +1,23 @@
 # File System Registry
 
-This registry uses `fsspec` to support cloud object stores. Install `fsspec` with the backend you need:
+Python `fsspec`-based registry for local file systems or cloud object stores.
+
+<!-- BEGIN:example submissions-quickstart registry-code -->
+```python
+from yads.registries import FileSystemRegistry
+
+registry = FileSystemRegistry("docs/src/specs/registry/")
+version = registry.register(spec)
+print(f"Registered spec '{spec.name}' as version {version}")
+```
+<!-- END:example submissions-quickstart registry-code -->
+<!-- BEGIN:example submissions-quickstart registry-output -->
+```text
+Registered spec 'prod.assessments.submissions_det' as version 1
+```
+<!-- END:example submissions-quickstart registry-output -->
+
+Install `fsspec` with optional dependencies for the backend you need:
 
 === "uv"
     | Backend | Install |
