@@ -4,7 +4,13 @@
 
 <!-- BEGIN:example pyspark-loader-basic loader-example-lowlevel-code -->
 ```python
-from pyspark.sql.types import StructType, StructField, IntegerType, DecimalType, TimestampType
+from pyspark.sql.types import (
+    StructType,
+    StructField,
+    IntegerType,
+    DecimalType,
+    TimestampType,
+)
 from yads.loaders import PySparkLoader, PySparkLoaderConfig
 
 pyspark_schema = StructType(
