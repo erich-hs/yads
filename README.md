@@ -11,7 +11,10 @@
   <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+">
 </p>
 
-`yads` is a canonical, typed data specification to solve schema management across your data stack. Define a schema once; load and convert it deterministically between formats with minimal loss of semantics.
+
+`yads` is an expressive, canonical [data specification](https://docs.texel.sh/yads/intro/specification/) to solve schema management throughout your data stack. Proudly [open source](https://github.com/texel-sh/yads/blob/main/LICENSE) and built in the open with and for the data community.
+
+Check our [documentation](https://docs.texel.sh/yads/) to know more, and the [quick start guide](https://docs.texel.sh/yads/intro/quick_start/) to get started.
 
 ## Installation
 
@@ -27,7 +30,7 @@ uv add yads
 
 `yads` is a lightweight dependency designed to run in your existing Python workflows. Each loader and converter is designed to support a wide range of versions for your source or target format.
 
-You can install `yads` alongside the required optional dependency for your use case.
+You can install `yads` Python API alongside the required optional dependency for your use case.
 ```bash
 uv add yads[pyarrow]
 ```
@@ -372,7 +375,3 @@ Conversions proceed silently only when they are lossless and fully semantics-pre
 Backend type gaps are handled with value-preserving substitutes only; otherwise conversion requires an explicit `fallback_type`. Potentially lossy or reinterpreting changes (range narrowing, precision downgrades, sign changes, or unit changes) are never applied implicitly. Types with no value-preserving representation fail fast with clear errors and extension guidance.
 
 Single rule: preserve semantics or notify; never lose or reinterpret data without explicit opt-in.
-
-## Contributing
-
-Want to contribute? See our [contributing guide](CONTRIBUTING.md) for details.
