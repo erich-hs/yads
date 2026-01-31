@@ -3,7 +3,7 @@ icon: "lucide/arrow-big-left-dash"
 ---
 # Loaders
 
-Load external schemas or YAML specs into a canonical `YadsSpec`.
+Load external schemas from typed sources or YAML specs into a canonical `YadsSpec`.
 
 <!-- BEGIN:example pyarrow-loader-basic from-schema-code -->
 ```python
