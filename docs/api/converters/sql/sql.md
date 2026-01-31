@@ -45,8 +45,8 @@ print(ddl)
 <!-- BEGIN:example sql-converter-basic sql-converter-output -->
 ```text
 CREATE TABLE prod.assessments.submissions (
-  submission_id BIGINT NOT NULL,
-  completion_percent DECIMAL(5, 2) DEFAULT 0.00,
+  submission_id BIGINT PRIMARY KEY NOT NULL,
+  completion_percent DECIMAL(5, 2) DEFAULT 0.0,
   time_taken_seconds INT,
   submitted_at TIMESTAMPTZ
 )
@@ -77,8 +77,8 @@ print(ddl)
 <!-- BEGIN:example sql-converter-basic spark-converter-output -->
 ```text
 CREATE TABLE prod.assessments.submissions (
-  submission_id BIGINT NOT NULL,
-  completion_percent DECIMAL(5, 2) DEFAULT 0.00,
+  submission_id BIGINT PRIMARY KEY NOT NULL,
+  completion_percent DECIMAL(5, 2) DEFAULT 0.0,
   time_taken_seconds INT,
   submitted_at TIMESTAMP
 )

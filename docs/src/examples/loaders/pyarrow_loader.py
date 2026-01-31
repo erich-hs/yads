@@ -31,6 +31,28 @@ unsupported_pyarrow_schema = pa.schema(
 )
 
 
+def _pyarrow_loader_lowlevel_example() -> None:
+    import pyarrow as pa
+    from yads.loaders import PyArrowLoader, PyArrowLoaderConfig
+
+    pyarrow_schema = pa.schema(
+        [
+            pa.field("submission_id", pa.int64(), nullable=False),
+            pa.field("completion_percent", pa.decimal128(5, 2)),
+            pa.field("time_taken_second", pa.int32()),
+            pa.field("submitted_at", pa.timestamp("ns", tz="UTC")),
+        ]
+    )
+
+    loader = PyArrowLoader(PyArrowLoaderConfig(mode="coerce"))
+    spec = loader.load(
+        pyarrow_schema,
+        name="prod.assessments.submissions",
+        version=1,
+    )
+    print(spec)
+
+
 def _from_pyarrow_example() -> None:
     import pyarrow as pa
     import yads
@@ -88,6 +110,18 @@ def _conversion_mode_coerce_example() -> None:
 EXAMPLE = ExampleDefinition(
     example_id="pyarrow-loader-basic",
     blocks=(
+        ExampleBlockRequest(
+            slug="loader-example-lowlevel-code",
+            language="python",
+            source="callable",
+            callable=_pyarrow_loader_lowlevel_example,
+        ),
+        ExampleBlockRequest(
+            slug="loader-example-lowlevel-output",
+            language="text",
+            source="stdout",
+            callable=_pyarrow_loader_lowlevel_example,
+        ),
         ExampleBlockRequest(
             slug="from-schema-code",
             language="python",

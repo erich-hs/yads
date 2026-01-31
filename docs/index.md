@@ -233,4 +233,4 @@ columns:
 
 `yads` is an Open Source project under the Apache 2.0 license. We welcome feedback and contributions to help shape the specification for the data community.
 
-Visit the [GitHub repository](https://github.com/erich-hs/yads) and the [Contributors Guide](develop/contributing.md) to get involved.
+Visit the [GitHub repository](https://github.com/texel-sh/yads) and the [Contributors Guide](develop/contributing.md) to get involved.

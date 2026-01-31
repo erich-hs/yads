@@ -4,17 +4,19 @@ icon: "lucide/code"
 ---
 # Extending yads
 
-`yads` keeps its edges intentionally small. Converters map canonical specs to runtime
-schemas, SQL converters lean on `sqlglot` for dialect-specific DDL, and loaders ingest
-new sources into a `YadsSpec`. This page explains the patterns that make extensions
-behave consistently.
+The principles that make `yads` a reliable, authoritative data specification are rooted
+in modularity and extensibility. As a result, extending `yads` is simple after some
+exposure to the codebase.
+
+This page explains the patterns that make extensions behave consistently.
 
 ## Extension map
 
 - **Writing a Core Converter**: Subclass [`BaseConverter`](../api/converters/index.md)
   when you need to emit a new runtime schema or serialization.
 - **Writing a SQL Converter**: Combine [`SQLConverter`](../api/converters/sql/sql.md)
-  with an AST converter and optional validators to support a new dialect.
+  with an AST converter (e.g. [`SQLGlotConverter`](../api/converters/sql/sql.md)) and
+  optional validators to support a new dialect.
 - **Writing a Loader**: Extend [`ConfigurableLoader`](../api/loaders/index.md) to parse
   new inputs into a `YadsSpec`.
 
@@ -136,9 +138,9 @@ How the pieces fit together:
 produces a dialect-agnostic `sqlglot` AST, and `AstValidator` applies
 dialect-specific rules before rendering.
 
-### New dialect recipe
+### From a [sqlglot-supported dialect](https://sqlglot.com/sqlglot/dialects.html#dialects)
 
-1. Pick a `sqlglot` dialect string (`dialect="newsqldialect"` or similar).
+1. Pick a `sqlglot` dialect string (`dialect="postgres"` or similar).
 2. Reuse or add `AstValidationRule` instances to model dialect gaps.
 3. Wire them into an `SQLConverterConfig` and subclass `SQLConverter`.
 
@@ -232,6 +234,9 @@ new loader via the public API, mirror existing helpers in `yads.loaders.__init__
 add tests under `tests/` to lock in behavior.
 
 ## Before you send a PR
+
+The next section covers [important information about contributing to `yads`](./contributing.md), but in
+essence, keep the following in mind when extending the core API:
 
 - Add unit tests that cover coercion warnings and failure paths for your extension.
 - Run `make test` and `make lint` locally; add integration tests when touching SQL or

@@ -1,15 +1,20 @@
-<h1 style="text-align: center;"><strong>yads</strong></h1>
+![yads](./docs/assets/yads_banner_120x120.png)
 
 <p align="center">
-  <img src="https://github.com/erich-hs/yads/actions/workflows/ci.yml/badge.svg" alt="CI">
-  <a href="https://codecov.io/github/erich-hs/yads"> 
-    <img src="https://codecov.io/github/erich-hs/yads/graph/badge.svg?token=GWO1S0YAZ3" /></a>
-  <img src="https://badge.fury.io/py/yads.svg" alt="PyPI version">
+  <a href="https://texel.sh">
+    <img src="https://img.shields.io/badge/made_by-texel-2f6bff.svg?style=flat&amp;logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyBpZD0iZXBDVWFUUWdOY3cxIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB2aWV3Qm94PSIwIDAgMjQgMjQiIHNoYXBlLXJlbmRlcmluZz0iZ2VvbWV0cmljUHJlY2lzaW9uIiB0ZXh0LXJlbmRlcmluZz0iZ2VvbWV0cmljUHJlY2lzaW9uIiBwcm9qZWN0LWlkPSJhZDllMzEyOGRmZTY0M2FiYjMzZGM2NDBjYjk3NmVhOSIgZXhwb3J0LWlkPSJiNmViYTNiM2RhN2U0NWFmODdiY2U3Yzg4OGYwM2ZiMCIgY2FjaGVkPSJmYWxzZSIgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0Ij48cGF0aCBkPSJNMjIxLjgyNTg4LDUzLjc2NTA5bC0uMjM5NDgsMTQ5Ljc2Nzc1TDc4LjE3NDEzLDI0Ni42OTk0NUw3OC40MTM2MSw5Ni45MzE3TDIyMS44MjU4OCw1My43NjUwOVpNMTM1LjkyMjIsMTM5LjU3MjE1bC0zMy41NjY2NCw3NC45NzE1N2w2Mi4yMDEyLTUzLjY1MTM0TDE5OC4xMjM0LDg1LjkyMDgxbC02Mi4yMDEyLDUzLjY1MTM0WiIgdHJhbnNmb3JtPSJtYXRyaXgoMC4xMTY5MyAwIDAgMC4xMTY5MyAtNS41Mzk1MDEgLTUuNTY2NjU5KSIgZmlsbD0iIzJmNmJmZiIvPjwvc3ZnPg0K" /></a>
+  <a href="https://docs.texel.sh/yads/intro/quick_start/">
+    <img src="https://img.shields.io/badge/docs-quickstart-f6f7fb" /></a>
+  <a href="https://codecov.io/github/texel-sh/yads"> 
+    <img src="https://codecov.io/github/texel-sh/yads/graph/badge.svg?token=GWO1S0YAZ3" /></a>
+  <img src="https://github.com/texel-sh/yads/actions/workflows/ci.yml/badge.svg" alt="CI">
   <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License">
 </p>
 
-`yads` is a canonical, typed data specification to solve schema management across your data stack. Define a schema once; load and convert it deterministically between formats with minimal loss of semantics.
+
+`yads` is an expressive, canonical [data specification](https://docs.texel.sh/yads/intro/specification/) to solve schema management throughout your data stack. Proudly [open source](https://github.com/texel-sh/yads/blob/main/LICENSE) and built in the open with and for the data community.
+
+Check our [documentation](https://docs.texel.sh/yads/) to know more, and the [quick start guide](https://docs.texel.sh/yads/intro/quick_start/) to get started.
 
 ## Installation
 
@@ -25,7 +30,7 @@ uv add yads
 
 `yads` is a lightweight dependency designed to run in your existing Python workflows. Each loader and converter is designed to support a wide range of versions for your source or target format.
 
-You can install `yads` alongside the required optional dependency for your use case.
+You can install `yads` Python API alongside the required optional dependency for your use case.
 ```bash
 uv add yads[pyarrow]
 ```
@@ -370,7 +375,3 @@ Conversions proceed silently only when they are lossless and fully semantics-pre
 Backend type gaps are handled with value-preserving substitutes only; otherwise conversion requires an explicit `fallback_type`. Potentially lossy or reinterpreting changes (range narrowing, precision downgrades, sign changes, or unit changes) are never applied implicitly. Types with no value-preserving representation fail fast with clear errors and extension guidance.
 
 Single rule: preserve semantics or notify; never lose or reinterpret data without explicit opt-in.
-
-## Contributing
-
-Want to contribute? See our [contributing guide](CONTRIBUTING.md) for details.

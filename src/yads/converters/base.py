@@ -181,17 +181,7 @@ class BaseConverter(Generic[T], ABC):
         """Handle raise or coerce mode for unsupported type features.
 
         This public method provides a consistent way to handle unsupported types
-        based on the converter's mode. It can be used within converters and in
-        custom column override functions.
-
-        The method uses the template method pattern with several hook methods
-        that subclasses can override to customize behavior.
-
-        Hook that subclasses can override:
-            - `_format_type_for_display`: Customize how types appear in warnings
-            - `_emit_warning`: Customize warning emission
-            - `_get_fallback_type`: Customize fallback type resolution
-            - `_generate_error_message`: Customize error message generation
+        based on the converter's mode.
 
         Args:
             yads_type: The yads type that is not supported. Can be None if

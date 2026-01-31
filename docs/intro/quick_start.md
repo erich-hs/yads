@@ -5,7 +5,7 @@ icon: "lucide/zap"
 
 `yads` is designed to be a lightweight drop-in for existing workflows and data pipelines. Its [loaders](../api/loaders/index.md) and [converters](../api/converters/index.md) handle broad dependency ranges for source and target formats, so it seamlessly slots into your Python jobs.
 
-You can author and interact with the canonical `yads` specification primarily through `yads` Python API.
+This guide walks you through authoring and using the canonical `yads` specification.
 
 ## Install `yads`
 

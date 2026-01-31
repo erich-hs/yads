@@ -1,9 +1,7 @@
 # PySpark Converter
 
 `PySparkConverter` produces `pyspark.sql.types.StructType` schemas from a
-`YadsSpec`. Use it to keep DataFrame builders synchronized with the canonical
-spec while still allowing overrides, column filters, and fallback types for
-unsupported constructs.
+canonical `YadsSpec`.
 
 <!-- BEGIN:example pyspark-converter-basic code -->
 ```python

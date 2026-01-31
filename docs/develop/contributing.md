@@ -6,13 +6,15 @@ icon: "lucide/hand-heart"
 
 We welcome contributions to `yads`! Whether you're fixing a bug, adding a feature, or improving documentation, your help is appreciated. This guide will walk you through the contribution process.
 
-If anything is unclear after reading this guide, feel free to open an [issue](https://github.com/erich-hs/yads/issues) and ask for clarification.
+If anything is unclear after reading this guide, feel free to open a [GitHub issue](https://github.com/texel-sh/yads/issues) and ask for clarification. It's also the place to find tasks that might interest you. If you're not sure where to start, we recommend starting with a smaller issue to get familiar with the codebase architecture.
+
+Once you've picked an issue, comment on it to let others know you're working on it. Use the issue thread to discuss your approach if needed. We're always happy to help you get started.
 
 ## Found a bug?
 
 Bug reports help us improve `yads`. Before submitting a bug report:
 
-- Search [existing issues](https://github.com/erich-hs/yads/issues) to avoid duplicates
+- Search [existing issues](https://github.com/texel-sh/yads/issues) to avoid duplicates
 - Verify the bug exists on the latest version of `yads`
 - If you find a similar closed issue, open a new one and reference it
 
@@ -20,20 +22,14 @@ When reporting bugs, include enough detail to help us reproduce the issue. The m
 
 ## Have a feature idea?
 
-We track feature requests through [GitHub issues](https://github.com/erich-hs/yads/issues). Before suggesting a feature:
+Feature requests are also tracked through [issues](https://github.com/texel-sh/yads/issues). Before suggesting a feature:
 
 - Check if someone has already requested something similar
-- Think about how the feature aligns with `yads`' goals—You can read more about it in the [README](README.md). If unclear, suggest the feature anyways! We love hearing new ideas.
+- Think about how the feature aligns with `yads`' goals—You can read more about it in the [README](README.md). If unclear, suggest the feature anyways! Ideas are always welcome.
 
 In your feature request, explain what you want to achieve and why it would be valuable. Show examples of how you envision using the feature.
 
 ## Contributing code
-
-### Finding something to work on
-
-Browse the [issue tracker](https://github.com/erich-hs/yads/issues) to find tasks that interest you. Look for issues that aren't assigned to anyone. The `yads` codebase covers schema specification, type systems, and converters for multiple frameworks, so there's plenty of variety.
-
-Start with smaller issues to get familiar with the codebase architecture. Once you've picked an issue, comment on it to let others know you're working on it. Use the issue thread to discuss your approach if needed.
 
 ### Environment setup
 
@@ -48,22 +44,18 @@ git clone https://github.com/<your-username>/yads.git
 cd yads
 ```
 
-Add the main repository as a remote to keep your fork synchronized:
+Add the main repository as a remote to keep your fork up to date:
 
 ```bash
-git remote add upstream https://github.com/erich-hs/yads.git
-git fetch upstream
+git remote add upstream https://github.com/texel-sh/yads.git
+git remote -v
 ```
 
 #### Install dependencies
 
 Install Python 3.10 or newer. We recommend using [uv to manage Python versions](https://docs.astral.sh/uv/concepts/python-versions/).
 
-Install uv if you haven't already:
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
+[Install uv](https://docs.astral.sh/uv/getting-started/installation/) if you haven't already.
 
 Set up your development environment:
 
@@ -80,7 +72,7 @@ make test
 make lint
 ```
 
-We use [ruff](https://github.com/charliermarsh/ruff) for code formatting and linting.
+We use [ruff](https://github.com/astral-sh/ruff) for code formatting and linting.
 
 If everything passes, your development environment is ready. Run `make help` to see all available commands.
 
@@ -141,7 +133,7 @@ make test-dependency DEP=pyspark VER=3.5.3
 make test-integration DIALECT=spark
 ```
 
-See the [CI README](https://github.com/erich-hs/yads/blob/main/ci/README.md) for details on dependency testing and integration tests.
+See the [CI README](https://github.com/texel-sh/yads/blob/main/ci/README.md) for details on dependency testing and integration tests.
 
 ### Submitting your work
 
@@ -226,7 +218,7 @@ Treat generated example regions as read-only and note the sync command you ran i
 
 ## Releasing new versions
 
-Maintainers handle releases. The process uses [Release Drafter](https://github.com/release-drafter/release-drafter) to automatically generate release notes from pull request titles. For complete release procedures, see [RELEASE.md](https://github.com/erich-hs/yads/blob/main/.github/RELEASE.md).
+Maintainers handle releases. The process uses [Release Drafter](https://github.com/release-drafter/release-drafter) to automatically generate release notes from pull request titles. For complete release procedures, see [RELEASE.md](https://github.com/texel-sh/yads/blob/main/.github/RELEASE.md).
 
 Contributors don't need to worry about versions or releases - just focus on your code changes.
 
