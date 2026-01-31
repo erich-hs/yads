@@ -1,6 +1,6 @@
 # PyArrow Loader
 
-`PyArrowLoader` turns a `PyArrow` schema into a canonical `YadsSpec`.
+`PyArrowLoader` turns a `PyArrow.Schema` into a canonical `YadsSpec`.
 
 <!-- BEGIN:example pyarrow-loader-basic loader-example-lowlevel-code -->
 ```python
