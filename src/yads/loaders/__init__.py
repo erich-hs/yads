@@ -42,6 +42,14 @@ def __getattr__(name: str):
         from . import polars_loader
 
         return getattr(polars_loader, name)
+    if name in ("SQLLoader", "SQLLoaderConfig"):
+        from .sql import base
+
+        return getattr(base, name)
+    if name in ("PostgreSQLLoader", "PostgreSQLLoaderConfig"):
+        from .sql import postgres_loader
+
+        return getattr(postgres_loader, name)
     raise AttributeError(name)
 
 
@@ -54,6 +62,7 @@ __all__ = [
     "from_pyarrow",
     "from_pyspark",
     "from_polars",
+    "from_postgresql",
     "BaseLoader",
     "BaseLoaderConfig",
     "ConfigurableLoader",
@@ -65,6 +74,10 @@ __all__ = [
     "PySparkLoaderConfig",
     "PolarsLoader",
     "PolarsLoaderConfig",
+    "SQLLoader",
+    "SQLLoaderConfig",
+    "PostgreSQLLoader",
+    "PostgreSQLLoaderConfig",
 ]
 
 
@@ -291,3 +304,63 @@ def from_polars(
     config = polars_loader.PolarsLoaderConfig(mode=mode, fallback_type=fallback_type)
     loader = cast(Any, polars_loader.PolarsLoader(config))
     return loader.load(schema, name=name, version=version, description=description)
+
+
+def from_postgresql(
+    connection: Any,
+    table_name: str,
+    *,
+    schema: str = "public",
+    catalog: str | None = None,
+    mode: Literal["raise", "coerce"] = "coerce",
+    fallback_type: YadsType | None = None,
+    name: str | None = None,
+    version: int = 1,
+    description: str | None = None,
+) -> YadsSpec:
+    """Load a spec from a PostgreSQL table.
+
+    Queries PostgreSQL catalog tables (information_schema, pg_catalog) to
+    extract complete table schema information including column types,
+    constraints, defaults, and generated columns.
+
+    Args:
+        connection: A DBAPI-compatible PostgreSQL connection (e.g., psycopg2,
+            psycopg, asyncpg in sync mode).
+        table_name: Name of the table to load.
+        schema: PostgreSQL schema name. Defaults to "public".
+        catalog: PostgreSQL catalog/database name. If None, uses current database.
+        mode: Loading mode. "raise" will raise exceptions on unsupported
+            features. "coerce" will attempt to coerce unsupported features to
+            supported ones with warnings. Defaults to "coerce".
+        fallback_type: A yads type to use as fallback when an unsupported
+            PostgreSQL type is encountered. Only used when mode is "coerce".
+            Must be either String or Binary, or None. Defaults to None.
+        name: Spec name to assign. Defaults to "{schema}.{table_name}".
+        version: Spec version integer. Defaults to 1.
+        description: Optional human-readable description.
+
+    Returns:
+        A validated immutable `YadsSpec` instance.
+
+    Example:
+        ```python
+        import psycopg2
+        conn = psycopg2.connect("postgresql://localhost/mydb")
+        spec = from_postgresql(conn, "users", schema="public")
+        ```
+    """
+    from .sql import postgres_loader
+
+    config = postgres_loader.PostgreSQLLoaderConfig(
+        mode=mode, fallback_type=cast(Any, fallback_type)
+    )
+    loader = postgres_loader.PostgreSQLLoader(connection, config)
+    return loader.load(
+        table_name,
+        schema=schema,
+        catalog=catalog,
+        name=name,
+        version=version,
+        description=description,
+    )
