@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 from ...exceptions import LoaderConfigError, UnsupportedFeatureError, validation_warning
 from ...serializers import ConstraintSerializer, TypeSerializer
-from .. import base as loader_base
+from ..base import BaseLoaderConfig, ConfigurableLoader
 
 if TYPE_CHECKING:
     from ...spec import Field
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
-class SQLLoaderConfig(loader_base.BaseLoaderConfig):
+class SQLLoaderConfig(BaseLoaderConfig):
     """Configuration for SQL database loaders.
 
     Args:
@@ -49,7 +49,7 @@ class SQLLoaderConfig(loader_base.BaseLoaderConfig):
                 )
 
 
-class SQLLoader(loader_base.ConfigurableLoader, ABC):
+class SQLLoader(ConfigurableLoader, ABC):
     """Base class for SQL database schema loaders.
 
     SQL loaders query database catalogs to extract table schema information

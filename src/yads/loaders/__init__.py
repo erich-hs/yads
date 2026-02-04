@@ -46,7 +46,7 @@ def __getattr__(name: str):
         from .sql import base
 
         return getattr(base, name)
-    if name in ("PostgreSQLLoader", "PostgreSQLLoaderConfig"):
+    if name == "PostgreSQLLoader":
         from .sql import postgres_loader
 
         return getattr(postgres_loader, name)
@@ -77,7 +77,6 @@ __all__ = [
     "SQLLoader",
     "SQLLoaderConfig",
     "PostgreSQLLoader",
-    "PostgreSQLLoaderConfig",
 ]
 
 
@@ -311,7 +310,6 @@ def from_postgresql(
     table_name: str,
     *,
     schema: str = "public",
-    catalog: str | None = None,
     mode: Literal["raise", "coerce"] = "coerce",
     fallback_type: YadsType | None = None,
     name: str | None = None,
@@ -329,7 +327,6 @@ def from_postgresql(
             psycopg, asyncpg in sync mode).
         table_name: Name of the table to load.
         schema: PostgreSQL schema name. Defaults to "public".
-        catalog: PostgreSQL catalog/database name. If None, uses current database.
         mode: Loading mode. "raise" will raise exceptions on unsupported
             features. "coerce" will attempt to coerce unsupported features to
             supported ones with warnings. Defaults to "coerce".
@@ -350,16 +347,14 @@ def from_postgresql(
         spec = from_postgresql(conn, "users", schema="public")
         ```
     """
-    from .sql import postgres_loader
+    from .sql.postgres_loader import PostgreSQLLoader
+    from .sql.base import SQLLoaderConfig
 
-    config = postgres_loader.PostgreSQLLoaderConfig(
-        mode=mode, fallback_type=cast(Any, fallback_type)
-    )
-    loader = postgres_loader.PostgreSQLLoader(connection, config)
+    config = SQLLoaderConfig(mode=mode, fallback_type=cast(Any, fallback_type))
+    loader = PostgreSQLLoader(connection, config)
     return loader.load(
         table_name,
         schema=schema,
-        catalog=catalog,
         name=name,
         version=version,
         description=description,
