@@ -409,9 +409,9 @@ def test_spec_metadata(conn: PgConnection) -> None:
 
     loader = PostgreSQLLoader(conn)
 
-    # Test default name
+    # Test default name (fully qualified: catalog.schema.table)
     spec = loader.load("test_types")
-    assert spec.name == "public.test_types"
+    assert spec.name == "yads_test.public.test_types"
     print(f"  ✓ Default name: {spec.name}")
 
     # Test custom name
