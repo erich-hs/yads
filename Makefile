@@ -71,7 +71,7 @@ test-integration:  # Run integration tests for a specific SQL dialect.
 	@if [ -z "$(DIALECT)" ]; then \
 		echo "Error: DIALECT must be specified"; \
 		echo "Usage: make test-integration DIALECT=spark"; \
-		echo "Available dialects: spark, duckdb"; \
+		echo "Available dialects: spark, duckdb, postgres"; \
 		echo "Use 'make test-integration-all' to test all dialects"; \
 		exit 1; \
 	fi

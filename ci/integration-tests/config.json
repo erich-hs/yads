@@ -5,6 +5,9 @@
     },
     "duckdb": {
       "docker_image": "yads-integration-duckdb"
+    },
+    "postgres": {
+      "docker_image": "yads-integration-postgres"
     }
   }
 }
