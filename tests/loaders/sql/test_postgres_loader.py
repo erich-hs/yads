@@ -336,8 +336,8 @@ class TestPostgreSQLLoaderConstraints:
                     is_nullable="NO",
                     is_identity="YES",
                     identity_generation="ALWAYS",
-                    identity_start="1",
-                    identity_increment="1",
+                    identity_start=1,
+                    identity_increment=1,
                 )
             ],
             "information_schema.table_constraints": [],
@@ -698,3 +698,1346 @@ class TestSQLLoaderConfig:
         # Override to raise mode
         with pytest.raises(UnsupportedFeatureError):
             loader.load("test_table", mode="raise")
+
+
+# ---- Serial Column Tests -----------------------------------------------------
+
+
+class TestPostgreSQLLoaderSerialColumns:
+    """Test SERIAL/BIGSERIAL column handling."""
+
+    def test_serial_column_detected_as_identity(self):
+        """Test that SERIAL columns are detected via sequence ownership."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("id", 1, "integer", "int4", is_nullable="NO")
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [("id", 1, 1)],  # column_name, start_value, increment
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        identity_constraints = [
+            c for c in spec.columns[0].constraints if isinstance(c, IdentityConstraint)
+        ]
+        assert len(identity_constraints) == 1
+        assert identity_constraints[0].always is False  # SERIAL allows manual values
+        assert identity_constraints[0].start == 1
+        assert identity_constraints[0].increment == 1
+
+
+# ---- Foreign Key Tests -------------------------------------------------------
+
+
+class TestPostgreSQLLoaderForeignKeys:
+    """Test foreign key constraint handling."""
+
+    def test_single_column_foreign_key(self):
+        """Test single-column foreign key constraint."""
+        from yads.constraints import ForeignKeyConstraint
+
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("user_id", 1, "integer", "int4")
+            ],
+            "information_schema.table_constraints": [
+                ("fk_user", "FOREIGN KEY", "user_id", 1, "public", "users", "id")
+            ],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        fk_constraints = [
+            c for c in spec.columns[0].constraints if isinstance(c, ForeignKeyConstraint)
+        ]
+        assert len(fk_constraints) == 1
+        assert fk_constraints[0].references.table == "users"
+        assert fk_constraints[0].references.columns == ["id"]
+
+    def test_foreign_key_with_non_public_schema(self):
+        """Test foreign key referencing non-public schema table."""
+        from yads.constraints import ForeignKeyConstraint
+
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("tenant_id", 1, "integer", "int4")
+            ],
+            "information_schema.table_constraints": [
+                ("fk_tenant", "FOREIGN KEY", "tenant_id", 1, "core", "tenants", "id")
+            ],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        fk_constraints = [
+            c for c in spec.columns[0].constraints if isinstance(c, ForeignKeyConstraint)
+        ]
+        assert len(fk_constraints) == 1
+        assert fk_constraints[0].references.table == "core.tenants"
+
+
+# ---- Composite Table Constraints Tests ---------------------------------------
+
+
+class TestPostgreSQLLoaderTableConstraints:
+    """Test table-level constraints (composite PK/FK)."""
+
+    def test_composite_primary_key(self):
+        """Test composite primary key as table-level constraint."""
+        from yads.constraints import PrimaryKeyTableConstraint
+
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("order_id", 1, "integer", "int4", is_nullable="NO"),
+                make_column_row("item_id", 2, "integer", "int4", is_nullable="NO"),
+            ],
+            "information_schema.table_constraints": [
+                ("pk_order_items", "PRIMARY KEY", "order_id", 1, None, None, None),
+                ("pk_order_items", "PRIMARY KEY", "item_id", 2, None, None, None),
+            ],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("order_items")
+
+        # Should not have PK on columns (composite)
+        for col in spec.columns:
+            pk_constraints = [
+                c for c in col.constraints if isinstance(c, PrimaryKeyConstraint)
+            ]
+            assert len(pk_constraints) == 0
+
+        # Should have table-level PK
+        pk_table_constraints = [
+            c for c in spec.table_constraints if isinstance(c, PrimaryKeyTableConstraint)
+        ]
+        assert len(pk_table_constraints) == 1
+        assert set(pk_table_constraints[0].columns) == {"order_id", "item_id"}
+
+    def test_composite_foreign_key(self):
+        """Test composite foreign key as table-level constraint."""
+        from yads.constraints import ForeignKeyTableConstraint
+
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("order_id", 1, "integer", "int4"),
+                make_column_row("item_id", 2, "integer", "int4"),
+            ],
+            "information_schema.table_constraints": [
+                (
+                    "fk_order_items",
+                    "FOREIGN KEY",
+                    "order_id",
+                    1,
+                    "public",
+                    "orders",
+                    "order_id",
+                ),
+                (
+                    "fk_order_items",
+                    "FOREIGN KEY",
+                    "item_id",
+                    2,
+                    "public",
+                    "orders",
+                    "item_id",
+                ),
+            ],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("order_items")
+
+        # Should have table-level FK
+        fk_table_constraints = [
+            c for c in spec.table_constraints if isinstance(c, ForeignKeyTableConstraint)
+        ]
+        assert len(fk_table_constraints) == 1
+        assert set(fk_table_constraints[0].columns) == {"order_id", "item_id"}
+        assert fk_table_constraints[0].references.table == "orders"
+
+    def test_composite_foreign_key_non_public_schema(self):
+        """Test composite foreign key with non-public schema."""
+        from yads.constraints import ForeignKeyTableConstraint
+
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("a_id", 1, "integer", "int4"),
+                make_column_row("b_id", 2, "integer", "int4"),
+            ],
+            "information_schema.table_constraints": [
+                ("fk_multi", "FOREIGN KEY", "a_id", 1, "other_schema", "ref_table", "a"),
+                ("fk_multi", "FOREIGN KEY", "b_id", 2, "other_schema", "ref_table", "b"),
+            ],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        fk_table_constraints = [
+            c for c in spec.table_constraints if isinstance(c, ForeignKeyTableConstraint)
+        ]
+        assert len(fk_table_constraints) == 1
+        assert fk_table_constraints[0].references.table == "other_schema.ref_table"
+
+
+# ---- Generated Column Tests --------------------------------------------------
+
+
+class TestPostgreSQLLoaderGeneratedColumns:
+    """Test generated/computed column handling."""
+
+    def test_generated_column_simple_reference(self):
+        """Test generated column with simple column reference."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("first_name", 1, "text", "text"),
+                make_column_row(
+                    "upper_name",
+                    2,
+                    "text",
+                    "text",
+                    is_generated="ALWAYS",
+                    generation_expression="upper(first_name)",
+                ),
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        gen_col = spec.columns[1]
+        assert gen_col.generated_as is not None
+        assert gen_col.generated_as.column == "first_name"
+        assert gen_col.generated_as.transform == "upper"
+
+    def test_generated_column_binary_expression(self):
+        """Test generated column with binary expression."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("quantity", 1, "integer", "int4"),
+                make_column_row("price", 2, "numeric", "numeric"),
+                make_column_row(
+                    "total",
+                    3,
+                    "numeric",
+                    "numeric",
+                    is_generated="ALWAYS",
+                    generation_expression="(quantity * price)",
+                ),
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        gen_col = spec.columns[2]
+        assert gen_col.generated_as is not None
+        assert gen_col.generated_as.column == "quantity"
+        assert gen_col.generated_as.transform == "expression"
+        assert "quantity * price" in gen_col.generated_as.transform_args[0]
+
+    def test_generated_column_unparseable_emits_warning(self):
+        """Test unparseable generation expression emits warning."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row(
+                    "weird_col",
+                    1,
+                    "text",
+                    "text",
+                    is_generated="ALWAYS",
+                    generation_expression="",  # Empty expression
+                ),
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        # Empty expression means no generated_as
+        assert spec.columns[0].generated_as is None
+
+    def test_generated_column_with_transform_args(self):
+        """Test generated column with function having multiple args."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("value", 1, "numeric", "numeric"),
+                make_column_row(
+                    "rounded",
+                    2,
+                    "numeric",
+                    "numeric",
+                    is_generated="ALWAYS",
+                    generation_expression="round(value, 2)",
+                ),
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        gen_col = spec.columns[1]
+        assert gen_col.generated_as is not None
+        assert gen_col.generated_as.column == "value"
+        assert gen_col.generated_as.transform == "round"
+        assert gen_col.generated_as.transform_args == ["2"]
+
+
+# ---- PostGIS Type Tests ------------------------------------------------------
+
+
+class TestPostgreSQLLoaderPostGISTypes:
+    """Test PostGIS geometry/geography type handling."""
+
+    def test_geometry_type(self):
+        """Test GEOMETRY type conversion."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("location", 1, "USER-DEFINED", "geometry")
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+            "pg_catalog.pg_type": [],  # Not a composite type
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        assert spec.columns[0].type == ytypes.Geometry()
+
+    def test_geography_type(self):
+        """Test GEOGRAPHY type conversion."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("location", 1, "USER-DEFINED", "geography")
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+            "pg_catalog.pg_type": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        assert spec.columns[0].type == ytypes.Geography()
+
+    def test_geometry_direct_type(self):
+        """Test geometry as direct data_type (not user-defined)."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("shape", 1, "geometry", "geometry")
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        assert spec.columns[0].type == ytypes.Geometry()
+
+    def test_geography_direct_type(self):
+        """Test geography as direct data_type."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("shape", 1, "geography", "geography")
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        assert spec.columns[0].type == ytypes.Geography()
+
+
+# ---- Domain Type Tests -------------------------------------------------------
+
+
+class TestPostgreSQLLoaderDomainTypes:
+    """Test domain type handling."""
+
+    def test_domain_type_resolved_to_base(self):
+        """Test domain type is resolved to its base type."""
+
+        class DomainMockCursor(MockCursor):
+            """Mock cursor that handles domain type queries."""
+
+            DOMAIN_QUERY_COLUMNS = ["base_type", "type_length"]
+
+            def execute(self, query: str, params: tuple[Any, ...] | None = None) -> None:
+                if "typtype = 'd'" in query:
+                    # Domain type query
+                    results = self._query_results.get("pg_domain", [])
+                    self._current_results = results
+                    if results:
+                        self._description = [(col,) for col in self.DOMAIN_QUERY_COLUMNS]
+                    else:
+                        self._description = None
+                else:
+                    super().execute(query, params)
+
+        class DomainMockConnection(MockConnection):
+            def cursor(self) -> DomainMockCursor:
+                return DomainMockCursor(self._query_results)
+
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("email", 1, "USER-DEFINED", "email_domain")
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+            "pg_catalog.pg_type": [],  # Not a composite type
+            "pg_domain": [("varchar", 255)],  # Base type is varchar
+        }
+        conn = DomainMockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        # Should resolve to String (varchar base type)
+        assert spec.columns[0].type == ytypes.String()
+
+    def test_unknown_user_defined_type_coerces(self):
+        """Test unknown user-defined type coerces to fallback."""
+
+        class UnknownTypeMockCursor(MockCursor):
+            def execute(self, query: str, params: tuple[Any, ...] | None = None) -> None:
+                if "typtype = 'd'" in query:
+                    # Domain query returns nothing
+                    self._current_results = []
+                    self._description = None
+                else:
+                    super().execute(query, params)
+
+        class UnknownTypeMockConnection(MockConnection):
+            def cursor(self) -> UnknownTypeMockCursor:
+                return UnknownTypeMockCursor(self._query_results)
+
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("custom_col", 1, "USER-DEFINED", "my_custom_type")
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+            "pg_catalog.pg_type": [],  # Not a composite
+        }
+        conn = UnknownTypeMockConnection(query_results)
+        config = SQLLoaderConfig(mode="coerce", fallback_type=ytypes.String())
+        loader = PostgreSQLLoader(conn, config)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            spec = loader.load("test_table")
+
+            assert any("my_custom_type" in str(warning.message) for warning in w)
+
+        assert spec.columns[0].type == ytypes.String()
+
+
+# ---- Additional Type Tests ---------------------------------------------------
+
+
+class TestPostgreSQLLoaderAdditionalTypes:
+    """Test additional PostgreSQL type conversions."""
+
+    def test_time_with_timezone_emits_warning(self):
+        """Test TIME WITH TIME ZONE emits warning about lost timezone."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("event_time", 1, "time with time zone", "timetz")
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            spec = loader.load("test_table")
+
+            assert any("timezone" in str(warning.message).lower() for warning in w)
+
+        assert spec.columns[0].type == ytypes.Time(unit=ytypes.TimeUnit.US)
+
+    def test_char_type(self):
+        """Test CHAR/CHARACTER type conversion."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row(
+                    "code", 1, "character", "bpchar", character_maximum_length=5
+                )
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        assert spec.columns[0].type == ytypes.String(length=5)
+
+    def test_name_type(self):
+        """Test PostgreSQL NAME type (identifier type)."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("identifier", 1, "name", "name")
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        assert spec.columns[0].type == ytypes.String(length=63)
+
+    def test_decimal_without_precision(self):
+        """Test DECIMAL without explicit precision/scale."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("amount", 1, "numeric", "numeric")
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        assert spec.columns[0].type == ytypes.Decimal()
+
+    def test_interval_single_unit(self):
+        """Test INTERVAL with single unit (not range)."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("years", 1, "interval", "interval", interval_type="YEAR")
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        assert spec.columns[0].type == ytypes.Interval(
+            interval_start=ytypes.IntervalTimeUnit.YEAR
+        )
+
+    def test_interval_without_fields(self):
+        """Test INTERVAL without explicit fields (defaults to DAY TO SECOND)."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("duration", 1, "interval", "interval")
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        assert spec.columns[0].type == ytypes.Interval(
+            interval_start=ytypes.IntervalTimeUnit.DAY,
+            interval_end=ytypes.IntervalTimeUnit.SECOND,
+        )
+
+    def test_interval_invalid_fallback(self):
+        """Test INTERVAL with invalid fields falls back to DAY TO SECOND."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row(
+                    "duration", 1, "interval", "interval", interval_type="INVALID"
+                )
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        assert spec.columns[0].type == ytypes.Interval(
+            interval_start=ytypes.IntervalTimeUnit.DAY,
+            interval_end=ytypes.IntervalTimeUnit.SECOND,
+        )
+
+    def test_type_udt_fallback(self):
+        """Test that udt_name is used as fallback for type conversion."""
+        query_results = {
+            "information_schema.columns": [
+                # data_type is odd, but udt_name is recognizable
+                make_column_row("col", 1, "some_alias", "int4")
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        # Should fallback to udt_name "int4"
+        assert spec.columns[0].type == ytypes.Integer(bits=32, signed=True)
+
+
+# ---- Default Value Parsing Tests ---------------------------------------------
+
+
+class TestPostgreSQLLoaderDefaultValues:
+    """Test default value parsing."""
+
+    def test_default_null(self):
+        """Test NULL default value."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("optional", 1, "text", "text", column_default="NULL")
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        default_constraints = [
+            c for c in spec.columns[0].constraints if isinstance(c, DefaultConstraint)
+        ]
+        assert len(default_constraints) == 1
+        assert default_constraints[0].value is None
+
+    def test_default_boolean_true(self):
+        """Test boolean TRUE default value."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("active", 1, "boolean", "bool", column_default="true")
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        default_constraints = [
+            c for c in spec.columns[0].constraints if isinstance(c, DefaultConstraint)
+        ]
+        assert len(default_constraints) == 1
+        assert default_constraints[0].value is True
+
+    def test_default_boolean_false(self):
+        """Test boolean FALSE default value."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("active", 1, "boolean", "bool", column_default="false")
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        default_constraints = [
+            c for c in spec.columns[0].constraints if isinstance(c, DefaultConstraint)
+        ]
+        assert len(default_constraints) == 1
+        assert default_constraints[0].value is False
+
+    def test_default_float_value(self):
+        """Test floating point default value."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row(
+                    "rate", 1, "double precision", "float8", column_default="3.14"
+                )
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        default_constraints = [
+            c for c in spec.columns[0].constraints if isinstance(c, DefaultConstraint)
+        ]
+        assert len(default_constraints) == 1
+        assert default_constraints[0].value == 3.14
+
+    def test_default_negative_integer(self):
+        """Test negative integer default value."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("offset", 1, "integer", "int4", column_default="-10")
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        default_constraints = [
+            c for c in spec.columns[0].constraints if isinstance(c, DefaultConstraint)
+        ]
+        assert len(default_constraints) == 1
+        assert default_constraints[0].value == -10
+
+    def test_default_negative_in_parens(self):
+        """Test negative number in parentheses default value."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row(
+                    "offset", 1, "integer", "int4", column_default="(-42)::integer"
+                )
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        default_constraints = [
+            c for c in spec.columns[0].constraints if isinstance(c, DefaultConstraint)
+        ]
+        assert len(default_constraints) == 1
+        assert default_constraints[0].value == -42
+
+    def test_default_negative_float_in_parens(self):
+        """Test negative float in parentheses default value."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row(
+                    "temp", 1, "numeric", "numeric", column_default="(-273.15)"
+                )
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        default_constraints = [
+            c for c in spec.columns[0].constraints if isinstance(c, DefaultConstraint)
+        ]
+        assert len(default_constraints) == 1
+        assert default_constraints[0].value == -273.15
+
+    def test_default_escaped_string(self):
+        """Test string with escaped quotes default value."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row(
+                    "greeting",
+                    1,
+                    "text",
+                    "text",
+                    column_default="'Hello ''World'''::text",
+                )
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        default_constraints = [
+            c for c in spec.columns[0].constraints if isinstance(c, DefaultConstraint)
+        ]
+        assert len(default_constraints) == 1
+        assert default_constraints[0].value == "Hello 'World'"
+
+    def test_default_complex_expression_warning(self):
+        """Test complex expression emits warning."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row(
+                    "computed",
+                    1,
+                    "integer",
+                    "int4",
+                    column_default="CASE WHEN true THEN 1 ELSE 0 END",
+                )
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            spec = loader.load("test_table")
+
+            assert any(
+                "could not be parsed" in str(warning.message).lower() for warning in w
+            )
+
+        default_constraints = [
+            c for c in spec.columns[0].constraints if isinstance(c, DefaultConstraint)
+        ]
+        assert len(default_constraints) == 0
+
+    def test_default_current_timestamp_warning(self):
+        """Test current_timestamp function emits warning."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row(
+                    "created_at",
+                    1,
+                    "timestamp with time zone",
+                    "timestamptz",
+                    column_default="current_timestamp",
+                )
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            spec = loader.load("test_table")
+
+            assert any("current_" in str(warning.message) for warning in w)
+
+        default_constraints = [
+            c for c in spec.columns[0].constraints if isinstance(c, DefaultConstraint)
+        ]
+        assert len(default_constraints) == 0
+
+
+# ---- Array Type Edge Cases ---------------------------------------------------
+
+
+class TestPostgreSQLLoaderArrayEdgeCases:
+    """Test edge cases in array type handling."""
+
+    def test_array_fallback_from_udt_name(self):
+        """Test array element type parsed from udt_name when not in pg_catalog."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("numbers", 1, "ARRAY", "_int4")
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],  # Empty - no pg_catalog info
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        assert isinstance(spec.columns[0].type, ytypes.Array)
+        assert spec.columns[0].type.element == ytypes.Integer(bits=32, signed=True)
+
+    def test_array_unknown_element_type_coerces(self):
+        """Test array with unknown element type coerces to fallback."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("weird_array", 1, "ARRAY", "_unknown_type")
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [("weird_array", "unknown_type", 1)],
+            "pg_catalog.pg_depend": [],
+            "pg_catalog.pg_type": [],  # Not a composite type
+        }
+        conn = MockConnection(query_results)
+        config = SQLLoaderConfig(mode="coerce", fallback_type=ytypes.String())
+        loader = PostgreSQLLoader(conn, config)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            spec = loader.load("test_table")
+
+            assert any("unknown_type" in str(warning.message).lower() for warning in w)
+
+        assert isinstance(spec.columns[0].type, ytypes.Array)
+        assert spec.columns[0].type.element == ytypes.String()
+
+
+# ---- Composite Type Edge Cases -----------------------------------------------
+
+
+class TestPostgreSQLLoaderCompositeEdgeCases:
+    """Test edge cases in composite type handling."""
+
+    def test_composite_with_not_null_field(self):
+        """Test composite type with NOT NULL field."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("point", 1, "USER-DEFINED", "point_type")
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+            "pg_catalog.pg_type": [
+                ("x", 1, "float8", True),  # NOT NULL
+                ("y", 2, "float8", True),  # NOT NULL
+            ],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        struct_type = spec.columns[0].type
+        assert isinstance(struct_type, ytypes.Struct)
+        assert len(struct_type.fields) == 2
+
+        # Check NOT NULL constraints on struct fields
+        for field in struct_type.fields:
+            assert any(isinstance(c, NotNullConstraint) for c in field.constraints)
+
+    def test_composite_with_unsupported_field_type_coerces(self):
+        """Test composite type with unsupported field type coerces."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("data", 1, "USER-DEFINED", "complex_type")
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+            "pg_catalog.pg_type": [
+                ("name", 1, "text", False),
+                ("weird_field", 2, "money", False),  # Unsupported type
+            ],
+        }
+        conn = MockConnection(query_results)
+        config = SQLLoaderConfig(mode="coerce", fallback_type=ytypes.String())
+        loader = PostgreSQLLoader(conn, config)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            spec = loader.load("test_table")
+
+            # Should emit warning for unsupported field type
+            assert any("money" in str(warning.message).lower() for warning in w)
+
+        struct_type = spec.columns[0].type
+        assert isinstance(struct_type, ytypes.Struct)
+        # The unsupported field should be coerced to String
+        weird_field = next(f for f in struct_type.fields if f.name == "weird_field")
+        assert weird_field.type == ytypes.String()
+
+
+# ---- UNIQUE Constraint Warning Tests -----------------------------------------
+
+
+class TestPostgreSQLLoaderUniqueConstraintWarning:
+    """Test UNIQUE constraint warning handling."""
+
+    def test_unique_constraint_emits_warning(self):
+        """Test that UNIQUE constraints emit a warning."""
+        query_results = {
+            "information_schema.columns": [make_column_row("email", 1, "text", "text")],
+            "information_schema.table_constraints": [
+                ("uq_email", "UNIQUE", "email", 1, None, None, None)
+            ],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            spec = loader.load("test_table")
+
+            assert any("unique" in str(warning.message).lower() for warning in w)
+
+        # Spec should still load successfully
+        assert len(spec.columns) == 1
+
+
+# ---- Generation Expression Parsing Tests -------------------------------------
+
+
+class TestPostgreSQLLoaderGenerationExpressionParsing:
+    """Test generation expression parsing edge cases."""
+
+    def test_unparseable_generation_expression_warning(self):
+        """Test completely unparseable generation expression emits warning."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row(
+                    "weird_col",
+                    1,
+                    "text",
+                    "text",
+                    is_generated="ALWAYS",
+                    # This expression can't be parsed - starts with special char
+                    generation_expression="@#$%^&*()",
+                ),
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            spec = loader.load("test_table")
+
+            # Should emit warning about unparseable expression
+            assert any("could not parse" in str(warning.message).lower() for warning in w)
+
+        # No generated_as should be set
+        assert spec.columns[0].generated_as is None
+
+
+# ---- _safe_int Function Tests ------------------------------------------------
+
+
+class TestSafeIntFunction:
+    """Test the _safe_int helper function."""
+
+    def test_safe_int_with_valid_string(self):
+        """Test _safe_int with valid numeric string."""
+        # This is tested indirectly via identity columns
+        query_results = {
+            "information_schema.columns": [
+                make_column_row(
+                    "id",
+                    1,
+                    "integer",
+                    "int4",
+                    is_nullable="NO",
+                    is_identity="YES",
+                    identity_generation="ALWAYS",
+                    identity_start=1,
+                    identity_increment=1,
+                )
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        identity_constraints = [
+            c for c in spec.columns[0].constraints if isinstance(c, IdentityConstraint)
+        ]
+        assert len(identity_constraints) == 1
+        assert identity_constraints[0].start == 1
+        assert identity_constraints[0].increment == 1
+
+    def test_safe_int_with_invalid_value(self):
+        """Test _safe_int returns None for invalid values."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row(
+                    "id",
+                    1,
+                    "integer",
+                    "int4",
+                    is_nullable="NO",
+                    is_identity="YES",
+                    identity_generation="BY DEFAULT",
+                    identity_start=None,  # None value
+                    identity_increment=None,  # None value
+                )
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        identity_constraints = [
+            c for c in spec.columns[0].constraints if isinstance(c, IdentityConstraint)
+        ]
+        assert len(identity_constraints) == 1
+        # start and increment should be None when input is None
+        assert identity_constraints[0].start is None
+        assert identity_constraints[0].increment is None
+
+
+# ---- Domain Type Base Type Unsupported Warning Test --------------------------
+
+
+class TestPostgreSQLLoaderDomainTypeBaseTypeWarning:
+    """Test domain type with unsupported base type."""
+
+    def test_domain_with_unsupported_base_type(self):
+        """Test domain type with unsupported base type emits warning."""
+
+        class DomainMockCursor(MockCursor):
+            """Mock cursor that handles domain type queries."""
+
+            DOMAIN_QUERY_COLUMNS = ["base_type", "type_length"]
+
+            def execute(self, query: str, params: tuple[Any, ...] | None = None) -> None:
+                if "typtype = 'd'" in query:
+                    # Domain type query - return domain with unsupported base
+                    results = self._query_results.get("pg_domain", [])
+                    self._current_results = results
+                    if results:
+                        self._description = [(col,) for col in self.DOMAIN_QUERY_COLUMNS]
+                    else:
+                        self._description = None
+                else:
+                    super().execute(query, params)
+
+        class DomainMockConnection(MockConnection):
+            def cursor(self) -> DomainMockCursor:
+                return DomainMockCursor(self._query_results)
+
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("money_col", 1, "USER-DEFINED", "money_domain")
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+            "pg_catalog.pg_type": [],  # Not a composite type
+            "pg_domain": [("money", 8)],  # Base type is money (unsupported)
+        }
+        conn = DomainMockConnection(query_results)
+        config = SQLLoaderConfig(mode="coerce", fallback_type=ytypes.String())
+        loader = PostgreSQLLoader(conn, config)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            spec = loader.load("test_table")
+
+            # Should emit warning about unsupported base type
+            assert any("money_domain" in str(warning.message) for warning in w)
+
+        # Should coerce to fallback since domain base type is unsupported
+        assert spec.columns[0].type == ytypes.String()
+
+
+# ---- Empty Default Value Test ------------------------------------------------
+
+
+class TestPostgreSQLLoaderEmptyDefault:
+    """Test empty default value handling."""
+
+    def test_empty_default_returns_none(self):
+        """Test that empty default expression returns no constraint."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("col", 1, "text", "text", column_default="")
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        default_constraints = [
+            c for c in spec.columns[0].constraints if isinstance(c, DefaultConstraint)
+        ]
+        assert len(default_constraints) == 0
+
+
+# ---- Coerce Mode Without Fallback Tests --------------------------------------
+
+
+class TestPostgreSQLLoaderCoerceWithoutFallback:
+    """Test coerce mode behavior when no fallback_type is specified."""
+
+    def test_coerce_mode_without_fallback_raises_error(self):
+        """Test that coerce mode without fallback_type raises UnsupportedFeatureError."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("weird_col", 1, "money", "money")  # Unsupported type
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        # Coerce mode but NO fallback_type
+        config = SQLLoaderConfig(mode="coerce", fallback_type=None)
+        loader = PostgreSQLLoader(conn, config)
+
+        with pytest.raises(UnsupportedFeatureError, match="fallback_type"):
+            loader.load("test_table")
+
+
+# ---- Base SQLLoader Field Serialization Tests --------------------------------
+
+
+class TestSQLLoaderFieldSerialization:
+    """Test base SQLLoader field serialization for Struct fields."""
+
+    def test_serialize_field_with_description(self):
+        """Test that field description is serialized."""
+        from yads.spec import Field
+
+        query_results: dict[str, list[tuple[Any, ...]]] = {
+            "information_schema.columns": [],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        # Create a Field with description
+        field = Field(
+            name="test_field",
+            type=ytypes.String(),
+            description="A test field description",
+        )
+
+        # Call the internal serialization method
+        result = loader._serialize_field_definition(field)
+
+        assert result["name"] == "test_field"
+        assert result["description"] == "A test field description"
+
+    def test_serialize_field_with_metadata(self):
+        """Test that field metadata is serialized."""
+        from yads.spec import Field
+
+        query_results: dict[str, list[tuple[Any, ...]]] = {
+            "information_schema.columns": [],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        # Create a Field with metadata
+        field = Field(
+            name="test_field",
+            type=ytypes.Integer(bits=32, signed=True),
+            metadata={"custom_key": "custom_value", "another": 123},
+        )
+
+        # Call the internal serialization method
+        result = loader._serialize_field_definition(field)
+
+        assert result["name"] == "test_field"
+        assert result["metadata"] == {"custom_key": "custom_value", "another": 123}
+
+    def test_serialize_field_with_all_attributes(self):
+        """Test that all field attributes are serialized together."""
+        from yads.spec import Field
+
+        query_results: dict[str, list[tuple[Any, ...]]] = {
+            "information_schema.columns": [],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        # Create a Field with all attributes
+        field = Field(
+            name="full_field",
+            type=ytypes.String(length=100),
+            description="A fully specified field",
+            metadata={"source": "test"},
+            constraints=[NotNullConstraint()],
+        )
+
+        result = loader._serialize_field_definition(field)
+
+        assert result["name"] == "full_field"
+        assert result["description"] == "A fully specified field"
+        assert result["metadata"] == {"source": "test"}
+        assert "constraints" in result
