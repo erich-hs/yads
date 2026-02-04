@@ -18,6 +18,7 @@ from ...serializers import ConstraintSerializer, TypeSerializer
 from .. import base as loader_base
 
 if TYPE_CHECKING:
+    from ...spec import Field
     from ...types import Binary, String, YadsType
 
 
@@ -91,6 +92,7 @@ class SQLLoader(loader_base.ConfigurableLoader, ABC):
         self._connection = connection
         self.config = config or SQLLoaderConfig()
         self._type_serializer = TypeSerializer()
+        self._type_serializer.bind_field_serializer(self._serialize_field_definition)
         self._constraint_serializer = ConstraintSerializer()
         super().__init__(self.config)
 
@@ -117,6 +119,31 @@ class SQLLoader(loader_base.ConfigurableLoader, ABC):
             return [dict(zip(columns, row)) for row in cursor.fetchall()]
         finally:
             cursor.close()
+
+    def _serialize_field_definition(self, field: Field) -> dict[str, Any]:
+        """Serialize a Field to a dictionary representation.
+
+        This method is used by the TypeSerializer when serializing Struct types
+        that contain nested Field instances.
+
+        Args:
+            field: The Field instance to serialize.
+
+        Returns:
+            A dictionary representation of the field.
+        """
+        payload: dict[str, Any] = {"name": field.name}
+        payload.update(self._type_serializer.serialize(field.type))
+        if field.description:
+            payload["description"] = field.description
+        if field.metadata:
+            payload["metadata"] = dict(field.metadata)
+        constraints = self._constraint_serializer.serialize_column_constraints(
+            field.constraints
+        )
+        if constraints:
+            payload["constraints"] = constraints
+        return payload
 
     def raise_or_coerce(
         self,

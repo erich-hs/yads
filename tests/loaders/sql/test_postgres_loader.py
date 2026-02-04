@@ -59,6 +59,8 @@ class MockCursor:
 
     SERIAL_QUERY_COLUMNS = ["column_name", "start_value", "increment"]
 
+    COMPOSITE_TYPE_COLUMNS = ["field_name", "field_position", "field_type", "not_null"]
+
     def __init__(self, query_results: dict[str, list[tuple[Any, ...]]]):
         self._query_results = query_results
         self._current_results: list[tuple[Any, ...]] = []
@@ -80,6 +82,10 @@ class MockCursor:
             # Serial columns query
             results = self._query_results.get("pg_catalog.pg_depend", [])
             columns = self.SERIAL_QUERY_COLUMNS
+        elif "typtype = 'c'" in query:
+            # Composite type query
+            results = self._query_results.get("pg_catalog.pg_type", [])
+            columns = self.COMPOSITE_TYPE_COLUMNS
         else:
             # Unknown query - try to find matching key
             results = []
@@ -532,6 +538,44 @@ class TestPostgreSQLLoaderArrayTypes:
         # Should be nested Array
         assert isinstance(spec.columns[0].type, ytypes.Array)
         assert isinstance(spec.columns[0].type.element, ytypes.Array)
+
+
+# ---- Composite Type Tests ----------------------------------------------------
+
+
+class TestPostgreSQLLoaderCompositeTypes:
+    """Test composite type handling."""
+
+    def test_user_defined_composite_type(self):
+        """Test USER-DEFINED composite type converted to Struct."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("address", 1, "USER-DEFINED", "address_type")
+            ],
+            "information_schema.table_constraints": [],
+            "pg_catalog.pg_attribute": [],
+            "pg_catalog.pg_depend": [],
+            # Composite type query result (typtype = 'c')
+            "pg_catalog.pg_type": [
+                ("street", 1, "text", False),
+                ("city", 2, "text", False),
+                ("zip_code", 3, "varchar", False),
+            ],
+        }
+        conn = MockConnection(query_results)
+        loader = PostgreSQLLoader(conn)
+
+        spec = loader.load("test_table")
+
+        assert len(spec.columns) == 1
+        col_address = spec.columns[0]
+        assert isinstance(col_address.type, ytypes.Struct)
+        assert len(col_address.type.fields) == 3
+
+        field_names = [f.name for f in col_address.type.fields]
+        assert "street" in field_names
+        assert "city" in field_names
+        assert "zip_code" in field_names
 
 
 # ---- Error Handling Tests ----------------------------------------------------
