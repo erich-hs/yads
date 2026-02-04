@@ -15,7 +15,7 @@ from yads.constraints import (
     PrimaryKeyConstraint,
 )
 from yads.exceptions import LoaderError, UnsupportedFeatureError
-from yads.loaders.sql import PostgreSQLLoader, PostgreSQLLoaderConfig
+from yads.loaders.sql import PostgreSQLLoader, SQLLoaderConfig
 
 
 # ---- Fixtures ----------------------------------------------------------------
@@ -68,7 +68,11 @@ class MockCursor:
 
     def execute(self, query: str, params: tuple[Any, ...] | None = None) -> None:
         # Determine query type based on content
-        if "information_schema.columns" in query:
+        if "current_database()" in query:
+            # current_database() query
+            results = self._query_results.get("current_database", [("test_db",)])
+            columns = ["current_database"]
+        elif "information_schema.columns" in query:
             results = self._query_results.get("information_schema.columns", [])
             columns = self.COLUMNS_QUERY_COLUMNS
         elif "information_schema.table_constraints" in query:
@@ -465,7 +469,7 @@ class TestPostgreSQLLoaderUnsupportedTypes:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        config = PostgreSQLLoaderConfig(mode="raise")
+        config = SQLLoaderConfig(mode="raise")
         loader = PostgreSQLLoader(conn, config)
 
         with pytest.raises(UnsupportedFeatureError):
@@ -480,7 +484,7 @@ class TestPostgreSQLLoaderUnsupportedTypes:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        config = PostgreSQLLoaderConfig(mode="coerce", fallback_type=ytypes.String())
+        config = SQLLoaderConfig(mode="coerce", fallback_type=ytypes.String())
         loader = PostgreSQLLoader(conn, config)
 
         with warnings.catch_warnings(record=True) as w:
@@ -606,19 +610,20 @@ class TestPostgreSQLLoaderSpecMetadata:
     """Test spec metadata generation."""
 
     def test_default_spec_name(self):
-        """Test default spec name from schema.table."""
+        """Test default spec name from catalog.schema.table."""
         query_results = {
             "information_schema.columns": [make_column_row("id", 1, "integer", "int4")],
             "information_schema.table_constraints": [],
             "pg_catalog.pg_attribute": [],
             "pg_catalog.pg_depend": [],
+            "current_database": [("mydb",)],
         }
         conn = MockConnection(query_results)
         loader = PostgreSQLLoader(conn)
 
         spec = loader.load("users", schema="public")
 
-        assert spec.name == "public.users"
+        assert spec.name == "mydb.public.users"
 
     def test_custom_spec_name(self):
         """Test custom spec name."""
@@ -669,13 +674,13 @@ class TestPostgreSQLLoaderSpecMetadata:
 # ---- Config Tests ------------------------------------------------------------
 
 
-class TestPostgreSQLLoaderConfig:
+class TestSQLLoaderConfig:
     """Test loader configuration."""
 
     def test_invalid_fallback_type_raises_error(self):
         """Test that invalid fallback type raises error."""
         with pytest.raises(Exception):  # LoaderConfigError
-            PostgreSQLLoaderConfig(fallback_type=ytypes.Integer())
+            SQLLoaderConfig(fallback_type=ytypes.Integer())
 
     def test_mode_override(self):
         """Test mode override in load() call."""
@@ -687,7 +692,7 @@ class TestPostgreSQLLoaderConfig:
         }
         conn = MockConnection(query_results)
         # Default mode is coerce
-        config = PostgreSQLLoaderConfig(fallback_type=ytypes.String())
+        config = SQLLoaderConfig(fallback_type=ytypes.String())
         loader = PostgreSQLLoader(conn, config)
 
         # Override to raise mode

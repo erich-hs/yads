@@ -9,11 +9,10 @@ Available loaders:
 """
 
 from .base import SQLLoader, SQLLoaderConfig
-from .postgres_loader import PostgreSQLLoader, PostgreSQLLoaderConfig
+from .postgres_loader import PostgreSQLLoader
 
 __all__ = [
     "SQLLoader",
     "SQLLoaderConfig",
     "PostgreSQLLoader",
-    "PostgreSQLLoaderConfig",
 ]

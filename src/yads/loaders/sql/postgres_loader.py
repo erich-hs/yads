@@ -22,13 +22,12 @@ Example:
     >>> loader = PostgreSQLLoader(conn)
     >>> spec = loader.load("users", schema="public")
     >>> spec.name
-    'public.users'
+    'mydb.public.users'
 """
 
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
 from ... import spec as yspec
@@ -50,83 +49,6 @@ from .base import SQLLoader, SQLLoaderConfig
 
 if TYPE_CHECKING:
     from ...spec import YadsSpec
-
-
-@dataclass(frozen=True)
-class PostgreSQLLoaderConfig(SQLLoaderConfig):
-    """Configuration for PostgreSQLLoader.
-
-    Args:
-        mode: Loading mode. "raise" will raise exceptions on unsupported
-            features. "coerce" will attempt to coerce unsupported features to
-            supported ones with warnings. Defaults to "coerce".
-        fallback_type: A yads type to use as fallback when an unsupported
-            PostgreSQL type is encountered. Only used when mode is "coerce".
-            Must be either String or Binary, or None. Defaults to None.
-    """
-
-    pass
-
-
-# PostgreSQL types that are not yet supported in yads
-_PG_UNSUPPORTED_TYPES: frozenset[str] = frozenset(
-    {
-        # Monetary
-        "money",
-        # Bit strings
-        "bit",
-        "bit varying",
-        "varbit",
-        # Network
-        "cidr",
-        "inet",
-        "macaddr",
-        "macaddr8",
-        # Full-text search
-        "tsvector",
-        "tsquery",
-        # XML
-        "xml",
-        # Geometric (non-PostGIS)
-        "point",
-        "line",
-        "lseg",
-        "box",
-        "path",
-        "polygon",
-        "circle",
-        # System types
-        "pg_lsn",
-        "txid_snapshot",
-        "pg_snapshot",
-        # Object identifiers
-        "oid",
-        "regproc",
-        "regprocedure",
-        "regoper",
-        "regoperator",
-        "regclass",
-        "regtype",
-        "regrole",
-        "regnamespace",
-        "regconfig",
-        "regdictionary",
-        # Range types (would need dedicated yads type)
-        "int4range",
-        "int8range",
-        "numrange",
-        "tsrange",
-        "tstzrange",
-        "daterange",
-        # Multirange types
-        "int4multirange",
-        "int8multirange",
-        "nummultirange",
-        "tsmultirange",
-        "tstzmultirange",
-        "datemultirange",
-    }
-)
 
 
 class PostgreSQLLoader(SQLLoader):
@@ -156,7 +78,7 @@ class PostgreSQLLoader(SQLLoader):
     def __init__(
         self,
         connection: Any,
-        config: PostgreSQLLoaderConfig | None = None,
+        config: SQLLoaderConfig | None = None,
     ) -> None:
         """Initialize the PostgreSQLLoader.
 
@@ -164,16 +86,16 @@ class PostgreSQLLoader(SQLLoader):
             connection: A DBAPI-compatible PostgreSQL connection (e.g., psycopg2,
                 psycopg, asyncpg in sync mode). Must support parameterized queries
                 with %s placeholders.
-            config: Configuration object. If None, uses default PostgreSQLLoaderConfig.
+            config: Configuration object. If None, uses default SQLLoaderConfig.
         """
-        super().__init__(connection, config or PostgreSQLLoaderConfig())
+        super().__init__(connection, config or SQLLoaderConfig())
+        self._current_schema: str = "public"
 
     def load(
         self,
         table_name: str,
         *,
         schema: str = "public",
-        catalog: str | None = None,
         name: str | None = None,
         version: int = 1,
         description: str | None = None,
@@ -184,8 +106,8 @@ class PostgreSQLLoader(SQLLoader):
         Args:
             table_name: Name of the table to load.
             schema: PostgreSQL schema name. Defaults to "public".
-            catalog: PostgreSQL catalog/database name. If None, uses current database.
-            name: Spec name to assign. Defaults to "{schema}.{table_name}".
+            name: Spec name to assign. Defaults to "{catalog}.{schema}.{table_name}"
+                where catalog is the current database name.
             version: Spec version integer. Defaults to 1.
             description: Optional human-readable description for the spec.
             mode: Optional override for the loading mode. When not provided, the
@@ -199,6 +121,12 @@ class PostgreSQLLoader(SQLLoader):
             UnsupportedFeatureError: In "raise" mode when encountering unsupported types.
         """
         with self.load_context(mode=mode):
+            # Store current schema for composite type lookups
+            self._current_schema = schema
+
+            # Get current database name for fully qualified spec name
+            catalog = self._get_current_database()
+
             # Query column information
             columns_info = self._query_columns(schema, table_name)
             if not columns_info:
@@ -224,7 +152,7 @@ class PostgreSQLLoader(SQLLoader):
                     columns.append(column_def)
 
             # Build spec data
-            spec_name = name or f"{schema}.{table_name}"
+            spec_name = name or f"{catalog}.{schema}.{table_name}"
             data: dict[str, Any] = {
                 "name": spec_name,
                 "version": version,
@@ -242,6 +170,11 @@ class PostgreSQLLoader(SQLLoader):
             return yspec.from_dict(data)
 
     # ---- Query methods --------------------------------------------------------
+
+    def _get_current_database(self) -> str:
+        """Get the name of the currently connected database."""
+        rows = self._execute_query("SELECT current_database()")
+        return rows[0]["current_database"]
 
     def _query_columns(
         self,
@@ -361,7 +294,7 @@ class PostgreSQLLoader(SQLLoader):
                 validation_warning(
                     f"UNIQUE constraint '{cdata['name']}' on columns "
                     f"{cdata['columns']} is not yet supported in yads and will be ignored.",
-                    filename="yads.loaders.sql.postgres_loader",
+                    filename=__name__,
                     module=__name__,
                 )
 
@@ -660,7 +593,7 @@ class PostgreSQLLoader(SQLLoader):
         validation_warning(
             f"Could not parse generation expression '{expression}' for column "
             f"'{col_info['column_name']}'. Generated column will not be represented.",
-            filename="yads.loaders.sql.postgres_loader",
+            filename=__name__,
             module=__name__,
         )
         return None
@@ -674,7 +607,6 @@ class PostgreSQLLoader(SQLLoader):
     ) -> ytypes.YadsType:
         """Convert PostgreSQL type to YadsType."""
         data_type = col_info["data_type"].lower()
-        col_name = col_info["column_name"]
 
         # Handle ARRAY types
         if data_type == "array":
@@ -696,15 +628,8 @@ class PostgreSQLLoader(SQLLoader):
             if result is not None:
                 return result
 
-        # Check if explicitly unsupported
-        if data_type in _PG_UNSUPPORTED_TYPES or udt_name in _PG_UNSUPPORTED_TYPES:
-            return self.raise_or_coerce(data_type)
-
-        # Unknown type
-        return self.raise_or_coerce(
-            data_type,
-            error_msg=f"Unknown PostgreSQL type '{data_type}' for field '{col_name}'",
-        )
+        # Unknown type - raise or coerce
+        return self.raise_or_coerce(data_type)
 
     def _convert_simple_type(
         self,
@@ -772,7 +697,7 @@ class PostgreSQLLoader(SQLLoader):
             validation_warning(
                 "PostgreSQL 'time with time zone' will be converted to Time without "
                 "timezone information. Timezone data will be lost.",
-                filename="yads.loaders.sql.postgres_loader",
+                filename=__name__,
                 module=__name__,
             )
             return ytypes.Time(unit=ytypes.TimeUnit.US)
@@ -826,7 +751,7 @@ class PostgreSQLLoader(SQLLoader):
         element_type = self._convert_simple_type(element_type_name, {})
         if element_type is None:
             # Check if it's a composite type
-            fields = self._query_composite_type(element_type_name)
+            fields = self._query_composite_type(element_type_name, self._current_schema)
             if fields:
                 element_type = ytypes.Struct(fields=fields)
             else:
@@ -841,7 +766,7 @@ class PostgreSQLLoader(SQLLoader):
             validation_warning(
                 f"Multi-dimensional array ({dimensions}D) for column '{col_name}' "
                 f"will be represented as nested Arrays. Tensor type requires explicit shape.",
-                filename="yads.loaders.sql.postgres_loader",
+                filename=__name__,
                 module=__name__,
             )
             result: ytypes.YadsType = element_type
@@ -866,12 +791,12 @@ class PostgreSQLLoader(SQLLoader):
             return ytypes.Geography()
 
         # Try to resolve as composite type
-        fields = self._query_composite_type(udt_name)
+        fields = self._query_composite_type(udt_name, self._current_schema)
         if fields:
             return ytypes.Struct(fields=fields)
 
         # Try to resolve as domain type
-        domain_base = self._resolve_domain_type(udt_name)
+        domain_base = self._resolve_domain_type(udt_name, self._current_schema)
         if domain_base:
             return domain_base
 
@@ -910,7 +835,7 @@ class PostgreSQLLoader(SQLLoader):
             # Base type is also unsupported
             validation_warning(
                 f"Domain type '{domain_name}' has unsupported base type '{base_type_name}'.",
-                filename="yads.loaders.sql.postgres_loader",
+                filename=__name__,
                 module=__name__,
             )
 
@@ -993,7 +918,7 @@ class PostgreSQLLoader(SQLLoader):
                 validation_warning(
                     f"Default expression '{expr}' is a function call. "
                     f"Non-literal defaults are not yet supported in yads.",
-                    filename="yads.loaders.sql.postgres_loader",
+                    filename=__name__,
                     module=__name__,
                 )
                 return None
@@ -1007,7 +932,7 @@ class PostgreSQLLoader(SQLLoader):
         validation_warning(
             f"Default expression '{expr}' could not be parsed as a literal. "
             f"Non-literal defaults are not yet supported in yads.",
-            filename="yads.loaders.sql.postgres_loader",
+            filename=__name__,
             module=__name__,
         )
         return None
