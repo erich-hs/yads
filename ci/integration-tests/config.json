@@ -8,6 +8,9 @@
     },
     "postgres": {
       "docker_image": "yads-integration-postgres"
+    },
+    "sqlserver": {
+      "docker_image": "yads-integration-sqlserver"
     }
   }
 }

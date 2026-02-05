@@ -112,7 +112,10 @@ class SqlLoader(ConfigurableLoader, ABC):
         """
         cursor = self._connection.cursor()
         try:
-            cursor.execute(query, params)
+            if params:
+                cursor.execute(query, params)
+            else:
+                cursor.execute(query)
             if cursor.description is None:
                 return []
             columns = [desc[0] for desc in cursor.description]
@@ -189,3 +192,12 @@ class SqlLoader(ConfigurableLoader, ABC):
             return fallback
 
         raise UnsupportedFeatureError(f"{msg}.")
+
+
+def safe_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None

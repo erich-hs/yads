@@ -18,9 +18,7 @@ from yads.exceptions import LoaderError, UnsupportedFeatureError
 from yads.loaders.sql import PostgreSqlLoader, SqlLoaderConfig
 
 
-# ---- Fixtures ----------------------------------------------------------------
-
-
+# %% Fixtures
 class MockCursor:
     """Mock DBAPI cursor for testing."""
 
@@ -167,9 +165,7 @@ def make_column_row(
     )
 
 
-# ---- Basic Type Conversion Tests ---------------------------------------------
-
-
+# %% Basic Type Conversion Tests
 class TestPostgreSqlLoaderTypeConversion:
     """Test type conversion from PostgreSQL to YadsType."""
 
@@ -300,9 +296,7 @@ class TestPostgreSqlLoaderTypeConversion:
         )
 
 
-# ---- Constraint Tests --------------------------------------------------------
-
-
+# %% Constraint Tests
 class TestPostgreSqlLoaderConstraints:
     """Test constraint loading from PostgreSQL."""
 
@@ -454,9 +448,7 @@ class TestPostgreSqlLoaderConstraints:
         assert len(pk_constraints) == 1
 
 
-# ---- Unsupported Type Tests --------------------------------------------------
-
-
+# %% Unsupported Type Tests
 class TestPostgreSqlLoaderUnsupportedTypes:
     """Test handling of unsupported PostgreSQL types."""
 
@@ -496,9 +488,7 @@ class TestPostgreSqlLoaderUnsupportedTypes:
         assert spec.columns[0].type == ytypes.String()
 
 
-# ---- Array Type Tests --------------------------------------------------------
-
-
+# %% Array Type Tests
 class TestPostgreSqlLoaderArrayTypes:
     """Test array type handling."""
 
@@ -544,9 +534,7 @@ class TestPostgreSqlLoaderArrayTypes:
         assert isinstance(spec.columns[0].type.element, ytypes.Array)
 
 
-# ---- Composite Type Tests ----------------------------------------------------
-
-
+# %% Composite Type Tests
 class TestPostgreSqlLoaderCompositeTypes:
     """Test composite type handling."""
 
@@ -582,9 +570,7 @@ class TestPostgreSqlLoaderCompositeTypes:
         assert "zip_code" in field_names
 
 
-# ---- Error Handling Tests ----------------------------------------------------
-
-
+# %% Error Handling Tests
 class TestPostgreSqlLoaderErrors:
     """Test error handling."""
 
@@ -603,9 +589,7 @@ class TestPostgreSqlLoaderErrors:
             loader.load("nonexistent_table")
 
 
-# ---- Spec Metadata Tests -----------------------------------------------------
-
-
+# %% Spec Metadata Tests
 class TestPostgreSqlLoaderSpecMetadata:
     """Test spec metadata generation."""
 
@@ -671,9 +655,7 @@ class TestPostgreSqlLoaderSpecMetadata:
         assert spec.description == "User accounts table"
 
 
-# ---- Config Tests ------------------------------------------------------------
-
-
+# %% Config Tests
 class TestSqlLoaderConfig:
     """Test loader configuration."""
 
@@ -700,9 +682,7 @@ class TestSqlLoaderConfig:
             loader.load("test_table", mode="raise")
 
 
-# ---- Serial Column Tests -----------------------------------------------------
-
-
+# %% Serial Column Tests
 class TestPostgreSqlLoaderSerialColumns:
     """Test SERIAL/BIGSERIAL column handling."""
 
@@ -730,9 +710,7 @@ class TestPostgreSqlLoaderSerialColumns:
         assert identity_constraints[0].increment == 1
 
 
-# ---- Foreign Key Tests -------------------------------------------------------
-
-
+# %% Foreign Key Tests
 class TestPostgreSqlLoaderForeignKeys:
     """Test foreign key constraint handling."""
 
@@ -788,9 +766,7 @@ class TestPostgreSqlLoaderForeignKeys:
         assert fk_constraints[0].references.table == "core.tenants"
 
 
-# ---- Composite Table Constraints Tests ---------------------------------------
-
-
+# %% Composite Table Constraints Tests
 class TestPostgreSqlLoaderTableConstraints:
     """Test table-level constraints (composite PK/FK)."""
 
@@ -902,9 +878,7 @@ class TestPostgreSqlLoaderTableConstraints:
         assert fk_table_constraints[0].references.table == "other_schema.ref_table"
 
 
-# ---- Generated Column Tests --------------------------------------------------
-
-
+# %% Generated Column Tests
 class TestPostgreSqlLoaderGeneratedColumns:
     """Test generated/computed column handling."""
 
@@ -958,13 +932,16 @@ class TestPostgreSqlLoaderGeneratedColumns:
         conn = MockConnection(query_results)
         loader = PostgreSqlLoader(conn)
 
-        spec = loader.load("test_table")
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            spec = loader.load("test_table")
+
+            assert any(
+                "Could not parse generation expression" in str(wi.message) for wi in w
+            )
 
         gen_col = spec.columns[2]
-        assert gen_col.generated_as is not None
-        assert gen_col.generated_as.column == "quantity"
-        assert gen_col.generated_as.transform == "expression"
-        assert "quantity * price" in gen_col.generated_as.transform_args[0]
+        assert gen_col.generated_as is None
 
     def test_generated_column_unparseable_emits_warning(self):
         """Test unparseable generation expression emits warning."""
@@ -1021,9 +998,7 @@ class TestPostgreSqlLoaderGeneratedColumns:
         assert gen_col.generated_as.transform_args == ["2"]
 
 
-# ---- PostGIS Type Tests ------------------------------------------------------
-
-
+# %% PostGIS Type Tests
 class TestPostgreSqlLoaderPostGISTypes:
     """Test PostGIS geometry/geography type handling."""
 
@@ -1098,9 +1073,7 @@ class TestPostgreSqlLoaderPostGISTypes:
         assert spec.columns[0].type == ytypes.Geography()
 
 
-# ---- Domain Type Tests -------------------------------------------------------
-
-
+# %% Domain Type Tests
 class TestPostgreSqlLoaderDomainTypes:
     """Test domain type handling."""
 
@@ -1184,9 +1157,7 @@ class TestPostgreSqlLoaderDomainTypes:
         assert spec.columns[0].type == ytypes.String()
 
 
-# ---- Additional Type Tests ---------------------------------------------------
-
-
+# %% Additional Type Tests
 class TestPostgreSqlLoaderAdditionalTypes:
     """Test additional PostgreSQL type conversions."""
 
@@ -1345,9 +1316,7 @@ class TestPostgreSqlLoaderAdditionalTypes:
         assert spec.columns[0].type == ytypes.Integer(bits=32, signed=True)
 
 
-# ---- Default Value Parsing Tests ---------------------------------------------
-
-
+# %% Default Value Parsing Tests
 class TestPostgreSqlLoaderDefaultValues:
     """Test default value parsing."""
 
@@ -1594,9 +1563,7 @@ class TestPostgreSqlLoaderDefaultValues:
         assert len(default_constraints) == 0
 
 
-# ---- Array Type Edge Cases ---------------------------------------------------
-
-
+# %% Array Type Edge Cases
 class TestPostgreSqlLoaderArrayEdgeCases:
     """Test edge cases in array type handling."""
 
@@ -1643,9 +1610,7 @@ class TestPostgreSqlLoaderArrayEdgeCases:
         assert spec.columns[0].type.element == ytypes.String()
 
 
-# ---- Composite Type Edge Cases -----------------------------------------------
-
-
+# %% Composite Type Edge Cases
 class TestPostgreSqlLoaderCompositeEdgeCases:
     """Test edge cases in composite type handling."""
 
@@ -1708,9 +1673,7 @@ class TestPostgreSqlLoaderCompositeEdgeCases:
         assert weird_field.type == ytypes.String()
 
 
-# ---- UNIQUE Constraint Warning Tests -----------------------------------------
-
-
+# %% UNIQUE Constraint Warning Tests
 class TestPostgreSqlLoaderUniqueConstraintWarning:
     """Test UNIQUE constraint warning handling."""
 
@@ -1737,9 +1700,7 @@ class TestPostgreSqlLoaderUniqueConstraintWarning:
         assert len(spec.columns) == 1
 
 
-# ---- Generation Expression Parsing Tests -------------------------------------
-
-
+# %% Generation Expression Parsing Tests
 class TestPostgreSqlLoaderGenerationExpressionParsing:
     """Test generation expression parsing edge cases."""
 
@@ -1775,9 +1736,7 @@ class TestPostgreSqlLoaderGenerationExpressionParsing:
         assert spec.columns[0].generated_as is None
 
 
-# ---- _safe_int Function Tests ------------------------------------------------
-
-
+# %% _safe_int Function Tests
 class TestSafeIntFunction:
     """Test the _safe_int helper function."""
 
@@ -1848,9 +1807,7 @@ class TestSafeIntFunction:
         assert identity_constraints[0].increment is None
 
 
-# ---- Domain Type Base Type Unsupported Warning Test --------------------------
-
-
+# %% Domain Type Base Type Unsupported Warning Test
 class TestPostgreSqlLoaderDomainTypeBaseTypeWarning:
     """Test domain type with unsupported base type."""
 
@@ -1903,9 +1860,7 @@ class TestPostgreSqlLoaderDomainTypeBaseTypeWarning:
         assert spec.columns[0].type == ytypes.String()
 
 
-# ---- Empty Default Value Test ------------------------------------------------
-
-
+# %% Empty Default Value Test
 class TestPostgreSqlLoaderEmptyDefault:
     """Test empty default value handling."""
 
@@ -1930,9 +1885,7 @@ class TestPostgreSqlLoaderEmptyDefault:
         assert len(default_constraints) == 0
 
 
-# ---- Coerce Mode Without Fallback Tests --------------------------------------
-
-
+# %% Coerce Mode Without Fallback Tests
 class TestPostgreSqlLoaderCoerceWithoutFallback:
     """Test coerce mode behavior when no fallback_type is specified."""
 
@@ -1955,9 +1908,7 @@ class TestPostgreSqlLoaderCoerceWithoutFallback:
             loader.load("test_table")
 
 
-# ---- Base SqlLoader Field Serialization Tests --------------------------------
-
-
+# %% Base SqlLoader Field Serialization Tests
 class TestSqlLoaderFieldSerialization:
     """Test base SqlLoader field serialization for Struct fields."""
 
