@@ -50,6 +50,10 @@ def __getattr__(name: str):
         from .sql import postgres_loader
 
         return getattr(postgres_loader, name)
+    if name == "SqlServerLoader":
+        from .sql import sqlserver_loader
+
+        return getattr(sqlserver_loader, name)
     raise AttributeError(name)
 
 
@@ -63,6 +67,7 @@ __all__ = [
     "from_pyspark",
     "from_polars",
     "from_postgresql",
+    "from_sqlserver",
     "BaseLoader",
     "BaseLoaderConfig",
     "ConfigurableLoader",
@@ -77,6 +82,7 @@ __all__ = [
     "SqlLoader",
     "SqlLoaderConfig",
     "PostgreSqlLoader",
+    "SqlServerLoader",
 ]
 
 
@@ -352,6 +358,62 @@ def from_postgresql(
 
     config = SqlLoaderConfig(mode=mode, fallback_type=cast(Any, fallback_type))
     loader = PostgreSqlLoader(connection, config)
+    return loader.load(
+        table_name,
+        schema=schema,
+        name=name,
+        version=version,
+        description=description,
+    )
+
+
+def from_sqlserver(
+    connection: Any,
+    table_name: str,
+    *,
+    schema: str = "dbo",
+    mode: Literal["raise", "coerce"] = "coerce",
+    fallback_type: YadsType | None = None,
+    name: str | None = None,
+    version: int = 1,
+    description: str | None = None,
+) -> YadsSpec:
+    """Load a spec from a SQL Server table.
+
+    Queries SQL Server catalog views (INFORMATION_SCHEMA, sys.*) to extract
+    complete table schema information including column types, constraints,
+    defaults, identity columns, and computed columns.
+
+    Args:
+        connection: A DBAPI-compatible SQL Server connection (e.g., pyodbc,
+            pymssql).
+        table_name: Name of the table to load.
+        schema: SQL Server schema name. Defaults to "dbo".
+        mode: Loading mode. "raise" will raise exceptions on unsupported
+            features. "coerce" will attempt to coerce unsupported features to
+            supported ones with warnings. Defaults to "coerce".
+        fallback_type: A yads type to use as fallback when an unsupported
+            SQL Server type is encountered. Only used when mode is "coerce".
+            Must be either String or Binary, or None. Defaults to None.
+        name: Spec name to assign. Defaults to "{catalog}.{schema}.{table_name}".
+        version: Spec version integer. Defaults to 1.
+        description: Optional human-readable description.
+
+    Returns:
+        A validated immutable `YadsSpec` instance.
+
+    Example:
+        ```python
+        import pyodbc
+        conn = pyodbc.connect("DRIVER={ODBC Driver 18 for SQL Server};...")
+        spec = from_sqlserver(conn, "users", schema="dbo")
+        ```
+    """
+    from .sql.sqlserver_loader import SqlServerLoader
+    from .sql.base import SqlLoaderConfig
+
+    config = SqlLoaderConfig(mode=mode, fallback_type=cast(Any, fallback_type))
+    loader = SqlServerLoader(connection, config)
     return loader.load(
         table_name,
         schema=schema,
