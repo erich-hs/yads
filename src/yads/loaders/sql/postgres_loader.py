@@ -169,8 +169,7 @@ class PostgreSqlLoader(SqlLoader):
 
             return yspec.from_dict(data)
 
-    # ---- Query methods --------------------------------------------------------
-
+    # %% ---- Query methods --------------------------------------------------------
     def _get_current_database(self) -> str:
         """Get the name of the currently connected database."""
         rows = self._execute_query("SELECT current_database()")
@@ -422,8 +421,7 @@ class PostgreSqlLoader(SqlLoader):
 
         return fields
 
-    # ---- Column building ------------------------------------------------------
-
+    # %% ---- Column building ------------------------------------------------------
     def _build_column(
         self,
         col_info: dict[str, Any],
@@ -598,8 +596,7 @@ class PostgreSqlLoader(SqlLoader):
         )
         return None
 
-    # ---- Type conversion ------------------------------------------------------
-
+    # %% ---- Type conversion ------------------------------------------------------
     def _convert_type(
         self,
         col_info: dict[str, Any],
@@ -884,8 +881,7 @@ class PostgreSqlLoader(SqlLoader):
             interval_end=ytypes.IntervalTimeUnit.SECOND,
         )
 
-    # ---- Default value parsing ------------------------------------------------
-
+    # %% ---- Default value parsing --------------------------------------------
     def _parse_default_value(
         self,
         default_expr: str,
@@ -983,8 +979,7 @@ class PostgreSqlLoader(SqlLoader):
 
         return None
 
-    # ---- Generation expression parsing ----------------------------------------
-
+    # %% ---- Generation expression parsing --------------------------------------
     def _parse_generation_expression(
         self,
         expression: str,

@@ -18,9 +18,7 @@ from yads.exceptions import LoaderError, UnsupportedFeatureError
 from yads.loaders.sql import SqlServerLoader, SqlLoaderConfig
 
 
-# ---- Fixtures ----------------------------------------------------------------
-
-
+# %% Fixtures
 class MockCursor:
     """Mock DBAPI cursor for testing SQL Server queries."""
 
@@ -133,9 +131,7 @@ def make_column_row(
     )
 
 
-# ---- Basic Type Conversion Tests ---------------------------------------------
-
-
+# %% Basic Type Conversion Tests
 class TestSqlServerLoaderTypeConversion:
     """Test type conversion from SQL Server to YadsType."""
 
@@ -325,9 +321,7 @@ class TestSqlServerLoaderTypeConversion:
         assert spec.columns[0].type == ytypes.Binary()
 
 
-# ---- Constraint Tests --------------------------------------------------------
-
-
+# %% Constraint Tests
 class TestSqlServerLoaderConstraints:
     """Test constraint loading from SQL Server."""
 
@@ -488,9 +482,7 @@ class TestSqlServerLoaderConstraints:
         assert len(pk_constraints) == 1
 
 
-# ---- Unsupported Type Tests --------------------------------------------------
-
-
+# %% Unsupported Type Tests
 class TestSqlServerLoaderUnsupportedTypes:
     """Test handling of unsupported SQL Server types."""
 
@@ -557,9 +549,7 @@ class TestSqlServerLoaderUnsupportedTypes:
             loader.load("test_table")
 
 
-# ---- Error Handling Tests ----------------------------------------------------
-
-
+# %% Error Handling Tests
 class TestSqlServerLoaderErrors:
     """Test error handling."""
 
@@ -578,9 +568,7 @@ class TestSqlServerLoaderErrors:
             loader.load("nonexistent_table")
 
 
-# ---- Spec Metadata Tests -----------------------------------------------------
-
-
+# %% Spec Metadata Tests
 class TestSqlServerLoaderSpecMetadata:
     """Test spec metadata generation."""
 
@@ -646,9 +634,7 @@ class TestSqlServerLoaderSpecMetadata:
         assert spec.description == "User accounts table"
 
 
-# ---- Foreign Key Tests -------------------------------------------------------
-
-
+# %% Foreign Key Tests
 class TestSqlServerLoaderForeignKeys:
     """Test foreign key constraint handling."""
 
@@ -700,9 +686,7 @@ class TestSqlServerLoaderForeignKeys:
         assert fk_constraints[0].references.table == "core.tenants"
 
 
-# ---- Composite Table Constraints Tests ---------------------------------------
-
-
+# %% Composite Table Constraints Tests
 class TestSqlServerLoaderTableConstraints:
     """Test table-level constraints (composite PK/FK)."""
 
@@ -813,9 +797,7 @@ class TestSqlServerLoaderTableConstraints:
         assert fk_table_constraints[0].references.table == "core.refs"
 
 
-# ---- Computed Column Tests ---------------------------------------------------
-
-
+# %% Computed Column Tests
 class TestSqlServerLoaderComputedColumns:
     """Test computed column handling."""
 
@@ -909,9 +891,7 @@ class TestSqlServerLoaderComputedColumns:
         assert spec.columns[0].generated_as is None
 
 
-# ---- Default Value Parsing Tests ---------------------------------------------
-
-
+# %% Default Value Parsing Tests
 class TestSqlServerLoaderDefaultValues:
     """Test default value parsing."""
 
@@ -1078,9 +1058,7 @@ class TestSqlServerLoaderDefaultValues:
         assert len(default_constraints) == 0
 
 
-# ---- UNIQUE Constraint Warning Tests -----------------------------------------
-
-
+# %% UNIQUE Constraint Warning Tests
 class TestSqlServerLoaderUniqueConstraintWarning:
     """Test UNIQUE constraint warning handling."""
 
@@ -1105,9 +1083,7 @@ class TestSqlServerLoaderUniqueConstraintWarning:
         assert len(spec.columns) == 1
 
 
-# ---- Config Tests ------------------------------------------------------------
-
-
+# %% Config Tests
 class TestSqlServerLoaderConfig:
     """Test loader configuration."""
 
@@ -1129,9 +1105,7 @@ class TestSqlServerLoaderConfig:
             loader.load("test_table", mode="raise")
 
 
-# ---- Spatial Type Tests ------------------------------------------------------
-
-
+# %% Spatial Type Tests
 class TestSqlServerLoaderSpatialTypes:
     """Test spatial type handling."""
 

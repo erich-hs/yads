@@ -168,8 +168,7 @@ class SqlServerLoader(SqlLoader):
 
             return yspec.from_dict(data)
 
-    # ---- Query methods --------------------------------------------------------
-
+    # %% ---- Query methods ------------------------------------------------------
     def _get_current_database(self) -> str:
         """Get the name of the currently connected database."""
         rows = self._execute_query("SELECT DB_NAME() AS current_database")
@@ -390,8 +389,7 @@ class SqlServerLoader(SqlLoader):
             for row in rows
         }
 
-    # ---- Column building ------------------------------------------------------
-
+    # %% ---- Column building ------------------------------------------------------
     def _build_column(
         self,
         col_info: dict[str, Any],
@@ -558,8 +556,7 @@ class SqlServerLoader(SqlLoader):
         )
         return None
 
-    # ---- Type conversion ------------------------------------------------------
-
+    # %% ---- Type conversion ------------------------------------------------------
     def _convert_type(
         self,
         col_info: dict[str, Any],
@@ -692,8 +689,7 @@ class SqlServerLoader(SqlLoader):
 
         return None
 
-    # ---- Default value parsing ------------------------------------------------
-
+    # %% ---- Default value parsing --------------------------------------------
     def _parse_default_value(
         self,
         default_expr: str,
@@ -786,8 +782,7 @@ class SqlServerLoader(SqlLoader):
 
         return None
 
-    # ---- Computation expression parsing ---------------------------------------
-
+    # %% ---- Computation expression parsing -------------------------------------
     def _parse_computation_expression(
         self,
         expression: str,
