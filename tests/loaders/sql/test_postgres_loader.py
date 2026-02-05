@@ -932,13 +932,16 @@ class TestPostgreSqlLoaderGeneratedColumns:
         conn = MockConnection(query_results)
         loader = PostgreSqlLoader(conn)
 
-        spec = loader.load("test_table")
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            spec = loader.load("test_table")
+
+            assert any(
+                "Could not parse generation expression" in str(wi.message) for wi in w
+            )
 
         gen_col = spec.columns[2]
-        assert gen_col.generated_as is not None
-        assert gen_col.generated_as.column == "quantity"
-        assert gen_col.generated_as.transform == "expression"
-        assert "quantity * price" in gen_col.generated_as.transform_args[0]
+        assert gen_col.generated_as is None
 
     def test_generated_column_unparseable_emits_warning(self):
         """Test unparseable generation expression emits warning."""

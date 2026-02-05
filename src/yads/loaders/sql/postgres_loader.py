@@ -33,7 +33,7 @@ from ...constraints import (
     TableConstraint,
 )
 from ...exceptions import LoaderError, validation_warning
-from .base import SqlLoader, SqlLoaderConfig
+from .base import SqlLoader, SqlLoaderConfig, safe_int
 
 if TYPE_CHECKING:
     from ...spec import YadsSpec
@@ -474,8 +474,8 @@ class PostgreSqlLoader(SqlLoader):
             result.append(
                 IdentityConstraint(
                     always=(col_info["identity_generation"] == "ALWAYS"),
-                    start=_safe_int(col_info.get("identity_start")),
-                    increment=_safe_int(col_info.get("identity_increment")),
+                    start=safe_int(col_info.get("identity_start")),
+                    increment=safe_int(col_info.get("identity_increment")),
                 )
             )
         elif col_name in serial_columns:
@@ -927,8 +927,8 @@ class PostgreSqlLoader(SqlLoader):
 
         Handles simple cases:
         - Direct column reference: "column_name"
-        - Simple expressions: "(column_a + column_b)"
         - Function calls: "upper(column_name)"
+        Complex expressions are treated as unsupported.
         """
         expr = expression.strip()
 
@@ -954,22 +954,4 @@ class PostgreSqlLoader(SqlLoader):
                     transform_args=args[1:] if len(args) > 1 else [],
                 )
 
-        # Expression fallback: use the first identifier as the source column.
-        ident_match = re.match(r'^"?(\w+)"?', expr)
-        if ident_match:
-            return yspec.TransformedColumnReference(
-                column=ident_match.group(1),
-                transform="expression",
-                transform_args=[expr],
-            )
-
-        return None
-
-
-def _safe_int(value: Any) -> int | None:
-    if value is None:
-        return None
-    try:
-        return int(value)
-    except (TypeError, ValueError):
         return None

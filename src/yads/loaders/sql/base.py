@@ -192,3 +192,12 @@ class SqlLoader(ConfigurableLoader, ABC):
             return fallback
 
         raise UnsupportedFeatureError(f"{msg}.")
+
+
+def safe_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None

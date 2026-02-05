@@ -33,7 +33,7 @@ from ...constraints import (
     TableConstraint,
 )
 from ...exceptions import LoaderError, validation_warning
-from .base import SqlLoader, SqlLoaderConfig
+from .base import SqlLoader, SqlLoaderConfig, safe_int
 
 if TYPE_CHECKING:
     from ...spec import YadsSpec
@@ -329,8 +329,8 @@ class SqlServerLoader(SqlLoader):
         rows = self._execute_query(query, (schema, table_name))
         return {
             row["column_name"]: {
-                "seed": _safe_int(row["seed_value"]),
-                "increment": _safe_int(row["increment_value"]),
+                "seed": safe_int(row["seed_value"]),
+                "increment": safe_int(row["increment_value"]),
             }
             for row in rows
         }
@@ -752,8 +752,8 @@ class SqlServerLoader(SqlLoader):
 
         Handles simple cases:
         - Direct column reference: [column_name]
-        - Simple expressions: ([column_a]+[column_b])
         - Function calls: upper([column_name])
+        Complex expressions are treated as unsupported.
         """
         expr = expression.strip()
 
@@ -791,30 +791,4 @@ class SqlServerLoader(SqlLoader):
                     transform_args=args[1:] if len(args) > 1 else [],
                 )
 
-        # Expression fallback: use the first referenced identifier.
-        bracket_ident = re.search(r"\[(\w+)\]", expr)
-        if bracket_ident:
-            return yspec.TransformedColumnReference(
-                column=bracket_ident.group(1),
-                transform="expression",
-                transform_args=[expr],
-            )
-
-        ident_match = re.match(r"^(\w+)", expr)
-        if ident_match:
-            return yspec.TransformedColumnReference(
-                column=ident_match.group(1),
-                transform="expression",
-                transform_args=[expr],
-            )
-
-        return None
-
-
-def _safe_int(value: Any) -> int | None:
-    if value is None:
-        return None
-    try:
-        return int(value)
-    except (TypeError, ValueError):
         return None
