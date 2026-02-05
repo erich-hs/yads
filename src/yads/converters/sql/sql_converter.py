@@ -13,15 +13,15 @@ from ..._dependencies import requires_dependency, ensure_dependency
 
 if TYPE_CHECKING:
     from ...spec import YadsSpec
-    from .ast_converter import AstConverter, SQLGlotConverterConfig
+    from .ast_converter import AstConverter, SqlglotConverterConfig
     from .validators.ast_validator import AstValidator
     from .validators.ast_validation_rules import AstValidationRule
 
 
 # %% ---- Configuration --------------------------------------------------------------
 @dataclass(frozen=True)
-class SQLConverterConfig(BaseConverterConfig[Any]):
-    """Configuration for SQLConverter.
+class SqlConverterConfig(BaseConverterConfig[Any]):
+    """Configuration for SqlConverter.
 
     Args:
         mode: Conversion mode. One of "raise" or "coerce". Inherited from
@@ -35,7 +35,7 @@ class SQLConverterConfig(BaseConverterConfig[Any]):
             from BaseConverterConfig. Defaults to empty mapping.
         dialect: Target SQL dialect name for SQL generation.
         ast_converter: AST converter instance to use for spec-to-AST transformation.
-            If None, uses default SQLGlotConverter.
+            If None, uses default SqlglotConverter.
         ast_validator: Optional validator for dialect-specific adjustments.
     """
 
@@ -45,41 +45,41 @@ class SQLConverterConfig(BaseConverterConfig[Any]):
     # Optional configuration for the default AST converter when one is not supplied.
     # This allows routing user-facing options (e.g., if_not_exists, or_replace,
     # ignore_catalog, ignore_database, fallback_type, and column filters) into the
-    # SQLGlotConverter while keeping SQLConverter decoupled from AST details.
-    ast_converter_config: SQLGlotConverterConfig | None = None
+    # SqlglotConverter while keeping SqlConverter decoupled from AST details.
+    ast_converter_config: SqlglotConverterConfig | None = None
 
 
 # %% ---- Converters -----------------------------------------------------------------
-class SQLConverter(BaseConverter[Any]):
+class SqlConverter(BaseConverter[Any]):
     """Base class for SQL DDL generation.
 
     The converter composes:
         - An `AstConverter` that transforms `YadsSpec` to dialect-agnostic AST.
         - An optional `AstValidator` that enforces or adjusts dialect compatibility.
 
-    The `SQLConverter` accepts dialect-specific options via **kwargs in the `convert()`
+    The `SqlConverter` accepts dialect-specific options via **kwargs in the `convert()`
     method, which are passed to the AST's `sql()` method for SQL generation.
     """
 
-    def __init__(self, config: SQLConverterConfig | None = None):
-        """Initialize the SQLConverter.
+    def __init__(self, config: SqlConverterConfig | None = None):
+        """Initialize the SqlConverter.
 
         Args:
-            config: Configuration object. If None, uses default SQLConverterConfig.
+            config: Configuration object. If None, uses default SqlConverterConfig.
         """
-        from .ast_converter import SQLGlotConverter, SQLGlotConverterConfig
+        from .ast_converter import SqlglotConverter, SqlglotConverterConfig
 
-        self.config: SQLConverterConfig = config or SQLConverterConfig()
+        self.config: SqlConverterConfig = config or SqlConverterConfig()
         super().__init__(self.config)
 
-        # Use provided AST converter or create default SQLGlotConverter
+        # Use provided AST converter or create default SqlglotConverter
         if self.config.ast_converter:
             self._ast_converter = self.config.ast_converter
         else:
             # Prefer the provided ast_converter_config; ensure mode consistency.
-            base_ast_config = self.config.ast_converter_config or SQLGlotConverterConfig()
+            base_ast_config = self.config.ast_converter_config or SqlglotConverterConfig()
             ast_config = replace(base_ast_config, mode=self.config.mode)
-            self._ast_converter = SQLGlotConverter(ast_config)
+            self._ast_converter = SqlglotConverter(ast_config)
 
     def convert(
         self,
@@ -102,7 +102,7 @@ class SQLConverter(BaseConverter[Any]):
                 `coerce`: Apply adjustments to produce a valid AST and emit warnings.
             **kwargs: Additional options for SQL DDL string serialization.
                       Available options depend on the AST converter implementation.
-                      For a `SQLGlotConverter`, see sqlglot's documentation for supported
+                      For a `SqlglotConverter`, see sqlglot's documentation for supported
                       options: https://sqlglot.com/sqlglot/generator.html#Generator
 
         Returns:
@@ -112,7 +112,7 @@ class SQLConverter(BaseConverter[Any]):
             ValidationRuleError: In raise mode when unsupported features are detected.
             ConversionError: When the underlying conversion process fails.
         """
-        from .ast_converter import SQLGlotConverter
+        from .ast_converter import SqlglotConverter
 
         # Determine effective mode for this conversion call
         effective_mode: Literal["raise", "coerce"] = (
@@ -129,7 +129,7 @@ class SQLConverter(BaseConverter[Any]):
 
         # Configure SQL generation options based on mode and AST converter type
         sql_options = dict(kwargs)
-        if isinstance(self._ast_converter, SQLGlotConverter):
+        if isinstance(self._ast_converter, SqlglotConverter):
             ensure_dependency("sqlglot")
 
             from sqlglot import ErrorLevel
@@ -143,7 +143,7 @@ class SQLConverter(BaseConverter[Any]):
         return ast.sql(dialect=self.config.dialect, **sql_options)
 
 
-class SparkSQLConverter(SQLConverter):
+class SparkSqlConverter(SqlConverter):
     """Spark SQL converter with built-in validation rules.
 
     This converter is preconfigured for Spark SQL with:
@@ -162,9 +162,9 @@ class SparkSQLConverter(SQLConverter):
         self,
         *,
         mode: Literal["raise", "coerce"] = "coerce",
-        ast_config: SQLGlotConverterConfig | None = None,
+        ast_config: SqlglotConverterConfig | None = None,
     ):
-        """Initialize SparkSQLConverter with built-in Spark-specific settings.
+        """Initialize SparkSqlConverter with built-in Spark-specific settings.
 
         Args:
             mode: Conversion mode. "raise" will raise exceptions on unsupported features,
@@ -209,7 +209,7 @@ class SparkSQLConverter(SQLConverter):
         validator = AstValidator(rules=rules)
 
         # Build config with Spark-specific settings
-        spark_config = SQLConverterConfig(
+        spark_config = SqlConverterConfig(
             mode=mode,
             dialect="spark",
             ast_validator=validator,
@@ -219,7 +219,7 @@ class SparkSQLConverter(SQLConverter):
         super().__init__(spark_config)
 
 
-class DuckdbSQLConverter(SQLConverter):
+class DuckdbSqlConverter(SqlConverter):
     """DuckDB SQL converter with built-in validation rules.
 
     This converter is preconfigured for DuckDB with:
@@ -239,9 +239,9 @@ class DuckdbSQLConverter(SQLConverter):
         self,
         *,
         mode: Literal["raise", "coerce"] = "coerce",
-        ast_config: SQLGlotConverterConfig | None = None,
+        ast_config: SqlglotConverterConfig | None = None,
     ):
-        """Initialize DuckdbSQLConverter with built-in DuckDB-specific settings.
+        """Initialize DuckdbSqlConverter with built-in DuckDB-specific settings.
 
         Args:
             mode: Conversion mode. `raise` will raise exceptions on unsupported features,
@@ -278,7 +278,7 @@ class DuckdbSQLConverter(SQLConverter):
         validator = AstValidator(rules=rules)
 
         # Build config with DuckDB-specific settings
-        duckdb_config = SQLConverterConfig(
+        duckdb_config = SqlConverterConfig(
             mode=mode,
             dialect="duckdb",
             ast_validator=validator,

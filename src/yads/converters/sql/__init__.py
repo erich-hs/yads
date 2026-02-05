@@ -4,12 +4,12 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .sql_converter import (
-        SQLConverter,
-        SQLConverterConfig,
-        SparkSQLConverter,
-        DuckdbSQLConverter,
+        SqlConverter,
+        SqlConverterConfig,
+        SparkSqlConverter,
+        DuckdbSqlConverter,
     )
-    from .ast_converter import AstConverter, SQLGlotConverter, SQLGlotConverterConfig
+    from .ast_converter import AstConverter, SqlglotConverter, SqlglotConverterConfig
     from .validators.ast_validator import AstValidator
     from .validators.ast_validation_rules import (
         AstValidationRule,
@@ -25,12 +25,12 @@ if TYPE_CHECKING:
 
 __all__ = [
     "AstConverter",
-    "SQLConverter",
-    "SQLConverterConfig",
-    "SparkSQLConverter",
-    "DuckdbSQLConverter",
-    "SQLGlotConverter",
-    "SQLGlotConverterConfig",
+    "SqlConverter",
+    "SqlConverterConfig",
+    "SparkSqlConverter",
+    "DuckdbSqlConverter",
+    "SqlglotConverter",
+    "SqlglotConverterConfig",
     "AstValidator",
     "AstValidationRule",
     "DisallowType",
@@ -47,15 +47,15 @@ __all__ = [
 def __getattr__(name: str) -> Any:
     """Lazy import SQL converters to avoid eager sqlglot dependency."""
     if name in (
-        "SQLConverter",
-        "SQLConverterConfig",
-        "SparkSQLConverter",
-        "DuckdbSQLConverter",
+        "SqlConverter",
+        "SqlConverterConfig",
+        "SparkSqlConverter",
+        "DuckdbSqlConverter",
     ):
         from . import sql_converter
 
         return getattr(sql_converter, name)
-    if name in ("AstConverter", "SQLGlotConverter", "SQLGlotConverterConfig"):
+    if name in ("AstConverter", "SqlglotConverter", "SqlglotConverterConfig"):
         from . import ast_converter
 
         return getattr(ast_converter, name)

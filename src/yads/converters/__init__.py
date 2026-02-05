@@ -25,12 +25,12 @@ if TYPE_CHECKING:
     from .pyarrow_converter import PyArrowConverter
     from .pyspark_converter import PySparkConverter
     from .polars_converter import PolarsConverter
-    from .sql.ast_converter import AstConverter, SQLGlotConverter, SQLGlotConverterConfig
+    from .sql.ast_converter import AstConverter, SqlglotConverter, SqlglotConverterConfig
     from .sql.sql_converter import (
-        SQLConverter,
-        SQLConverterConfig,
-        SparkSQLConverter,
-        DuckdbSQLConverter,
+        SqlConverter,
+        SqlConverterConfig,
+        SparkSqlConverter,
+        DuckdbSqlConverter,
     )
 
 PyArrowColumnOverride: TypeAlias = Callable[[SpecField, "PyArrowConverter"], Any]
@@ -41,8 +41,8 @@ PySparkColumnOverride: TypeAlias = Callable[
     [SpecField, "PySparkConverter"], "StructField"
 ]
 PolarsColumnOverride: TypeAlias = Callable[[SpecField, "PolarsConverter"], "pl.Field"]
-SQLGlotColumnOverride: TypeAlias = Callable[
-    [SpecField, "SQLGlotConverter"], "exp.ColumnDef"
+SqlglotColumnOverride: TypeAlias = Callable[
+    [SpecField, "SqlglotConverter"], "exp.ColumnDef"
 ]
 
 
@@ -61,12 +61,12 @@ def __getattr__(name: str):
         return getattr(polars_converter, name)
     if name in (
         "AstConverter",
-        "SQLGlotConverter",
-        "SQLGlotConverterConfig",
-        "SQLConverter",
-        "SQLConverterConfig",
-        "SparkSQLConverter",
-        "DuckdbSQLConverter",
+        "SqlglotConverter",
+        "SqlglotConverterConfig",
+        "SqlConverter",
+        "SqlConverterConfig",
+        "SparkSqlConverter",
+        "DuckdbSqlConverter",
     ):
         from . import sql
 
@@ -83,12 +83,12 @@ __all__ = [
     "BaseConverter",
     "BaseConverterConfig",
     "AstConverter",
-    "SQLConverter",
-    "SQLConverterConfig",
-    "SparkSQLConverter",
-    "DuckdbSQLConverter",
-    "SQLGlotConverter",
-    "SQLGlotConverterConfig",
+    "SqlConverter",
+    "SqlConverterConfig",
+    "SparkSqlConverter",
+    "DuckdbSqlConverter",
+    "SqlglotConverter",
+    "SqlglotConverterConfig",
     "PyArrowConverter",
     "PyArrowConverterConfig",
     "PydanticConverter",
@@ -287,8 +287,8 @@ def to_sql(
     mode: Literal["raise", "coerce"] = "coerce",
     ignore_columns: set[str] | None = None,
     include_columns: set[str] | None = None,
-    column_overrides: Mapping[str, SQLGlotColumnOverride] | None = None,
-    # SQLGlotConverterConfig options
+    column_overrides: Mapping[str, SqlglotColumnOverride] | None = None,
+    # SqlglotConverterConfig options
     if_not_exists: bool = False,
     or_replace: bool = False,
     ignore_catalog: bool = False,
@@ -300,7 +300,7 @@ def to_sql(
     """Convert a `YadsSpec` to SQL DDL.
 
     This facade routes to the appropriate SQL converter based on `dialect` and
-    forwards AST-level options to the underlying SQLGlot-based converter.
+    forwards AST-level options to the underlying sqlglot-based converter.
 
     Args:
         spec: The validated yads specification to convert.
@@ -323,15 +323,15 @@ def to_sql(
     Raises:
         ValueError: If an unsupported dialect is provided.
     """
-    from .sql.ast_converter import SQLGlotConverterConfig
-    from .sql.sql_converter import SparkSQLConverter, DuckdbSQLConverter
+    from .sql.ast_converter import SqlglotConverterConfig
+    from .sql.sql_converter import SparkSqlConverter, DuckdbSqlConverter
 
-    ast_config = SQLGlotConverterConfig(
+    ast_config = SqlglotConverterConfig(
         mode=mode,
         ignore_columns=frozenset(ignore_columns) if ignore_columns else frozenset[str](),
         include_columns=frozenset(include_columns) if include_columns else None,
         column_overrides=cast(
-            Mapping[str, SQLGlotColumnOverride], column_overrides or {}
+            Mapping[str, SqlglotColumnOverride], column_overrides or {}
         ),
         if_not_exists=if_not_exists,
         or_replace=or_replace,
@@ -340,12 +340,12 @@ def to_sql(
         fallback_type=fallback_type,
     )
 
-    converter: SQLConverter
+    converter: SqlConverter
     match dialect:
         case "spark":
-            converter = SparkSQLConverter(mode=mode, ast_config=ast_config)
+            converter = SparkSqlConverter(mode=mode, ast_config=ast_config)
         case "duckdb":
-            converter = DuckdbSQLConverter(mode=mode, ast_config=ast_config)
+            converter = DuckdbSqlConverter(mode=mode, ast_config=ast_config)
         case _:
             raise ValueError("Unsupported SQL dialect. Expected 'spark' or 'duckdb'.")
 

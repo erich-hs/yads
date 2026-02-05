@@ -1,12 +1,12 @@
 import pytest
 from sqlglot.expressions import DataType
-from yads.converters.sql import SQLConverter, AstValidator, DisallowType
-from yads.converters import SQLConverterConfig
+from yads.converters.sql import SqlConverter, AstValidator, DisallowType
+from yads.converters import SqlConverterConfig
 from yads.exceptions import AstValidationError
 from yads.loaders import from_yaml_string
 
 
-class TestSQLConverterModeHierarchy:
+class TestSqlConverterModeHierarchy:
     def test_converter_instance_mode_raise_raises(self):
         yaml_string = """
         name: my_db.my_table
@@ -20,10 +20,10 @@ class TestSQLConverterModeHierarchy:
         validator = AstValidator(
             rules=[DisallowType(disallow_type=DataType.Type.GEOGRAPHY)]
         )
-        config = SQLConverterConfig(
+        config = SqlConverterConfig(
             dialect="spark", ast_validator=validator, mode="raise"
         )
-        converter = SQLConverter(config)
+        converter = SqlConverter(config)
 
         with pytest.raises(
             AstValidationError,
@@ -44,10 +44,10 @@ class TestSQLConverterModeHierarchy:
         validator = AstValidator(
             rules=[DisallowType(disallow_type=DataType.Type.GEOGRAPHY)]
         )
-        config = SQLConverterConfig(
+        config = SqlConverterConfig(
             dialect="spark", ast_validator=validator, mode="coerce"
         )
-        converter = SQLConverter(config)
+        converter = SqlConverter(config)
 
         with pytest.warns(
             UserWarning,
@@ -68,10 +68,10 @@ class TestSQLConverterModeHierarchy:
         validator = AstValidator(
             rules=[DisallowType(disallow_type=DataType.Type.GEOGRAPHY)]
         )
-        config = SQLConverterConfig(
+        config = SqlConverterConfig(
             dialect="spark", ast_validator=validator, mode="raise"
         )
-        converter = SQLConverter(config)
+        converter = SqlConverter(config)
 
         with pytest.warns(
             UserWarning,
@@ -100,10 +100,10 @@ class TestSQLConverterModeHierarchy:
         validator = AstValidator(
             rules=[DisallowType(disallow_type=DataType.Type.GEOGRAPHY)]
         )
-        config = SQLConverterConfig(
+        config = SqlConverterConfig(
             dialect="spark", ast_validator=validator, mode="coerce"
         )
-        converter = SQLConverter(config)
+        converter = SqlConverter(config)
 
         # Default coerce -> warns, not raises
         with pytest.warns(

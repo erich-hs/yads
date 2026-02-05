@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
-class SQLLoaderConfig(BaseLoaderConfig):
+class SqlLoaderConfig(BaseLoaderConfig):
     """Configuration for SQL database loaders.
 
     Args:
@@ -49,7 +49,7 @@ class SQLLoaderConfig(BaseLoaderConfig):
                 )
 
 
-class SQLLoader(ConfigurableLoader, ABC):
+class SqlLoader(ConfigurableLoader, ABC):
     """Base class for SQL database schema loaders.
 
     SQL loaders query database catalogs to extract table schema information
@@ -66,20 +66,20 @@ class SQLLoader(ConfigurableLoader, ABC):
     Example:
         ```python
         import psycopg2
-        from yads.loaders.sql import PostgreSQLLoader
+        from yads.loaders.sql import PostgreSqlLoader
 
         conn = psycopg2.connect("postgresql://localhost/mydb")
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
         spec = loader.load("users", schema="public")
         ```
     """
 
-    config: SQLLoaderConfig
+    config: SqlLoaderConfig
 
     def __init__(
         self,
         connection: Any,
-        config: SQLLoaderConfig | None = None,
+        config: SqlLoaderConfig | None = None,
     ) -> None:
         """Initialize the SQL loader.
 
@@ -87,10 +87,10 @@ class SQLLoader(ConfigurableLoader, ABC):
             connection: A DBAPI-compatible database connection. Must support
                 `cursor()` method returning a cursor with `execute()`,
                 `fetchall()`, `close()`, and `description` attribute.
-            config: Configuration object. If None, uses default SQLLoaderConfig.
+            config: Configuration object. If None, uses default SqlLoaderConfig.
         """
         self._connection = connection
-        self.config = config or SQLLoaderConfig()
+        self.config = config or SqlLoaderConfig()
         self._type_serializer = TypeSerializer()
         self._type_serializer.bind_field_serializer(self._serialize_field_definition)
         self._constraint_serializer = ConstraintSerializer()

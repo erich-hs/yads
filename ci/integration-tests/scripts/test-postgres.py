@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""PostgreSQL integration test for PostgreSQLLoader.
+"""PostgreSQL integration test for PostgreSqlLoader.
 
-This script validates that the PostgreSQLLoader can correctly introspect
+This script validates that the PostgreSqlLoader can correctly introspect
 PostgreSQL table schemas and convert them to YadsSpec instances.
 """
 
@@ -18,7 +18,7 @@ from yads.constraints import (
     NotNullConstraint,
     PrimaryKeyConstraint,
 )
-from yads.loaders.sql import PostgreSQLLoader
+from yads.loaders.sql import PostgreSqlLoader
 
 
 def get_connection() -> PgConnection:
@@ -146,7 +146,7 @@ def test_basic_type_conversion(conn: PgConnection) -> None:
     print("Test: Basic Type Conversion")
     print("-" * 60)
 
-    loader = PostgreSQLLoader(conn)
+    loader = PostgreSqlLoader(conn)
     spec = loader.load("test_types")
 
     print(f"✓ Loaded spec: {spec.name}")
@@ -214,7 +214,7 @@ def test_array_types(conn: PgConnection) -> None:
     print("Test: Array Type Conversion")
     print("-" * 60)
 
-    loader = PostgreSQLLoader(conn)
+    loader = PostgreSqlLoader(conn)
     spec = loader.load("test_types")
 
     columns_by_name = {col.name: col for col in spec.columns}
@@ -248,7 +248,7 @@ def test_composite_types(conn: PgConnection) -> None:
     print("Test: Composite Type Conversion")
     print("-" * 60)
 
-    loader = PostgreSQLLoader(conn)
+    loader = PostgreSqlLoader(conn)
     spec = loader.load("test_types")
 
     columns_by_name = {col.name: col for col in spec.columns}
@@ -274,7 +274,7 @@ def test_interval_types(conn: PgConnection) -> None:
     print("Test: Interval Type Conversion")
     print("-" * 60)
 
-    loader = PostgreSQLLoader(conn)
+    loader = PostgreSqlLoader(conn)
     spec = loader.load("test_types")
 
     columns_by_name = {col.name: col for col in spec.columns}
@@ -300,7 +300,7 @@ def test_constraints(conn: PgConnection) -> None:
     print("Test: Constraint Loading")
     print("-" * 60)
 
-    loader = PostgreSQLLoader(conn)
+    loader = PostgreSqlLoader(conn)
     spec = loader.load("test_constraints")
 
     columns_by_name = {col.name: col for col in spec.columns}
@@ -385,7 +385,7 @@ def test_generated_columns(conn: PgConnection) -> None:
     print("Test: Generated Columns")
     print("-" * 60)
 
-    loader = PostgreSQLLoader(conn)
+    loader = PostgreSqlLoader(conn)
     spec = loader.load("test_constraints")
 
     columns_by_name = {col.name: col for col in spec.columns}
@@ -407,7 +407,7 @@ def test_spec_metadata(conn: PgConnection) -> None:
     print("Test: Spec Metadata")
     print("-" * 60)
 
-    loader = PostgreSQLLoader(conn)
+    loader = PostgreSqlLoader(conn)
 
     # Test default name (fully qualified: catalog.schema.table)
     spec = loader.load("test_types")

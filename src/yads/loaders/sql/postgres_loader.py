@@ -17,9 +17,9 @@ Supported features:
 
 Example:
     >>> import psycopg2
-    >>> from yads.loaders.sql import PostgreSQLLoader
+    >>> from yads.loaders.sql import PostgreSqlLoader
     >>> conn = psycopg2.connect("postgresql://localhost/mydb")
-    >>> loader = PostgreSQLLoader(conn)
+    >>> loader = PostgreSqlLoader(conn)
     >>> spec = loader.load("users", schema="public")
     >>> spec.name
     'mydb.public.users'
@@ -45,13 +45,13 @@ from ...constraints import (
     TableConstraint,
 )
 from ...exceptions import LoaderError, validation_warning
-from .base import SQLLoader, SQLLoaderConfig
+from .base import SqlLoader, SqlLoaderConfig
 
 if TYPE_CHECKING:
     from ...spec import YadsSpec
 
 
-class PostgreSQLLoader(SQLLoader):
+class PostgreSqlLoader(SqlLoader):
     """Load a `YadsSpec` from a PostgreSQL database table.
 
     Queries PostgreSQL catalog tables to extract complete table schema including:
@@ -78,17 +78,17 @@ class PostgreSQLLoader(SQLLoader):
     def __init__(
         self,
         connection: Any,
-        config: SQLLoaderConfig | None = None,
+        config: SqlLoaderConfig | None = None,
     ) -> None:
-        """Initialize the PostgreSQLLoader.
+        """Initialize the PostgreSqlLoader.
 
         Args:
             connection: A DBAPI-compatible PostgreSQL connection (e.g., psycopg2,
                 psycopg, asyncpg in sync mode). Must support parameterized queries
                 with %s placeholders.
-            config: Configuration object. If None, uses default SQLLoaderConfig.
+            config: Configuration object. If None, uses default SqlLoaderConfig.
         """
-        super().__init__(connection, config or SQLLoaderConfig())
+        super().__init__(connection, config or SqlLoaderConfig())
         self._current_schema: str = "public"
 
     def load(

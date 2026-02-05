@@ -14,8 +14,8 @@ This page explains the patterns that make extensions behave consistently.
 
 - **Writing a Core Converter**: Subclass [`BaseConverter`](../api/converters/index.md)
   when you need to emit a new runtime schema or serialization.
-- **Writing a SQL Converter**: Combine [`SQLConverter`](../api/converters/sql/sql.md)
-  with an AST converter (e.g. [`SQLGlotConverter`](../api/converters/sql/sql.md)) and
+- **Writing a SQL Converter**: Combine [`SqlConverter`](../api/converters/sql/sql.md)
+  with an AST converter (e.g. [`SqlglotConverter`](../api/converters/sql/sql.md)) and
   optional validators to support a new dialect.
 - **Writing a Loader**: Extend [`ConfigurableLoader`](../api/loaders/index.md) to parse
   new inputs into a `YadsSpec`.
@@ -108,19 +108,19 @@ schema = converter.convert(spec)
 SQL support layers a converter stack:
 
 ```
-YadsSpec -> SQLGlotConverter (AST) -> AstValidator (optional) -> SQLConverter.sql()
+YadsSpec -> SqlglotConverter (AST) -> AstValidator (optional) -> SqlConverter.sql()
 ```
 
 ```mermaid
 flowchart TD
     BaseConverter["BaseConverter<br/>column filters, mode, overrides"]
-        --> SQLGlotConverter["SQLGlotConverter<br/>builds dialect-agnostic AST"]
-    SQLGlotConverter --> SQLConverter["SQLConverter<br/>orchestrates AST -> SQL"]
-    SQLConverter -->|optional| AstValidator["AstValidator<br/>rules adjust/guard AST"]
-    AstValidator --> SQLConverter
-    SQLConverter --> Spark["SparkSQLConverter<br/>dialect='spark'"]
-    SQLConverter --> Duckdb["DuckdbSQLConverter<br/>dialect='duckdb'"]
-    SQLConverter --> New["NewSQLConverter<br/>dialect='your-dialect'"]
+        --> SqlglotConverter["SqlglotConverter<br/>builds dialect-agnostic AST"]
+    SqlglotConverter --> SqlConverter["SqlConverter<br/>orchestrates AST -> SQL"]
+    SqlConverter -->|optional| AstValidator["AstValidator<br/>rules adjust/guard AST"]
+    AstValidator --> SqlConverter
+    SqlConverter --> Spark["SparkSqlConverter<br/>dialect='spark'"]
+    SqlConverter --> Duckdb["DuckdbSqlConverter<br/>dialect='duckdb'"]
+    SqlConverter --> New["NewSqlConverter<br/>dialect='your-dialect'"]
     Spark --> SQLString["CREATE TABLE ..."]
     Duckdb --> SQLString
     New --> SQLString
@@ -128,13 +128,13 @@ flowchart TD
 
 How the pieces fit together:
 
-- `SQLGlotConverter` subclasses `BaseConverter` and emits a neutral `sqlglot` AST.
-- `SQLConverter` keeps the mode in sync, optionally runs an `AstValidator`, and calls
+- `SqlglotConverter` subclasses `BaseConverter` and emits a neutral `sqlglot` AST.
+- `SqlConverter` keeps the mode in sync, optionally runs an `AstValidator`, and calls
   `.sql(dialect=..., **kwargs)` to format DDL.
-- Dialect classes (Spark, DuckDB, or your own) subclass `SQLConverter` and inject
+- Dialect classes (Spark, DuckDB, or your own) subclass `SqlConverter` and inject
   validator rules plus any AST converter config needed for that dialect.
 
-`SQLConverter` handles mode propagation and column filters. `SQLGlotConverter`
+`SqlConverter` handles mode propagation and column filters. `SqlglotConverter`
 produces a dialect-agnostic `sqlglot` AST, and `AstValidator` applies
 dialect-specific rules before rendering.
 
@@ -142,15 +142,15 @@ dialect-specific rules before rendering.
 
 1. Pick a `sqlglot` dialect string (`dialect="postgres"` or similar).
 2. Reuse or add `AstValidationRule` instances to model dialect gaps.
-3. Wire them into an `SQLConverterConfig` and subclass `SQLConverter`.
+3. Wire them into an `SqlConverterConfig` and subclass `SqlConverter`.
 
 ```python
-from yads.converters.sql.sql_converter import SQLConverter, SQLConverterConfig
+from yads.converters.sql.sql_converter import SqlConverter, SqlConverterConfig
 from yads.converters.sql.validators import AstValidator, DisallowType
 from sqlglot.expressions import DataType
 
 
-class NewSQLConverter(SQLConverter):
+class NewSqlConverter(SqlConverter):
     def __init__(self, *, mode: str = "coerce") -> None:
         rules = [
             DisallowType(
@@ -159,7 +159,7 @@ class NewSQLConverter(SQLConverter):
             ),
         ]
         validator = AstValidator(rules=rules)
-        config = SQLConverterConfig(
+        config = SqlConverterConfig(
             mode=mode,
             dialect="postgres",
             ast_validator=validator,
@@ -169,7 +169,7 @@ class NewSQLConverter(SQLConverter):
 
 Configuration choices:
 
-- `SQLGlotConverterConfig` (pass as `ast_converter_config`) controls `if_not_exists`,
+- `SqlglotConverterConfig` (pass as `ast_converter_config`) controls `if_not_exists`,
   `or_replace`, catalog/database suppression, and `fallback_type`.
 - `column_overrides` accepts callables that return `sqlglot.exp.ColumnDef` nodes for
   full control over a column’s AST.
