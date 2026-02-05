@@ -280,6 +280,50 @@ class TestSqlServerLoaderTypeConversion:
 
         assert spec.columns[0].type == ytypes.Decimal(precision=10, scale=2)
 
+    def test_binary_with_length(self):
+        """Test BINARY with length constraint."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row(
+                    "payload",
+                    1,
+                    "binary",
+                    character_maximum_length=16,
+                )
+            ],
+            "sys.constraints": [],
+            "sys.identity_columns": [],
+            "sys.computed_columns": [],
+        }
+        conn = MockConnection(query_results)
+        loader = SqlServerLoader(conn)
+
+        spec = loader.load("test_table")
+
+        assert spec.columns[0].type == ytypes.Binary(length=16)
+
+    def test_varbinary_max(self):
+        """Test VARBINARY(MAX) maps to unbounded Binary."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row(
+                    "payload",
+                    1,
+                    "varbinary",
+                    character_maximum_length=-1,
+                )
+            ],
+            "sys.constraints": [],
+            "sys.identity_columns": [],
+            "sys.computed_columns": [],
+        }
+        conn = MockConnection(query_results)
+        loader = SqlServerLoader(conn)
+
+        spec = loader.load("test_table")
+
+        assert spec.columns[0].type == ytypes.Binary()
+
 
 # ---- Constraint Tests --------------------------------------------------------
 
@@ -329,6 +373,26 @@ class TestSqlServerLoaderConstraints:
         )  # SQL Server allows IDENTITY_INSERT
         assert identity_constraints[0].start == 1
         assert identity_constraints[0].increment == 1
+
+    def test_identity_column_ignores_default(self):
+        """Test IDENTITY columns do not retain default constraints."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("id", 1, "int", column_default="((999))")
+            ],
+            "sys.constraints": [],
+            "sys.identity_columns": [("id", 1, 1)],
+            "sys.computed_columns": [],
+        }
+        conn = MockConnection(query_results)
+        loader = SqlServerLoader(conn)
+
+        spec = loader.load("test_table")
+
+        default_constraints = [
+            c for c in spec.columns[0].constraints if isinstance(c, DefaultConstraint)
+        ]
+        assert len(default_constraints) == 0
 
     def test_default_literal_string_value(self):
         """Test literal string DEFAULT value."""
@@ -677,6 +741,77 @@ class TestSqlServerLoaderTableConstraints:
         assert len(pk_table_constraints) == 1
         assert set(pk_table_constraints[0].columns) == {"order_id", "item_id"}
 
+    def test_composite_foreign_key(self):
+        """Test composite foreign key as table-level constraint."""
+        from yads.constraints import ForeignKeyTableConstraint
+
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("order_id", 1, "int"),
+                make_column_row("item_id", 2, "int"),
+            ],
+            "sys.constraints": [
+                (
+                    "FK_order_items",
+                    "FOREIGN KEY",
+                    "order_id",
+                    1,
+                    "dbo",
+                    "orders",
+                    "order_id",
+                ),
+                (
+                    "FK_order_items",
+                    "FOREIGN KEY",
+                    "item_id",
+                    2,
+                    "dbo",
+                    "orders",
+                    "item_id",
+                ),
+            ],
+            "sys.identity_columns": [],
+            "sys.computed_columns": [],
+        }
+        conn = MockConnection(query_results)
+        loader = SqlServerLoader(conn)
+
+        spec = loader.load("order_items")
+
+        fk_table_constraints = [
+            c for c in spec.table_constraints if isinstance(c, ForeignKeyTableConstraint)
+        ]
+        assert len(fk_table_constraints) == 1
+        assert set(fk_table_constraints[0].columns) == {"order_id", "item_id"}
+        assert fk_table_constraints[0].references.table == "orders"
+
+    def test_composite_foreign_key_non_dbo_schema(self):
+        """Test composite foreign key with non-dbo schema."""
+        from yads.constraints import ForeignKeyTableConstraint
+
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("a_id", 1, "int"),
+                make_column_row("b_id", 2, "int"),
+            ],
+            "sys.constraints": [
+                ("FK_multi", "FOREIGN KEY", "a_id", 1, "core", "refs", "a"),
+                ("FK_multi", "FOREIGN KEY", "b_id", 2, "core", "refs", "b"),
+            ],
+            "sys.identity_columns": [],
+            "sys.computed_columns": [],
+        }
+        conn = MockConnection(query_results)
+        loader = SqlServerLoader(conn)
+
+        spec = loader.load("test_table")
+
+        fk_table_constraints = [
+            c for c in spec.table_constraints if isinstance(c, ForeignKeyTableConstraint)
+        ]
+        assert len(fk_table_constraints) == 1
+        assert fk_table_constraints[0].references.table == "core.refs"
+
 
 # ---- Computed Column Tests ---------------------------------------------------
 
@@ -727,6 +862,51 @@ class TestSqlServerLoaderComputedColumns:
         assert gen_col.generated_as.column == "quantity"
         assert gen_col.generated_as.transform == "expression"
         assert "[quantity]*[price]" in gen_col.generated_as.transform_args[0]
+
+    def test_computed_column_with_transform_args(self):
+        """Test computed column with function having multiple args."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("value", 1, "decimal"),
+                make_column_row("rounded", 2, "decimal"),
+            ],
+            "sys.constraints": [],
+            "sys.identity_columns": [],
+            "sys.computed_columns": [("rounded", "round([value], 2)", True)],
+        }
+        conn = MockConnection(query_results)
+        loader = SqlServerLoader(conn)
+
+        spec = loader.load("test_table")
+
+        gen_col = spec.columns[1]
+        assert gen_col.generated_as is not None
+        assert gen_col.generated_as.column == "value"
+        assert gen_col.generated_as.transform == "round"
+        assert gen_col.generated_as.transform_args == ["2"]
+
+    def test_computed_column_unparseable_emits_warning(self):
+        """Test unparseable computed expression emits warning."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("weird_col", 1, "varchar"),
+            ],
+            "sys.constraints": [],
+            "sys.identity_columns": [],
+            "sys.computed_columns": [("weird_col", "@@VERSION", True)],
+        }
+        conn = MockConnection(query_results)
+        loader = SqlServerLoader(conn)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            spec = loader.load("test_table")
+
+            assert any(
+                "Could not parse computation expression" in str(wi.message) for wi in w
+            )
+
+        assert spec.columns[0].generated_as is None
 
 
 # ---- Default Value Parsing Tests ---------------------------------------------
@@ -798,6 +978,32 @@ class TestSqlServerLoaderDefaultValues:
         assert len(default_constraints) == 1
         assert default_constraints[0].value == 3.14
 
+    def test_default_escaped_string(self):
+        """Test string with escaped quotes default value."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row(
+                    "greeting",
+                    1,
+                    "varchar",
+                    column_default="(N'Hello ''World''')",
+                )
+            ],
+            "sys.constraints": [],
+            "sys.identity_columns": [],
+            "sys.computed_columns": [],
+        }
+        conn = MockConnection(query_results)
+        loader = SqlServerLoader(conn)
+
+        spec = loader.load("test_table")
+
+        default_constraints = [
+            c for c in spec.columns[0].constraints if isinstance(c, DefaultConstraint)
+        ]
+        assert len(default_constraints) == 1
+        assert default_constraints[0].value == "Hello 'World'"
+
     def test_default_negative_integer(self):
         """Test negative integer default value."""
         query_results = {
@@ -818,6 +1024,32 @@ class TestSqlServerLoaderDefaultValues:
         ]
         assert len(default_constraints) == 1
         assert default_constraints[0].value == -10
+
+    def test_default_complex_expression_warning(self):
+        """Test complex expression emits warning."""
+        query_results = {
+            "information_schema.columns": [
+                make_column_row("computed", 1, "int", column_default="(1 + 2)")
+            ],
+            "sys.constraints": [],
+            "sys.identity_columns": [],
+            "sys.computed_columns": [],
+        }
+        conn = MockConnection(query_results)
+        loader = SqlServerLoader(conn)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            spec = loader.load("test_table")
+
+            assert any(
+                "could not be parsed as a literal" in str(wi.message).lower() for wi in w
+            )
+
+        default_constraints = [
+            c for c in spec.columns[0].constraints if isinstance(c, DefaultConstraint)
+        ]
+        assert len(default_constraints) == 0
 
     def test_default_newid_warning(self):
         """Test newid() function emits warning."""

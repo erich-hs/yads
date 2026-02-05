@@ -642,10 +642,14 @@ class SqlServerLoader(SqlLoader):
 
         # Binary
         if type_name == "binary":
-            return ytypes.Binary()
+            length = col_info.get("character_maximum_length")
+            return ytypes.Binary(length=length)
         if type_name == "varbinary":
+            length = col_info.get("character_maximum_length")
             # VARBINARY(MAX) has length -1
-            return ytypes.Binary()
+            if length == -1:
+                return ytypes.Binary()
+            return ytypes.Binary(length=length)
         if type_name == "image":
             return ytypes.Binary()
 
@@ -813,7 +817,7 @@ class SqlServerLoader(SqlLoader):
         # Function call: func([column], args...)
         func_match = re.match(r"^(\w+)\((.+)\)$", expr)
         if func_match:
-            func_name = func_match.group(1).upper()
+            func_name = func_match.group(1)
             args_str = func_match.group(2)
 
             # Try to extract first argument as column name
