@@ -1,19 +1,7 @@
 """Load a `YadsSpec` from a PostgreSQL table schema.
 
 This loader queries PostgreSQL catalog tables (information_schema, pg_catalog)
-to extract complete table schema information and convert it to a canonical
-`YadsSpec` instance.
-
-Supported features:
-- Column names, types, and nullability
-- Primary key constraints (column and table level)
-- Foreign key constraints (column and table level)
-- Default values (literal values only)
-- Identity/serial columns
-- Generated/computed columns
-- Composite types (converted to Struct)
-- Array types (converted to Array, nested for multi-dimensional)
-- PostGIS geometry/geography types
+to extract table schema information and convert it to a canonical `YadsSpec`.
 
 Example:
     >>> import psycopg2
@@ -54,15 +42,9 @@ if TYPE_CHECKING:
 class PostgreSqlLoader(SqlLoader):
     """Load a `YadsSpec` from a PostgreSQL database table.
 
-    Queries PostgreSQL catalog tables to extract complete table schema including:
-    - Column names, types, and nullability
-    - Primary key, foreign key constraints
-    - Default values (literal values converted to DefaultConstraint)
-    - Identity/serial columns (converted to IdentityConstraint)
-    - Generated columns (converted to generated_as)
-    - Composite types (converted to Struct)
-    - Array types (converted to Array, nested for multi-dimensional)
-    - PostGIS geometry/geography types
+    The loader inspects PostgreSQL catalog tables to extract column metadata,
+    constraints, defaults, identity/serial columns, generated columns, array and
+    composite types, and PostGIS spatial types.
 
     Unsupported PostgreSQL features:
     - UNIQUE constraints (not yet in yads constraint model)
@@ -121,25 +103,20 @@ class PostgreSqlLoader(SqlLoader):
             UnsupportedFeatureError: In "raise" mode when encountering unsupported types.
         """
         with self.load_context(mode=mode):
-            # Store current schema for composite type lookups
             self._current_schema = schema
 
-            # Get current database name for fully qualified spec name
             catalog = self._get_current_database()
 
-            # Query column information
             columns_info = self._query_columns(schema, table_name)
             if not columns_info:
                 raise LoaderError(
                     f"Table '{schema}.{table_name}' not found or has no columns."
                 )
 
-            # Query supplementary information
             constraints = self._query_constraints(schema, table_name)
             array_info = self._query_array_info(schema, table_name)
             serial_columns = self._query_serial_columns(schema, table_name)
 
-            # Build columns
             columns: list[dict[str, Any]] = []
             for col_info in columns_info:
                 with self.load_context(field=col_info["column_name"]):
@@ -151,7 +128,6 @@ class PostgreSqlLoader(SqlLoader):
                     )
                     columns.append(column_def)
 
-            # Build spec data
             spec_name = name or f"{catalog}.{schema}.{table_name}"
             data: dict[str, Any] = {
                 "name": spec_name,
@@ -162,7 +138,6 @@ class PostgreSqlLoader(SqlLoader):
             if description:
                 data["description"] = description
 
-            # Add table-level constraints
             table_constraints = self._build_table_constraints(constraints)
             if table_constraints:
                 data["table_constraints"] = table_constraints
@@ -225,7 +200,6 @@ class PostgreSqlLoader(SqlLoader):
             "unique_constraints": [],
         }
 
-        # Query all constraints with their columns
         query = """
         SELECT
             tc.constraint_name,
@@ -289,7 +263,6 @@ class PostgreSqlLoader(SqlLoader):
                         "name": cdata["name"],
                     }
                 )
-                # Emit warning since UNIQUE is not yet supported
                 validation_warning(
                     f"UNIQUE constraint '{cdata['name']}' on columns "
                     f"{cdata['columns']} is not yet supported in yads and will be ignored.",
@@ -404,7 +377,6 @@ class PostgreSqlLoader(SqlLoader):
         for row in rows:
             field_type = self._convert_simple_type(row["field_type"], {})
             if field_type is None:
-                # Unsupported type in composite - raise or coerce
                 field_type = self.raise_or_coerce(row["field_type"])
 
             field_constraints: list[ColumnConstraint] = []
@@ -432,18 +404,14 @@ class PostgreSqlLoader(SqlLoader):
         """Build a column definition dictionary from catalog information."""
         col_name = col_info["column_name"]
 
-        # Convert type
         yads_type = self._convert_type(col_info, array_info)
 
-        # Build constraints list
         col_constraints = self._build_column_constraints(
             col_info, constraints, serial_columns
         )
 
-        # Build generated_as if applicable
         generated_as = self._build_generated_as(col_info)
 
-        # Serialize
         payload: dict[str, Any] = {"name": col_name}
         payload.update(self._type_serializer.serialize(yads_type))
 
@@ -472,20 +440,21 @@ class PostgreSqlLoader(SqlLoader):
         constraints: dict[str, Any],
         serial_columns: dict[str, dict[str, Any]],
     ) -> list[ColumnConstraint]:
-        """Build column-level constraints from catalog information."""
+        """Build column-level constraints from catalog information.
+
+        Single-column primary and foreign keys are represented here. Composite
+        constraints are handled at the table level.
+        """
         col_name = col_info["column_name"]
         result: list[ColumnConstraint] = []
 
-        # NOT NULL
         if col_info["is_nullable"] == "NO":
             result.append(NotNullConstraint())
 
-        # PRIMARY KEY (single column only - composite handled at table level)
         pk_info = constraints.get("primary_key")
         if pk_info and len(pk_info["columns"]) == 1 and col_name in pk_info["columns"]:
             result.append(PrimaryKeyConstraint())
 
-        # FOREIGN KEY (single column only - composite handled at table level)
         for fk in constraints.get("foreign_keys", []):
             if len(fk["columns"]) == 1 and col_name in fk["columns"]:
                 ref_table = fk["ref_table"]
@@ -501,7 +470,6 @@ class PostgreSqlLoader(SqlLoader):
                     )
                 )
 
-        # IDENTITY (explicit identity columns)
         if col_info["is_identity"] == "YES":
             result.append(
                 IdentityConstraint(
@@ -510,7 +478,6 @@ class PostgreSqlLoader(SqlLoader):
                     increment=_safe_int(col_info.get("identity_increment")),
                 )
             )
-        # SERIAL (sequence-backed columns)
         elif col_name in serial_columns:
             serial_info = serial_columns[col_name]
             result.append(
@@ -521,7 +488,6 @@ class PostgreSqlLoader(SqlLoader):
                 )
             )
 
-        # DEFAULT (only for non-identity, non-serial columns)
         if (
             col_info["is_identity"] != "YES"
             and col_name not in serial_columns
@@ -537,10 +503,12 @@ class PostgreSqlLoader(SqlLoader):
         self,
         constraints: dict[str, Any],
     ) -> list[dict[str, Any]]:
-        """Build table-level constraints from catalog information."""
+        """Build table-level constraints from catalog information.
+
+        Composite primary and foreign keys are represented at this level.
+        """
         table_constraints: list[TableConstraint] = []
 
-        # PRIMARY KEY (composite only)
         pk_info = constraints.get("primary_key")
         if pk_info and len(pk_info["columns"]) > 1:
             table_constraints.append(
@@ -550,7 +518,6 @@ class PostgreSqlLoader(SqlLoader):
                 )
             )
 
-        # FOREIGN KEY (composite only)
         for fk in constraints.get("foreign_keys", []):
             if len(fk["columns"]) > 1:
                 ref_table = fk["ref_table"]
@@ -581,13 +548,10 @@ class PostgreSqlLoader(SqlLoader):
         if not expression:
             return None
 
-        # Try to parse the generation expression
-        # PostgreSQL format varies: "column_name", "(expr)", etc.
         parsed = self._parse_generation_expression(expression)
         if parsed:
             return parsed
 
-        # If we can't parse it, emit a warning
         validation_warning(
             f"Could not parse generation expression '{expression}' for column "
             f"'{col_info['column_name']}'. Generated column will not be represented.",
@@ -605,27 +569,22 @@ class PostgreSqlLoader(SqlLoader):
         """Convert PostgreSQL type to YadsType."""
         data_type = col_info["data_type"].lower()
 
-        # Handle ARRAY types
         if data_type == "array":
             return self._convert_array_type(col_info, array_info)
 
-        # Handle USER-DEFINED types (composites, domains, enums)
         if data_type == "user-defined":
             return self._convert_user_defined_type(col_info)
 
-        # Handle standard types
         result = self._convert_simple_type(data_type, col_info)
         if result is not None:
             return result
 
-        # Try udt_name as fallback
         udt_name = col_info.get("udt_name", "").lower()
         if udt_name and udt_name != data_type:
             result = self._convert_simple_type(udt_name, col_info)
             if result is not None:
                 return result
 
-        # Unknown type - raise or coerce
         return self.raise_or_coerce(data_type)
 
     def _convert_simple_type(
@@ -734,31 +693,25 @@ class PostgreSqlLoader(SqlLoader):
         col_name = col_info["column_name"]
         udt_name = col_info.get("udt_name", "").lower()
 
-        # Get element type and dimensions from pg_catalog
         if col_name in array_info:
             element_type_name, dimensions = array_info[col_name]
         else:
-            # Fallback: parse from udt_name (e.g., "_int4" -> "int4")
             element_type_name = (
                 udt_name.lstrip("_") if udt_name.startswith("_") else udt_name
             )
             dimensions = 1
 
-        # Convert element type
         element_type = self._convert_simple_type(element_type_name, {})
         if element_type is None:
-            # Check if it's a composite type
             fields = self._query_composite_type(element_type_name, self._current_schema)
             if fields:
                 element_type = ytypes.Struct(fields=fields)
             else:
-                # Unknown element type
                 element_type = self.raise_or_coerce(
                     element_type_name,
                     error_msg=f"Unknown array element type '{element_type_name}' for field '{col_name}'",
                 )
 
-        # Build nested arrays for multi-dimensional
         if dimensions > 1:
             validation_warning(
                 f"Multi-dimensional array ({dimensions}D) for column '{col_name}' "
@@ -781,23 +734,19 @@ class PostgreSqlLoader(SqlLoader):
         udt_name = col_info.get("udt_name", "")
         col_name = col_info["column_name"]
 
-        # Check for PostGIS types first
         if udt_name.lower() == "geometry":
             return ytypes.Geometry()
         if udt_name.lower() == "geography":
             return ytypes.Geography()
 
-        # Try to resolve as composite type
         fields = self._query_composite_type(udt_name, self._current_schema)
         if fields:
             return ytypes.Struct(fields=fields)
 
-        # Try to resolve as domain type
         domain_base = self._resolve_domain_type(udt_name, self._current_schema)
         if domain_base:
             return domain_base
 
-        # Unknown user-defined type
         return self.raise_or_coerce(
             udt_name,
             error_msg=f"Unknown user-defined type '{udt_name}' for field '{col_name}'",
@@ -829,7 +778,6 @@ class PostgreSqlLoader(SqlLoader):
         result = self._convert_simple_type(base_type_name, {})
 
         if result is None:
-            # Base type is also unsupported
             validation_warning(
                 f"Domain type '{domain_name}' has unsupported base type '{base_type_name}'.",
                 filename=__name__,
@@ -846,13 +794,11 @@ class PostgreSqlLoader(SqlLoader):
         interval_type = col_info.get("interval_type")
 
         if not interval_type:
-            # Default: DAY TO SECOND
             return ytypes.Interval(
                 interval_start=ytypes.IntervalTimeUnit.DAY,
                 interval_end=ytypes.IntervalTimeUnit.SECOND,
             )
 
-        # Parse interval_type: "YEAR", "YEAR TO MONTH", "DAY TO SECOND", etc.
         interval_type = interval_type.upper()
 
         unit_map = {
@@ -896,11 +842,10 @@ class PostgreSqlLoader(SqlLoader):
 
         expr = default_expr.strip()
 
-        # Check for NULL
         if expr.upper() == "NULL":
             return DefaultConstraint(value=None)
 
-        # Check for function calls (common patterns)
+        # Function defaults (e.g., nextval(), now()) are not literal values.
         function_patterns = [
             r"^\w+\(",  # function_name(
             r"^nextval\(",  # sequence
@@ -919,12 +864,10 @@ class PostgreSqlLoader(SqlLoader):
                 )
                 return None
 
-        # Try to parse as literal
         value = self._extract_literal_value(expr)
         if value is not None:
             return DefaultConstraint(value=value)
 
-        # Complex expression - emit warning
         validation_warning(
             f"Default expression '{expr}' could not be parsed as a literal. "
             f"Non-literal defaults are not yet supported in yads.",
@@ -944,11 +887,9 @@ class PostgreSqlLoader(SqlLoader):
         """
         expr = expr.strip()
 
-        # NULL
         if expr.upper() == "NULL":
             return None
 
-        # Boolean
         if expr.upper() == "TRUE":
             return True
         if expr.upper() == "FALSE":
@@ -957,11 +898,9 @@ class PostgreSqlLoader(SqlLoader):
         # String literal: 'value'::type or just 'value'
         string_match = re.match(r"^'((?:[^']|'')*)'(?:::[\w\s]+)?$", expr)
         if string_match:
-            # Unescape doubled single quotes
             return string_match.group(1).replace("''", "'")
 
-        # Numeric literal (integer or float)
-        # Handle optional type cast: 42::integer, 3.14::numeric
+        # Numeric literal (integer or float), optional cast: 42::integer, 3.14::numeric
         numeric_match = re.match(r"^(-?\d+\.?\d*)(?:::[\w\s]+)?$", expr)
         if numeric_match:
             num_str = numeric_match.group(1)
@@ -969,7 +908,7 @@ class PostgreSqlLoader(SqlLoader):
                 return float(num_str)
             return int(num_str)
 
-        # Negative number with parentheses: (-42)
+        # Parenthesized negative literal: (-42)
         neg_match = re.match(r"^\((-\d+\.?\d*)\)(?:::[\w\s]+)?$", expr)
         if neg_match:
             num_str = neg_match.group(1)
@@ -993,7 +932,6 @@ class PostgreSqlLoader(SqlLoader):
         """
         expr = expression.strip()
 
-        # Remove outer parentheses if present
         if expr.startswith("(") and expr.endswith(")"):
             expr = expr[1:-1].strip()
 
@@ -1008,8 +946,6 @@ class PostgreSqlLoader(SqlLoader):
             func_name = func_match.group(1)
             args_str = func_match.group(2)
 
-            # Try to extract first argument as column name
-            # This is a simplified parser - complex expressions may not parse correctly
             args = [a.strip().strip('"') for a in args_str.split(",")]
             if args:
                 return yspec.TransformedColumnReference(
@@ -1018,8 +954,7 @@ class PostgreSqlLoader(SqlLoader):
                     transform_args=args[1:] if len(args) > 1 else [],
                 )
 
-        # Binary operation: col_a + col_b, col_a * 2, etc.
-        # Extract first identifier as the source column
+        # Expression fallback: use the first identifier as the source column.
         ident_match = re.match(r'^"?(\w+)"?', expr)
         if ident_match:
             return yspec.TransformedColumnReference(
@@ -1032,7 +967,6 @@ class PostgreSqlLoader(SqlLoader):
 
 
 def _safe_int(value: Any) -> int | None:
-    """Safely convert a value to int, returning None if not possible."""
     if value is None:
         return None
     try:

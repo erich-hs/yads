@@ -1,17 +1,7 @@
 """Load a `YadsSpec` from a SQL Server table schema.
 
 This loader queries SQL Server catalog views (INFORMATION_SCHEMA, sys.*) to
-extract complete table schema information and convert it to a canonical
-`YadsSpec` instance.
-
-Supported features:
-- Column names, types, and nullability
-- Primary key constraints (column and table level)
-- Foreign key constraints (column and table level)
-- Default values (literal values only)
-- Identity columns
-- Computed columns (converted to generated_as)
-- Spatial types (geometry, geography)
+extract table schema information and convert it to a canonical `YadsSpec`.
 
 Example:
     >>> import pyodbc
@@ -52,13 +42,8 @@ if TYPE_CHECKING:
 class SqlServerLoader(SqlLoader):
     """Load a `YadsSpec` from a SQL Server database table.
 
-    Queries SQL Server catalog views to extract complete table schema including:
-    - Column names, types, and nullability
-    - Primary key, foreign key constraints
-    - Default values (literal values converted to DefaultConstraint)
-    - Identity columns (converted to IdentityConstraint)
-    - Computed columns (converted to generated_as)
-    - Spatial types (geometry, geography)
+    The loader inspects SQL Server catalog views to extract column metadata,
+    constraints, defaults, identity columns, computed columns, and spatial types.
 
     Unsupported SQL Server features:
     - UNIQUE constraints (not yet in yads constraint model)
@@ -120,25 +105,20 @@ class SqlServerLoader(SqlLoader):
             UnsupportedFeatureError: In "raise" mode when encountering unsupported types.
         """
         with self.load_context(mode=mode):
-            # Store current schema for lookups
             self._current_schema = schema
 
-            # Get current database name for fully qualified spec name
             catalog = self._get_current_database()
 
-            # Query column information
             columns_info = self._query_columns(schema, table_name)
             if not columns_info:
                 raise LoaderError(
                     f"Table '{schema}.{table_name}' not found or has no columns."
                 )
 
-            # Query supplementary information
             constraints = self._query_constraints(schema, table_name)
             identity_columns = self._query_identity_columns(schema, table_name)
             computed_columns = self._query_computed_columns(schema, table_name)
 
-            # Build columns
             columns: list[dict[str, Any]] = []
             for col_info in columns_info:
                 with self.load_context(field=col_info["column_name"]):
@@ -150,7 +130,6 @@ class SqlServerLoader(SqlLoader):
                     )
                     columns.append(column_def)
 
-            # Build spec data
             spec_name = name or f"{catalog}.{schema}.{table_name}"
             data: dict[str, Any] = {
                 "name": spec_name,
@@ -161,7 +140,6 @@ class SqlServerLoader(SqlLoader):
             if description:
                 data["description"] = description
 
-            # Add table-level constraints
             table_constraints = self._build_table_constraints(constraints)
             if table_constraints:
                 data["table_constraints"] = table_constraints
@@ -216,8 +194,6 @@ class SqlServerLoader(SqlLoader):
             "unique_constraints": [],
         }
 
-        # Query all constraints with their columns using sys views
-        # INFORMATION_SCHEMA doesn't properly expose FK referenced columns
         query = """
         SELECT
             kc.name AS constraint_name,
@@ -321,7 +297,6 @@ class SqlServerLoader(SqlLoader):
                         "name": cdata["name"],
                     }
                 )
-                # Emit warning since UNIQUE is not yet supported
                 validation_warning(
                     f"UNIQUE constraint '{cdata['name']}' on columns "
                     f"{cdata['columns']} is not yet supported in yads and will be ignored.",
@@ -400,23 +375,18 @@ class SqlServerLoader(SqlLoader):
         """Build a column definition dictionary from catalog information."""
         col_name = col_info["column_name"]
 
-        # Check if this is a computed column
         is_computed = col_name in computed_columns
 
-        # Convert type
         yads_type = self._convert_type(col_info)
 
-        # Build constraints list (skip for computed columns - they can't have constraints)
         col_constraints: list[ColumnConstraint] = []
         if not is_computed:
             col_constraints = self._build_column_constraints(
                 col_info, constraints, identity_columns
             )
 
-        # Build generated_as if this is a computed column
         generated_as = self._build_generated_as(col_name, computed_columns)
 
-        # Serialize
         payload: dict[str, Any] = {"name": col_name}
         payload.update(self._type_serializer.serialize(yads_type))
 
@@ -445,20 +415,21 @@ class SqlServerLoader(SqlLoader):
         constraints: dict[str, Any],
         identity_columns: dict[str, dict[str, Any]],
     ) -> list[ColumnConstraint]:
-        """Build column-level constraints from catalog information."""
+        """Build column-level constraints from catalog information.
+
+        Single-column primary and foreign keys are represented here. Composite
+        constraints are handled at the table level.
+        """
         col_name = col_info["column_name"]
         result: list[ColumnConstraint] = []
 
-        # NOT NULL
         if col_info["is_nullable"] == "NO":
             result.append(NotNullConstraint())
 
-        # PRIMARY KEY (single column only - composite handled at table level)
         pk_info = constraints.get("primary_key")
         if pk_info and len(pk_info["columns"]) == 1 and col_name in pk_info["columns"]:
             result.append(PrimaryKeyConstraint())
 
-        # FOREIGN KEY (single column only - composite handled at table level)
         for fk in constraints.get("foreign_keys", []):
             if len(fk["columns"]) == 1 and col_name in fk["columns"]:
                 ref_table = fk["ref_table"]
@@ -474,7 +445,6 @@ class SqlServerLoader(SqlLoader):
                     )
                 )
 
-        # IDENTITY
         if col_name in identity_columns:
             identity_info = identity_columns[col_name]
             result.append(
@@ -485,7 +455,6 @@ class SqlServerLoader(SqlLoader):
                 )
             )
 
-        # DEFAULT (only for non-identity columns)
         if col_name not in identity_columns and col_info.get("column_default"):
             default_constraint = self._parse_default_value(col_info["column_default"])
             if default_constraint:
@@ -497,10 +466,12 @@ class SqlServerLoader(SqlLoader):
         self,
         constraints: dict[str, Any],
     ) -> list[dict[str, Any]]:
-        """Build table-level constraints from catalog information."""
+        """Build table-level constraints from catalog information.
+
+        Composite primary and foreign keys are represented at this level.
+        """
         table_constraints: list[TableConstraint] = []
 
-        # PRIMARY KEY (composite only)
         pk_info = constraints.get("primary_key")
         if pk_info and len(pk_info["columns"]) > 1:
             table_constraints.append(
@@ -510,7 +481,6 @@ class SqlServerLoader(SqlLoader):
                 )
             )
 
-        # FOREIGN KEY (composite only)
         for fk in constraints.get("foreign_keys", []):
             if len(fk["columns"]) > 1:
                 ref_table = fk["ref_table"]
@@ -542,12 +512,10 @@ class SqlServerLoader(SqlLoader):
         if not expression:
             return None
 
-        # Try to parse the computation expression
         parsed = self._parse_computation_expression(expression)
         if parsed:
             return parsed
 
-        # If we can't parse it, emit a warning
         validation_warning(
             f"Could not parse computation expression '{expression}' for column "
             f"'{col_name}'. Computed column will not be represented.",
@@ -564,12 +532,10 @@ class SqlServerLoader(SqlLoader):
         """Convert SQL Server type to YadsType."""
         data_type = col_info["data_type"].lower()
 
-        # Handle standard types
         result = self._convert_simple_type(data_type, col_info)
         if result is not None:
             return result
 
-        # Unknown type - raise or coerce
         return self.raise_or_coerce(data_type)
 
     def _convert_simple_type(
@@ -709,11 +675,10 @@ class SqlServerLoader(SqlLoader):
         while expr.startswith("(") and expr.endswith(")"):
             expr = expr[1:-1].strip()
 
-        # Check for NULL
         if expr.upper() == "NULL":
             return DefaultConstraint(value=None)
 
-        # Check for function calls (common patterns)
+        # Function defaults (e.g., getdate()) are not literal values.
         function_patterns = [
             r"^\w+\(",  # function_name(
             r"^getdate\(",
@@ -737,12 +702,10 @@ class SqlServerLoader(SqlLoader):
                 )
                 return None
 
-        # Try to parse as literal
         value = self._extract_literal_value(expr)
         if value is not None:
             return DefaultConstraint(value=value)
 
-        # Complex expression - emit warning
         validation_warning(
             f"Default expression '{default_expr}' could not be parsed as a literal. "
             f"Non-literal defaults are not yet supported in yads.",
@@ -762,14 +725,12 @@ class SqlServerLoader(SqlLoader):
         """
         expr = expr.strip()
 
-        # NULL
         if expr.upper() == "NULL":
             return None
 
         # String literal: 'value' or N'value'
         string_match = re.match(r"^N?'((?:[^']|'')*)'$", expr)
         if string_match:
-            # Unescape doubled single quotes
             return string_match.group(1).replace("''", "'")
 
         # Numeric literal (integer or float)
@@ -796,7 +757,6 @@ class SqlServerLoader(SqlLoader):
         """
         expr = expression.strip()
 
-        # Remove outer parentheses if present
         while expr.startswith("(") and expr.endswith(")"):
             expr = expr[1:-1].strip()
 
@@ -815,8 +775,6 @@ class SqlServerLoader(SqlLoader):
             func_name = func_match.group(1)
             args_str = func_match.group(2)
 
-            # Try to extract first argument as column name
-            # Handle bracketed column names: [col_name]
             args: list[str] = []
             for arg_part in args_str.split(","):
                 arg_part = arg_part.strip()
@@ -833,8 +791,7 @@ class SqlServerLoader(SqlLoader):
                     transform_args=args[1:] if len(args) > 1 else [],
                 )
 
-        # Binary operation: [col_a] + [col_b], [col_a] * 2, etc.
-        # Extract first bracketed identifier as the source column
+        # Expression fallback: use the first referenced identifier.
         bracket_ident = re.search(r"\[(\w+)\]", expr)
         if bracket_ident:
             return yspec.TransformedColumnReference(
@@ -843,7 +800,6 @@ class SqlServerLoader(SqlLoader):
                 transform_args=[expr],
             )
 
-        # Try plain identifier
         ident_match = re.match(r"^(\w+)", expr)
         if ident_match:
             return yspec.TransformedColumnReference(
@@ -856,7 +812,6 @@ class SqlServerLoader(SqlLoader):
 
 
 def _safe_int(value: Any) -> int | None:
-    """Safely convert a value to int, returning None if not possible."""
     if value is None:
         return None
     try:
