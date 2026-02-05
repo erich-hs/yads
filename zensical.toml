@@ -26,6 +26,10 @@ nav = [
             "api/loaders/polars.md",
             "api/loaders/pyspark.md",
             "api/loaders/yaml.md",
+            {"SQL" = [
+                "api/loaders/sql/postgres.md",
+                "api/loaders/sql/sqlserver.md",
+            ]}
         ]},
         {"Converters" = [
             "api/converters/index.md",
