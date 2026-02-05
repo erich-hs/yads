@@ -1,6 +1,6 @@
 [project]
 name = "yads"
-version = "0.0.3"
+version = "0.0.4"
 description = "A lightweight library for managing and validating data schemas from YAML specifications"
 readme = "README.md"
 authors = [
