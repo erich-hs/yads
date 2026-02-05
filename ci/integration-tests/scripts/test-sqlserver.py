@@ -176,8 +176,8 @@ def test_basic_type_conversion(conn: pyodbc.Connection) -> None:
         "col_nvarchar_max": ytypes.String(),
         "col_ntext": ytypes.String(),
         # Binary
-        "col_binary": ytypes.Binary(),
-        "col_varbinary": ytypes.Binary(),
+        "col_binary": ytypes.Binary(length=16),
+        "col_varbinary": ytypes.Binary(length=256),
         "col_varbinary_max": ytypes.Binary(),
         "col_image": ytypes.Binary(),
         # Boolean
@@ -315,7 +315,7 @@ def test_computed_columns(conn: pyodbc.Connection) -> None:
         "Expected generated_as for 'upper_required'"
     )
     assert col_upper.generated_as.column == "required_col"
-    assert col_upper.generated_as.transform == "UPPER"
+    assert col_upper.generated_as.transform == "upper"
     print(f"  + Computed column detected: {col_upper.generated_as}")
 
     print("+ Computed columns handled correctly")
