@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """DuckDB integration test for SQL converters.
 
-This script validates that the DuckdbSQLConverter can generate valid DDL
+This script validates that the DuckdbSqlConverter can generate valid DDL
 that executes successfully in a DuckDB environment.
 """
 
@@ -10,7 +10,7 @@ from pathlib import Path
 
 import duckdb
 import yads
-from yads.converters.sql import DuckdbSQLConverter
+from yads.converters.sql import DuckdbSqlConverter
 
 
 def test_duckdb_sql_converter():
@@ -25,11 +25,11 @@ def test_duckdb_sql_converter():
     spec = yads.from_yaml(str(fixture_path))
     print(f"✓ Loaded spec: {spec.name} (version {spec.version})")
 
-    print("\n▶ Generating DDL with DuckdbSQLConverter...")
-    from yads.converters.sql.ast_converter import SQLGlotConverterConfig
+    print("\n▶ Generating DDL with DuckdbSqlConverter...")
+    from yads.converters.sql.ast_converter import SqlglotConverterConfig
 
-    ast_config = SQLGlotConverterConfig(ignore_catalog=True, ignore_database=True)
-    converter = DuckdbSQLConverter(mode="coerce", ast_config=ast_config)
+    ast_config = SqlglotConverterConfig(ignore_catalog=True, ignore_database=True)
+    converter = DuckdbSqlConverter(mode="coerce", ast_config=ast_config)
     ddl = converter.convert(spec, pretty=True)
 
     print("\n--- Generated DDL ---")

@@ -2,7 +2,7 @@ import pytest
 import warnings
 from sqlglot import parse_one, exp
 from sqlglot.expressions import convert
-from yads.converters.sql import SQLGlotConverter, SQLGlotConverterConfig
+from yads.converters.sql import SqlglotConverter, SqlglotConverterConfig
 from yads.loaders import from_yaml_path
 from yads.types import (
     String,
@@ -54,7 +54,7 @@ from yads.loaders import from_yaml_string
 
 # fmt: off
 # %% Types
-class TestSQLGlotConverterTypes:
+class TestSqlglotConverterTypes:
     @pytest.mark.parametrize(
         "yads_type, expected_datatype, expected_warning",
         [
@@ -84,7 +84,7 @@ class TestSQLGlotConverterTypes:
             (
                 Float(bits=16),
                 exp.DataType(this=exp.DataType.Type.FLOAT),
-                "SQLGlotConverter does not support half-precision Float (bits=16).",
+                "SqlglotConverter does not support half-precision Float (bits=16).",
             ),
             (Float(bits=32), exp.DataType(this=exp.DataType.Type.FLOAT), None),
             (Float(bits=64), exp.DataType(this=exp.DataType.Type.DOUBLE), None),
@@ -164,7 +164,7 @@ class TestSQLGlotConverterTypes:
             (
                 Duration(),
                 exp.DataType(this=exp.DataType.Type.TEXT),
-                "SQLGlotConverter does not support type: duration",
+                "SqlglotConverter does not support type: duration",
             ),
             # JSON type - fallback to build
             (JSON(), exp.DataType(this=exp.DataType.Type.JSON), None),
@@ -196,13 +196,13 @@ class TestSQLGlotConverterTypes:
             (
                 Tensor(element=Integer(bits=32), shape=(10, 20)),
                 exp.DataType(this=exp.DataType.Type.TEXT),
-                "SQLGlotConverter does not support type: tensor<integer(bits=32), shape=[10, 20]>"
+                "SqlglotConverter does not support type: tensor<integer(bits=32), shape=[10, 20]>"
             ),
         ],
     )
     def test_convert_type(self, yads_type, expected_datatype, expected_warning):
-        converter = SQLGlotConverter(
-            config=SQLGlotConverterConfig(fallback_type=exp.DataType.Type.TEXT)
+        converter = SqlglotConverter(
+            config=SqlglotConverterConfig(fallback_type=exp.DataType.Type.TEXT)
         )
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -275,7 +275,7 @@ class TestSQLGlotConverterTypes:
         ],
     )
     def test_convert_interval_type(self, yads_type, expected_datatype):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         result = converter._convert_type(yads_type)
         assert result == expected_datatype
 
@@ -293,7 +293,7 @@ class TestSQLGlotConverterTypes:
         ],
     )
     def test_convert_array_type(self, yads_type):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         result = converter._convert_type(yads_type)
 
         assert isinstance(result, exp.DataType)
@@ -320,7 +320,7 @@ class TestSQLGlotConverterTypes:
         ],
     )
     def test_convert_map_type(self, yads_type):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         result = converter._convert_type(yads_type)
 
         assert isinstance(result, exp.DataType)
@@ -346,7 +346,7 @@ class TestSQLGlotConverterTypes:
         ]
         yads_type = Struct(fields=struct_fields)
 
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         result = converter._convert_type(yads_type)
 
         assert isinstance(result, exp.DataType)
@@ -371,7 +371,7 @@ class TestSQLGlotConverterTypes:
         ]
         yads_type = Struct(fields=outer_fields)
 
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         result = converter._convert_type(yads_type)
 
         assert isinstance(result, exp.DataType)
@@ -391,9 +391,9 @@ class TestSQLGlotConverterTypes:
 
     @pytest.mark.parametrize("yads_type", [Duration()])
     def test_unsupported_types(self, yads_type):
-        converter = SQLGlotConverter(SQLGlotConverterConfig(mode="raise"))
+        converter = SqlglotConverter(SqlglotConverterConfig(mode="raise"))
         with pytest.raises(
-            UnsupportedFeatureError, match="SQLGlotConverter does not support type:"
+            UnsupportedFeatureError, match="SqlglotConverter does not support type:"
         ):
             converter._convert_type(yads_type)
 # fmt: on
@@ -435,7 +435,7 @@ class TestSQLGlotConverterTypes:
 )
 def test_convert_matches_expected_ast_from_fixtures(spec_path, expected_sql_path):
     spec = from_yaml_path(spec_path)
-    converter = SQLGlotConverter()
+    converter = SqlglotConverter()
     generated_ast = converter.convert(spec)
 
     with open(expected_sql_path) as f:
@@ -465,7 +465,7 @@ def test_convert_matches_expected_ast_from_fixtures(spec_path, expected_sql_path
 # %% Constraint conversion
 class TestConstraintConversion:
     def test_convert_not_null_constraint(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         constraint = NotNullConstraint()
         result = converter._convert_column_constraint(constraint)
 
@@ -473,7 +473,7 @@ class TestConstraintConversion:
         assert result == expected
 
     def test_convert_primary_key_constraint(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         constraint = PrimaryKeyConstraint()
         result = converter._convert_column_constraint(constraint)
 
@@ -481,7 +481,7 @@ class TestConstraintConversion:
         assert result == expected
 
     def test_convert_default_constraint(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         constraint = DefaultConstraint(value="test_value")
         result = converter._convert_column_constraint(constraint)
 
@@ -491,7 +491,7 @@ class TestConstraintConversion:
         assert result == expected
 
     def test_convert_identity_constraint_positive_values(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         constraint = IdentityConstraint(always=True, start=1, increment=1)
         result = converter._convert_column_constraint(constraint)
 
@@ -505,7 +505,7 @@ class TestConstraintConversion:
         assert result == expected
 
     def test_convert_identity_constraint_negative_increment(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         constraint = IdentityConstraint(always=False, start=10, increment=-1)
         result = converter._convert_column_constraint(constraint)
 
@@ -519,7 +519,7 @@ class TestConstraintConversion:
         assert result == expected
 
     def test_convert_identity_constraint_negative_start(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         constraint = IdentityConstraint(always=True, start=-5, increment=2)
         result = converter._convert_column_constraint(constraint)
 
@@ -533,7 +533,7 @@ class TestConstraintConversion:
         assert result == expected
 
     def test_convert_foreign_key_constraint_with_name(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         constraint = ForeignKeyConstraint(
             name="fk_test",
             references=ForeignKeyReference(table="other_table", columns=["id"]),
@@ -554,7 +554,7 @@ class TestConstraintConversion:
         assert result == expected
 
     def test_convert_foreign_key_constraint_no_name(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         constraint = ForeignKeyConstraint(
             references=ForeignKeyReference(table="other_table", columns=["id"])
         )
@@ -573,7 +573,7 @@ class TestConstraintConversion:
         assert result == expected
 
     def test_convert_primary_key_table_constraint_with_name(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         constraint = PrimaryKeyTableConstraint(name="pk_test", columns=["col1", "col2"])
         result = converter._convert_table_constraint(constraint)
 
@@ -598,7 +598,7 @@ class TestConstraintConversion:
         assert result == expected
 
     def test_convert_primary_key_table_constraint_no_name_raises_error(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         constraint = PrimaryKeyTableConstraint(columns=["col1"])
 
         with pytest.raises(
@@ -607,7 +607,7 @@ class TestConstraintConversion:
             converter._convert_table_constraint(constraint)
 
     def test_convert_foreign_key_table_constraint_with_name(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         constraint = ForeignKeyTableConstraint(
             name="fk_test",
             columns=["col1"],
@@ -636,7 +636,7 @@ class TestConstraintConversion:
         assert result == expected
 
     def test_convert_foreign_key_table_constraint_no_name_raises_error(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         constraint = ForeignKeyTableConstraint(
             columns=["col1"],
             references=ForeignKeyReference(table="other_table", columns=["id"]),
@@ -648,7 +648,7 @@ class TestConstraintConversion:
             converter._convert_table_constraint(constraint)
 
     def test_convert_unsupported_column_constraint_raises_error(self):
-        converter = SQLGlotConverter(SQLGlotConverterConfig(mode="raise"))
+        converter = SqlglotConverter(SqlglotConverterConfig(mode="raise"))
 
         class UnsupportedConstraint:
             pass
@@ -657,12 +657,12 @@ class TestConstraintConversion:
 
         with pytest.raises(
             UnsupportedFeatureError,
-            match="SQLGlotConverter does not support constraint",
+            match="SqlglotConverter does not support constraint",
         ):
             converter._convert_column_constraint(constraint)
 
     def test_convert_unsupported_column_constraint_coerce_omits_and_warns(self):
-        converter = SQLGlotConverter(SQLGlotConverterConfig(mode="coerce"))
+        converter = SqlglotConverter(SqlglotConverterConfig(mode="coerce"))
 
         class UnsupportedConstraint:
             pass
@@ -679,7 +679,7 @@ class TestConstraintConversion:
         assert "does not support constraint" in str(w[0].message)
 
     def test_convert_unsupported_table_constraint_raises_error(self):
-        converter = SQLGlotConverter(SQLGlotConverterConfig(mode="raise"))
+        converter = SqlglotConverter(SqlglotConverterConfig(mode="raise"))
 
         class UnsupportedTableConstraint:
             pass
@@ -688,12 +688,12 @@ class TestConstraintConversion:
 
         with pytest.raises(
             UnsupportedFeatureError,
-            match="SQLGlotConverter does not support table constraint",
+            match="SqlglotConverter does not support table constraint",
         ):
             converter._convert_table_constraint(constraint)
 
     def test_convert_unsupported_table_constraint_coerce_omits_and_warns(self):
-        converter = SQLGlotConverter(SQLGlotConverterConfig(mode="coerce"))
+        converter = SqlglotConverter(SqlglotConverterConfig(mode="coerce"))
 
         class UnsupportedTableConstraint:
             pass
@@ -713,7 +713,7 @@ class TestConstraintConversion:
 # %% Transform handling
 class TestTransformConversion:
     def test_convert_cast_transform(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         result = converter._handle_cast_transform("col1", ["TEXT"])
 
         expected = exp.Cast(
@@ -723,7 +723,7 @@ class TestTransformConversion:
         assert result == expected
 
     def test_convert_cast_transform_wrong_args_raises_error(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
 
         with pytest.raises(
             ConversionError, match="The 'cast' transform requires exactly 1 argument"
@@ -731,7 +731,7 @@ class TestTransformConversion:
             converter._handle_cast_transform("col1", ["TEXT", "INT"])
 
     def test_convert_cast_transform_unknown_type_raises_error(self):
-        converter = SQLGlotConverter(SQLGlotConverterConfig(mode="raise"))
+        converter = SqlglotConverter(SqlglotConverterConfig(mode="raise"))
         with pytest.raises(
             UnsupportedFeatureError,
             match="Transform type 'NOT_A_TYPE' is not a valid sqlglot Type",
@@ -739,8 +739,8 @@ class TestTransformConversion:
             converter._handle_cast_transform("col1", ["not_a_type"])
 
     def test_convert_cast_transform_unknown_type_coerce_warns_and_coerces_to_text(self):
-        converter = SQLGlotConverter(
-            SQLGlotConverterConfig(mode="coerce", fallback_type=exp.DataType.Type.TEXT)
+        converter = SqlglotConverter(
+            SqlglotConverterConfig(mode="coerce", fallback_type=exp.DataType.Type.TEXT)
         )
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -756,7 +756,7 @@ class TestTransformConversion:
         assert "is not a valid sqlglot Type" in str(w[0].message)
 
     def test_convert_bucket_transform(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         result = converter._handle_bucket_transform("col1", [10])
 
         expected = exp.PartitionedByBucket(
@@ -766,7 +766,7 @@ class TestTransformConversion:
         assert result == expected
 
     def test_bucket_transform_wrong_args_raises_error(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
 
         with pytest.raises(
             ConversionError,
@@ -775,7 +775,7 @@ class TestTransformConversion:
             converter._handle_bucket_transform("col1", [10, 20])
 
     def test_truncate_transform_conversion(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         result = converter._handle_truncate_transform("col1", [5])
 
         expected = exp.PartitionByTruncate(
@@ -785,7 +785,7 @@ class TestTransformConversion:
         assert result == expected
 
     def test_truncate_transform_wrong_args_raises_error(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
 
         with pytest.raises(
             ConversionError,
@@ -794,7 +794,7 @@ class TestTransformConversion:
             converter._handle_truncate_transform("col1", [])
 
     def test_date_trunc_transform_conversion(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         result = converter._handle_date_trunc_transform("col1", ["month"])
 
         expected = exp.DateTrunc(
@@ -804,7 +804,7 @@ class TestTransformConversion:
         assert result == expected
 
     def test_date_trunc_transform_wrong_args_raises_error(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
 
         with pytest.raises(
             ConversionError,
@@ -813,7 +813,7 @@ class TestTransformConversion:
             converter._handle_date_trunc_transform("col1", [])
 
     def test_unknown_transform_fallback(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         result = converter._handle_transformation("col1", "custom_func", ["arg1", "arg2"])
 
         expected = exp.func(
@@ -825,7 +825,7 @@ class TestTransformConversion:
         assert result == expected
 
     def test_handle_transformation_known_transform_bucket(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         result = converter._handle_transformation("col1", "bucket", [10])
 
         expected = exp.PartitionedByBucket(
@@ -838,7 +838,7 @@ class TestTransformConversion:
 # %% Generated column conversion
 class TestGeneratedColumnConversion:
     def test_convert_generated_column(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
 
         column = Column(
             name="generated_col",
@@ -859,7 +859,7 @@ class TestGeneratedColumnConversion:
         assert constraint.kind.this is True
 
     def test_convert_generated_column_with_transform_args(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
 
         column = Column(
             name="generated_col",
@@ -881,7 +881,7 @@ class TestGeneratedColumnConversion:
         assert constraint.kind.expression is not None
 
     def test_convert_column_without_generated_clause(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
 
         column = Column(
             name="regular_col", type=String(), constraints=[NotNullConstraint()]
@@ -897,7 +897,7 @@ class TestGeneratedColumnConversion:
         assert isinstance(constraint.kind, exp.NotNullColumnConstraint)
 
     def test_convert_column_with_both_constraints_and_generated(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
 
         column = Column(
             name="complex_col",
@@ -920,8 +920,8 @@ class TestGeneratedColumnConversion:
         assert exp.NotNullColumnConstraint in constraint_types
 
 
-# %% Mode hierarchy for SQLGlotConverter
-class TestSQLGlotConverterModeHierarchy:
+# %% Mode hierarchy for SqlglotConverter
+class TestSqlglotConverterModeHierarchy:
     def test_instance_mode_raise_used_by_default(self):
         yaml_string = """
         name: t
@@ -932,7 +932,7 @@ class TestSQLGlotConverterModeHierarchy:
         """
         spec = from_yaml_string(yaml_string)
 
-        converter = SQLGlotConverter(SQLGlotConverterConfig(mode="raise"))
+        converter = SqlglotConverter(SqlglotConverterConfig(mode="raise"))
         with pytest.raises(
             UnsupportedFeatureError, match="does not support type: duration"
         ):
@@ -948,10 +948,10 @@ class TestSQLGlotConverterModeHierarchy:
         """
         spec = from_yaml_string(yaml_string)
 
-        converter = SQLGlotConverter(SQLGlotConverterConfig(mode="raise"))
+        converter = SqlglotConverter(SqlglotConverterConfig(mode="raise"))
         with pytest.warns(
             UserWarning,
-            match="SQLGlotConverter does not support type: duration",
+            match="SqlglotConverter does not support type: duration",
         ):
             ast = converter.convert(spec, mode="coerce")
         # Coerce should succeed and produce an AST
@@ -967,7 +967,7 @@ class TestSQLGlotConverterModeHierarchy:
 # %% Table name parsing
 class TestTableNameParsing:
     def test_parse_full_table_name_with_catalog_and_database(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         result = converter._parse_full_table_name("prod.sales.orders")
 
         expected = exp.Table(
@@ -978,7 +978,7 @@ class TestTableNameParsing:
         assert result == expected
 
     def test_parse_full_table_name_with_database_only(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         result = converter._parse_full_table_name("sales.orders")
 
         expected = exp.Table(
@@ -989,7 +989,7 @@ class TestTableNameParsing:
         assert result == expected
 
     def test_parse_full_table_name_with_table_only(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         result = converter._parse_full_table_name("orders")
 
         expected = exp.Table(
@@ -1000,7 +1000,7 @@ class TestTableNameParsing:
         assert result == expected
 
     def test_parse_full_table_name_ignore_catalog(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         result = converter._parse_full_table_name(
             "prod.sales.orders", ignore_catalog=True
         )
@@ -1013,7 +1013,7 @@ class TestTableNameParsing:
         assert result == expected
 
     def test_parse_full_table_name_ignore_database(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         result = converter._parse_full_table_name(
             "prod.sales.orders", ignore_database=True
         )
@@ -1026,7 +1026,7 @@ class TestTableNameParsing:
         assert result == expected
 
     def test_parse_full_table_name_ignore_both(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         result = converter._parse_full_table_name(
             "prod.sales.orders", ignore_catalog=True, ignore_database=True
         )
@@ -1039,7 +1039,7 @@ class TestTableNameParsing:
         assert result == expected
 
     def test_parse_full_table_name_ignore_catalog_partial_qualified(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         result = converter._parse_full_table_name("sales.orders", ignore_catalog=True)
 
         expected = exp.Table(
@@ -1050,7 +1050,7 @@ class TestTableNameParsing:
         assert result == expected
 
     def test_parse_full_table_name_ignore_database_partial_qualified(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         result = converter._parse_full_table_name("prod.orders", ignore_database=True)
 
         expected = exp.Table(
@@ -1066,7 +1066,7 @@ class TestStoragePropertiesHandling:
     def test_storage_properties_order_format_before_location(self):
         from yads.spec import Storage
 
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         storage = Storage(
             format="parquet",
             location="/data/tables/test",
@@ -1101,7 +1101,7 @@ class TestStoragePropertiesHandling:
     def test_storage_properties_partial_storage(self):
         from yads.spec import Storage
 
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
 
         # Test with only format
         storage_format_only = Storage(format="delta")
@@ -1125,7 +1125,7 @@ class TestStoragePropertiesHandling:
         assert properties[0].this.this == "prop"
 
     def test_storage_properties_none_storage(self):
-        converter = SQLGlotConverter()
+        converter = SqlglotConverter()
         properties = converter._handle_storage_properties(None)
         assert properties == []
 
@@ -1136,8 +1136,8 @@ class TestConvertWithIgnoreArguments:
         from yads.loaders import from_yaml_path
 
         spec = from_yaml_path("tests/fixtures/spec/valid/basic_spec.yaml")
-        config = SQLGlotConverterConfig(ignore_catalog=True)
-        converter = SQLGlotConverter(config)
+        config = SqlglotConverterConfig(ignore_catalog=True)
+        converter = SqlglotConverter(config)
         result = converter.convert(spec)
 
         table_expression = result.this.this
@@ -1149,8 +1149,8 @@ class TestConvertWithIgnoreArguments:
         from yads.loaders import from_yaml_path
 
         spec = from_yaml_path("tests/fixtures/spec/valid/basic_spec.yaml")
-        config = SQLGlotConverterConfig(ignore_database=True)
-        converter = SQLGlotConverter(config)
+        config = SqlglotConverterConfig(ignore_database=True)
+        converter = SqlglotConverter(config)
         result = converter.convert(spec)
 
         table_expression = result.this.this
@@ -1162,8 +1162,8 @@ class TestConvertWithIgnoreArguments:
         from yads.loaders import from_yaml_path
 
         spec = from_yaml_path("tests/fixtures/spec/valid/basic_spec.yaml")
-        config = SQLGlotConverterConfig(ignore_catalog=True, ignore_database=True)
-        converter = SQLGlotConverter(config)
+        config = SqlglotConverterConfig(ignore_catalog=True, ignore_database=True)
+        converter = SqlglotConverter(config)
         result = converter.convert(spec)
 
         table_expression = result.this.this
@@ -1175,10 +1175,10 @@ class TestConvertWithIgnoreArguments:
         from yads.loaders import from_yaml_path
 
         spec = from_yaml_path("tests/fixtures/spec/valid/basic_spec.yaml")
-        config = SQLGlotConverterConfig(
+        config = SqlglotConverterConfig(
             ignore_catalog=True, ignore_database=True, if_not_exists=True
         )
-        converter = SQLGlotConverter(config)
+        converter = SqlglotConverter(config)
         result = converter.convert(spec)
 
         table_expression = result.this.this
@@ -1198,8 +1198,8 @@ class TestConvertWithIgnoreArguments:
             columns=[Column(name="id", type=String())],
         )
 
-        config = SQLGlotConverterConfig(ignore_catalog=True)
-        converter = SQLGlotConverter(config)
+        config = SqlglotConverterConfig(ignore_catalog=True)
+        converter = SqlglotConverter(config)
         result = converter.convert(spec)
 
         table_expression = result.this.this
@@ -1217,8 +1217,8 @@ class TestConvertWithIgnoreArguments:
             columns=[Column(name="id", type=String())],
         )
 
-        config = SQLGlotConverterConfig(ignore_database=True)
-        converter = SQLGlotConverter(config)
+        config = SqlglotConverterConfig(ignore_database=True)
+        converter = SqlglotConverter(config)
         result = converter.convert(spec)
 
         table_expression = result.this.this
@@ -1227,8 +1227,8 @@ class TestConvertWithIgnoreArguments:
         assert table_expression.catalog == ""
 
 
-# %% SQLGlotConverter column filtering and customization
-class TestSQLGlotConverterCustomization:
+# %% SqlglotConverter column filtering and customization
+class TestSqlglotConverterCustomization:
     def test_ignore_columns(self):
         """Test that ignore_columns excludes specified columns from the AST."""
         spec = YadsSpec(
@@ -1240,8 +1240,8 @@ class TestSQLGlotConverterCustomization:
                 Column(name="secret", type=String()),
             ],
         )
-        config = SQLGlotConverterConfig(ignore_columns={"secret"})
-        converter = SQLGlotConverter(config)
+        config = SqlglotConverterConfig(ignore_columns={"secret"})
+        converter = SqlglotConverter(config)
         ast = converter.convert(spec)
 
         # Extract column names from AST
@@ -1266,8 +1266,8 @@ class TestSQLGlotConverterCustomization:
                 Column(name="internal", type=String()),
             ],
         )
-        config = SQLGlotConverterConfig(include_columns={"id", "name"})
-        converter = SQLGlotConverter(config)
+        config = SqlglotConverterConfig(include_columns={"id", "name"})
+        converter = SqlglotConverter(config)
         ast = converter.convert(spec)
 
         # Extract column names from AST
@@ -1300,8 +1300,8 @@ class TestSQLGlotConverterCustomization:
                 Column(name="name", type=String()),
             ],
         )
-        config = SQLGlotConverterConfig(column_overrides={"name": custom_name_override})
-        converter = SQLGlotConverter(config)
+        config = SqlglotConverterConfig(column_overrides={"name": custom_name_override})
+        converter = SqlglotConverter(config)
         ast = converter.convert(spec)
 
         # Find the overridden column
@@ -1357,10 +1357,10 @@ class TestSQLGlotConverterCustomization:
                 Column(name="metadata", type=JSON()),
             ],
         )
-        config = SQLGlotConverterConfig(
+        config = SqlglotConverterConfig(
             column_overrides={"metadata": custom_metadata_override}
         )
-        converter = SQLGlotConverter(config)
+        converter = SqlglotConverter(config)
         ast = converter.convert(spec)
 
         # Find the overridden column
@@ -1406,8 +1406,8 @@ class TestSQLGlotConverterCustomization:
                 Column(name="unsupported", type=Duration()),
             ],
         )
-        config = SQLGlotConverterConfig(fallback_type=fallback_type)
-        converter = SQLGlotConverter(config)
+        config = SqlglotConverterConfig(fallback_type=fallback_type)
+        converter = SqlglotConverter(config)
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -1437,7 +1437,7 @@ class TestSQLGlotConverterCustomization:
             UnsupportedFeatureError,
             match="fallback_type must be one of: exp.DataType.Type.TEXT, exp.DataType.Type.BINARY, exp.DataType.Type.BLOB",
         ):
-            SQLGlotConverterConfig(fallback_type=exp.DataType.Type.INT)
+            SqlglotConverterConfig(fallback_type=exp.DataType.Type.INT)
 
     def test_precedence_ignore_over_override(self):
         """Test that ignore_columns takes precedence over column_overrides."""
@@ -1453,11 +1453,11 @@ class TestSQLGlotConverterCustomization:
                 Column(name="ignored_col", type=String()),
             ],
         )
-        config = SQLGlotConverterConfig(
+        config = SqlglotConverterConfig(
             ignore_columns={"ignored_col"},
             column_overrides={"ignored_col": should_not_be_called},
         )
-        converter = SQLGlotConverter(config)
+        converter = SqlglotConverter(config)
         ast = converter.convert(spec)
 
         # Extract column names from AST
@@ -1489,10 +1489,10 @@ class TestSQLGlotConverterCustomization:
                 Column(name="text_int", type=Integer()),
             ],
         )
-        config = SQLGlotConverterConfig(
+        config = SqlglotConverterConfig(
             column_overrides={"text_int": integer_as_text_override}
         )
-        converter = SQLGlotConverter(config)
+        converter = SqlglotConverter(config)
         ast = converter.convert(spec)
 
         # Find both columns
@@ -1531,11 +1531,11 @@ class TestSQLGlotConverterCustomization:
                 Column(name="override_duration", type=Duration()),
             ],
         )
-        config = SQLGlotConverterConfig(
+        config = SqlglotConverterConfig(
             fallback_type=exp.DataType.Type.BINARY,
             column_overrides={"override_duration": custom_duration_override},
         )
-        converter = SQLGlotConverter(config)
+        converter = SqlglotConverter(config)
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -1565,7 +1565,7 @@ class TestSQLGlotConverterCustomization:
         assert "fallback_duration" in str(w[0].message)
 
     def test_field_metadata_preservation_with_fallback(self):
-        """SQLGlotConverter does not convert field metadata or field description."""
+        """SqlglotConverter does not convert field metadata or field description."""
         pass
 
     def test_unknown_column_in_filters_raises_error(self):
@@ -1577,8 +1577,8 @@ class TestSQLGlotConverterCustomization:
         )
 
         # Test unknown ignore_columns
-        config1 = SQLGlotConverterConfig(ignore_columns={"nonexistent"})
-        converter1 = SQLGlotConverter(config1)
+        config1 = SqlglotConverterConfig(ignore_columns={"nonexistent"})
+        converter1 = SqlglotConverter(config1)
 
         with pytest.raises(
             ConverterConfigError, match="Unknown columns in ignore_columns: nonexistent"
@@ -1586,8 +1586,8 @@ class TestSQLGlotConverterCustomization:
             converter1.convert(spec)
 
         # Test unknown include_columns
-        config2 = SQLGlotConverterConfig(include_columns={"nonexistent"})
-        converter2 = SQLGlotConverter(config2)
+        config2 = SqlglotConverterConfig(include_columns={"nonexistent"})
+        converter2 = SqlglotConverter(config2)
 
         with pytest.raises(
             ConverterConfigError, match="Unknown columns in include_columns: nonexistent"
@@ -1600,7 +1600,7 @@ class TestSQLGlotConverterCustomization:
             ConverterConfigError,
             match="Columns cannot be both ignored and included: \\['col1'\\]",
         ):
-            SQLGlotConverterConfig(
+            SqlglotConverterConfig(
                 ignore_columns={"col1", "col2"}, include_columns={"col1", "col3"}
             )
 
@@ -1655,10 +1655,10 @@ class TestSQLGlotConverterCustomization:
                 ),
             ],
         )
-        config = SQLGlotConverterConfig(
+        config = SqlglotConverterConfig(
             column_overrides={"inspected_col": field_inspector_override}
         )
-        converter = SQLGlotConverter(config)
+        converter = SqlglotConverter(config)
         ast = converter.convert(spec)
 
         # Find the inspected column
@@ -1706,10 +1706,10 @@ class TestSQLGlotConverterCustomization:
                 Column(name="generated_col", type=String()),
             ],
         )
-        config = SQLGlotConverterConfig(
+        config = SqlglotConverterConfig(
             column_overrides={"generated_col": generated_override}
         )
-        converter = SQLGlotConverter(config)
+        converter = SqlglotConverter(config)
         ast = converter.convert(spec)
 
         # Find the generated column
@@ -1757,7 +1757,7 @@ class TestSQLGlotConverterCustomization:
                 Column(name="fallback_col", type=Duration()),
             ],
         )
-        config = SQLGlotConverterConfig(
+        config = SqlglotConverterConfig(
             ignore_columns={"ignored_col"},
             include_columns={
                 "keep_default",
@@ -1771,7 +1771,7 @@ class TestSQLGlotConverterCustomization:
             },
             fallback_type=exp.DataType.Type.BLOB,
         )
-        converter = SQLGlotConverter(config)
+        converter = SqlglotConverter(config)
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")

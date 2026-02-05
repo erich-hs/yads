@@ -42,11 +42,11 @@ def __getattr__(name: str):
         from . import polars_loader
 
         return getattr(polars_loader, name)
-    if name in ("SQLLoader", "SQLLoaderConfig"):
+    if name in ("SqlLoader", "SqlLoaderConfig"):
         from .sql import base
 
         return getattr(base, name)
-    if name == "PostgreSQLLoader":
+    if name == "PostgreSqlLoader":
         from .sql import postgres_loader
 
         return getattr(postgres_loader, name)
@@ -74,9 +74,9 @@ __all__ = [
     "PySparkLoaderConfig",
     "PolarsLoader",
     "PolarsLoaderConfig",
-    "SQLLoader",
-    "SQLLoaderConfig",
-    "PostgreSQLLoader",
+    "SqlLoader",
+    "SqlLoaderConfig",
+    "PostgreSqlLoader",
 ]
 
 
@@ -347,11 +347,11 @@ def from_postgresql(
         spec = from_postgresql(conn, "users", schema="public")
         ```
     """
-    from .sql.postgres_loader import PostgreSQLLoader
-    from .sql.base import SQLLoaderConfig
+    from .sql.postgres_loader import PostgreSqlLoader
+    from .sql.base import SqlLoaderConfig
 
-    config = SQLLoaderConfig(mode=mode, fallback_type=cast(Any, fallback_type))
-    loader = PostgreSQLLoader(connection, config)
+    config = SqlLoaderConfig(mode=mode, fallback_type=cast(Any, fallback_type))
+    loader = PostgreSqlLoader(connection, config)
     return loader.load(
         table_name,
         schema=schema,

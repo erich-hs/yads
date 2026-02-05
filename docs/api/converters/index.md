@@ -32,8 +32,8 @@ The following sections outline the high level-entry points functions available i
     | Pydantic | `yads.to_pydantic` | [`yads.converters.PydanticConverter`](pydantic.md#yads.converters.pydantic_converter.PydanticConverter) | `uv add 'yads[pydantic]'` |
     | Polars | `yads.to_polars` | [`yads.converters.PolarsConverter`](polars.md#yads.converters.polars_converter.PolarsConverter) | `uv add 'yads[polars]'` |
     | PySpark | `yads.to_pyspark` | [`yads.converters.PySparkConverter`](pyspark.md#yads.converters.pyspark_converter.PySparkConverter) | `uv add 'yads[pyspark]'` |
-    | Spark SQL | `yads.to_sql(dialect="spark")` | [`yads.converters.sql.SparkSQLConverter`](sql/sql.md#yads.converters.sql.sql_converter.SparkSQLConverter) | `uv add 'yads[sql]'` |
-    | DuckDB SQL | `yads.to_sql(dialect="duckdb")` | [`yads.converters.sql.DuckdbSQLConverter`](sql/sql.md#yads.converters.sql.sql_converter.DuckdbSQLConverter) | `uv add 'yads[sql]'` |
+    | Spark SQL | `yads.to_sql(dialect="spark")` | [`yads.converters.sql.SparkSqlConverter`](sql/sql.md#yads.converters.sql.sql_converter.SparkSqlConverter) | `uv add 'yads[sql]'` |
+    | DuckDB SQL | `yads.to_sql(dialect="duckdb")` | [`yads.converters.sql.DuckdbSqlConverter`](sql/sql.md#yads.converters.sql.sql_converter.DuckdbSqlConverter) | `uv add 'yads[sql]'` |
 
 === "pip"
     | Target | Helper | Converter | Install |
@@ -42,8 +42,8 @@ The following sections outline the high level-entry points functions available i
     | Pydantic | `yads.to_pydantic` | [`yads.converters.PydanticConverter`](pydantic.md#yads.converters.pydantic_converter.PydanticConverter) | `pip install 'yads[pydantic]'` |
     | Polars | `yads.to_polars` | [`yads.converters.PolarsConverter`](polars.md#yads.converters.polars_converter.PolarsConverter) | `pip install 'yads[polars]'` |
     | PySpark | `yads.to_pyspark` | [`yads.converters.PySparkConverter`](pyspark.md#yads.converters.pyspark_converter.PySparkConverter) | `pip install 'yads[pyspark]'` |
-    | Spark SQL | `yads.to_sql(dialect="spark")` | [`yads.converters.sql.SparkSQLConverter`](sql/sql.md#yads.converters.sql.sql_converter.SparkSQLConverter) | `pip install 'yads[sql]'` |
-    | DuckDB SQL | `yads.to_sql(dialect="duckdb")` | [`yads.converters.sql.DuckdbSQLConverter`](sql/sql.md#yads.converters.sql.sql_converter.DuckdbSQLConverter) | `pip install 'yads[sql]'` |
+    | Spark SQL | `yads.to_sql(dialect="spark")` | [`yads.converters.sql.SparkSqlConverter`](sql/sql.md#yads.converters.sql.sql_converter.SparkSqlConverter) | `pip install 'yads[sql]'` |
+    | DuckDB SQL | `yads.to_sql(dialect="duckdb")` | [`yads.converters.sql.DuckdbSqlConverter`](sql/sql.md#yads.converters.sql.sql_converter.DuckdbSqlConverter) | `pip install 'yads[sql]'` |
 
 ## Shared customization options
 

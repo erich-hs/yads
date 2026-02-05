@@ -2,7 +2,7 @@
 """Spark integration test for SQL and PySpark converters.
 
 This script validates that:
-1. SparkSQLConverter can generate valid DDL for Spark + Iceberg
+1. SparkSqlConverter can generate valid DDL for Spark + Iceberg
 2. PySparkConverter can generate valid StructType schemas
 """
 
@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 import yads
-from yads.converters.sql import SparkSQLConverter
+from yads.converters.sql import SparkSqlConverter
 from yads.converters import PySparkConverter
 
 
@@ -30,11 +30,11 @@ def test_spark_sql_converter():
     spec = yads.from_yaml(str(fixture_path))
     print(f"✓ Loaded spec: {spec.name} (version {spec.version})")
 
-    print("\n▶ Generating DDL with SparkSQLConverter...")
-    from yads.converters.sql.ast_converter import SQLGlotConverterConfig
+    print("\n▶ Generating DDL with SparkSqlConverter...")
+    from yads.converters.sql.ast_converter import SqlglotConverterConfig
 
-    ast_config = SQLGlotConverterConfig(ignore_catalog=True, ignore_database=True)
-    converter = SparkSQLConverter(mode="coerce", ast_config=ast_config)
+    ast_config = SqlglotConverterConfig(ignore_catalog=True, ignore_database=True)
+    converter = SparkSqlConverter(mode="coerce", ast_config=ast_config)
     ddl = converter.convert(spec, pretty=True)
 
     print("\n--- Generated DDL ---")

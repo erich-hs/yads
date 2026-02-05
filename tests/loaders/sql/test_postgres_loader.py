@@ -1,4 +1,4 @@
-"""Tests for PostgreSQLLoader."""
+"""Tests for PostgreSqlLoader."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from yads.constraints import (
     PrimaryKeyConstraint,
 )
 from yads.exceptions import LoaderError, UnsupportedFeatureError
-from yads.loaders.sql import PostgreSQLLoader, SQLLoaderConfig
+from yads.loaders.sql import PostgreSqlLoader, SqlLoaderConfig
 
 
 # ---- Fixtures ----------------------------------------------------------------
@@ -170,7 +170,7 @@ def make_column_row(
 # ---- Basic Type Conversion Tests ---------------------------------------------
 
 
-class TestPostgreSQLLoaderTypeConversion:
+class TestPostgreSqlLoaderTypeConversion:
     """Test type conversion from PostgreSQL to YadsType."""
 
     @pytest.mark.parametrize(
@@ -223,7 +223,7 @@ class TestPostgreSQLLoaderTypeConversion:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -247,7 +247,7 @@ class TestPostgreSQLLoaderTypeConversion:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -271,7 +271,7 @@ class TestPostgreSQLLoaderTypeConversion:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -290,7 +290,7 @@ class TestPostgreSQLLoaderTypeConversion:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -303,7 +303,7 @@ class TestPostgreSQLLoaderTypeConversion:
 # ---- Constraint Tests --------------------------------------------------------
 
 
-class TestPostgreSQLLoaderConstraints:
+class TestPostgreSqlLoaderConstraints:
     """Test constraint loading from PostgreSQL."""
 
     def test_not_null_constraint(self):
@@ -317,7 +317,7 @@ class TestPostgreSQLLoaderConstraints:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -345,7 +345,7 @@ class TestPostgreSQLLoaderConstraints:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -368,7 +368,7 @@ class TestPostgreSQLLoaderConstraints:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -389,7 +389,7 @@ class TestPostgreSQLLoaderConstraints:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -416,7 +416,7 @@ class TestPostgreSQLLoaderConstraints:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -444,7 +444,7 @@ class TestPostgreSQLLoaderConstraints:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -457,7 +457,7 @@ class TestPostgreSQLLoaderConstraints:
 # ---- Unsupported Type Tests --------------------------------------------------
 
 
-class TestPostgreSQLLoaderUnsupportedTypes:
+class TestPostgreSqlLoaderUnsupportedTypes:
     """Test handling of unsupported PostgreSQL types."""
 
     def test_unsupported_type_raises_in_raise_mode(self):
@@ -469,8 +469,8 @@ class TestPostgreSQLLoaderUnsupportedTypes:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        config = SQLLoaderConfig(mode="raise")
-        loader = PostgreSQLLoader(conn, config)
+        config = SqlLoaderConfig(mode="raise")
+        loader = PostgreSqlLoader(conn, config)
 
         with pytest.raises(UnsupportedFeatureError):
             loader.load("test_table")
@@ -484,8 +484,8 @@ class TestPostgreSQLLoaderUnsupportedTypes:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        config = SQLLoaderConfig(mode="coerce", fallback_type=ytypes.String())
-        loader = PostgreSQLLoader(conn, config)
+        config = SqlLoaderConfig(mode="coerce", fallback_type=ytypes.String())
+        loader = PostgreSqlLoader(conn, config)
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -499,7 +499,7 @@ class TestPostgreSQLLoaderUnsupportedTypes:
 # ---- Array Type Tests --------------------------------------------------------
 
 
-class TestPostgreSQLLoaderArrayTypes:
+class TestPostgreSqlLoaderArrayTypes:
     """Test array type handling."""
 
     def test_simple_array(self):
@@ -511,7 +511,7 @@ class TestPostgreSQLLoaderArrayTypes:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -529,7 +529,7 @@ class TestPostgreSQLLoaderArrayTypes:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -547,7 +547,7 @@ class TestPostgreSQLLoaderArrayTypes:
 # ---- Composite Type Tests ----------------------------------------------------
 
 
-class TestPostgreSQLLoaderCompositeTypes:
+class TestPostgreSqlLoaderCompositeTypes:
     """Test composite type handling."""
 
     def test_user_defined_composite_type(self):
@@ -567,7 +567,7 @@ class TestPostgreSQLLoaderCompositeTypes:
             ],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -585,7 +585,7 @@ class TestPostgreSQLLoaderCompositeTypes:
 # ---- Error Handling Tests ----------------------------------------------------
 
 
-class TestPostgreSQLLoaderErrors:
+class TestPostgreSqlLoaderErrors:
     """Test error handling."""
 
     def test_table_not_found_raises_error(self):
@@ -597,7 +597,7 @@ class TestPostgreSQLLoaderErrors:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         with pytest.raises(LoaderError, match="not found"):
             loader.load("nonexistent_table")
@@ -606,7 +606,7 @@ class TestPostgreSQLLoaderErrors:
 # ---- Spec Metadata Tests -----------------------------------------------------
 
 
-class TestPostgreSQLLoaderSpecMetadata:
+class TestPostgreSqlLoaderSpecMetadata:
     """Test spec metadata generation."""
 
     def test_default_spec_name(self):
@@ -619,7 +619,7 @@ class TestPostgreSQLLoaderSpecMetadata:
             "current_database": [("mydb",)],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("users", schema="public")
 
@@ -634,7 +634,7 @@ class TestPostgreSQLLoaderSpecMetadata:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("users", name="my_catalog.my_schema.users")
 
@@ -649,7 +649,7 @@ class TestPostgreSQLLoaderSpecMetadata:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("users", version=5)
 
@@ -664,7 +664,7 @@ class TestPostgreSQLLoaderSpecMetadata:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("users", description="User accounts table")
 
@@ -674,13 +674,13 @@ class TestPostgreSQLLoaderSpecMetadata:
 # ---- Config Tests ------------------------------------------------------------
 
 
-class TestSQLLoaderConfig:
+class TestSqlLoaderConfig:
     """Test loader configuration."""
 
     def test_invalid_fallback_type_raises_error(self):
         """Test that invalid fallback type raises error."""
         with pytest.raises(Exception):  # LoaderConfigError
-            SQLLoaderConfig(fallback_type=ytypes.Integer())
+            SqlLoaderConfig(fallback_type=ytypes.Integer())
 
     def test_mode_override(self):
         """Test mode override in load() call."""
@@ -692,8 +692,8 @@ class TestSQLLoaderConfig:
         }
         conn = MockConnection(query_results)
         # Default mode is coerce
-        config = SQLLoaderConfig(fallback_type=ytypes.String())
-        loader = PostgreSQLLoader(conn, config)
+        config = SqlLoaderConfig(fallback_type=ytypes.String())
+        loader = PostgreSqlLoader(conn, config)
 
         # Override to raise mode
         with pytest.raises(UnsupportedFeatureError):
@@ -703,7 +703,7 @@ class TestSQLLoaderConfig:
 # ---- Serial Column Tests -----------------------------------------------------
 
 
-class TestPostgreSQLLoaderSerialColumns:
+class TestPostgreSqlLoaderSerialColumns:
     """Test SERIAL/BIGSERIAL column handling."""
 
     def test_serial_column_detected_as_identity(self):
@@ -717,7 +717,7 @@ class TestPostgreSQLLoaderSerialColumns:
             "pg_catalog.pg_depend": [("id", 1, 1)],  # column_name, start_value, increment
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -733,7 +733,7 @@ class TestPostgreSQLLoaderSerialColumns:
 # ---- Foreign Key Tests -------------------------------------------------------
 
 
-class TestPostgreSQLLoaderForeignKeys:
+class TestPostgreSqlLoaderForeignKeys:
     """Test foreign key constraint handling."""
 
     def test_single_column_foreign_key(self):
@@ -751,7 +751,7 @@ class TestPostgreSQLLoaderForeignKeys:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -777,7 +777,7 @@ class TestPostgreSQLLoaderForeignKeys:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -791,7 +791,7 @@ class TestPostgreSQLLoaderForeignKeys:
 # ---- Composite Table Constraints Tests ---------------------------------------
 
 
-class TestPostgreSQLLoaderTableConstraints:
+class TestPostgreSqlLoaderTableConstraints:
     """Test table-level constraints (composite PK/FK)."""
 
     def test_composite_primary_key(self):
@@ -811,7 +811,7 @@ class TestPostgreSQLLoaderTableConstraints:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("order_items")
 
@@ -862,7 +862,7 @@ class TestPostgreSQLLoaderTableConstraints:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("order_items")
 
@@ -891,7 +891,7 @@ class TestPostgreSQLLoaderTableConstraints:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -905,7 +905,7 @@ class TestPostgreSQLLoaderTableConstraints:
 # ---- Generated Column Tests --------------------------------------------------
 
 
-class TestPostgreSQLLoaderGeneratedColumns:
+class TestPostgreSqlLoaderGeneratedColumns:
     """Test generated/computed column handling."""
 
     def test_generated_column_simple_reference(self):
@@ -927,7 +927,7 @@ class TestPostgreSQLLoaderGeneratedColumns:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -956,7 +956,7 @@ class TestPostgreSQLLoaderGeneratedColumns:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -984,7 +984,7 @@ class TestPostgreSQLLoaderGeneratedColumns:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -1010,7 +1010,7 @@ class TestPostgreSQLLoaderGeneratedColumns:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -1024,7 +1024,7 @@ class TestPostgreSQLLoaderGeneratedColumns:
 # ---- PostGIS Type Tests ------------------------------------------------------
 
 
-class TestPostgreSQLLoaderPostGISTypes:
+class TestPostgreSqlLoaderPostGISTypes:
     """Test PostGIS geometry/geography type handling."""
 
     def test_geometry_type(self):
@@ -1039,7 +1039,7 @@ class TestPostgreSQLLoaderPostGISTypes:
             "pg_catalog.pg_type": [],  # Not a composite type
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -1057,7 +1057,7 @@ class TestPostgreSQLLoaderPostGISTypes:
             "pg_catalog.pg_type": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -1074,7 +1074,7 @@ class TestPostgreSQLLoaderPostGISTypes:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -1091,7 +1091,7 @@ class TestPostgreSQLLoaderPostGISTypes:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -1101,7 +1101,7 @@ class TestPostgreSQLLoaderPostGISTypes:
 # ---- Domain Type Tests -------------------------------------------------------
 
 
-class TestPostgreSQLLoaderDomainTypes:
+class TestPostgreSqlLoaderDomainTypes:
     """Test domain type handling."""
 
     def test_domain_type_resolved_to_base(self):
@@ -1139,7 +1139,7 @@ class TestPostgreSQLLoaderDomainTypes:
             "pg_domain": [("varchar", 255)],  # Base type is varchar
         }
         conn = DomainMockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -1172,8 +1172,8 @@ class TestPostgreSQLLoaderDomainTypes:
             "pg_catalog.pg_type": [],  # Not a composite
         }
         conn = UnknownTypeMockConnection(query_results)
-        config = SQLLoaderConfig(mode="coerce", fallback_type=ytypes.String())
-        loader = PostgreSQLLoader(conn, config)
+        config = SqlLoaderConfig(mode="coerce", fallback_type=ytypes.String())
+        loader = PostgreSqlLoader(conn, config)
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -1187,7 +1187,7 @@ class TestPostgreSQLLoaderDomainTypes:
 # ---- Additional Type Tests ---------------------------------------------------
 
 
-class TestPostgreSQLLoaderAdditionalTypes:
+class TestPostgreSqlLoaderAdditionalTypes:
     """Test additional PostgreSQL type conversions."""
 
     def test_time_with_timezone_emits_warning(self):
@@ -1201,7 +1201,7 @@ class TestPostgreSQLLoaderAdditionalTypes:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -1224,7 +1224,7 @@ class TestPostgreSQLLoaderAdditionalTypes:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -1241,7 +1241,7 @@ class TestPostgreSQLLoaderAdditionalTypes:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -1258,7 +1258,7 @@ class TestPostgreSQLLoaderAdditionalTypes:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -1275,7 +1275,7 @@ class TestPostgreSQLLoaderAdditionalTypes:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -1294,7 +1294,7 @@ class TestPostgreSQLLoaderAdditionalTypes:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -1316,7 +1316,7 @@ class TestPostgreSQLLoaderAdditionalTypes:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -1337,7 +1337,7 @@ class TestPostgreSQLLoaderAdditionalTypes:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -1348,7 +1348,7 @@ class TestPostgreSQLLoaderAdditionalTypes:
 # ---- Default Value Parsing Tests ---------------------------------------------
 
 
-class TestPostgreSQLLoaderDefaultValues:
+class TestPostgreSqlLoaderDefaultValues:
     """Test default value parsing."""
 
     def test_default_null(self):
@@ -1362,7 +1362,7 @@ class TestPostgreSQLLoaderDefaultValues:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -1383,7 +1383,7 @@ class TestPostgreSQLLoaderDefaultValues:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -1404,7 +1404,7 @@ class TestPostgreSQLLoaderDefaultValues:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -1427,7 +1427,7 @@ class TestPostgreSQLLoaderDefaultValues:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -1448,7 +1448,7 @@ class TestPostgreSQLLoaderDefaultValues:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -1471,7 +1471,7 @@ class TestPostgreSQLLoaderDefaultValues:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -1494,7 +1494,7 @@ class TestPostgreSQLLoaderDefaultValues:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -1521,7 +1521,7 @@ class TestPostgreSQLLoaderDefaultValues:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -1548,7 +1548,7 @@ class TestPostgreSQLLoaderDefaultValues:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -1580,7 +1580,7 @@ class TestPostgreSQLLoaderDefaultValues:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -1597,7 +1597,7 @@ class TestPostgreSQLLoaderDefaultValues:
 # ---- Array Type Edge Cases ---------------------------------------------------
 
 
-class TestPostgreSQLLoaderArrayEdgeCases:
+class TestPostgreSqlLoaderArrayEdgeCases:
     """Test edge cases in array type handling."""
 
     def test_array_fallback_from_udt_name(self):
@@ -1611,7 +1611,7 @@ class TestPostgreSQLLoaderArrayEdgeCases:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -1630,8 +1630,8 @@ class TestPostgreSQLLoaderArrayEdgeCases:
             "pg_catalog.pg_type": [],  # Not a composite type
         }
         conn = MockConnection(query_results)
-        config = SQLLoaderConfig(mode="coerce", fallback_type=ytypes.String())
-        loader = PostgreSQLLoader(conn, config)
+        config = SqlLoaderConfig(mode="coerce", fallback_type=ytypes.String())
+        loader = PostgreSqlLoader(conn, config)
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -1646,7 +1646,7 @@ class TestPostgreSQLLoaderArrayEdgeCases:
 # ---- Composite Type Edge Cases -----------------------------------------------
 
 
-class TestPostgreSQLLoaderCompositeEdgeCases:
+class TestPostgreSqlLoaderCompositeEdgeCases:
     """Test edge cases in composite type handling."""
 
     def test_composite_with_not_null_field(self):
@@ -1664,7 +1664,7 @@ class TestPostgreSQLLoaderCompositeEdgeCases:
             ],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -1691,8 +1691,8 @@ class TestPostgreSQLLoaderCompositeEdgeCases:
             ],
         }
         conn = MockConnection(query_results)
-        config = SQLLoaderConfig(mode="coerce", fallback_type=ytypes.String())
-        loader = PostgreSQLLoader(conn, config)
+        config = SqlLoaderConfig(mode="coerce", fallback_type=ytypes.String())
+        loader = PostgreSqlLoader(conn, config)
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -1711,7 +1711,7 @@ class TestPostgreSQLLoaderCompositeEdgeCases:
 # ---- UNIQUE Constraint Warning Tests -----------------------------------------
 
 
-class TestPostgreSQLLoaderUniqueConstraintWarning:
+class TestPostgreSqlLoaderUniqueConstraintWarning:
     """Test UNIQUE constraint warning handling."""
 
     def test_unique_constraint_emits_warning(self):
@@ -1725,7 +1725,7 @@ class TestPostgreSQLLoaderUniqueConstraintWarning:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -1740,7 +1740,7 @@ class TestPostgreSQLLoaderUniqueConstraintWarning:
 # ---- Generation Expression Parsing Tests -------------------------------------
 
 
-class TestPostgreSQLLoaderGenerationExpressionParsing:
+class TestPostgreSqlLoaderGenerationExpressionParsing:
     """Test generation expression parsing edge cases."""
 
     def test_unparseable_generation_expression_warning(self):
@@ -1762,7 +1762,7 @@ class TestPostgreSQLLoaderGenerationExpressionParsing:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -1803,7 +1803,7 @@ class TestSafeIntFunction:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -1835,7 +1835,7 @@ class TestSafeIntFunction:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -1851,7 +1851,7 @@ class TestSafeIntFunction:
 # ---- Domain Type Base Type Unsupported Warning Test --------------------------
 
 
-class TestPostgreSQLLoaderDomainTypeBaseTypeWarning:
+class TestPostgreSqlLoaderDomainTypeBaseTypeWarning:
     """Test domain type with unsupported base type."""
 
     def test_domain_with_unsupported_base_type(self):
@@ -1889,8 +1889,8 @@ class TestPostgreSQLLoaderDomainTypeBaseTypeWarning:
             "pg_domain": [("money", 8)],  # Base type is money (unsupported)
         }
         conn = DomainMockConnection(query_results)
-        config = SQLLoaderConfig(mode="coerce", fallback_type=ytypes.String())
-        loader = PostgreSQLLoader(conn, config)
+        config = SqlLoaderConfig(mode="coerce", fallback_type=ytypes.String())
+        loader = PostgreSqlLoader(conn, config)
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -1906,7 +1906,7 @@ class TestPostgreSQLLoaderDomainTypeBaseTypeWarning:
 # ---- Empty Default Value Test ------------------------------------------------
 
 
-class TestPostgreSQLLoaderEmptyDefault:
+class TestPostgreSqlLoaderEmptyDefault:
     """Test empty default value handling."""
 
     def test_empty_default_returns_none(self):
@@ -1920,7 +1920,7 @@ class TestPostgreSQLLoaderEmptyDefault:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         spec = loader.load("test_table")
 
@@ -1933,7 +1933,7 @@ class TestPostgreSQLLoaderEmptyDefault:
 # ---- Coerce Mode Without Fallback Tests --------------------------------------
 
 
-class TestPostgreSQLLoaderCoerceWithoutFallback:
+class TestPostgreSqlLoaderCoerceWithoutFallback:
     """Test coerce mode behavior when no fallback_type is specified."""
 
     def test_coerce_mode_without_fallback_raises_error(self):
@@ -1948,18 +1948,18 @@ class TestPostgreSQLLoaderCoerceWithoutFallback:
         }
         conn = MockConnection(query_results)
         # Coerce mode but NO fallback_type
-        config = SQLLoaderConfig(mode="coerce", fallback_type=None)
-        loader = PostgreSQLLoader(conn, config)
+        config = SqlLoaderConfig(mode="coerce", fallback_type=None)
+        loader = PostgreSqlLoader(conn, config)
 
         with pytest.raises(UnsupportedFeatureError, match="fallback_type"):
             loader.load("test_table")
 
 
-# ---- Base SQLLoader Field Serialization Tests --------------------------------
+# ---- Base SqlLoader Field Serialization Tests --------------------------------
 
 
-class TestSQLLoaderFieldSerialization:
-    """Test base SQLLoader field serialization for Struct fields."""
+class TestSqlLoaderFieldSerialization:
+    """Test base SqlLoader field serialization for Struct fields."""
 
     def test_serialize_field_with_description(self):
         """Test that field description is serialized."""
@@ -1972,7 +1972,7 @@ class TestSQLLoaderFieldSerialization:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         # Create a Field with description
         field = Field(
@@ -1998,7 +1998,7 @@ class TestSQLLoaderFieldSerialization:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         # Create a Field with metadata
         field = Field(
@@ -2024,7 +2024,7 @@ class TestSQLLoaderFieldSerialization:
             "pg_catalog.pg_depend": [],
         }
         conn = MockConnection(query_results)
-        loader = PostgreSQLLoader(conn)
+        loader = PostgreSqlLoader(conn)
 
         # Create a Field with all attributes
         field = Field(

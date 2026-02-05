@@ -3,7 +3,7 @@ import warnings
 from sqlglot import exp
 
 from yads.spec import YadsSpec, Column, Field
-from yads.converters.sql import SparkSQLConverter, SQLGlotConverterConfig
+from yads.converters.sql import SparkSqlConverter, SqlglotConverterConfig
 from yads.exceptions import AstValidationError
 from yads.loaders import from_yaml_string, from_yaml_path
 from yads.exceptions import ValidationWarning
@@ -38,7 +38,7 @@ from yads.types import (
 
 
 # %% Types
-class TestSparkSQLConverterTypes:
+class TestSparkSqlConverterTypes:
     @pytest.mark.parametrize(
         "yads_type, expected_sql, expected_warning",
         [
@@ -67,7 +67,7 @@ class TestSparkSQLConverterTypes:
             (
                 Float(bits=16),
                 "FLOAT",
-                "SQLGlotConverter does not support half-precision Float (bits=16).",
+                "SqlglotConverter does not support half-precision Float (bits=16).",
             ),
             (Float(bits=32), "FLOAT", None),
             (Float(bits=64), "DOUBLE", None),
@@ -120,7 +120,7 @@ class TestSparkSQLConverterTypes:
             (
                 Duration(),
                 "STRING",
-                "SQLGlotConverter does not support type: duration(unit=ns)",
+                "SqlglotConverter does not support type: duration(unit=ns)",
             ),
             (Interval(interval_start=IntervalTimeUnit.DAY), "INTERVAL DAY", None),
             (
@@ -210,8 +210,8 @@ class TestSparkSQLConverterTypes:
             version="1.0.0",
             columns=[Column(name="col1", type=yads_type)],
         )
-        converter = SparkSQLConverter(
-            ast_config=SQLGlotConverterConfig(fallback_type=exp.DataType.Type.TEXT)
+        converter = SparkSqlConverter(
+            ast_config=SqlglotConverterConfig(fallback_type=exp.DataType.Type.TEXT)
         )
 
         with warnings.catch_warnings(record=True) as w:
@@ -231,10 +231,10 @@ class TestSparkSQLConverterTypes:
 
 
 # %% Dialect behavior
-class TestSparkSQLConverterDialect:
+class TestSparkSqlConverterDialect:
     def test_convert_full_spec_matches_spark_fixture(self):
         spec = from_yaml_path("tests/fixtures/spec/valid/full_spec.yaml")
-        converter = SparkSQLConverter()
+        converter = SparkSqlConverter()
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -259,7 +259,7 @@ class TestSparkSQLConverterDialect:
 
 
 # %% Validation rules wiring
-class TestSparkSQLConverterValidation:
+class TestSparkSqlConverterValidation:
     @pytest.mark.parametrize(
         "yads_type, original_type_sql",
         [
@@ -281,8 +281,8 @@ class TestSparkSQLConverterValidation:
         """
         spec = from_yaml_string(yaml_string)
 
-        converter = SparkSQLConverter(
-            ast_config=SQLGlotConverterConfig(fallback_type=exp.DataType.Type.TEXT)
+        converter = SparkSqlConverter(
+            ast_config=SqlglotConverterConfig(fallback_type=exp.DataType.Type.TEXT)
         )
         with pytest.warns(
             UserWarning,
@@ -316,7 +316,7 @@ class TestSparkSQLConverterValidation:
         """
         spec = from_yaml_string(yaml_string)
 
-        converter = SparkSQLConverter()
+        converter = SparkSqlConverter()
         with pytest.raises(
             AstValidationError,
             match=f"Data type '{original_type_sql}' is not supported for column 'col1'.",

@@ -7,12 +7,12 @@ from ..base import ExampleBlockRequest, ExampleDefinition
 
 def _sql_converter_example() -> None:
     import yads
-    from yads.converters.sql import SQLConverter, SQLConverterConfig
+    from yads.converters.sql import SqlConverter, SqlConverterConfig
 
     spec = yads.from_yaml("docs/src/specs/submissions.yaml")
 
-    converter = SQLConverter(
-        SQLConverterConfig(
+    converter = SqlConverter(
+        SqlConverterConfig(
             dialect="postgres",
         )
     )
@@ -22,11 +22,11 @@ def _sql_converter_example() -> None:
 
 def _spark_sql_converter_example() -> None:
     import yads
-    from yads.converters.sql import SparkSQLConverter
+    from yads.converters.sql import SparkSqlConverter
 
     spec = yads.from_yaml("docs/src/specs/submissions.yaml")
 
-    ddl = SparkSQLConverter().convert(spec, pretty=True)
+    ddl = SparkSqlConverter().convert(spec, pretty=True)
     print(ddl)
 
 

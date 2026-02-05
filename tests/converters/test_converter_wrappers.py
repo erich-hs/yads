@@ -159,7 +159,7 @@ def test_to_sql_routes_and_passes_overrides(
 
     state: dict[str, object] = {}
 
-    class DummySparkSQLConverter:
+    class DummySparkSqlConverter:
         def __init__(self, *, mode="coerce", ast_config):
             state["mode"] = mode
             state["ast_config"] = ast_config
@@ -169,7 +169,7 @@ def test_to_sql_routes_and_passes_overrides(
             state["sql_options"] = sql_options
             return "spark-sql"
 
-    class DummyDuckdbSQLConverter:
+    class DummyDuckdbSqlConverter:
         def __init__(self, *, mode="coerce", ast_config):
             self.mode = mode
             self.ast_config = ast_config
@@ -178,12 +178,12 @@ def test_to_sql_routes_and_passes_overrides(
             return "duckdb-sql"
 
     monkeypatch.setattr(
-        "yads.converters.sql.sql_converter.SparkSQLConverter",
-        DummySparkSQLConverter,
+        "yads.converters.sql.sql_converter.SparkSqlConverter",
+        DummySparkSqlConverter,
     )
     monkeypatch.setattr(
-        "yads.converters.sql.sql_converter.DuckdbSQLConverter",
-        DummyDuckdbSQLConverter,
+        "yads.converters.sql.sql_converter.DuckdbSqlConverter",
+        DummyDuckdbSqlConverter,
     )
 
     def override(field, converter):  # pragma: no cover - trivial callable

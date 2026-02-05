@@ -1,7 +1,7 @@
 """AST converter from yads `YadsSpec` to sqlglot AST expressions.
 
 This module provides the abstract base for AST converters and the
-SQLGlotConverter implementation. AST converters are responsible for
+SqlglotConverter implementation. AST converters are responsible for
 producing dialect-agnostic AST representations from YadsSpec objects.
 """
 
@@ -62,8 +62,8 @@ class AstConverter(ABC):
 
 @dataclass(frozen=True)
 # %% ---- Configuration --------------------------------------------------------------
-class SQLGlotConverterConfig(BaseConverterConfig[Any]):
-    """Configuration for SQLGlotConverter.
+class SqlglotConverterConfig(BaseConverterConfig[Any]):
+    """Configuration for SqlglotConverter.
 
     Args:
         mode: Conversion mode. One of "raise" or "coerce". Inherited from
@@ -74,7 +74,7 @@ class SQLGlotConverterConfig(BaseConverterConfig[Any]):
             from BaseConverterConfig. Defaults to None.
         column_overrides: Mapping of column name to a callable that returns a
             custom sqlglot `exp.ColumnDef`. Inherited from BaseConverterConfig.
-            Defaults to empty mapping.
+            The callable receives a Field and a SqlglotConverter. Defaults to empty mapping.
         if_not_exists: If True, sets the `exists` property of the `exp.Create`
             node to `True`. Defaults to False.
         or_replace: If True, sets the `replace` property of the `exp.Create`
@@ -92,7 +92,7 @@ class SQLGlotConverterConfig(BaseConverterConfig[Any]):
     ignore_database: bool = False
     fallback_type: exp.DataType.Type | None = None
     column_overrides: Mapping[
-        str, Callable[[yspec.Field, SQLGlotConverter], exp.ColumnDef]
+        str, Callable[[yspec.Field, SqlglotConverter], exp.ColumnDef]
     ] = field(default_factory=lambda: MappingProxyType({}))
 
     def __post_init__(self) -> None:
@@ -116,10 +116,10 @@ class SQLGlotConverterConfig(BaseConverterConfig[Any]):
 
 
 # %% ---- Converter ------------------------------------------------------------------
-class SQLGlotConverter(BaseConverter[Any], AstConverter):
+class SqlglotConverter(BaseConverter[Any], AstConverter):
     """Core converter that transforms yads specs into sqlglot AST expressions.
 
-    SQLGlotConverter is the foundational converter that handles the transformation
+    SqlglotConverter is the foundational converter that handles the transformation
     from yads' high-level canonical spec to sqlglot's Abstract Syntax Tree
     representation. This AST serves as a dialect-agnostic intermediate representation
     that can then be serialized into SQL for specific database systems.
@@ -135,13 +135,13 @@ class SQLGlotConverter(BaseConverter[Any], AstConverter):
     in yads.
     """
 
-    def __init__(self, config: SQLGlotConverterConfig | None = None) -> None:
-        """Initialize the SQLGlotConverter.
+    def __init__(self, config: SqlglotConverterConfig | None = None) -> None:
+        """Initialize the SqlglotConverter.
 
         Args:
-            config: Configuration object. If None, uses default SQLGlotConverterConfig.
+            config: Configuration object. If None, uses default SqlglotConverterConfig.
         """
-        self.config: SQLGlotConverterConfig = config or SQLGlotConverterConfig()
+        self.config: SqlglotConverterConfig = config or SqlglotConverterConfig()
         super().__init__(self.config)
 
     def _format_type_for_display(self, type_obj: Any) -> str:
@@ -282,7 +282,7 @@ class SQLGlotConverter(BaseConverter[Any], AstConverter):
             return self.raise_or_coerce(
                 coerce_type=exp.DataType(this=exp.DataType.Type.FLOAT),
                 error_msg=(
-                    f"SQLGlotConverter does not support half-precision Float (bits={bits})."
+                    f"SqlglotConverter does not support half-precision Float (bits={bits})."
                 ),
             )
         elif bits == 32:
@@ -457,7 +457,7 @@ class SQLGlotConverter(BaseConverter[Any], AstConverter):
     @singledispatchmethod
     def _convert_column_constraint(self, constraint: Any) -> exp.ColumnConstraint | None:
         error_msg = (
-            f"SQLGlotConverter does not support constraint: {type(constraint)}"
+            f"SqlglotConverter does not support constraint: {type(constraint)}"
             f" for '{self._field_context}'."
         )
 
@@ -540,7 +540,7 @@ class SQLGlotConverter(BaseConverter[Any], AstConverter):
     @singledispatchmethod
     def _convert_table_constraint(self, constraint: Any) -> exp.Expression | None:
         error_msg = (
-            f"SQLGlotConverter does not support table constraint: {type(constraint)}"
+            f"SqlglotConverter does not support table constraint: {type(constraint)}"
         )
 
         if self.config.mode == "coerce":

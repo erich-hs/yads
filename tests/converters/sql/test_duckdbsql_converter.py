@@ -3,7 +3,7 @@ import warnings
 from sqlglot import exp
 
 from yads.spec import YadsSpec, Column, Field
-from yads.converters.sql import DuckdbSQLConverter, SQLGlotConverterConfig
+from yads.converters.sql import DuckdbSqlConverter, SqlglotConverterConfig
 from yads.exceptions import AstValidationError
 from yads.loaders import from_yaml_string, from_yaml_path
 from yads.exceptions import ValidationWarning
@@ -38,7 +38,7 @@ from yads.types import (
 
 
 # %% Types
-class TestDuckdbSQLConverterTypes:
+class TestDuckdbSqlConverterTypes:
     @pytest.mark.parametrize(
         "yads_type, expected_sql, expected_warning",
         [
@@ -63,7 +63,7 @@ class TestDuckdbSQLConverterTypes:
             (
                 Float(bits=16),
                 "REAL",
-                "SQLGlotConverter does not support half-precision Float (bits=16).",
+                "SqlglotConverter does not support half-precision Float (bits=16).",
             ),
             (Float(bits=32), "REAL", None),
             (Float(bits=64), "DOUBLE", None),
@@ -136,7 +136,7 @@ class TestDuckdbSQLConverterTypes:
             (
                 Duration(),
                 "TEXT",
-                "SQLGlotConverter does not support type: duration(unit=ns)",
+                "SqlglotConverter does not support type: duration(unit=ns)",
             ),
             (Interval(interval_start=IntervalTimeUnit.DAY), "INTERVAL DAY", None),
             (
@@ -226,8 +226,8 @@ class TestDuckdbSQLConverterTypes:
             version="1.0.0",
             columns=[Column(name="col1", type=yads_type)],
         )
-        converter = DuckdbSQLConverter(
-            ast_config=SQLGlotConverterConfig(fallback_type=exp.DataType.Type.TEXT)
+        converter = DuckdbSqlConverter(
+            ast_config=SqlglotConverterConfig(fallback_type=exp.DataType.Type.TEXT)
         )
 
         with warnings.catch_warnings(record=True) as w:
@@ -247,10 +247,10 @@ class TestDuckdbSQLConverterTypes:
 
 
 # %% Dialect behavior
-class TestDuckdbSQLConverterDialect:
+class TestDuckdbSqlConverterDialect:
     def test_convert_full_spec_matches_duckdb_fixture(self):
         spec = from_yaml_path("tests/fixtures/spec/valid/full_spec.yaml")
-        converter = DuckdbSQLConverter()
+        converter = DuckdbSqlConverter()
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -289,7 +289,7 @@ class TestDuckdbSQLConverterDialect:
 
 
 # %% Validation rules wiring
-class TestDuckdbSQLConverterValidation:
+class TestDuckdbSqlConverterValidation:
     @pytest.mark.parametrize(
         "yads_type, original_type_sql, expected_sql",
         [
@@ -311,7 +311,7 @@ class TestDuckdbSQLConverterValidation:
         """
         spec = from_yaml_string(yaml_string)
 
-        converter = DuckdbSQLConverter()
+        converter = DuckdbSqlConverter()
         with pytest.warns(
             UserWarning,
             match=f"Data type '{original_type_sql}' is not supported for column 'col1'.",
@@ -335,7 +335,7 @@ class TestDuckdbSQLConverterValidation:
         """
         spec = from_yaml_string(yaml_string)
 
-        converter = DuckdbSQLConverter()
+        converter = DuckdbSqlConverter()
         with pytest.warns(
             UserWarning,
             match="Parameterized 'GEOMETRY' is not supported for column 'col1'.",
@@ -368,7 +368,7 @@ class TestDuckdbSQLConverterValidation:
         """
         spec = from_yaml_string(yaml_string)
 
-        converter = DuckdbSQLConverter()
+        converter = DuckdbSqlConverter()
         with pytest.raises(
             AstValidationError,
             match=f"Data type '{original_type_sql}' is not supported for column 'col1'.",
@@ -387,7 +387,7 @@ class TestDuckdbSQLConverterValidation:
         """
         spec = from_yaml_string(yaml_string)
 
-        converter = DuckdbSQLConverter()
+        converter = DuckdbSqlConverter()
         with pytest.raises(
             AstValidationError,
             match="Parameterized 'GEOMETRY' is not supported for column 'col1'.",
