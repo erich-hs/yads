@@ -344,8 +344,8 @@ class SqlServerLoader(SqlLoader):
         query = """
         SELECT
             c.name AS column_name,
-            ic.seed_value AS seed_value,
-            ic.increment_value AS increment_value
+            CAST(ic.seed_value AS BIGINT) AS seed_value,
+            CAST(ic.increment_value AS BIGINT) AS increment_value
         FROM sys.identity_columns ic
         JOIN sys.columns c ON ic.object_id = c.object_id AND ic.column_id = c.column_id
         JOIN sys.tables t ON c.object_id = t.object_id
@@ -813,7 +813,7 @@ class SqlServerLoader(SqlLoader):
         # Function call: func([column], args...)
         func_match = re.match(r"^(\w+)\((.+)\)$", expr)
         if func_match:
-            func_name = func_match.group(1)
+            func_name = func_match.group(1).upper()
             args_str = func_match.group(2)
 
             # Try to extract first argument as column name
