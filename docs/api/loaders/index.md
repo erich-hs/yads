@@ -153,3 +153,11 @@ attributes: string
 ::: yads.loaders.from_polars
     options:
       heading_level: 3
+
+::: yads.loaders.from_postgresql
+    options:
+      heading_level: 3
+
+::: yads.loaders.from_sqlserver
+    options:
+      heading_level: 3

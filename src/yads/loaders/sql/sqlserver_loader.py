@@ -45,17 +45,6 @@ class SqlServerLoader(SqlLoader):
     The loader inspects SQL Server catalog views to extract column metadata,
     constraints, defaults, identity columns, computed columns, and spatial types.
 
-    Unsupported SQL Server features:
-    - UNIQUE constraints (not yet in yads constraint model)
-    - CHECK constraints (not yet in yads constraint model)
-    - Non-literal default expressions (functions, expressions)
-    - XML type
-    - MONEY/SMALLMONEY types
-    - SQL_VARIANT type
-    - HIERARCHYID type
-    - Filestream/Filetable columns
-    - Temporal tables (system versioning)
-
     In "raise" mode, encountering unsupported types raises UnsupportedFeatureError.
     In "coerce" mode, unsupported types are converted to the fallback type with warnings.
     """

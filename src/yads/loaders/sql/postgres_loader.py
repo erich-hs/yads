@@ -46,13 +46,6 @@ class PostgreSqlLoader(SqlLoader):
     constraints, defaults, identity/serial columns, generated columns, array and
     composite types, and PostGIS spatial types.
 
-    Unsupported PostgreSQL features:
-    - UNIQUE constraints (not yet in yads constraint model)
-    - CHECK constraints (not yet in yads constraint model)
-    - Non-literal default expressions (functions, expressions)
-    - Exclusion constraints
-    - Partition information
-
     In "raise" mode, encountering unsupported types raises UnsupportedFeatureError.
     In "coerce" mode, unsupported types are converted to the fallback type with warnings.
     """
